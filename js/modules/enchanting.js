@@ -324,7 +324,7 @@ TH.anvil = (function () {
   const conflictList = (id, ids) => ids.filter((x) => TH.anvil.conflicts(x, id));
 
   function resetPlan(e) {
-    e.existing = {}; e.selected = {}; e.uses = 0; e.loadout = null; e.gearId = null; e.showExisting = false; e.planEditing = null; e.anvilName = '';
+    e.existing = {}; e.selected = {}; e.uses = 0; e.loadout = null; e.gearId = null; e.showExisting = false; e.planEditing = null; e.anvilName = ''; e.saveName = '';
   }
 
   function pickItem(id) {
@@ -509,8 +509,8 @@ TH.anvil = (function () {
       type: 'button', 'aria-pressed': String(on), 'data-focus': 'ec-item-' + it.id, title: tip, disabled: !ok,
       onclick: () => pickItem(it.id),
     },
-    ok ? itemIcon(it.id, s.material, 32) : itemIcon(it.id, it.materials.includes('iron') ? 'iron' : it.defaultMaterial, 32),
-    h('span.ec-item-name', name),
+    h('span.ec-item-ico', ok ? itemIcon(it.id, s.material, 32) : itemIcon(it.id, it.materials.includes('iron') ? 'iron' : it.defaultMaterial, 32)),
+    h('span.ec-item-name', h('span', name)),
     it.since ? h('span.ec-new', it.since) : null);
   }
 
@@ -542,7 +542,7 @@ TH.anvil = (function () {
   /** Reads the anvil's rename cost back into prior-work penalty and anvil uses. */
   function renameResult(raw) {
     const n = parseInt(raw, 10);
-    if (!raw || !isFinite(n)) return { text: 'Enter the cost to see how many times it went through an anvil.' };
+    if (!raw || !isFinite(n)) return { text: 'Enter the cost shown.' };
     if (n < 1) return { text: 'The rename cost is at least 1.' };
     const pen = n - 1;
     const uses = Math.log2(pen + 1);
@@ -563,10 +563,10 @@ TH.anvil = (function () {
     btn.onclick = () => { if (cur && cur.uses != null) set((e) => { e.uses = clamp(cur.uses, 0, MAX_USES + 4); }); };
     update(s.renameCost);
     return h('div.ec-uses-help',
-      h('p.ec-help', 'Every anvil job on an item adds “prior work”: the next job costs 2 × (previous penalty) + 1 more levels, so the penalty is 0, 1, 3, 7, 15, 31 … = 2',
-        h('sup', 'uses'), ' − 1. Enchanted books you found or bought carry their own penalty too.'),
+      h('p.ec-help', 'Prior work: each anvil job makes the next cost more (penalty 0, 1, 3, 7, 15 … = 2',
+        h('sup', 'uses'), ' − 1). Books carry their own.'),
       h('div.ec-rc',
-        h('label.ec-rc-label', { for: 'ec-rename-cost' }, 'Don’t know the uses? Put the item in an anvil, type any name, and read the cost:'),
+        h('label.ec-rc-label', { for: 'ec-rename-cost' }, 'Unsure? Type any name in an anvil and enter the cost it shows:'),
         h('div.ec-rc-row',
           h('input.field', {
             id: 'ec-rename-cost', type: 'number', min: 1, max: 99, inputmode: 'numeric', placeholder: 'rename cost', value: s.renameCost, 'data-focus': 'ec-rename-cost',
@@ -578,22 +578,39 @@ TH.anvil = (function () {
   }
 
   function renderCurrent(s) {
-    const pen = TH.anvil.penalty(s.uses);
     const ex = Object.keys(s.existing);
     const list = applicable(s);
     const open = !!s.showExisting || ex.length > 0;
+    const pen = TH.anvil.penalty(s.uses);
+
+    function exRow(ench) {
+      const cur = s.existing[ench.id] || 0;
+      const blockedBy = conflictList(ench.id, ex.filter((x) => x !== ench.id));
+      const nm = enchName(ench.id);
+      const inputId = 'ec-ex-' + ench.id;
+      const toggle = () => setExisting(ench.id, cur ? 0 : Math.max(ench.maxLevel, 1));
+      return h('div.ec-ench.ec-ex-row' + (cur ? '.on' : ''), {
+        onclick: (ev) => { if (ev.target.closest('.lvl-chips, .check')) return; toggle(); },
+      },
+      h('label.check', h('input', {
+        type: 'checkbox', id: inputId, checked: !!cur, 'data-focus': inputId, 'aria-label': nm + ' is already on the item',
+        onchange: toggle, onclick: (ev) => ev.stopPropagation(),
+      }), h('span')),
+      h('div.ec-ench-text', h('span.ec-ench-name', h('span.ec-ench-title', nm),
+        blockedBy.length && !cur ? h('span.faint.ec-ex-note', 'replaces ' + blockedBy.map(enchName).join(', ')) : null)),
+      h('div.ec-ench-side',
+        h('div.lvl-chips.ec-lv', { role: 'group', 'aria-label': nm + ' level on item', onclick: (ev) => ev.stopPropagation() },
+          h('button.none' + (!cur ? '.on' : ''), { type: 'button', 'aria-pressed': String(!cur), 'aria-label': nm + ': none', 'data-focus': `ec-ex-${ench.id}-0`, onclick: (ev) => { ev.stopPropagation(); setExisting(ench.id, 0); } }, '–'),
+          Array.from({ length: ench.maxLevel }, (_, i) => h('button' + (cur === i + 1 ? '.on' : ''), {
+            type: 'button', 'aria-pressed': String(cur === i + 1), 'aria-label': lvlName(ench.id, i + 1), 'data-focus': `ec-ex-${ench.id}-${i + 1}`,
+            onclick: (ev) => { ev.stopPropagation(); setExisting(ench.id, i + 1); },
+          }, lvl(i + 1))))));
+    }
+
     return h('section.panel.ec-card',
       h('div.ec-card-head', h('span.ec-num', '2'), h('h3', 'Your ', itemName(s.item, s.material), ' right now'),
         h('span.ec-head-icon', itemIcon(s.item, s.material, 28))),
       h('div.ec-current',
-        h('div.ec-uses',
-          h('div.ec-uses-text',
-            h('div.ec-label', 'Times through an anvil'),
-            h('p.ec-help', 'Each anvil job (enchant, repair, rename) counts once. Fresh items are 0.')),
-          h('div.ec-uses-ctl',
-            stepper(s.uses, { min: 0, max: Math.max(MAX_USES, s.uses), label: 'anvil uses', onChange: (v) => set((e) => { e.uses = v; }) }),
-            pen ? h('span.ec-pen' + (pen >= 15 ? '.warn' : ''), '+', h('b', pen), ' lvl each job') : null)),
-        h('div.ec-has' + (open ? '.on' : ''),
         h('label.ec-toggle',
           h('span.switch', h('input', {
             type: 'checkbox', checked: open, 'data-focus': 'ec-has-existing',
@@ -604,25 +621,15 @@ TH.anvil = (function () {
           }), h('span')),
           h('span.ec-toggle-text', 'It already has enchantments'),
           ex.length ? h('span.chip.ec-count', ex.length) : null),
+        open ? h('div.ec-uses',
+          h('div.ec-uses-text',
+            h('div.ec-label', 'Times through an anvil'),
+            h('p.ec-help', 'Enchanting, repairing and renaming each count once.')),
+          h('div.ec-uses-ctl',
+            stepper(s.uses, { min: 0, max: Math.max(MAX_USES, s.uses), label: 'anvil uses', onChange: (v) => set((e) => { e.uses = v; }) }),
+            pen ? h('span.ec-pen' + (pen >= 15 ? '.warn' : ''), '+', h('b', pen), ' lvl each job') : null)) : null,
         open ? renderUsesHelper(s) : null,
-        open
-          ? h('div.ec-existing',
-            list.map((ench) => {
-              const cur = s.existing[ench.id] || 0;
-              const blockedBy = conflictList(ench.id, ex.filter((x) => x !== ench.id));
-              const nm = enchName(ench.id);
-              return h('div.ec-ex-row' + (cur ? '.on' : ''),
-                h('span.ec-ex-name', nm, blockedBy.length && !cur ? h('span.faint', ' · replaces ' + blockedBy.map(enchName).join(', ')) : null),
-                h('div.lvl-chips.ec-lv', { role: 'group', 'aria-label': nm + ' level on item' },
-                  h('button.none' + (!cur ? '.on' : ''), { type: 'button', 'aria-pressed': String(!cur), 'aria-label': nm + ': none', 'data-focus': `ec-ex-${ench.id}-0`, onclick: () => setExisting(ench.id, 0) }, '–'),
-                  Array.from({ length: ench.maxLevel }, (_, i) => h('button' + (cur === i + 1 ? '.on' : ''), {
-                    type: 'button', 'aria-pressed': String(cur === i + 1), 'aria-label': lvlName(ench.id, i + 1), 'data-focus': `ec-ex-${ench.id}-${i + 1}`,
-                    onclick: () => setExisting(ench.id, i + 1),
-                  }, lvl(i + 1)))));
-            }))
-          : null),
-      ),
-    );
+        open ? h('div.ec-ench-list.ec-existing', list.map(exRow)) : null));
   }
 
   /* ---------- 3. enchantments (strips) ---------- */
@@ -683,7 +690,7 @@ TH.anvil = (function () {
       h('div.ec-card-head', h('span.ec-num', '3'), h('h3', 'Choose enchantments'),
         selIds.length ? h('button.btn.ghost.small.ec-clear', { type: 'button', onclick: () => set((e) => { e.selected = {}; e.loadout = null; }) }, 'Clear') : null),
       h('div.ec-loadouts',
-        h('span.ec-label', 'Quick builds'),
+        h('span.ec-label', 'Presets'),
         h('div.ec-lo-list', it.loadouts.map((l) => h('button.btn.small.ec-lo' + (s.loadout === l.id ? '.on' : ''), {
           type: 'button', title: l.desc, 'aria-pressed': String(s.loadout === l.id), 'data-focus': 'ec-lo-' + l.id, onclick: () => applyLoadout(l),
         }, TH.icon('enchanted_book', { size: 14 }), l.name)))),
@@ -708,6 +715,21 @@ TH.anvil = (function () {
     return h('span.ec-node.book', bookIcon(20), h('span', names[0]));
   }
 
+  /** The gear's own name (the name field below the plan, or the loaded saved gear). */
+  function gearLabel(s) {
+    const g = s.gear.find((x) => x.id === s.gearId);
+    return ((g ? g.name : s.saveName) || '').trim();
+  }
+
+  /** Live-update the preview's name line while typing in the gear name field. */
+  function updatePreviewName(side) {
+    const nm = side && side.querySelector('.mct-name');
+    if (!nm) return;
+    const cur = st(), c = gearLabel(cur);
+    nm.textContent = c || itemName(cur.item, cur.material);
+    nm.classList.toggle('custom', !!c);
+  }
+
   /** Minecraft-style item slot + tooltip for the gear as it will look (existing + picked enchants). */
   function renderPreview(s) {
     const fin = Object.assign({}, s.existing);
@@ -717,7 +739,7 @@ TH.anvil = (function () {
     });
     const ids = sortIds(Object.keys(fin));
     const ench = ids.length > 0;
-    const custom = (s.anvilName || '').trim();
+    const custom = gearLabel(s);
     const lines = ids.map((id) => {
       const curse = byId[id] && byId[id].category === 'curse';
       return h('div.mct-line' + (curse ? '.curse' : '') + '', lvlName(id, fin[id]));
@@ -725,18 +747,7 @@ TH.anvil = (function () {
     return h('div.panel.ec-preview', { 'aria-label': 'Preview of the finished item', 'aria-live': 'polite' },
       h('div.ec-pv-row',
         h('div.mct-slot', TH.icon.item(s.item, effMat(s.item, s.material), { size: 32, glint: ench })),
-        h('div.mct', h('div.mct-name' + (ench ? '.ench' : '') + (custom ? '.custom' : ''), custom || itemName(s.item, s.material)), lines)),
-      h('label.ec-pv-rename',
-        h('span', 'Rename in anvil'),
-        h('input.field', {
-          type: 'text', value: s.anvilName, maxlength: 50, placeholder: 'optional custom name', 'data-focus': 'ec-anvil-name', 'aria-label': 'Custom name (anvil rename)',
-          oninput: (ev) => {
-            const v = ev.target.value;
-            set((e) => { e.anvilName = v; }, { silent: true });
-            const nm = ev.target.closest('.ec-preview').querySelector('.mct-name');
-            if (nm) { nm.textContent = v.trim() || itemName(st().item, st().material); nm.classList.toggle('custom', !!v.trim()); }
-          },
-        })));
+        h('div.mct', h('div.mct-name' + (ench ? '.ench' : '') + (custom ? '.custom' : ''), custom || itemName(s.item, s.material)), lines)));
   }
 
   function renderPlan(state, s) {
@@ -751,7 +762,7 @@ TH.anvil = (function () {
         h('div.empty.ec-empty',
           h('div.empty-icon', { 'aria-hidden': 'true' }, bookIcon(40)),
           plan.skipped.length ? 'Your item already has everything you picked.' : 'Pick enchantments and the cheapest anvil order shows up here.'),
-        renderPlanBox(s, plan), renderSaveBox(s, null));
+        renderActions(s, null));
     }
 
     const steps = plan.steps;
@@ -759,20 +770,16 @@ TH.anvil = (function () {
     const usable = plan.ok || plan.partial;
     const save = naive.totalLevels - plan.totalLevels;
 
-    // total, XP-bar style: the bar is this plan's cost against one-book-at-a-time
-    let compare = null, fill = 100;
+    // compact summary: levels · steps · XP, with the saving as small secondary text
+    let compare = null;
     if (plan.ok && !naive.ok) compare = h('span', 'One book at a time hits ', h('b.ec-bad', 'Too Expensive!'), ' — this order doesn’t.');
-    else if (plan.ok && save > 0) {
-      fill = Math.max(4, Math.round((plan.totalLevels / naive.totalLevels) * 100));
-      compare = h('span', 'One book at a time: ', h('b', naive.totalLevels), ' → you save ', h('b.ec-save-n', save), ' level' + (save === 1 ? '' : 's'));
-    } else if (plan.ok && steps.length > 1) compare = h('span', 'Same as one book at a time — order barely matters here.');
+    else if (plan.ok && save > 0) compare = h('span', 'Saves ', h('b.ec-save-n', save), ' level' + (save === 1 ? '' : 's'), ' vs one book at a time (', naive.totalLevels, ').');
 
-    const total = h('div.ec-total' + (usable ? '' : '.bad'),
-      h('div.ec-total-num', h('span.ec-xp', usable ? plan.totalLevels : '—'),
-        h('span.ec-total-label', plan.partial ? 'levels, without the left-out books' : 'levels total')),
-      h('div.bar.ec-xpbar', { role: 'img', 'aria-label': compare ? compare.textContent : 'total levels' }, h('span', { style: { width: (usable ? fill : 0) + '%' } })),
-      compare ? h('div.ec-compare', compare) : null,
-      usable ? h('div.ec-total-sub', steps.length + ' step' + (steps.length === 1 ? '' : 's') + ' · ≈ ' + (plan.totalXP || 0).toLocaleString() + ' XP points') : null);
+    const total = h('div.ec-sum' + (usable ? '' : '.bad'),
+      h('div.ec-sum-main', { title: '≈ ' + (plan.totalXP || 0).toLocaleString() + ' XP points' },
+        h('span.ec-sum-item', h('b', usable ? plan.totalLevels : '—'), ' level' + (plan.totalLevels === 1 ? '' : 's') + (plan.partial ? ' (without left-out books)' : '')),
+        h('span.ec-sum-item', h('b', steps.length), ' anvil step' + (steps.length === 1 ? '' : 's'))),
+      compare ? h('div.ec-compare', compare) : null);
 
     // one short warning, only when it matters
     let alert = null;
@@ -820,74 +827,74 @@ TH.anvil = (function () {
     return h('aside.panel.ec-plan', { 'aria-live': 'polite' },
       head, total, alert,
       stepList ? h('p.ec-slot-hint', 'Left slot first, right slot second.') : null,
-      stepList, finalBox, finWarn, renderPlanBox(s, plan), shopBox, renderSaveBox(s, plan));
+      stepList, finalBox, finWarn, shopBox, renderActions(s, plan));
   }
 
-  /** "Add to plan" / linked-entry status, in the single-item plan panel. */
-  function renderPlanBox(s, plan) {
+  /** Compact action panel: name + save, primary actions row, follow-ups after Done, plan link. */
+  function renderActions(s, plan) {
+    const g = s.gear.find((x) => x.id === s.gearId);
+    const dirtyGear = g && (g.item !== s.item || g.material !== s.material || g.uses !== s.uses || JSON.stringify(sortObj(g.enchants)) !== JSON.stringify(sortObj(s.existing)));
     const en = editingEntry(s);
+    const isDone = !!(en && en.done);
+    const canApply = !!(plan && plan.steps.length > 0);
     const hasBooks = !!(plan && !plan.error && usedBooks(plan).length);
     const open = s.plan.filter((x) => !x.done).length;
-    const toPlan = () => set((e) => { e.mode = 'plan'; });
-    if (en) {
-      const dirty = !sameEntry(en, s);
-      return h('div.ec-planbox.linked',
-        h('div.ec-planbox-text', TH.icon('item/writable_book', { size: 20 }),
-          h('span', dirty ? [h('b', 'Changed'), ' since it went into your plan'] : [h('b', 'In your plan'), en.done ? ' · done' : ''])),
-        h('div.ec-planbox-btns',
-          dirty ? h('button.btn.primary', { type: 'button', disabled: !hasBooks, 'data-focus': 'ec-plan-update', onclick: updateEntry }, 'Update plan item') : null,
-          h('button.btn', { type: 'button', 'data-focus': 'ec-plan-open', onclick: toPlan }, 'Open plan', h('span.ec-planbox-n', open))));
-    }
-    return h('div.ec-planbox',
-      h('button.btn.ec-add', { type: 'button', disabled: !hasBooks, 'data-focus': 'ec-plan-add', onclick: addToPlan },
-        TH.icon('item/writable_book', { size: 18 }), 'Add to plan'),
-      h('span.ec-planbox-hint', hasBooks
-        ? (open ? ['Your plan has ', h('b', open), ' item' + (open === 1 ? '' : 's'), ' — ', h('button.ec-link', { type: 'button', onclick: toPlan }, 'open it')] : 'Plan several items, get one shopping list.')
-        : 'Pick enchantments to add this item to your plan.'));
-  }
+    const entryDirty = en && !sameEntry(en, s);
 
-  function renderSaveBox(s, plan) {
-    const g = s.gear.find((x) => x.id === s.gearId);
-    const canApply = plan && plan.steps.length > 0;
-    const dirty = g && (g.item !== s.item || g.material !== s.material || g.uses !== s.uses || JSON.stringify(sortObj(g.enchants)) !== JSON.stringify(sortObj(s.existing)));
-
-    const linked = editingEntry(s);
-    const isDone = !!(linked && linked.done);
-    const applyBtn = canApply || isDone ? h('button.btn' + (isDone ? '.ec-undone' : '.primary'), {
+    const left = !en
+      ? h('button.btn.ec-add', { type: 'button', disabled: !hasBooks, 'data-focus': 'ec-plan-add', onclick: addToPlan,
+        title: hasBooks ? 'Add this item to your plan' : 'Pick enchantments first' }, TH.icon('item/writable_book', { size: 16 }), 'Add to plan')
+      : entryDirty
+        ? h('button.btn.primary', { type: 'button', disabled: !hasBooks, 'data-focus': 'ec-plan-update', onclick: updateEntry }, 'Update plan item')
+        : h('button.btn.ec-inplan', { type: 'button', disabled: true }, '✓ In your plan');
+    const right = canApply || isDone ? h('button.btn' + (isDone ? '.ec-undone' : '.primary'), {
       type: 'button', 'aria-pressed': String(isDone), 'data-focus': 'ec-done',
       title: isDone ? 'Mark as not done again' : 'Check this item off in your plan' + (g ? ' and update the saved gear' : ''),
       onclick: () => doneFromEditor(plan),
     }, isDone ? '✓ Done — undo' : 'Done') : null;
 
-    return h('div.ec-savebox',
+    return h('div.ec-actions',
       g ? h('div.ec-loaded', h('span', 'Editing ', h('b', g.name)),
-        dirty ? h('button.btn.small', {
+        dirtyGear ? h('button.btn.small', {
           type: 'button', onclick: () => {
             set((e) => { const x = e.gear.find((y) => y.id === e.gearId); if (x) Object.assign(x, { item: e.item, material: e.material, enchants: Object.assign({}, e.existing), uses: e.uses, updated: Date.now() }); });
             toast('Saved');
           },
         }, 'Save changes') : null,
-        h('button.btn.small.ghost', { type: 'button', onclick: () => set((e) => { e.gearId = null; }) }, 'Close')) : null,
-      applyBtn,
-      !g ? h('form.ec-save', {
-        onsubmit: (ev) => {
-          ev.preventDefault();
-          const cur = st();
-          const name = (cur.saveName || '').trim() || itemName(cur.item, cur.material);
-          set((e) => {
-            const id = uid('gear');
-            e.gear.push({ id, name, item: e.item, material: e.material, enchants: Object.assign({}, e.existing), uses: e.uses, updated: Date.now() });
-            e.gearId = id; e.saveName = '';
-          });
-          toast(`Saved “${name}”`);
+        h('button.btn.small.ghost', { type: 'button', onclick: () => set((e) => { e.gearId = null; }) }, 'Close'))
+        : h('form.ec-save', {
+          onsubmit: (ev) => {
+            ev.preventDefault();
+            const cur = st();
+            const name = (cur.saveName || '').trim() || itemName(cur.item, cur.material);
+            set((e) => {
+              const id = uid('gear');
+              e.gear.push({ id, name, item: e.item, material: e.material, enchants: Object.assign({}, e.existing), uses: e.uses, updated: Date.now() });
+              e.gearId = id; e.saveName = '';
+            });
+            toast(`Saved “${name}”`);
+          },
         },
-      },
-      h('input.field', {
-        placeholder: 'Name, e.g. Main sword', value: s.saveName, maxlength: 40, 'data-focus': 'ec-save-name',
-        'aria-label': 'Name for saved gear', oninput: (ev) => set((e) => { e.saveName = ev.target.value; }, { silent: true }),
-      }),
-      h('button.btn', { type: 'submit', title: 'Save the item as it is now (current enchants and anvil uses)' }, 'Save item')) : null,
-    );
+        h('input.field', {
+          placeholder: 'Name, e.g. Main sword', value: s.saveName, maxlength: 40, 'data-focus': 'ec-save-name',
+          'aria-label': 'Name for saved gear',
+          oninput: (ev) => {
+            const v = ev.target.value;
+            set((e) => { e.saveName = v; }, { silent: true });
+            updatePreviewName(ev.target.closest('.ec-side'));
+          },
+        }),
+        h('button.btn', { type: 'submit', title: 'Save the item as it is now (current enchants and anvil uses)' }, 'Save item')),
+      h('div.ec-act-row', left, right),
+      isDone ? h('div.ec-act-row.follow',
+        h('button.btn', { type: 'button', 'data-focus': 'ec-add-another', title: 'Put a fresh copy of this item and enchantments into your plan', onclick: addAnother },
+          TH.icon('item/writable_book', { size: 16 }), 'Add another of the same'),
+        h('button.btn.ghost', { type: 'button', 'data-focus': 'ec-start-over', title: 'Clear the editor and start a new item', onclick: newItem }, 'Start over')) : null,
+      h('div.ec-act-foot',
+        h('span', en ? [h('b', 'In your plan'), en.done ? ' · done' : (entryDirty ? ' · changed' : '')]
+          : (hasBooks ? 'Plan several items, get one shopping list.' : 'Pick enchantments to add this item to your plan.')),
+        s.plan.length || en ? h('button.btn.small', { type: 'button', 'data-focus': 'ec-plan-open', onclick: () => set((e) => { e.mode = 'plan'; }) },
+          'Open plan', h('span.ec-planbox-n', s.plan.length)) : null));
   }
 
   function sortObj(o) { return Object.keys(o).sort().map((k) => [k, o[k]]); }
@@ -923,6 +930,18 @@ TH.anvil = (function () {
       name = itemName(en.item, en.material);
     });
     toast(`Added ${name} to your plan`);
+  }
+
+  /** A fresh, unchecked copy of the editor's item + enchant setup, added to the plan and opened. */
+  function addAnother() {
+    let name = '';
+    set((e) => {
+      const en = Object.assign({ id: uid('plan'), upgrade: false, gearId: null, ticks: [], done: false, added: Date.now() }, snapshot(e));
+      e.plan.push(en);
+      e.planEditing = en.id;
+      name = itemName(en.item, en.material);
+    });
+    toast(`Added another ${name} to your plan`);
   }
 
   function updateEntry() {

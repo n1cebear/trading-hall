@@ -100,13 +100,29 @@
 
 /* ============ base ============ */
 * { box-sizing: border-box; }
-html { -webkit-text-size-adjust: 100%; scrollbar-gutter: stable; scrollbar-width: thin; scrollbar-color: var(--line-2) var(--bg-2); }
-/* themed scrollbar: sunken obsidian track, raised block thumb */
-::-webkit-scrollbar { width: 12px; height: 12px; }
-::-webkit-scrollbar-track { background: var(--bg-2); box-shadow: inset 1px 0 0 var(--line); }
-::-webkit-scrollbar-thumb { background: var(--line-2); border: 2px solid var(--bg-2); border-radius: 4px; }
-::-webkit-scrollbar-thumb:hover { background: var(--muted); }
-::-webkit-scrollbar-corner { background: var(--bg-2); }
+html { -webkit-text-size-adjust: 100%; scrollbar-gutter: stable; }
+/* themed scrollbars: sunken slot track + raised block thumb (bevel like buttons), feature accent on hover/drag.
+   Chrome 121+ ignores ::-webkit-scrollbar when scrollbar-width/-color are set anywhere in the chain,
+   so the standard properties are only used where the pseudo-elements don't exist (Firefox). */
+::-webkit-scrollbar { width: 14px; height: 14px; background: transparent; }
+::-webkit-scrollbar-track {
+  background: var(--slot, var(--bg-2)); border-radius: 3px;
+  box-shadow: inset 2px 2px 0 var(--edge-lo, rgb(0 0 0 / .35)), inset -1px -1px 0 var(--edge-hi);
+  border: 3px solid transparent; background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb {
+  min-height: 40px; min-width: 40px; border-radius: 3px;
+  border: 3px solid transparent; background-clip: padding-box;
+  background-color: color-mix(in srgb, var(--muted) 55%, var(--line-2));
+  box-shadow: inset 2px 2px 0 rgb(255 255 255 / .14), inset -2px -2px 0 rgb(0 0 0 / .35);
+}
+::-webkit-scrollbar-thumb:hover { background-color: color-mix(in srgb, var(--accent) 55%, var(--line-2)); }
+::-webkit-scrollbar-thumb:active { background-color: var(--accent); box-shadow: inset 2px 2px 0 rgb(0 0 0 / .3), inset -2px -2px 0 rgb(255 255 255 / .12); }
+::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
+::-webkit-scrollbar-corner { background: transparent; }
+@supports not selector(::-webkit-scrollbar) {
+  html, * { scrollbar-width: thin; scrollbar-color: var(--line-2) transparent; }
+}
 body {
   margin: 0; overflow-x: clip; color: var(--text); font: 14.5px/1.5 var(--font);
   background: var(--bg);

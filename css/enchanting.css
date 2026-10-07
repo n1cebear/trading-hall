@@ -7,7 +7,7 @@
 
 .ec-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(320px, 390px); gap: var(--ec-gap); align-items: start; }
 .ec-main { display: flex; flex-direction: column; gap: var(--ec-gap); min-width: 0; }
-.ec-side { position: sticky; top: 76px; min-width: 0; max-height: calc(100vh - 92px); overflow-y: auto; border-radius: var(--radius); scrollbar-width: thin; }
+.ec-side { position: sticky; top: 76px; min-width: 0; max-height: calc(100vh - 92px); overflow-y: auto; border-radius: var(--radius); }
 
 .ec-card { padding: 14px 16px 16px; min-width: 0; }
 .ec-card-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; min-width: 0; }
@@ -41,7 +41,7 @@
 .ec-rename .field { flex: 1 1 120px; }
 
 /* ---------- 1. material, then item ---------- */
-.ec-mats { display: flex; flex-wrap: nowrap; gap: 4px; padding: 4px; margin-bottom: 8px; border-radius: 4px; background: var(--slot); box-shadow: var(--slot-shadow); border: 1px solid var(--line); overflow-x: auto; scrollbar-width: thin; }
+.ec-mats { display: flex; flex-wrap: nowrap; gap: 4px; padding: 4px; margin-bottom: 8px; border-radius: 4px; background: var(--slot); box-shadow: var(--slot-shadow); border: 1px solid var(--line); overflow-x: auto; }
 .ec-mat {
   flex: 1 0 40px; display: grid; place-items: center; min-width: 40px; height: 40px; padding: 0; border-radius: 3px;
   border: 1px solid transparent; background: transparent; cursor: pointer; color: var(--muted);

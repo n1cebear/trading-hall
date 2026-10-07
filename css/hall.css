@@ -271,7 +271,7 @@ button.hl-strip-main { cursor: pointer; }
     linear-gradient(var(--grid-line) 1px, transparent 1px) 0 0 / 16px 16px,
     linear-gradient(90deg, var(--grid-line) 1px, transparent 1px) 0 0 / 16px 16px,
     var(--bg-2);
-  scrollbar-width: thin; -webkit-touch-callout: none; user-select: none; -webkit-user-select: none;
+  -webkit-touch-callout: none; user-select: none; -webkit-user-select: none;
 }
 .hl-grid {
   position: relative; display: grid; width: max-content; padding: 10px 12px 12px 6px; gap: var(--gap);
@@ -666,7 +666,7 @@ button.hl-strip-main { cursor: pointer; }
 
 /* ============ wizard sidebar: TOTAL SO FAR ============ */
 .hl-wiz-side {
-  position: sticky; top: 76px; min-width: 0; max-height: calc(100vh - 92px); overflow-y: auto; scrollbar-width: thin;
+  position: sticky; top: 76px; min-width: 0; max-height: calc(100vh - 92px); overflow-y: auto;
   padding: 14px; display: flex; flex-direction: column; gap: 14px;
 }
 .hl-side-sum { display: flex; flex-direction: column; gap: 6px; }

@@ -96,7 +96,7 @@
 
   const STEPS = [
     { t: 'Start', d: 'Pick a starting point', help: 'Start from a preset or from scratch. You can tweak everything in the next steps.' },
-    { t: 'Books', d: 'Librarian enchants', help: 'Tap a book to add it. Need the same book twice (one per armor piece)? Use +1 on its row.' },
+    { t: 'Books', d: 'Librarian enchants', help: 'Tap a book to add it. Need the same book twice (one per armor piece)? Press + on its row to add a copy right below.' },
     { t: 'Trades', d: 'Other villagers', help: 'Add the non-librarian villagers your hall should have, and how many of each.' },
     { t: 'Review', d: 'Check & finish', help: 'Here’s everything you’ll build. Save it as a preset if you like, then open your hall.' },
   ];
@@ -649,20 +649,70 @@
     );
   }
 
+  /* ---- running summary (footer + review share these) ---- */
+
+  /** Selected books as { e, level, n } in catalog order. */
+  function bookSummary(hall) { return bookIds(hall).map((id) => ({ e: ENCH[id], level: hall.books[id].level, n: hall.books[id].stalls.length })); }
+  /** Other villagers by profession as { prof, target } (librarians excluded), biggest first. */
+  function tradeSummary(hall) { return profCounts(hall).filter((r) => r.prof.id !== 'librarian').sort((a, b) => b.target - a.target); }
+  const bookChipText = (b) => enchShort(b.e) + (b.e.maxLevel > 1 ? ' ' + lvlText(b.level) : '');
+
+  let footOpen = false;
+  let justAdded = null;
+
   function wizardFoot(hall, step) {
     const t = totals(hall);
     const last = step === STEPS.length - 1;
-    return h('div.hl-wiz-foot.panel',
-      h('div.hl-sum', { 'aria-live': 'polite' },
-        h('span', TH.icon.prof('librarian', { size: 16 }), h('b', t.stalls), t.stalls === 1 ? 'librarian' : 'librarians'),
-        h('span', TH.icon('villager', { size: 16 }), h('b', t.trades), 'other'),
-        h('span.hl-sum-total', h('b', t.total), 'total')),
+    const books = last ? [] : bookSummary(hall);
+    const profs = step === 2 ? tradeSummary(hall) : [];
+    const narrow = matchMedia('(max-width: 640px)').matches;
+    const cap = (list, k) => (footOpen ? list : list.slice(0, k));
+    const more = (list, k) => (!footOpen && list.length > k ? h('span.hl-fchip.is-more', '+' + (list.length - k)) : null);
+    const bk = narrow ? 2 : 5, pk = narrow ? 2 : 5;
+    const canOpen = books.length > bk || profs.length > pk || (narrow && books.length && profs.length);
+    return h('div.hl-wiz-foot.panel' + (footOpen ? '.is-open' : ''),
+      h('div.hl-foot-sum', { 'aria-live': 'polite' },
+        h('div.hl-foot-top',
+          h('span.hl-foot-title', 'TOTAL SO FAR'),
+          h('span.hl-foot-num', TH.icon.prof('librarian', { size: 16 }), h('b', t.stalls), t.stalls === 1 ? 'librarian' : 'librarians'),
+          step >= 2 || t.trades ? h('span.hl-foot-num', TH.icon('villager', { size: 16 }), h('b', t.trades), t.trades === 1 ? 'other' : 'others') : null,
+          h('span.hl-foot-num.is-total', h('b', t.total), t.total === 1 ? 'villager' : 'villagers'),
+          canOpen ? h('button.hl-foot-more', {
+            type: 'button', 'aria-expanded': String(footOpen), 'data-focus': 'foot-more', title: footOpen ? 'Collapse' : 'Show everything',
+            onclick: () => { footOpen = !footOpen; document.querySelector('.hl-wiz-foot').replaceWith(wizardFoot(TH.store.get().hall, step)); },
+          }, h('i.hl-caret', { 'aria-hidden': 'true' })) : null),
+        books.length || profs.length ? h('div.hl-foot-chips',
+          books.length ? h('span.hl-fgroup', { title: 'Books' }, TH.icon('enchanted_book', { size: 14, glint: true }),
+            cap(books, bk).map((b) => h('span.hl-fchip', bookChipText(b), b.n > 1 ? h('em', '×' + b.n) : null)), more(books, bk)) : null,
+          profs.length ? h('span.hl-fgroup', { title: 'Other villagers' },
+            cap(profs, pk).map((r) => h('span.hl-fchip', { style: '--pc:' + r.prof.color }, TH.icon.prof(r.prof.id, { size: 14 }), profShort(r.prof), h('em', '×' + r.target))), more(profs, pk)) : null) : null),
       h('div.hl-wiz-nav',
         step > 0 ? h('button.btn', { type: 'button', onclick: () => goStep(step - 1) }, '← Back') : null,
         last
           ? h('button.btn.primary', { type: 'button', onclick: finishSetup }, 'Finish → Hall')
           : h('button.btn.primary', { type: 'button', onclick: () => goStep(step + 1) }, 'Next: ' + STEPS[step + 1].t + ' →')),
     );
+  }
+
+  /**
+   * Change the plan without the page-wide re-render: patch only the step body and footer in place,
+   * keep the scroll position and focus, and let the strip named by `added` animate in.
+   */
+  function softUpdate(fn, o) {
+    o = o || {};
+    TH.store.update((s) => fn(s.hall, s), { silent: true });
+    const state = TH.store.get();
+    const body = document.querySelector('.hl-wiz-body');
+    const foot = document.querySelector('.hl-wiz-foot');
+    if (!body || !foot || state.hall.setupDone) { TH.app.render(); return; }
+    const step = clamp(state.hall.step || 0, 0, STEPS.length - 1);
+    const y = window.scrollY;
+    justAdded = o.added || null;
+    try { body.replaceChildren([stepStart, stepBooks, stepTrades, stepReview][step](state)); } finally { justAdded = null; }
+    foot.replaceWith(wizardFoot(state.hall, step));
+    window.scrollTo(0, y);
+    TH.app.refreshBadges();
+    if (o.focus) { const el = document.querySelector('[data-focus="' + o.focus + '"]'); if (el) el.focus({ preventScroll: true }); }
   }
 
   /* ---- step 1: start ---- */
@@ -785,11 +835,24 @@
       }, lvlText(i + 1))));
   }
 
+  /** Duplicate controls shared by book and trade strips: "i/n" index, "+" (insert below), "✕" (only inside a group). */
+  function dupControls(i, n, o) {
+    return [
+      n > 1 ? h('span.hl-idx', { 'aria-label': `${i + 1} of ${n}` }, `${i + 1}/${n}`) : null,
+      h('button.btn.small.ghost.hl-dup', {
+        type: 'button', title: 'Add one more right below', 'data-focus': 'dup-' + o.key, 'aria-label': `Add another ${o.name} below`,
+        disabled: o.max, onclick: o.onAdd,
+      }, plusIco()),
+      o.canDel ? h('button.x-btn.hl-del', {
+        type: 'button', title: 'Remove this one', 'aria-label': `Remove ${o.name} ${i + 1} of ${n}`, 'data-focus': 'rm-' + o.key, onclick: o.onDel,
+      }, '✕') : null,
+    ];
+  }
+
   function bookStrip(hall, e) {
     const book = hall.books[e.id];
     const on = !!book;
     const level = book ? book.level : e.maxLevel;
-    const range = D.bookPrice(e, level);
     const local = enchLocal(e);
     const sub = local !== e.name ? e.name : null;
 
@@ -799,67 +862,71 @@
           h('span.hl-tick', { 'aria-hidden': 'true' }),
           TH.icon('enchanted_book', { size: 24, cls: 'hl-strip-icon' }),
           h('span.hl-strip-text', h('b', local), h('small', TH.icon('item/barrier', { size: 12 }), NOT_LIBRARIAN[e.id] || 'Not sold by librarians'))),
-        h('span.hl-strip-lv'), h('span.hl-strip-cost'), h('span.hl-strip-acts'));
+        h('span.hl-strip-lv'), h('span.hl-strip-acts'));
     }
 
     const n = book ? book.stalls.length : 0;
-    const locked = book ? book.stalls.filter((s) => s.done).length : 0;
-    const expanded = on && n > 1 && !!hall.ui.expanded[e.id];
-    const setBook = (fn, opts) => upd((x) => { const b = x.books[e.id]; if (b) fn(b, x); }, opts);
-
-    const strip = h('div.hl-strip' + (on ? '.is-on' : '') + (expanded ? '.is-open' : ''),
-      h('button.hl-strip-main', {
-        type: 'button', 'aria-pressed': String(on), title: e.desc, 'data-focus': 'strip-' + e.id,
-        'aria-label': `${local}${on ? ', selected' : ''}`,
-        onclick: () => {
-          if (on && book.stalls.some(hasProgress) && !confirm(`Remove ${local}? Its logged progress is remembered if you add it back.`)) return;
-          upd((x) => (on ? removeBook(x, e.id) : addBook(x, e.id)));
-        },
-      },
-        h('span.hl-tick', { 'aria-hidden': 'true' }),
-        TH.icon('enchanted_book', { size: 24, glint: on, cls: 'hl-strip-icon' }),
-        h('span.hl-strip-text',
-          h('b', local),
-          (sub || e.treasure || locked) ? h('small',
-            sub ? h('span', sub) : null,
-            e.treasure ? h('span.hl-treasure', 'treasure') : null,
-            locked ? h('span.hl-ok', `${locked}/${n} locked`) : null) : null)),
-      h('span.hl-strip-lv', e.maxLevel > 1
-        ? levelChips(e, level, (lv) => upd((x) => { (x.books[e.id] || addBook(x, e.id)).level = lv; }))
-        : null),
-      h('span.hl-strip-cost', { title: `Perfect price ${range.min} (max ${range.max})`, 'aria-label': `Perfect price ${range.min} emeralds` }, cost(range.min)),
-      h('span.hl-strip-acts',
-        n > 1 ? h('button.hl-badge', {
-          type: 'button', 'aria-expanded': String(expanded), 'data-focus': 'exp-' + e.id,
-          'aria-label': `${n} ${local} librarians — ${expanded ? 'hide' : 'show'} copies`,
-          onclick: () => upd((x) => { x.ui.expanded[e.id] = !expanded; }),
-        }, '×' + n, h('i.hl-caret', { 'aria-hidden': 'true' })) : null,
-        on ? h('button.btn.small.ghost.hl-dup', {
-          type: 'button', title: 'Add one more librarian with this book', 'data-focus': 'dup-' + e.id,
-          'aria-label': `Add another ${local} librarian`,
-          onclick: () => setBook((b, x) => { b.stalls.push(newStall()); x.ui.expanded[e.id] = true; }),
-        }, plusIco()) : null),
-    );
-
-    const item = h('li.hl-strip-item', strip);
-    if (expanded) {
-      item.append(h('ul.hl-subrows', { 'aria-label': local + ' copies' }, book.stalls.map((st, i) => h('li.hl-subrow' + (st.done ? '.is-done' : ''),
-        h('span.hl-subrow-n', { 'aria-hidden': 'true' }, String(i + 1)),
-        h('input.field.hl-subrow-label', {
+    const multi = n > 1;
+    const lvl = () => (e.maxLevel > 1
+      ? levelChips(e, level, (lv) => upd((x) => { (x.books[e.id] || addBook(x, e.id)).level = lv; }))
+      : null);
+    const textOf = (st, i) => h('span.hl-strip-text',
+      h('b', local),
+      (sub || e.treasure || st) ? h('small',
+        sub ? h('span', sub) : null,
+        e.treasure ? h('span.hl-treasure', 'treasure') : null,
+        st && multi ? h('input.hl-slot', {
           value: st.label, placeholder: 'Label, e.g. ' + (['Helmet', 'Chestplate', 'Leggings', 'Boots'][i] || 'Spare'),
-          'data-focus': 'lbl-' + st.id, 'aria-label': `${local} copy ${i + 1} label`,
-          oninput: (ev) => setBook((b) => { if (b.stalls[i]) b.stalls[i].label = ev.target.value; }, { silent: true }),
-        }),
-        st.done ? h('span.hl-subrow-st', st.price != null ? cost(st.price) : null, h('span.pill.tier-' + D.priceTier(e, level, st.price), 'locked')) : null,
-        h('button.x-btn', {
-          type: 'button', title: 'Remove this copy', 'aria-label': `Remove ${local} copy ${i + 1}`, 'data-focus': 'rm-' + st.id,
-          onclick: () => {
-            if (hasProgress(st) && !confirm('This librarian has logged progress. Remove it anyway?')) return;
-            setBook((b, x) => { b.stalls.splice(i, 1); if (!b.stalls.length) { delete x.books[e.id]; } });
-          },
-        }, '✕')))));
+          'data-focus': 'lbl-' + st.id, 'aria-label': `${local} ${i + 1} label`,
+          oninput: (ev) => upd((x) => { const b = x.books[e.id]; if (b && b.stalls[i]) b.stalls[i].label = ev.target.value; }, { silent: true }),
+        }) : (st && st.label ? h('span', st.label) : null),
+        st && st.done ? h('span.hl-ok', 'locked') : null) : null);
+
+    if (!on) {
+      return h('li.hl-strip-item', h('div.hl-strip',
+        h('button.hl-strip-main', {
+          type: 'button', 'aria-pressed': 'false', title: e.desc, 'data-focus': 'strip-' + e.id, 'aria-label': local,
+          onclick: () => upd((x) => addBook(x, e.id)),
+        },
+          h('span.hl-tick', { 'aria-hidden': 'true' }),
+          TH.icon('enchanted_book', { size: 24, cls: 'hl-strip-icon' }),
+          textOf(null, 0)),
+        h('span.hl-strip-lv', lvl()),
+        h('span.hl-strip-acts')));
     }
-    return item;
+
+    const strips = book.stalls.map((st, i) => {
+      const inner = [
+        h('span.hl-tick', { 'aria-hidden': 'true' }),
+        TH.icon('enchanted_book', { size: 24, glint: true, cls: 'hl-strip-icon' }),
+        textOf(st, i)];
+      const main = multi
+        ? h('div.hl-strip-main', inner)
+        : h('button.hl-strip-main', {
+          type: 'button', 'aria-pressed': 'true', title: e.desc, 'data-focus': 'strip-' + e.id, 'aria-label': `${local}, selected`,
+          onclick: () => {
+            if (book.stalls.some(hasProgress) && !confirm(`Remove ${local}? Its logged progress is remembered if you add it back.`)) return;
+            upd((x) => removeBook(x, e.id));
+          },
+        }, inner);
+      return h('div.hl-strip.is-on' + (justAdded === st.id ? '.is-new' : ''), { 'data-n': i },
+        main,
+        h('span.hl-strip-lv', i === 0 ? lvl() : null),
+        h('span.hl-strip-acts', dupControls(i, n, {
+          key: st.id, name: local, canDel: multi,
+          onAdd: () => {
+            const ns = newStall();
+            softUpdate((x) => { const b = x.books[e.id]; if (b) b.stalls.splice(i + 1, 0, ns); }, { added: ns.id, focus: 'dup-' + ns.id });
+          },
+          onDel: () => {
+            if (hasProgress(st) && !confirm('This librarian has logged progress. Remove it anyway?')) return;
+            const rest = book.stalls.filter((s) => s !== st);
+            softUpdate((x) => { const b = x.books[e.id]; if (b) b.stalls = b.stalls.filter((s) => s.id !== st.id); },
+              { focus: 'dup-' + rest[Math.min(i, rest.length - 1)].id });
+          },
+        })));
+    });
+    return h('li.hl-strip-item.hl-dupgroup' + (multi ? '.is-multi' : ''), { 'data-book': e.id }, strips);
   }
 
   /* ---- step 3: trades (strips) ---- */
@@ -889,11 +956,6 @@
   /** CSS-drawn plus sign for icon buttons. */
   const plusIco = () => h('span.hl-plus-ico', { 'aria-hidden': 'true' });
 
-  /** Count control for trade strips: the same stepper as the grid settings. */
-  function countCtl(n, label, key, onSet, min) {
-    return stepper(n, { min: min == null ? 1 : min, max: 64, label, key, onChange: onSet });
-  }
-
   /** Workstation icon + the item the villager trades (from the catalog), as one slot. */
   function tradeIcons(prof, purpose, size) {
     const c = CATALOG.find((x) => x.prof === prof.id && x.purpose === purpose);
@@ -907,30 +969,53 @@
     const p = PROF[c.prof];
     const on = !!t;
     const key = 'tr-' + CATALOG.indexOf(c);
-    return h('li.hl-strip-item',
-      h('div.hl-strip.hl-strip-trade' + (on ? '.is-on' : ''), { style: '--pc:' + p.color },
-        h('button.hl-strip-main', {
-          type: 'button', 'aria-pressed': String(on), 'data-focus': key, title: c.note,
-          onclick: () => upd((x) => {
-            if (on) x.trades = x.trades.filter((tr) => tr !== findTrade(x, c.prof, c.purpose));
-            else x.trades.push({ id: uid('tr'), prof: c.prof, purpose: c.purpose, target: 1, have: 0, group: c.group, note: c.note });
-          }),
-        },
-          h('span.hl-tick', { 'aria-hidden': 'true' }),
-          tradeIcons(p, c.purpose),
-          h('span.hl-strip-text', h('b', c.purpose),
-            h('small', h('span.hl-prof-dot', profName(p)), h('span', on && t.note ? t.note : c.note)))),
+    const n = on ? t.target : 1;
+    const multi = n > 1;
+    const strips = Array.from({ length: n }, (_, i) => {
+      const inner = [
+        h('span.hl-tick', { 'aria-hidden': 'true' }),
+        tradeIcons(p, c.purpose),
+        h('span.hl-strip-text', h('b', c.purpose),
+          h('small', h('span.hl-prof-dot', profName(p)), h('span', on && t.note ? t.note : c.note)))];
+      const main = on && multi ? h('div.hl-strip-main', inner) : h('button.hl-strip-main', {
+        type: 'button', 'aria-pressed': String(on), 'data-focus': key, title: c.note,
+        onclick: () => upd((x) => {
+          if (on) x.trades = x.trades.filter((tr) => tr !== findTrade(x, c.prof, c.purpose));
+          else x.trades.push({ id: uid('tr'), prof: c.prof, purpose: c.purpose, target: 1, have: 0, group: c.group, note: c.note });
+        }),
+      }, inner);
+      return h('div.hl-strip.hl-strip-trade' + (on ? '.is-on' : '') + (on && justAdded === t.id + ':' + i ? '.is-new' : ''), { style: '--pc:' + p.color },
+        main,
         h('span.hl-strip-acts',
-          on && t.have ? h('span.hl-ok.hl-have', `${Math.min(t.have, t.target)} in hall`) : null,
-          on ? countCtl(t.target, c.purpose + ' villagers', key + '-n', (n) => upd((x) => { const tr = findTrade(x, c.prof, c.purpose); if (tr) tr.target = clamp(n, 1, 64); })) : null)));
+          on && i < t.have ? h('span.hl-ok.hl-have', 'in hall') : null,
+          on ? dupControls(i, n, tradeDupOpts(t, i, key + '-' + i, c.purpose, () => findTrade(TH.store.get().hall, c.prof, c.purpose))) : null));
+    });
+    return h('li.hl-strip-item.hl-dupgroup' + (multi ? '.is-multi' : ''), { 'data-trade': on ? t.id : null }, strips);
+  }
+
+  /** Duplicate options for a trade strip: group size = trade.target. */
+  function tradeDupOpts(t, i, key, name, find, removeAtOne) {
+    const n = t.target;
+    return {
+      key, name, max: n >= 64, canDel: n > 1 || !!removeAtOne,
+      onAdd: () => softUpdate(() => { const tr = find(); if (tr) tr.target = clamp(tr.target + 1, 1, 64); },
+        { added: t.id + ':' + (i + 1), focus: 'dup-' + key.replace(/-\d+$/, '') + '-' + (i + 1) }),
+      onDel: () => {
+        if (n <= 1) { upd((x) => { x.trades = x.trades.filter((y) => y.id !== t.id); }); return; }
+        softUpdate(() => { const tr = find(); if (tr) tr.target = clamp(tr.target - 1, 1, 64); },
+          { focus: 'dup-' + key.replace(/-\d+$/, '') + '-' + Math.min(i, n - 2) });
+      },
+    };
   }
 
   function customTradeStrip(t) {
     const p = profOf(t);
+    const n = t.target;
+    const find = () => TH.store.get().hall.trades.find((y) => y.id === t.id);
     const set = (fn, opts) => upd((x) => { const tr = x.trades.find((y) => y.id === t.id); if (tr) fn(tr, x); }, opts);
-    return h('li.hl-strip-item',
-      h('div.hl-strip.hl-strip-trade.hl-strip-custom.is-on', { style: '--pc:' + p.color },
-        h('div.hl-strip-main.hl-custom-main',
+    const strips = Array.from({ length: n }, (_, i) => h('div.hl-strip.hl-strip-trade.hl-strip-custom.is-on' + (justAdded === t.id + ':' + i ? '.is-new' : ''), { style: '--pc:' + p.color },
+      i === 0
+        ? h('div.hl-strip-main.hl-custom-main',
           TH.icon.prof(p.id, { size: 24, cls: 'hl-strip-icon' }),
           h('select.field', { 'aria-label': 'Profession', 'data-focus': 'cprof-' + t.id, onchange: (e) => set((tr) => { tr.prof = e.target.value; }) },
             D.professions.filter((x) => x.id !== 'librarian').map((x) => h('option', { value: x.id, selected: x.id === t.prof }, profName(x)))),
@@ -938,13 +1023,12 @@
             value: t.purpose, placeholder: 'What is it for? e.g. Glass → Emerald', 'data-focus': 'purpose-' + t.id, 'aria-label': 'Purpose',
             oninput: (e) => set((tr) => { tr.purpose = e.target.value; }, { silent: true }),
             onchange: () => TH.app.render(),
-          })),
-        h('span.hl-strip-acts',
-          countCtl(t.target, 'villagers', 'ct-' + t.id, (n) => set((tr) => { tr.target = clamp(n, 1, 64); })),
-          h('button.x-btn', {
-            type: 'button', title: 'Remove trade', 'aria-label': 'Remove ' + (t.purpose || 'custom trade'),
-            onclick: () => upd((x) => { x.trades = x.trades.filter((y) => y.id !== t.id); }),
-          }, '✕'))));
+          }))
+        : h('div.hl-strip-main.hl-custom-main',
+          TH.icon.prof(p.id, { size: 24, cls: 'hl-strip-icon' }),
+          h('span.hl-strip-text', h('b', t.purpose || 'Custom trade'), h('small', profName(p)))),
+      h('span.hl-strip-acts', dupControls(i, n, tradeDupOpts(t, i, 'ct-' + t.id + '-' + i, t.purpose || 'custom trade', find, true)))));
+    return h('li.hl-strip-item.hl-dupgroup' + (n > 1 ? '.is-multi' : ''), { 'data-trade': t.id }, strips);
   }
 
   function addCustomTrade() {
@@ -959,7 +1043,7 @@
     const hall = state.hall;
     const t = totals(hall);
     const profs = profCounts(hall);
-    const ids = bookIds(hall);
+    const books = bookSummary(hall);
 
     if (!t.total) {
       return h('div.panel.empty', h('div.empty-icon', TH.icon('block/crafting_table_front', { size: 36 })), h('p', 'Your plan is empty.'),
@@ -967,34 +1051,42 @@
           h('button.btn', { type: 'button', onclick: () => goStep(1) }, 'Choose books')));
     }
 
+    const big = (icon, n, label, sub) => h('div.hl-rev-stat',
+      h('span.hl-rev-stat-ico', { 'aria-hidden': 'true' }, icon),
+      h('div', h('b', n), h('span', label), sub ? h('small', sub) : null));
+
+    // trades grouped by profession
+    const byProf = new Map();
+    hall.trades.forEach((tr) => { const k = profOf(tr).id; if (!byProf.has(k)) byProf.set(k, []); byProf.get(k).push(tr); });
+    const tradeCols = [...byProf.entries()].map(([pid, list]) => {
+      const p = PROF[pid];
+      const sum = list.reduce((a, x) => a + x.target, 0);
+      return h('section.hl-rev-prof', { style: '--pc:' + p.color },
+        h('header', TH.icon.prof(p.id, { size: 22 }), h('b', profName(p)), h('span.hl-rev-n', '×' + sum)),
+        h('ul', list.map((tr) => h('li', tradeIcons(p, tr.purpose, 16), h('span.hl-rev-purpose', tr.purpose || profName(p)),
+          tr.target > 1 ? h('span.hl-rev-n', '×' + tr.target) : null))));
+    });
+
     return h('div.hl-review',
-      h('section.panel.hl-review-card.hl-review-profs',
-        h('h3.section-title', 'Villagers & workstations'),
-        h('ul.hl-strips.hl-strips-flat', profs.map((r) => h('li.hl-strip.hl-strip-ro', { style: '--pc:' + r.prof.color },
-          h('span.hl-strip-main',
-            TH.icon.prof(r.prof.id, { size: 22, cls: 'hl-strip-icon' }),
-            h('span.hl-strip-text', h('b', profName(r.prof)), h('small', wsName(r.prof)))),
-          h('span.hl-badge.is-static', '×' + r.target)))),
-        h('p.hl-total-line', h('b', t.total), ' villagers · ', plural(profs.length, 'profession'))),
+      h('section.panel.hl-review-card.hl-rev-head',
+        h('div.hl-rev-stats',
+          big(TH.icon.prof('librarian', { size: 26 }), t.stalls, t.stalls === 1 ? 'librarian' : 'librarians', plural(books.length, 'different book')),
+          big(TH.icon('villager', { size: 26 }), t.trades, 'other villagers', plural(hall.trades.length, 'trade')),
+          big(TH.icon('block/crafting_table_front', { size: 26 }), t.total, 'villagers in total', plural(profs.length, 'profession'))),
+        h('div.hl-rev-ws', h('span.hl-rev-ws-title', 'Workstations needed'),
+          profs.map((r) => h('span.hl-fchip', { style: '--pc:' + r.prof.color, title: wsName(r.prof) },
+            TH.icon.prof(r.prof.id, { size: 16 }), wsName(r.prof), h('em', '×' + r.target))))),
       h('section.panel.hl-review-card',
-        h('div.hl-review-head', h('h3.section-title', 'Books'), h('span.hl-toolbar-info', libBooks(t.stalls, ids.length)), h('span.spacer'), h('button.btn.ghost.small', { type: 'button', onclick: () => goStep(1) }, 'Edit')),
-        ids.length ? h('ul.hl-strips.hl-strips-flat', ids.map((id) => {
-          const b = hall.books[id];
-          const labels = b.stalls.map((s) => s.label).filter(Boolean);
-          return h('li.hl-strip.hl-strip-ro',
-            h('span.hl-strip-main',
-              TH.icon('enchanted_book', { size: 22, cls: 'hl-strip-icon' }),
-              h('span.hl-strip-text', h('b', enchLabel(ENCH[id], b.level)), labels.length ? h('small', labels.join(' · ')) : null)),
-            cost(minPrice(ENCH[id], b.level)),
-            b.stalls.length > 1 ? h('span.hl-badge.is-static', '×' + b.stalls.length) : null);
-        })) : h('p.muted', 'No books selected.')),
+        h('div.hl-review-head', h('h3.section-title', 'Books'), h('span.hl-toolbar-info', libBooks(t.stalls, books.length)), h('span.spacer'),
+          h('button.btn.ghost.small', { type: 'button', onclick: () => goStep(1) }, 'Edit')),
+        books.length ? h('ul.hl-rev-books', books.map((b) => h('li.hl-rev-book',
+          TH.icon('enchanted_book', { size: 22, glint: true }),
+          h('span.hl-rev-name', enchLabel(b.e, b.level)),
+          b.n > 1 ? h('span.hl-rev-n', { title: b.n + ' librarians' }, '×' + b.n) : null))) : h('p.muted', 'No books selected.')),
       h('section.panel.hl-review-card',
-        h('div.hl-review-head', h('h3.section-title', `Trades (${hall.trades.length})`), h('button.btn.ghost.small', { type: 'button', onclick: () => goStep(2) }, 'Edit')),
-        hall.trades.length ? h('ul.hl-strips.hl-strips-flat', hall.trades.map((tr) => h('li.hl-strip.hl-strip-ro', { style: '--pc:' + profOf(tr).color },
-          h('span.hl-strip-main',
-            tradeIcons(profOf(tr), tr.purpose, 22),
-            h('span.hl-strip-text', h('b', tr.purpose || profName(profOf(tr))), h('small', profName(profOf(tr))))),
-          h('span.hl-badge.is-static', '×' + tr.target)))) : h('p.muted', 'No other villagers.')),
+        h('div.hl-review-head', h('h3.section-title', `Other villagers (${t.trades})`), h('span.spacer'),
+          h('button.btn.ghost.small', { type: 'button', onclick: () => goStep(2) }, 'Edit')),
+        tradeCols.length ? h('div.hl-rev-profs', tradeCols) : h('p.muted', 'No other villagers.')),
       h('section.panel.hl-review-card.hl-review-actions',
         h('div', h('b', 'Happy with it?'), h('p.muted', 'Save it as a preset to reuse in another world, or open your hall and arrange it.')),
         h('div.hl-row-btns',

@@ -42,6 +42,17 @@ TH.app = (function () {
     return h('span.nav-badge', String(b));
   }
 
+  /** Re-draw only the nav badges (for modules that patch their view without a full render). */
+  function refreshBadges() {
+    const state = TH.store.get();
+    modules.forEach((m) => {
+      const a = document.querySelector('#nav .nav-item[data-tool="' + m.id + '"]');
+      if (!a) return;
+      const old = a.querySelector('.nav-badge'), next = badgeEl(m.badge && m.badge(state));
+      if (old && next) old.replaceWith(next); else if (old) old.remove(); else if (next) a.querySelector('.nav-name').after(next);
+    });
+  }
+
   /** Background: small pixelated mob faces (cropped from entity skins) rising slowly. */
   function initAtmosphere() {
     const box = document.getElementById('atmosphere');
@@ -223,5 +234,5 @@ TH.app = (function () {
     });
   }
 
-  return { register, start, render, pendingFocus: null, get modules() { return modules; } };
+  return { register, start, render, refreshBadges, pendingFocus: null, get modules() { return modules; } };
 })();

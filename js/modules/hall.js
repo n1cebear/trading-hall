@@ -644,8 +644,9 @@
           h('button', { type: 'button', 'aria-current': i === step ? 'step' : null, 'data-focus': 'step-' + i, onclick: () => goStep(i) },
             h('span.hl-step-dot', { 'aria-hidden': 'true' }, i < step ? '✓' : String(i + 1)),
             h('span.hl-step-text', h('b', s.t), h('small', s.d))))))),
-      h('section.hl-wiz-body', { 'aria-label': STEPS[step].t }, body),
-      wizardFoot(hall, step),
+      h('div.hl-wiz-layout',
+        h('section.hl-wiz-body', { 'aria-label': STEPS[step].t }, body),
+        wizardSide(hall, step)),
     );
   }
 
@@ -657,45 +658,45 @@
   function tradeSummary(hall) { return profCounts(hall).filter((r) => r.prof.id !== 'librarian').sort((a, b) => b.target - a.target); }
   const bookChipText = (b) => enchShort(b.e) + (b.e.maxLevel > 1 ? ' ' + lvlText(b.level) : '');
 
-  let footOpen = false;
   let justAdded = null;
+  /** Last rendered sidebar numbers, so a changed value can play a small "bump" animation. */
+  const sideSeen = {};
 
-  function wizardFoot(hall, step) {
+  /** Sticky right column: running totals, book list, workstations and the step navigation. */
+  function wizardSide(hall, step) {
     const t = totals(hall);
     const last = step === STEPS.length - 1;
-    const books = last ? [] : bookSummary(hall);
-    const profs = step === 2 ? tradeSummary(hall) : [];
-    const narrow = matchMedia('(max-width: 640px)').matches;
-    const cap = (list, k) => (footOpen ? list : list.slice(0, k));
-    const more = (list, k) => (!footOpen && list.length > k ? h('span.hl-fchip.is-more', '+' + (list.length - k)) : null);
-    const bk = narrow ? 2 : 5, pk = narrow ? 2 : 5;
-    const canOpen = books.length > bk || profs.length > pk || (narrow && books.length && profs.length);
-    return h('div.hl-wiz-foot.panel' + (footOpen ? '.is-open' : ''),
-      h('div.hl-foot-sum', { 'aria-live': 'polite' },
-        h('div.hl-foot-top',
-          h('span.hl-foot-title', 'TOTAL SO FAR'),
-          h('span.hl-foot-num', TH.icon.prof('librarian', { size: 16 }), h('b', t.stalls), t.stalls === 1 ? 'librarian' : 'librarians'),
-          step >= 2 || t.trades ? h('span.hl-foot-num', TH.icon('villager', { size: 16 }), h('b', t.trades), t.trades === 1 ? 'other' : 'others') : null,
-          h('span.hl-foot-num.is-total', h('b', t.total), t.total === 1 ? 'villager' : 'villagers'),
-          canOpen ? h('button.hl-foot-more', {
-            type: 'button', 'aria-expanded': String(footOpen), 'data-focus': 'foot-more', title: footOpen ? 'Collapse' : 'Show everything',
-            onclick: () => { footOpen = !footOpen; document.querySelector('.hl-wiz-foot').replaceWith(wizardFoot(TH.store.get().hall, step)); },
-          }, h('i.hl-caret', { 'aria-hidden': 'true' })) : null),
-        books.length || profs.length ? h('div.hl-foot-chips',
-          books.length ? h('span.hl-fgroup', { title: 'Books' }, TH.icon('enchanted_book', { size: 14, glint: true }),
-            cap(books, bk).map((b) => h('span.hl-fchip', bookChipText(b), b.n > 1 ? h('em', '×' + b.n) : null)), more(books, bk)) : null,
-          profs.length ? h('span.hl-fgroup', { title: 'Other villagers' },
-            cap(profs, pk).map((r) => h('span.hl-fchip', { style: '--pc:' + r.prof.color }, TH.icon.prof(r.prof.id, { size: 14 }), profShort(r.prof), h('em', '×' + r.target))), more(profs, pk)) : null) : null),
+    const books = bookSummary(hall);
+    const profs = step >= 2 ? profCounts(hall).slice().sort((a, b) => b.target - a.target) : [];
+    const num = (key, v) => {
+      const bump = sideSeen[key] != null && sideSeen[key] !== v;
+      sideSeen[key] = v;
+      return h('b' + (bump ? '.is-bump' : ''), String(v));
+    };
+    const row = (key, icon, label, v, cls) => h('div.hl-side-row' + (cls || ''), icon, h('span.hl-side-label', label[0], label[1] ? h('span.hl-l-long', label[1]) : null), num(key, v));
+    return h('aside.hl-wiz-side.panel', { 'aria-label': 'Total so far' },
+      h('div.hl-side-sum', { 'aria-live': 'polite' },
+        h('div.hl-side-title', 'TOTAL SO FAR'),
+        row('lib', TH.icon.prof('librarian', { size: 18 }), [t.stalls === 1 ? 'librarian' : 'librarians'], t.stalls, '.is-lib'),
+        row('oth', TH.icon('villager', { size: 18 }), ['other', t.trades === 1 ? ' villager' : ' villagers'], t.trades, '.is-oth'),
+        row('tot', null, [t.total === 1 ? 'villager' : 'villagers', ' in total'], t.total, '.is-total')),
+      books.length ? h('div.hl-side-sec.hl-side-books',
+        h('div.hl-side-h', TH.icon('enchanted_book', { size: 14, glint: true }), 'Books', h('em', String(books.length))),
+        h('div.hl-side-chips', books.map((b) => h('span.hl-fchip', bookChipText(b), b.n > 1 ? h('em', '×' + b.n) : null)))) : null,
+      profs.length ? h('div.hl-side-sec.hl-side-profs',
+        h('div.hl-side-h', 'Workstations'),
+        h('ul.hl-side-ws', profs.map((r) => h('li', { style: '--pc:' + r.prof.color, title: wsName(r.prof) },
+          TH.icon.prof(r.prof.id, { size: 18 }), h('span.hl-ws-name', wsName(r.prof)), h('em', '×' + r.target))))) : null,
       h('div.hl-wiz-nav',
-        step > 0 ? h('button.btn', { type: 'button', onclick: () => goStep(step - 1) }, '← Back') : null,
+        step > 0 ? h('button.btn.hl-nav-back', { type: 'button', onclick: () => goStep(step - 1) }, '← Back') : null,
         last
           ? h('button.btn.primary', { type: 'button', onclick: finishSetup }, 'Finish → Hall')
-          : h('button.btn.primary', { type: 'button', onclick: () => goStep(step + 1) }, 'Next: ' + STEPS[step + 1].t + ' →')),
+          : h('button.btn.primary', { type: 'button', onclick: () => goStep(step + 1) }, h('span.hl-nav-pre', 'Next: '), STEPS[step + 1].t + ' →')),
     );
   }
 
   /**
-   * Change the plan without the page-wide re-render: patch only the step body and footer in place,
+   * Change the plan without the page-wide re-render: patch only the step body and sidebar in place,
    * keep the scroll position and focus, and let the strip named by `added` animate in.
    */
   function softUpdate(fn, o) {
@@ -703,13 +704,15 @@
     TH.store.update((s) => fn(s.hall, s), { silent: true });
     const state = TH.store.get();
     const body = document.querySelector('.hl-wiz-body');
-    const foot = document.querySelector('.hl-wiz-foot');
-    if (!body || !foot || state.hall.setupDone) { TH.app.render(); return; }
+    const side = document.querySelector('.hl-wiz-side');
+    if (!body || !side || state.hall.setupDone) { TH.app.render(); return; }
     const step = clamp(state.hall.step || 0, 0, STEPS.length - 1);
     const y = window.scrollY;
     justAdded = o.added || null;
     try { body.replaceChildren([stepStart, stepBooks, stepTrades, stepReview][step](state)); } finally { justAdded = null; }
-    foot.replaceWith(wizardFoot(state.hall, step));
+    const sy = side.scrollTop, ns = wizardSide(state.hall, step);
+    side.replaceWith(ns);
+    ns.scrollTop = sy;
     window.scrollTo(0, y);
     TH.app.refreshBadges();
     if (o.focus) { const el = document.querySelector('[data-focus="' + o.focus + '"]'); if (el) el.focus({ preventScroll: true }); }
@@ -1088,10 +1091,9 @@
           h('button.btn.ghost.small', { type: 'button', onclick: () => goStep(2) }, 'Edit')),
         tradeCols.length ? h('div.hl-rev-profs', tradeCols) : h('p.muted', 'No other villagers.')),
       h('section.panel.hl-review-card.hl-review-actions',
-        h('div', h('b', 'Happy with it?'), h('p.muted', 'Save it as a preset to reuse in another world, or open your hall and arrange it.')),
+        h('div', h('b', 'Happy with it?'), h('p.muted', 'Save it as a preset to reuse in another world, then press Finish → Hall to open your hall and arrange it.')),
         h('div.hl-row-btns',
-          h('button.btn', { type: 'button', onclick: savePreset }, TH.icon('item/writable_book', { size: 16 }), 'Save as preset'),
-          h('button.btn.primary', { type: 'button', onclick: finishSetup }, 'Finish → Hall'))),
+          h('button.btn', { type: 'button', onclick: savePreset }, TH.icon('item/writable_book', { size: 16 }), 'Save as preset'))),
     );
   }
 

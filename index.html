@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Trading Hall</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/hall.css">
+  <link rel="stylesheet" href="css/enchanting.css">
+  <link rel="icon" href="https://cdn.jsdelivr.net/gh/InventivetalentDev/minecraft-assets@1.21.11/assets/minecraft/textures/item/emerald.png">
+</head>
+<body>
+  <div class="atmosphere" aria-hidden="true"><span style="--x:11;--s:0;--d:26;--w:0">ᔑ</span><span style="--x:48;--s:7;--d:39;--w:11">ʖ</span><span style="--x:85;--s:0;--d:52;--w:22">ᓵ</span><span style="--x:22;--s:7;--d:35;--w:33">↸</span><span style="--x:59;--s:0;--d:48;--w:4">ᒷ</span><span style="--x:96;--s:7;--d:31;--w:15">⎓</span><span style="--x:33;--s:0;--d:44;--w:26">⊣</span><span style="--x:70;--s:7;--d:27;--w:37">⍑</span><span style="--x:7;--s:0;--d:40;--w:8">╎</span><span style="--x:44;--s:7;--d:53;--w:19">⋮</span><span style="--x:81;--s:0;--d:36;--w:30">ꖌ</span><span style="--x:18;--s:7;--d:49;--w:1">ꖎ</span><span style="--x:55;--s:0;--d:32;--w:12">ᒲ</span><span style="--x:92;--s:7;--d:45;--w:23">リ</span><span style="--x:29;--s:0;--d:28;--w:34">𝙹</span><span style="--x:66;--s:7;--d:41;--w:5">ᑑ</span><span style="--x:3;--s:0;--d:54;--w:16">∷</span><span style="--x:40;--s:7;--d:37;--w:27">ᓭ</span><span style="--x:77;--s:0;--d:50;--w:38">ℸ</span><span style="--x:14;--s:7;--d:33;--w:9">⚍</span><span style="--x:51;--s:0;--d:46;--w:20">⍊</span><span style="--x:88;--s:7;--d:29;--w:31">∴</span></div>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-gem" aria-hidden="true"></span>
+        <div>
+          <h1>Trading Hall</h1>
+          <p class="brand-sub">villager &amp; enchant planner</p>
+        </div>
+      </div>
+      <nav class="nav" id="nav" aria-label="Sections"></nav>
+      <div class="topbar-actions">
+        <label class="lang" title="Game names (enchantments, items, villagers) in Minecraft's official translations">
+          <span class="lang-globe" aria-hidden="true"></span>
+          <select id="langSel" class="field" aria-label="Language for game names"></select>
+        </label>
+        <button class="icon-btn" id="themeBtn" title="Toggle light / dark" aria-label="Toggle theme">◐</button>
+        <div class="menu-wrap">
+          <button class="icon-btn" id="menuBtn" title="Backup & data" aria-label="Backup and data menu" aria-haspopup="true" aria-expanded="false">⋯</button>
+          <div class="menu hidden" id="menu" role="menu">
+            <button role="menuitem" data-act="export">⬇ Export backup</button>
+            <button role="menuitem" data-act="import">⬆ Import backup</button>
+            <hr>
+            <button role="menuitem" data-act="reset" class="danger">Reset everything</button>
+          </div>
+          <input type="file" id="importFile" accept="application/json,.json" class="hidden">
+        </div>
+      </div>
+    </header>
+    <main id="view" class="view"></main>
+  </div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <!-- data -->
+  <script src="js/data/enchantments.js"></script>
+  <script src="js/data/villagers.js"></script>
+  <script src="js/data/trims.js"></script>
+  <script src="js/data/presets.js"></script>
+  <script src="js/data/items.js"></script>
+  <!-- core -->
+  <script src="js/core/icons.js"></script>
+  <script src="js/core/i18n.js"></script>
+  <script src="js/data/lang/index.js"></script>
+  <script src="js/core/util.js"></script>
+  <script src="js/core/store.js"></script>
+  <script src="js/core/app.js"></script>
+  <!-- feature modules (each registers itself; order = nav order) -->
+  <script src="js/modules/hall.js"></script>
+  <script src="js/modules/enchanting.js"></script>
+  <script src="js/modules/trims.js"></script>
+  <script>TH.app.start();</script>
+</body>
+</html>

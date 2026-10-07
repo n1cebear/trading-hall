@@ -1104,30 +1104,77 @@
       : [toFind ? plural(toFind, 'librarian') + ' still needed' : null, toGet ? plural(toGet, 'villager') + ' to find' : null].filter(Boolean).join(' · ');
 
     root.append(
-      head('Your hall at a glance. Check offers as you reroll, and arrange villagers like your real build.'),
-      h('section.panel.hl-hero',
-        ring(t.done, t.total, 76),
-        h('div.hl-hero-text',
-          h('h3', `${t.done} / ${t.total} villagers locked in`),
-          h('p', line),
-          preset ? h('span.chip', 'Based on ', preset.name) : null),
-        h('div.hl-hero-actions', editBtn,
-          t.stalls ? h('button.btn.primary', { type: 'button', 'data-focus': 'hero-check', onclick: () => openCheck(null) }, TH.icon('enchanted_book', { size: 18 }), 'Check an offer') : null)),
-      h('div.stats.hl-stats',
-        statTile(TH.icon('enchanted_book', { size: 28, glint: true }), `${t.locked}/${t.stalls}`, 'librarians locked', t.stalls ? t.locked / t.stalls : 0),
-        statTile(TH.icon('villager', { size: 28 }), `${t.have}/${t.trades}`, 'other villagers', t.trades ? t.have / t.trades : 0),
-        statTile(TH.icon('star', { size: 28 }), t.perfect, 'perfect-price books'),
-        statTile(TH.icon('emerald', { size: 28 }), t.over, 'emeralds above perfect' + (t.locked && !t.over ? ' — nice!' : ''))),
-      h('div.hl-dash', renderMap(hall, pl), renderSide(hall, pl)),
+      head('Check offers as you reroll, and arrange villagers like your real build.'),
+      h('div.hl-dash',
+        renderMap(hall, pl, t),
+        h('div.hl-col', renderProgress(t, line, preset, editBtn), renderSide(hall, pl))),
     );
     if (hall.check.open) root.append(renderCheck(hall));
+    fitDash(root);
   }
 
-  function statTile(icon, num, label, frac) {
-    return h('div.panel.stat.hl-stat',
-      h('span.hl-stat-icon', { 'aria-hidden': 'true' }, icon),
-      h('div.hl-stat-body', h('div.stat-num', num), h('div.stat-label', label),
-        frac != null ? h('div.bar', h('span', { style: { width: Math.round(frac * 100) + '%' } })) : null));
+  /** Pixel isometric cube that fills bottom to top (stepped layers, like stacking blocks). */
+  function progressCube(done, total) {
+    const NS = 'http://www.w3.org/2000/svg', STEPS = 8, HH = 40;
+    const el = (n, a) => { const e = document.createElementNS(NS, n); for (const k in a) e.setAttribute(k, a[k]); return e; };
+    const lvl = total ? Math.round((done / total) * STEPS) : 0;
+    const d = HH * (1 - lvl / STEPS);
+    const svg = el('svg', { viewBox: '0 0 64 78', class: 'hl-cube', 'shape-rendering': 'crispEdges', 'aria-hidden': 'true', focusable: 'false' });
+    const poly = (cls, pts) => svg.append(el('polygon', { class: cls, points: pts.map((q) => q.join(',')).join(' ') }));
+    poly('hl-cube-l', [[6, 19], [32, 34], [32, 74], [6, 59]]);
+    poly('hl-cube-r', [[32, 34], [58, 19], [58, 59], [32, 74]]);
+    poly('hl-cube-t', [[32, 4], [58, 19], [32, 34], [6, 19]]);
+    if (lvl > 0) {
+      poly('hl-cube-fl', [[6, 19 + d], [32, 34 + d], [32, 74], [6, 59]]);
+      poly('hl-cube-fr', [[32, 34 + d], [58, 19 + d], [58, 59], [32, 74]]);
+      poly('hl-cube-ft', [[32, 4 + d], [58, 19 + d], [32, 34 + d], [6, 19 + d]]);
+      for (let i = 1; i < lvl; i++) { // layer seams
+        const y = 74 - i * (HH / STEPS);
+        svg.append(el('path', { class: 'hl-cube-seam', d: `M6 ${y - 15}L32 ${y}L58 ${y - 15}` }));
+      }
+    }
+    svg.append(el('path', { class: 'hl-cube-edge', d: 'M32 4L58 19V59L32 74L6 59V19Z M6 19L32 34L58 19 M32 34V74', fill: 'none' }));
+    return svg;
+  }
+
+  /** Right column, top: overall progress as a cube + the two main actions. */
+  function renderProgress(t, line, preset, editBtn) {
+    const pct = t.total ? Math.round((t.done / t.total) * 100) : 0;
+    return h('section.panel.hl-prog' + (t.done === t.total ? '.is-done' : ''), { 'aria-label': 'Overall progress' },
+      h('div.hl-prog-main',
+        progressCube(t.done, t.total),
+        h('div.hl-prog-text',
+          h('div.hl-prog-pct', pct + '%'),
+          h('h3', `${t.done} / ${t.total} locked in`),
+          h('p', line),
+          preset ? h('span.chip', 'Based on ', preset.name) : null)),
+      h('div.hl-prog-actions', editBtn,
+        t.stalls ? h('button.btn.primary', { type: 'button', 'data-focus': 'hero-check', onclick: () => openCheck(null) }, TH.icon('enchanted_book', { size: 18 }), 'Check an offer') : null));
+  }
+
+  /** A compact stat: icon, number, label and a row of tiny block segments (or a flat mini cube). */
+  function miniStat(icon, num, label, frac, cube) {
+    const SEG = 10;
+    const on = frac == null ? 0 : Math.round(frac * SEG);
+    return h('div.hl-mstat',
+      h('span.hl-mstat-ico', { 'aria-hidden': 'true' }, icon),
+      h('div.hl-mstat-body',
+        h('div.hl-mstat-top', h('b', num), h('span', label)),
+        cube ? h('i.hl-mcube' + (cube === 'good' ? '.is-good' : '.is-warn'), { 'aria-hidden': 'true' })
+          : h('div.hl-blocks', { 'aria-hidden': 'true' }, Array.from({ length: SEG }, (_, i) => h('i' + (i < on ? '.on' : ''))))));
+  }
+
+  /** Make the dashboard exactly fill the viewport below its own top edge (canvas fully visible, no page scroll). */
+  function fitDash(root) {
+    const apply = () => {
+      const dash = root.querySelector('.hl-dash');
+      if (!dash) return;
+      const top = dash.getBoundingClientRect().top + (window.scrollY || 0);
+      root.style.setProperty('--hl-dash-top', Math.round(top) + 'px');
+    };
+    apply();
+    requestAnimationFrame(apply);
+    if (!fitDash.bound) { fitDash.bound = true; window.addEventListener('resize', () => { const r = document.querySelector('.module-hall'); if (r) fitDash(r); }); }
   }
 
   /* ---- hall canvas (the layout editor itself lives in hall-canvas.js) ---- */
@@ -1251,7 +1298,9 @@
     return canvas;
   }
 
-  function renderMap(hall, pl) {
+  const HINT = 'Arrange villagers like your real build: drag them anywhere, scroll to pan, Ctrl + scroll to zoom. Press ? for all shortcuts.';
+
+  function renderMap(hall, pl, t) {
     const keys = selKeys(hall, pl);
     const cv = ensureCanvas();
     const pins = pinnedSet(hall);
@@ -1272,8 +1321,13 @@
 
     return h('section.panel.hl-map' + (keys.length ? '.has-selection' : ''), { 'aria-label': 'Hall layout' },
       h('div.hl-map-head',
-        h('div.hl-map-title', h('h3', 'Your hall'), h('span.hl-map-count', plural(pl.list.length, 'villager')), legend),
-        h('p.hl-hint', 'Arrange villagers like your real build: drag them anywhere, scroll to pan, Ctrl + scroll to zoom. Press ? for all shortcuts.')),
+        h('div.hl-map-title', h('h3', 'Your hall'), h('span.hl-map-count', plural(pl.list.length, 'villager')), legend,
+          h('p.hl-hint', { title: HINT }, HINT)),
+        h('div.hl-mstats',
+          miniStat(TH.icon('enchanted_book', { size: 22, glint: true }), `${t.locked}/${t.stalls}`, 'librarians locked', t.stalls ? t.locked / t.stalls : 0),
+          miniStat(TH.icon('villager', { size: 22 }), `${t.have}/${t.trades}`, 'other villagers', t.trades ? t.have / t.trades : 0),
+          miniStat(TH.icon('star', { size: 22 }), t.perfect, 'perfect-price books', t.stalls ? t.perfect / t.stalls : 0),
+          miniStat(TH.icon('emerald', { size: 22 }), t.over, 'emeralds above perfect', null, t.over ? 'warn' : 'good'))),
       cv.el);
   }
 

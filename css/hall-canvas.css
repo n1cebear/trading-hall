@@ -2,10 +2,10 @@
  * Infinite, zoomable layout editor. Everything is prefixed hc- and uses tokens only, so it follows the
  * feature accent (emerald) and both themes. World px: tile 72, grid unit 80 (see the JS header).
  */
-.hc { position: relative; min-width: 0; }
+.hc { position: relative; min-width: 0; display: flex; flex-direction: column; }
 
 .hc-viewport {
-  position: relative; height: clamp(420px, 68vh, 820px); overflow: hidden; isolation: isolate;
+  position: relative; flex: 1 1 auto; min-height: 420px; overflow: hidden; isolation: isolate;
   border-radius: var(--radius); border: 1px solid var(--line); background: var(--bg-2);
   box-shadow: inset 0 2px 8px -2px rgb(0 0 0 / .22);
   touch-action: none; overscroll-behavior: contain; cursor: default;

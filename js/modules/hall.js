@@ -14,7 +14,7 @@
  *   trades:  [{ id, prof, purpose, target, have, group, note }],
  *   layout:  { v: 2, cols, rows, cells: { 'x,y': villagerKey } },   // free grid, user-arranged
  *   check:   { open, ench, level, price, query },   // the "Check an offer" dialog
- *   ui:      { selected, nextSort: type|name|pos|price, search, expanded: { [enchId]: true } },
+ *   ui:      { selected, multi: [keys] (2+ selected), nextSort: type|name|pos|price, search, expanded: { [enchId]: true } },
  *   activePreset,
  * }
  * villagerKey = 'b:' + stallId  |  't:' + tradeId + ':' + n   (n = 0 .. target-1)
@@ -38,6 +38,7 @@
   const TIER_LABEL = { perfect: 'Perfect', great: 'Great', good: 'Okay', meh: 'Pricey', unknown: 'No price' };
   const STATUS_LABEL = { needed: 'needed', locked: 'locked in', perfect: 'perfect price' };
   const TITLE = 'Trading Hall Planner';
+  const LOCK_WHY = 'Locked = you traded with it once; Minecraft fixes its offers, so no more rerolling.';
   const GRID_DEFAULT = { cols: 12, rows: 6 };
   const GRID_MAX = 40;
 
@@ -106,7 +107,7 @@
     books: {}, archive: {}, trades: [],
     layout: { v: 2, cols: GRID_DEFAULT.cols, rows: GRID_DEFAULT.rows, cells: {} },
     check: { open: false, ench: '', level: null, price: null, query: '' },
-    ui: { selected: null, nextSort: 'type', search: '', expanded: {} },
+    ui: { selected: null, multi: [], nextSort: 'type', search: '', expanded: {} },
     activePreset: null,
   };
 
@@ -324,7 +325,7 @@
   /** Reset: forget the arrangement and lay everyone out again, sorted by type. */
   function resetGrid() {
     if (Object.keys(placement(get()).cells).length && !confirm('Reset the grid? Every villager goes back to its sorted-by-type position.')) return;
-    upd((hall) => { hall.layout.cells = {}; hall.ui.selected = null; fillGrid(hall); });
+    upd((hall) => { hall.layout.cells = {}; setSel(hall.ui, []); fillGrid(hall); });
     toast('Grid reset — villagers sorted by type');
   }
 
@@ -552,7 +553,7 @@
   /** Scroll a tile into view and pulse it briefly (after adding an offer to the hall). */
   function flashTile(key) {
     setTimeout(() => {
-      const el = Array.from(document.querySelectorAll('.hl-slot')).find((n) => n.dataset.key === key);
+      const el = Array.from(document.querySelectorAll('.hl-cell')).find((n) => n.dataset.key === key);
       if (!el) return;
       el.scrollIntoView({ block: 'center', inline: 'center', behavior: reduced() ? 'auto' : 'smooth' });
       el.classList.remove('is-pulse');
@@ -1107,7 +1108,7 @@
     const toGet = t.trades - t.have;
     const preset = hall.activePreset && (D.presets.concat(state.customPresets).find((p) => p.id === hall.activePreset));
 
-    const editBtn = h('button.btn', { type: 'button', onclick: () => upd((x) => { x.setupDone = false; x.editing = true; x.step = 0; x.ui.selected = null; }) }, '✎ Edit setup');
+    const editBtn = h('button.btn', { type: 'button', onclick: () => upd((x) => { x.setupDone = false; x.editing = true; x.step = 0; setSel(x.ui, []); }) }, '✎ Edit setup');
     const head = (sub) => h('div.page-head.hl-page-head', h('div', h('h2', TITLE), h('p', sub)));
 
     if (!t.total) {
@@ -1155,9 +1156,10 @@
 
   // keyboard focus inside the grid (roving tabindex; not persisted)
   const gridFocus = { x: 0, y: 0 };
-  let dragKey = null;
-  // which villager the details panel showed last render (slide-in only when it changes)
+  // what the side panel showed last render (slide-in only when it changes)
   let lastDetail = null;
+  // selection anchor for Shift+click ranges
+  let anchorKey = null;
 
   function villagerName(v) {
     if (v.kind === 'book') return enchLabel(v.ench, v.book.level) + (v.stall.label ? ' (' + v.stall.label + ')' : '');
@@ -1170,21 +1172,28 @@
       : TH.icon.prof(v.prof.id, { size });
   }
 
-  /** Tile contents. */
+  /** Tile contents: marks (star / padlock / label tag), level or #n, icon, short name, price. */
   function tileBody(v) {
     const name = v.kind === 'book' ? enchShort(v.ench) : profShort(v.prof);
     const corner = v.kind === 'book'
       ? (v.ench.maxLevel > 1 ? lvlText(v.book.level) : null)
-      : (v.trade.target > 1 ? String(v.n + 1) : null);
+      : (v.trade.target > 1 ? '#' + (v.n + 1) : null);
     const tag = v.kind === 'book' && v.stall.label ? v.stall.label.charAt(0).toUpperCase() : null;
     const st = status(v);
     const mark = st === 'perfect' ? h('span.hl-tile-star', { title: 'Perfect price' }, '★')
       : st === 'locked' ? h('span.hl-tile-lock', { title: 'Locked in' }) : null;
+    let price = null;
+    if (v.kind === 'book') {
+      price = v.stall.done && v.stall.price != null
+        ? h('span.hl-tile-price.is-paid', { title: 'You paid ' + v.stall.price }, v.stall.price)
+        : h('span.hl-tile-price', { title: 'Perfect price' }, minPrice(v.ench, v.book.level));
+    }
     return [
-      villagerIcon(v, 26),
-      h('span.hl-tile-name', name),
-      corner ? h('span.hl-tile-lv', corner) : null,
       mark || tag ? h('span.hl-tile-marks', mark, tag ? h('span.hl-tile-tag', { title: v.stall.label }, tag) : null) : null,
+      corner ? h('span.hl-tile-lv', corner) : null,
+      h('span.hl-tile-ico', villagerIcon(v, 28)),
+      h('span.hl-tile-name', name),
+      price,
     ];
   }
 
@@ -1195,67 +1204,311 @@
     return `${who}: ${villagerName(v)} — ${STATUS_LABEL[st]}${extra} (${posLabel(pos)})`;
   }
 
-  function dragProps(key) {
-    return {
-      draggable: 'true',
-      ondragstart: (e) => {
-        dragKey = key;
-        e.dataTransfer.setData('text/plain', key);
-        e.dataTransfer.effectAllowed = 'move';
-        e.currentTarget.classList.add('is-dragging');
-        const m = document.querySelector('.hl-map');
-        if (m) m.classList.add('is-dragging-any');
-      },
-      ondragend: (e) => {
-        dragKey = null;
-        e.currentTarget.classList.remove('is-dragging');
-        const m = document.querySelector('.hl-map');
-        if (m) m.classList.remove('is-dragging-any');
-      },
-    };
-  }
-  function dropProps(onDrop) {
-    return {
-      ondragover: (e) => { if (!dragKey) return; e.preventDefault(); e.dataTransfer.dropEffect = 'move'; e.currentTarget.classList.add('is-over'); },
-      ondragleave: (e) => e.currentTarget.classList.remove('is-over'),
-      ondrop: (e) => {
-        e.preventDefault();
-        e.currentTarget.classList.remove('is-over');
-        const key = e.dataTransfer.getData('text/plain') || dragKey;
-        dragKey = null;
-        if (key) onDrop(key);
-      },
-    };
-  }
+  /* ---- selection (single: ui.selected, several: ui.multi) ---- */
 
-  /** The selected villager's key, if it still exists. */
-  function selectedKey(hall, pl) {
+  /** Selected villager keys that still exist (1 key = details panel, 2+ = overview panel). */
+  function selKeys(hall, pl) {
+    const m = (hall.ui.multi || []).filter((k) => pl.byKey[k]);
+    if (m.length >= 2) return m;
     const k = hall.ui.selected;
-    return k && pl.byKey[k] ? k : null;
+    return k && pl.byKey[k] ? [k] : [];
+  }
+  function setSel(ui, keys) {
+    keys = Array.from(new Set(keys));
+    ui.selected = keys.length === 1 ? keys[0] : null;
+    ui.multi = keys.length >= 2 ? keys : [];
+  }
+  const selCount = (hall) => (hall.ui.multi && hall.ui.multi.length >= 2 ? hall.ui.multi.length : hall.ui.selected ? 1 : 0);
+
+  /** Occupied cells between two villagers in reading order (row-major), inclusive. */
+  function rangeKeys(pl, a, b) {
+    const ra = posRank(pl.posOf[a]), rb = posRank(pl.posOf[b]);
+    const lo = Math.min(ra, rb), hi = Math.max(ra, rb);
+    return Object.keys(pl.cells).filter((p) => { const r = posRank(p); return r >= lo && r <= hi; })
+      .sort((p, q) => posRank(p) - posRank(q)).map((p) => pl.cells[p]);
   }
 
-  /**
-   * Tap on a grid slot. Nothing selected: select the tile (details open on the side).
-   * Something selected: move it here (swapping with whoever stands here), or deselect on a second tap.
-   */
-  function onCellActivate(pos, key) {
+  /** Click / tap / Enter on a tile, with modifiers: Ctrl/Cmd toggles, Shift selects a range. */
+  function clickTile(key, m) {
     const hall = get();
     const pl = placement(hall);
-    const sel = selectedKey(hall, pl);
-    if (sel) {
-      if (sel === key) { upd((x) => { x.ui.selected = null; }); return; }
-      const name = villagerName(pl.byKey[sel]);
-      const other = key ? villagerName(pl.byKey[key]) : null;
-      upd((x) => { moveTo(x, sel, pos); x.ui.selected = null; });
-      toast(other ? `Swapped ${name} with ${other}` : `Moved ${name} to ${posLabel(pos)}`);
-      return;
+    const cur = selKeys(hall, pl);
+    let next;
+    if (m.shift) {
+      if (!anchorKey || !pl.posOf[anchorKey]) anchorKey = cur[cur.length - 1] || key;
+      const r = rangeKeys(pl, anchorKey, key);
+      next = m.ctrl ? cur.concat(r) : r;
+    } else if (m.ctrl) {
+      next = cur.includes(key) ? cur.filter((k) => k !== key) : cur.concat(key);
+      anchorKey = key;
+    } else {
+      next = cur.length === 1 && cur[0] === key ? [] : [key];
+      anchorKey = key;
     }
-    if (key) upd((x) => { x.ui.selected = key; });
+    if (pl.posOf[key]) TH.app.pendingFocus = 'cell-' + pl.posOf[key];
+    upd((x) => setSel(x.ui, next));
   }
 
+  function clearSelection() {
+    const hall = get();
+    if (selCount(hall)) upd((x) => setSel(x.ui, []));
+  }
+
+  /* ---- moving ---- */
+
+  /** Where a group of villagers would land if shifted by (dx, dy). ok = fits (in bounds, only free cells or their own). */
+  function groupTargets(pl, keys, dx, dy) {
+    const set = new Set(keys);
+    const out = { ok: true, moves: [], cells: [] };
+    for (const k of keys) {
+      const from = pl.posOf[k];
+      if (!from) continue;
+      const p = parsePos(from);
+      const nx = p.x + dx, ny = p.y + dy;
+      if (nx < 0 || ny < 0 || nx >= pl.cols || ny >= pl.rows) { out.ok = false; continue; }
+      const to = posKey(nx, ny);
+      const occ = pl.cells[to];
+      if (occ && !set.has(occ)) out.ok = false;
+      out.moves.push([k, from, to]); out.cells.push(to);
+    }
+    return out;
+  }
+  function moveGroup(hall, keys, dx, dy) {
+    const pl = cleanCells(hall);
+    const t = groupTargets(pl, keys, dx, dy);
+    if (!t.ok) return false;
+    const cells = hall.layout.cells;
+    t.moves.forEach(([, from]) => { delete cells[from]; });
+    t.moves.forEach(([k, , to]) => { cells[to] = k; });
+    return true;
+  }
+
+  /** Keyboard "move here": Enter on a free slot while exactly one villager is selected. */
+  function moveSelectedTo(pos) {
+    const hall = get();
+    const pl = placement(hall);
+    const sel = selKeys(hall, pl);
+    if (sel.length !== 1) return;
+    const name = villagerName(pl.byKey[sel[0]]);
+    TH.app.pendingFocus = 'cell-' + pos;
+    upd((x) => { moveTo(x, sel[0], pos); });
+    toast(`Moved ${name} to ${posLabel(pos)}`);
+  }
+
+  /* ---- pointer gestures: drag to move, lasso to select ---- */
+
+  const HOLD_MS = 350, SLOP = 5, EDGE = 44;
+  let G = null;            // the active gesture
+  let gestureEnd = 0;      // when the last gesture ended (swallows the click that follows it)
+
+  function onGridPointerDown(ev) {
+    if (G || !ev.isPrimary || (ev.pointerType === 'mouse' && ev.button !== 0)) return;
+    if (ev.target.closest && ev.target.closest('.hl-grid-size, input, select')) return;
+    const scroll = ev.currentTarget;
+    const grid = scroll.querySelector('.hl-grid');
+    const cell = ev.target.closest('.hl-cell');
+    const tile = cell && cell.classList.contains('hl-tile') ? cell : null;
+    const touch = ev.pointerType !== 'mouse';
+    G = {
+      id: ev.pointerId, x0: ev.clientX, y0: ev.clientY, x: ev.clientX, y: ev.clientY, touch, scroll, grid, tile, cell,
+      key: tile ? tile.dataset.key : null, mode: 'pending', held: false,
+      ctrl: ev.ctrlKey || ev.metaKey, shift: ev.shiftKey,
+    };
+    if (!touch) { ev.preventDefault(); if (cell) cell.focus({ preventScroll: true }); }
+    G.timer = setTimeout(() => {
+      if (!G || G.mode !== 'pending') return;
+      G.held = true;
+      if (tile) tile.classList.add('is-hold');
+      if (touch) { // finger: hold a tile = pick it up, hold empty floor = lasso
+        if (navigator.vibrate) try { navigator.vibrate(12); } catch (e) { /* ignore */ }
+        if (tile) startDrag(); else startLasso();
+      }
+    }, HOLD_MS);
+    window.addEventListener('pointermove', onGesturePointerMove);
+    window.addEventListener('pointerup', onGesturePointerUp);
+    window.addEventListener('pointercancel', onGesturePointerCancel);
+  }
+
+  function onGesturePointerMove(ev) {
+    if (!G || ev.pointerId !== G.id) return;
+    G.x = ev.clientX; G.y = ev.clientY;
+    if (G.mode === 'pending') {
+      if (Math.hypot(G.x - G.x0, G.y - G.y0) < SLOP) return;
+      if (G.touch) { if (!G.held) endGesture(false); return; } // a swipe before the hold = scrolling the page
+      if (G.tile && !G.held) startDrag(); else startLasso();
+    }
+    if (G && G.mode !== 'pending') refreshGesture();
+  }
+  function onGesturePointerCancel(ev) { if (G && ev.pointerId === G.id) endGesture(false); }
+  function onGesturePointerUp(ev) {
+    if (!G || ev.pointerId !== G.id) return;
+    G.x = ev.clientX; G.y = ev.clientY;
+    const g = G;
+    if (g.mode === 'pending') {
+      endGesture(false);
+      if (g.tile) clickTile(g.key, g);
+      else if (!g.ctrl) clearSelection();
+    } else if (g.mode === 'drag') { endGesture(true); } else { endGesture(true); }
+  }
+
+  function startDrag() {
+    const g = G;
+    const hall = get(), pl = placement(hall);
+    const sel = selKeys(hall, pl);
+    g.mode = 'drag';
+    g.group = sel.length >= 2 && sel.includes(g.key);
+    g.keys = g.group ? sel : [g.key];
+    g.target = null;
+    const r = g.tile.getBoundingClientRect();
+    g.grab = { x: g.x0 - r.left, y: g.y0 - r.top };
+    const ghost = g.tile.cloneNode(true);
+    ghost.className = 'hl-ghost ' + Array.from(g.tile.classList).filter((c) => /^is-(needed|locked|perfect)$/.test(c)).join(' ');
+    ghost.removeAttribute('title'); ghost.removeAttribute('aria-label'); ghost.removeAttribute('data-focus'); ghost.tabIndex = -1;
+    ghost.style.width = r.width + 'px'; ghost.style.height = r.height + 'px';
+    if (g.group) ghost.append(h('span.hl-ghost-n', String(g.keys.length)));
+    document.body.append(ghost);
+    g.ghost = ghost;
+    const map = g.grid.closest('.hl-map'); if (map) map.classList.add('is-dragging-any');
+    g.keys.forEach((k) => { const el = g.grid.querySelector(`[data-key="${CSS.escape(k)}"]`); if (el) el.classList.add('is-dragging'); });
+    g.pl = pl;
+    g.raf = requestAnimationFrame(autoscrollTick);
+    refreshGesture();
+  }
+
+  function startLasso() {
+    const g = G;
+    g.mode = 'lasso';
+    const gr = g.grid.getBoundingClientRect();
+    g.ox = g.x0 - gr.left; g.oy = g.y0 - gr.top;
+    g.tiles = Array.from(g.grid.querySelectorAll('.hl-tile')).map((el) => ({
+      el, key: el.dataset.key, l: el.offsetLeft, t: el.offsetTop, r: el.offsetLeft + el.offsetWidth, b: el.offsetTop + el.offsetHeight,
+    }));
+    const hall = get();
+    g.base = g.ctrl ? selKeys(hall, placement(hall)) : [];
+    g.box = h('div.hl-lasso');
+    g.grid.append(g.box);
+    g.hits = [];
+    g.grid.classList.add('is-lassoing');
+    g.raf = requestAnimationFrame(autoscrollTick);
+    refreshGesture();
+  }
+
+  /** Re-evaluate the gesture for the current pointer position (also after autoscroll). */
+  function refreshGesture() {
+    const g = G;
+    if (!g) return;
+    if (g.mode === 'drag') {
+      g.ghost.style.transform = `translate(${g.x - g.grab.x}px, ${g.y - g.grab.y}px)`;
+      const under = document.elementFromPoint(g.x, g.y);
+      const cell = under && under.closest && under.closest('.hl-cell');
+      const pos = cell && g.grid.contains(cell) ? cell.dataset.pos : null;
+      g.grid.querySelectorAll('.is-drop, .is-drop-bad').forEach((el) => el.classList.remove('is-drop', 'is-drop-bad'));
+      g.target = null; g.fits = false;
+      if (!pos) return;
+      let cells = [pos], ok = true;
+      if (g.group) {
+        const a = parsePos(g.pl.posOf[g.key]), b = parsePos(pos);
+        const t = groupTargets(g.pl, g.keys, b.x - a.x, b.y - a.y);
+        cells = t.cells; ok = t.ok;
+      }
+      g.target = pos; g.fits = ok;
+      cells.forEach((p) => { const el = g.grid.querySelector(`[data-pos="${p}"]`); if (el) el.classList.add(ok ? 'is-drop' : 'is-drop-bad'); });
+      if (!ok && !cells.includes(pos)) { const el = cell; if (el) el.classList.add('is-drop-bad'); }
+    } else if (g.mode === 'lasso') {
+      const gr = g.grid.getBoundingClientRect();
+      const W = g.grid.offsetWidth, H = g.grid.offsetHeight;
+      const cx = clamp(g.x - gr.left, 0, W), cy = clamp(g.y - gr.top, 0, H);
+      const l = Math.min(g.ox, cx), t = Math.min(g.oy, cy), r = Math.max(g.ox, cx), b = Math.max(g.oy, cy);
+      Object.assign(g.box.style, { left: l + 'px', top: t + 'px', width: r - l + 'px', height: b - t + 'px' });
+      g.hits = [];
+      for (const it of g.tiles) {
+        const hit = it.l < r && it.r > l && it.t < b && it.b > t;
+        it.el.classList.toggle('is-lasso', hit);
+        if (hit) g.hits.push(it.key);
+      }
+    }
+  }
+
+  /** While dragging near an edge, scroll the grid sideways / the page vertically. */
+  function autoscrollTick() {
+    const g = G;
+    if (!g || g.mode === 'pending') return;
+    const r = g.scroll.getBoundingClientRect();
+    const top = (parseInt(getComputedStyle(document.documentElement).getPropertyValue('--hl-top'), 10) || 64) + 16;
+    const bottom = window.innerHeight - EDGE - (parseInt(getComputedStyle(document.documentElement).getPropertyValue('--bottom-bar'), 10) || 0);
+    let moved = false;
+    const sx = g.scroll.scrollLeft;
+    if (g.x < r.left + EDGE) g.scroll.scrollLeft -= Math.ceil((r.left + EDGE - g.x) / 3);
+    else if (g.x > r.right - EDGE) g.scroll.scrollLeft += Math.ceil((g.x - (r.right - EDGE)) / 3);
+    if (g.scroll.scrollLeft !== sx) moved = true;
+    const sy = window.scrollY;
+    if (g.y < top) window.scrollBy(0, -Math.ceil((top - g.y) / 3));
+    else if (g.y > bottom) window.scrollBy(0, Math.ceil((g.y - bottom) / 3));
+    if (window.scrollY !== sy) moved = true;
+    if (moved) refreshGesture();
+    g.raf = requestAnimationFrame(autoscrollTick);
+  }
+
+  /** Finish the gesture: commit (drop / apply the lasso) or cancel. */
+  function endGesture(commit) {
+    const g = G;
+    if (!g) return;
+    G = null;
+    gestureEnd = performance.now();
+    clearTimeout(g.timer);
+    if (g.raf) cancelAnimationFrame(g.raf);
+    window.removeEventListener('pointermove', onGesturePointerMove);
+    window.removeEventListener('pointerup', onGesturePointerUp);
+    window.removeEventListener('pointercancel', onGesturePointerCancel);
+    if (g.tile) g.tile.classList.remove('is-hold');
+    if (g.mode === 'drag') {
+      if (g.ghost) g.ghost.remove();
+      const map = g.grid.closest('.hl-map'); if (map) map.classList.remove('is-dragging-any');
+      g.grid.querySelectorAll('.is-dragging, .is-drop, .is-drop-bad').forEach((el) => el.classList.remove('is-dragging', 'is-drop', 'is-drop-bad'));
+      if (commit && g.target) dropAt(g);
+    } else if (g.mode === 'lasso') {
+      if (g.box) g.box.remove();
+      g.grid.classList.remove('is-lassoing');
+      g.grid.querySelectorAll('.is-lasso').forEach((el) => el.classList.remove('is-lasso'));
+      if (commit) {
+        const next = g.ctrl ? g.base.concat(g.hits) : g.hits;
+        anchorKey = next[next.length - 1] || null;
+        upd((x) => setSel(x.ui, next));
+      }
+    }
+  }
+
+  function dropAt(g) {
+    const hall = get(), pl = placement(hall);
+    const from = pl.posOf[g.key];
+    if (!from || from === g.target) return;
+    if (g.group) {
+      const a = parsePos(from), b = parsePos(g.target);
+      if (!g.fits) { toast('Doesn’t fit there — the selection would leave the grid or land on other villagers'); return; }
+      upd((x) => { moveGroup(x, g.keys, b.x - a.x, b.y - a.y); });
+      toast(`Moved ${plural(g.keys.length, 'villager')}`);
+      return;
+    }
+    const name = villagerName(pl.byKey[g.key]);
+    const occ = pl.cells[g.target];
+    const other = occ ? villagerName(pl.byKey[occ]) : null;
+    TH.app.pendingFocus = 'cell-' + g.target;
+    upd((x) => { moveTo(x, g.key, g.target); });
+    toast(other ? `Swapped ${name} with ${other}` : `Moved ${name} to ${posLabel(g.target)}`);
+  }
+
+  /* ---- keyboard ---- */
+
   function onGridKey(ev) {
-    const el = ev.target.closest && ev.target.closest('.hl-slot');
+    const el = ev.target.closest && ev.target.closest('.hl-cell');
     if (!el) return;
+    if ((ev.ctrlKey || ev.metaKey) && (ev.key === 'a' || ev.key === 'A')) {
+      ev.preventDefault();
+      const pl = placement(get());
+      const all = Object.keys(pl.cells).sort((p, q) => posRank(p) - posRank(q)).map((p) => pl.cells[p]);
+      upd((x) => setSel(x.ui, all));
+      return;
+    }
     const { x, y } = parsePos(el.dataset.pos);
     const { cols, rows } = get().layout;
     let nx = x, ny = y;
@@ -1277,43 +1530,48 @@
   }
 
   function renderMap(hall, pl) {
-    const sel = selectedKey(hall, pl);
+    const keys = selKeys(hall, pl);
+    const selSet = new Set(keys);
+    const single = keys.length === 1 ? keys[0] : null;
     const { cols, rows } = pl;
     gridFocus.x = clamp(gridFocus.x, 0, cols - 1); gridFocus.y = clamp(gridFocus.y, 0, rows - 1);
 
-    // the hint never changes, so nothing above the grid moves when a tile gets selected
     const head = h('div.hl-map-head',
       h('div.hl-map-title', h('h3', 'Your hall'),
+        h('span.hl-map-count', `${plural(pl.list.length, 'villager')} · ${cols}×${rows}`),
         h('button.btn.small.ghost', { type: 'button', onclick: resetGrid, title: 'Lay everyone out again, sorted by type' }, '↻ Reset')),
-      h('p.hl-hint', 'Villagers start sorted by type. Drag them to match your real hall. Tap one for details — while it’s selected, tap a slot to move it or another villager to swap.'));
+      h('p.hl-hint', 'Villagers start sorted by type. Arrange them like your real build and tap one for details.'));
 
-    // the grid
+    const at = (x, y) => `grid-area: ${y + 2} / ${x + 2}`;
     const grid = h('div.hl-grid', {
-      role: 'group', 'aria-label': `Hall grid, ${cols} columns by ${rows} rows. Arrow keys move, Enter selects, Enter on another slot moves it there.`,
-      style: '--cols:' + cols, onkeydown: onGridKey,
+      role: 'group', 'aria-label': `Hall grid, ${cols} columns by ${rows} rows. Arrow keys move, Enter selects, Ctrl+Enter adds to the selection, Ctrl+A selects all, Enter on an empty slot moves the selected villager there.`,
+      style: '--cols:' + cols + ';--rows:' + rows, onkeydown: onGridKey,
     },
-    h('span.hl-axis.hl-corner', { 'aria-hidden': 'true' }),
-    Array.from({ length: cols }, (_, x) => h('span.hl-axis', { 'aria-hidden': 'true' }, colName(x))));
+    h('span.hl-axis.hl-corner', { 'aria-hidden': 'true', style: 'grid-area: 1 / 1' }),
+    Array.from({ length: cols }, (_, x) => h('span.hl-axis.is-col', { 'aria-hidden': 'true', style: 'grid-area: 1 / ' + (x + 2) }, colName(x))));
     for (let y = 0; y < rows; y++) {
-      grid.append(h('span.hl-axis', { 'aria-hidden': 'true' }, String(y + 1)));
+      grid.append(h('span.hl-axis.is-row', { 'aria-hidden': 'true', style: 'grid-area: ' + (y + 2) + ' / 1' }, String(y + 1)));
       for (let x = 0; x < cols; x++) {
         const pos = posKey(x, y);
         const key = pl.cells[pos];
         const v = key ? pl.byKey[key] : null;
         const focusable = x === gridFocus.x && y === gridFocus.y;
-        const cls = '.hl-slot' + (v ? '.hl-tile.is-' + status(v) : '.is-free')
-          + (v && sel === key ? '.is-selected' : '') + (sel && sel !== key ? '.is-target' : '');
+        const isSel = !!v && selSet.has(key);
+        const cls = '.hl-cell' + (v ? '.hl-tile.is-' + status(v) : '.is-free') + (isSel ? '.is-selected' : '');
         const label = v
-          ? tileLabel(v, pos) + (sel && sel !== key ? ' — swap here' : sel === key ? ' — selected' : '')
-          : `Empty slot ${posLabel(pos)}${sel ? ' — move here' : ''}`;
-        grid.append(h('button' + cls, Object.assign({
-          type: 'button', 'data-pos': pos, 'data-key': key || null, 'data-focus': 'cell-' + pos,
+          ? tileLabel(v, pos) + (isSel ? ' — selected' : '')
+          : `Empty slot ${posLabel(pos)}${single ? ' — move the selected villager here' : ''}`;
+        grid.append(h('button' + cls, {
+          type: 'button', 'data-pos': pos, 'data-key': key || null, 'data-focus': 'cell-' + pos, style: at(x, y),
           tabindex: focusable ? '0' : '-1', 'aria-label': label, title: v ? villagerName(v) + ' · ' + posLabel(pos) : posLabel(pos),
-          'aria-pressed': v ? String(sel === key) : null,
-          onclick: () => onCellActivate(pos, key),
+          'aria-pressed': v ? String(isSel) : null,
+          onclick: (ev) => { // pointer clicks are handled on pointerup; this is the keyboard / assistive-tech path
+            if (ev.detail !== 0) return;
+            if (v) clickTile(key, { ctrl: ev.ctrlKey || ev.metaKey, shift: ev.shiftKey });
+            else if (single) moveSelectedTo(pos);
+          },
           onfocus: () => { gridFocus.x = x; gridFocus.y = y; },
-        }, v ? dragProps(key) : {}, dropProps((k) => upd((hl) => { moveTo(hl, k, pos); }))),
-        v ? tileBody(v) : null));
+        }, v ? tileBody(v) : null));
       }
     }
 
@@ -1328,19 +1586,127 @@
       ['needed', 'locked', 'perfect'].map((k) => h('li', h('i.hl-sw.is-' + k, { 'aria-hidden': 'true' }), STATUS_LABEL[k])),
       h('li', h('i.hl-sw.is-selected', { 'aria-hidden': 'true' }), 'selected'));
 
-    return h('section.panel.hl-map' + (sel ? '.has-selection' : ''), { 'aria-label': 'Hall grid' },
-      head,
-      h('div.hl-grid-scroll', grid),
+    const gestures = h('p.hl-gestures',
+      h('span.hl-g-mouse',
+        h('b', 'Drag'), ' a villager to move it (drop on another to swap) · ', h('b', 'drag across empty floor'), ' — or hold a villager, then drag — to lasso · ',
+        h('kbd', 'Ctrl'), '/', h('kbd', '⌘'), '-click adds or removes · ', h('kbd', 'Shift'), '-click selects a range · ', h('kbd', 'Ctrl'), '+', h('kbd', 'A'), ' all · ', h('kbd', 'Esc'), ' clears'),
+      h('span.hl-g-touch',
+        h('b', 'Tap'), ' to select · ', h('b', 'hold a villager, then drag'), ' to move it · ', h('b', 'hold empty floor, then drag'), ' to lasso · a swipe still scrolls'));
+
+    const scroll = h('div.hl-grid-scroll', { onpointerdown: onGridPointerDown, oncontextmenu: (e) => { if (G) e.preventDefault(); } }, grid);
+    return h('section.panel.hl-map' + (keys.length ? '.has-selection' : ''), { 'aria-label': 'Hall grid' },
+      head, scroll, gestures,
       h('div.hl-map-foot', legend, sizeCtl));
   }
 
-  /* ---- right column: Next up, or the selected villager's details ---- */
+  /* ---- right column: Next up, or the selection's details / overview ---- */
 
   function renderSide(hall, pl) {
-    const sel = selectedKey(hall, pl);
-    const detail = sel ? renderDetail(hall, pl, pl.byKey[sel], sel !== lastDetail) : null;
-    lastDetail = sel;
-    return h('aside.hl-side' + (sel ? '.has-detail' : ''), renderNext(hall, pl), detail);
+    const keys = selKeys(hall, pl);
+    const id = keys.length === 1 ? keys[0] : keys.length ? 'multi' : null;
+    let detail = null;
+    if (keys.length === 1) detail = renderDetail(hall, pl, pl.byKey[keys[0]], id !== lastDetail);
+    else if (keys.length > 1) detail = renderMulti(hall, pl, keys, lastDetail !== 'multi');
+    lastDetail = id;
+    return h('aside.hl-side' + (keys.length ? '.has-detail' : ''), renderNext(hall, pl), detail);
+  }
+
+  /** Bulk lock / unlock: librarians get their lock ticked, other villagers count as "have" (up to / below each one's number). */
+  function bulkLock(keys, on) {
+    let n = 0;
+    upd((x) => {
+      for (const k of keys) {
+        if (k.startsWith('b:')) {
+          const f = findStall(x, k.slice(2));
+          if (f && f.stall.done !== on) { f.stall.done = on; n++; }
+        } else {
+          const m = /^t:(.*):(\d+)$/.exec(k);
+          const t = m && x.trades.find((y) => y.id === m[1]);
+          if (!t) continue;
+          const i = +m[2], before = t.have;
+          t.have = on ? Math.max(t.have, i + 1) : Math.min(t.have, i);
+          if (t.have !== before) n++;
+        }
+      }
+    });
+    toast(n ? `${on ? 'Locked' : 'Unlocked'} ${plural(n, 'villager')}` : 'Nothing to change');
+  }
+
+  /** Swap the cells of exactly two villagers. */
+  function swapTwo(keys) {
+    if (keys.length !== 2) return;
+    const pl = placement(get());
+    const names = keys.map((k) => villagerName(pl.byKey[k]));
+    upd((x) => { const p = cleanCells(x).posOf; moveTo(x, keys[0], p[keys[1]]); });
+    toast(`Swapped ${names[0]} with ${names[1]}`);
+  }
+
+  /** Overview of 2+ selected tiles: counts, what they are, combined prices, bulk actions. */
+  function renderMulti(hall, pl, keys, fresh) {
+    const vs = keys.map((k) => pl.byKey[k]).sort((a, b) => posRank(pl.posOf[a.key]) - posRank(pl.posOf[b.key]));
+    const books = vs.filter((v) => v.kind === 'book');
+    const cnt = { needed: 0, locked: 0, perfect: 0 };
+    vs.forEach((v) => { cnt[status(v)]++; });
+    let perfectSum = 0, paid = 0, over = 0, noPrice = 0;
+    for (const v of books) {
+      const min = minPrice(v.ench, v.book.level);
+      perfectSum += min;
+      if (!v.stall.done) continue;
+      if (v.stall.price == null) { noPrice++; continue; }
+      paid += v.stall.price; over += Math.max(0, v.stall.price - min);
+    }
+    const byBook = new Map(), byTrade = new Map();
+    for (const v of vs) {
+      if (v.kind === 'book') {
+        const id = v.ench.id + ':' + v.book.level;
+        const r = byBook.get(id) || { v, n: 0, done: 0 };
+        r.n++; if (v.stall.done) r.done++;
+        byBook.set(id, r);
+      } else {
+        const r = byTrade.get(v.trade.id) || { v, n: 0, done: 0 };
+        r.n++; if (status(v) !== 'needed') r.done++;
+        byTrade.set(v.trade.id, r);
+      }
+    }
+    const row = (icon, title, sub, r) => h('li.hl-ov-row',
+      h('span.hl-ov-ico', { 'aria-hidden': 'true' }, icon),
+      h('span.hl-ov-text', h('b', title), h('small', sub)),
+      h('span.hl-ov-n', '×' + r.n));
+    const stat = (cls, n, label) => h('div.hl-ov-stat' + cls, h('b', n), h('span', label));
+    const lockedAll = cnt.locked + cnt.perfect;
+    const sec = (title, n, body) => h('section.hl-ov-sec', h('h4.hl-side-h', title, h('em', n)), body);
+
+    return h('section.panel.hl-detail.hl-multi' + (fresh ? '.enter' : ''), { role: 'region', 'aria-label': 'Selection overview' },
+      h('div.hl-detail-head',
+        h('span.hl-detail-icon.hl-multi-icon', { 'aria-hidden': 'true' }, h('b', vs.length)),
+        h('div', h('h3', `${vs.length} villagers selected`),
+          h('div.hl-detail-sub', plural(books.length, 'librarian'), ' · ', plural(vs.length - books.length, 'other villager'))),
+        h('button.x-btn.hl-detail-close', { type: 'button', 'aria-label': 'Clear selection', title: 'Clear selection (Esc)', 'data-focus': 'detail-close', onclick: clearSelection }, '✕')),
+      h('p.hl-hint.hl-lock-why', LOCK_WHY),
+      h('div.hl-ov-stats',
+        stat('', lockedAll, 'locked in'),
+        stat('.is-perfect', cnt.perfect, 'perfect ★'),
+        stat('.is-needed', cnt.needed, 'still needed')),
+      books.length ? h('div.hl-ov-prices',
+        h('div', h('span.faint', 'Perfect total'), cost(perfectSum)),
+        paid ? h('div', h('span.faint', 'Paid so far'), cost(paid)) : null,
+        over ? h('div', h('span.faint', 'Above perfect'), h('span.hl-cost.is-old', emerald(), h('b', '+' + over))) : null,
+        noPrice ? h('div.hl-ov-note', plural(noPrice, 'locked librarian') + ' without a logged price') : null) : null,
+      byBook.size ? sec('Books', byBook.size, h('ul.hl-ov-list', Array.from(byBook.values()).map((r) => row(
+        TH.icon('enchanted_book', { size: 22, glint: r.done === r.n }),
+        enchLabel(r.v.ench, r.v.book.level),
+        `${r.done} of ${r.n} locked · perfect ${minPrice(r.v.ench, r.v.book.level)}`, r)))) : null,
+      byTrade.size ? sec('Villagers', byTrade.size, h('ul.hl-ov-list', Array.from(byTrade.values()).map((r) => row(
+        TH.icon.prof(r.v.prof.id, { size: 22 }),
+        r.v.trade.purpose || profName(r.v.prof),
+        `${profName(r.v.prof)} · ${r.done} of ${r.n} in your hall`, r)))) : null,
+      h('div.hl-row-btns.hl-ov-actions',
+        h('button.btn.small' + (cnt.needed >= lockedAll ? '.primary' : ''), { type: 'button', disabled: cnt.needed === 0, onclick: () => bulkLock(keys, true) }, cnt.needed && lockedAll ? `Lock ${cnt.needed} more` : 'Lock all'),
+        h('button.btn.small', { type: 'button', disabled: lockedAll === 0, onclick: () => bulkLock(keys, false) }, lockedAll && cnt.needed ? `Unlock ${lockedAll}` : 'Unlock all'),
+        keys.length === 2 ? h('button.btn.small', { type: 'button', 'data-focus': 'swap', onclick: () => swapTwo(keys) }, '⇄ Swap') : null,
+        h('button.btn.small.ghost', { type: 'button', disabled: true, title: 'Select a single librarian to check an offer' }, 'Check offer'),
+        h('button.btn.small.ghost', { type: 'button', onclick: clearSelection }, 'Clear selection')),
+      h('p.hl-hint.hl-detail-hint', 'Drag any selected villager to move them all together. Ctrl/⌘-click adds or removes one. Click anywhere else to close.'));
   }
 
   function renderDetail(hall, pl, v, fresh) {
@@ -1348,9 +1714,14 @@
     const where = pos ? posLabel(pos) : 'not placed';
     const close = h('button.x-btn.hl-detail-close', {
       type: 'button', 'aria-label': 'Close details', title: 'Close (Esc)', 'data-focus': 'detail-close',
-      onclick: () => upd((x) => { x.ui.selected = null; }),
+      onclick: () => upd((x) => { setSel(x.ui, []); }),
     }, '✕');
-    const moveHint = h('p.hl-hint.hl-detail-hint', 'Tap an empty slot to move it, or another villager to swap. Click anywhere else to close.');
+    const isLocked = status(v) !== 'needed';
+    const lockRow = h('div.hl-lockrow',
+      h('button.btn.small' + (isLocked ? '' : '.primary'), { type: 'button', 'data-focus': 'lock-btn', onclick: () => { if (!isLocked && v.kind === 'book' && v.stall.price == null) TH.app.pendingFocus = 'price-' + v.stall.id; bulkLock([v.key], !isLocked); } },
+        isLocked ? 'Unlock' : 'Lock'),
+      h('span.hl-lock-why', LOCK_WHY + (v.kind === 'book' ? ' Optionally log the price you paid below.' : '')));
+    const moveHint = h('p.hl-hint.hl-detail-hint', 'Drag it to an empty slot to move it, or onto another villager to swap. Click anywhere else to close.');
     const wrap = (pc, label, icon, title, sub, body) => h('section.panel.hl-detail' + (fresh ? '.enter' : ''), {
       style: pc ? '--pc:' + pc : null, role: 'region', 'aria-label': label,
     },
@@ -1358,7 +1729,7 @@
       h('span.hl-detail-icon', { 'aria-hidden': 'true' }, icon),
       h('div', h('h3', title), h('div.hl-detail-sub', sub)),
       close),
-    body, moveHint);
+    lockRow, body, moveHint);
 
     if (v.kind === 'trade') {
       const t = v.trade, p = v.prof;
@@ -1389,16 +1760,6 @@
       [enchLabel(e, b.level), s.label ? h('span.chip', s.label) : null],
       [h('span.hl-pos', where), h('span', profName(PROF.librarian) + ' · perfect'), cost(range.min), h('span', `· max ${range.max}`)],
       [
-        h('label.hl-lock' + (s.done ? '.is-on' : ''),
-          h('span.check', h('input', {
-            type: 'checkbox', checked: s.done, 'data-focus': 'lock-' + s.id,
-            onchange: (ev) => {
-              const on = ev.target.checked;
-              if (on && s.price == null) TH.app.pendingFocus = 'price-' + s.id;
-              setStall((st) => { st.done = on; });
-            },
-          }), h('span')),
-          h('span', h('b', s.done ? 'Locked in' : 'Not locked yet'), h('small.faint', s.done ? 'You traded with it, so the offer is fixed.' : 'Tick once you’ve traded with this librarian.'))),
         h('div.hl-detail-grid',
           h('div.hl-field', h('span.hl-field-label', 'Price'),
             h('div.hl-inline',
@@ -1468,7 +1829,8 @@
     const toGet = hall.trades.filter((t) => t.have < t.target).slice().sort(cmp.trade);
     const profs = profCounts(hall);
     const selectCell = (key) => {
-      upd((x) => { x.ui.selected = key; });
+      anchorKey = key;
+      upd((x) => { setSel(x.ui, [key]); });
       const el = document.querySelector('.hl-tile.is-selected');
       if (el) el.scrollIntoView({ block: 'center', inline: 'center', behavior: reduced() ? 'auto' : 'smooth' });
     };
@@ -1697,11 +2059,12 @@
       }
       return;
     }
-    if (ev.key === 'Escape' && hall.setupDone && hall.ui.selected && (!typing || (t.closest && t.closest('.hl-detail')))) {
+    if (G && ev.key === 'Escape') { ev.preventDefault(); endGesture(false); return; }
+    if (ev.key === 'Escape' && hall.setupDone && selCount(hall) && (!typing || (t.closest && t.closest('.hl-detail')))) {
       const key = hall.ui.selected;
-      const pos = placement(hall).posOf[key];
+      const pos = key && placement(hall).posOf[key];
       if (pos) TH.app.pendingFocus = 'cell-' + pos;
-      upd((x) => { x.ui.selected = null; });
+      upd((x) => { setSel(x.ui, []); });
     }
   }
 
@@ -1709,10 +2072,10 @@
   function onDocClick(ev) {
     if (!document.querySelector('.module-hall')) return;
     const hall = get();
-    if (!hall.setupDone || !hall.ui.selected) return;
+    if (!hall.setupDone || !selCount(hall) || G || performance.now() - gestureEnd < 120) return;
     const t = ev.target;
-    if (!t || !t.closest || t.closest('.hl-detail, .hl-slot, .hl-side, .hl-check-backdrop, .toast, [data-keep-selection]')) return;
-    upd((x) => { x.ui.selected = null; });
+    if (!t || !t.closest || t.closest('.hl-detail, .hl-grid-scroll, .hl-side, .hl-check-backdrop, .toast, [data-keep-selection]')) return;
+    upd((x) => { setSel(x.ui, []); });
   }
 
   /* ================= migration ================= */
@@ -1830,6 +2193,7 @@
       store.update(() => {}, { silent: true }); // persist migration / defaults
       document.addEventListener('keydown', onKey);
       document.addEventListener('click', onDocClick, true);
+      document.addEventListener('touchmove', (e) => { if (G && G.mode !== 'pending' && e.cancelable) e.preventDefault(); }, { passive: false });
       window.addEventListener('hashchange', () => document.body.classList.remove('hl-noscroll'));
       trackTopbar();
     },

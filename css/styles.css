@@ -83,7 +83,7 @@ body {
 button, input, select, textarea { font: inherit; color: inherit; }
 a { color: var(--lapis); text-underline-offset: 3px; }
 h1, h2, h3 { margin: 0; }
-.app { position: relative; z-index: 1; max-width: 1240px; margin: 0 auto; padding: 0 16px 80px; }
+.app { position: relative; z-index: 1; max-width: 1320px; margin: 0 auto; padding: 0 clamp(16px, 4vw, 56px) 80px; }
 .muted { color: var(--muted); }
 .faint { color: var(--faint); }
 .hidden { display: none !important; }
@@ -121,16 +121,31 @@ h1, h2, h3 { margin: 0; }
   backdrop-filter: blur(12px) saturate(1.2);
   border-bottom: 1px solid var(--line);
 }
-.brand { display: flex; align-items: center; gap: 11px; flex-shrink: 0; }
+.brand { display: flex; align-items: center; gap: 13px; flex-shrink: 0; padding-left: 4px; }
 .brand h1 { font: 400 20px/1 var(--display); letter-spacing: .5px; white-space: nowrap; }
 .brand-sub { margin: 2px 0 0; font: 500 9.5px/1 var(--mono); color: var(--muted); letter-spacing: 1.5px; text-transform: uppercase; }
-.brand-gem {
-  width: 30px; height: 30px; image-rendering: pixelated;
-  background: url("https://cdn.jsdelivr.net/gh/InventivetalentDev/minecraft-assets@1.21.11/assets/minecraft/textures/item/emerald.png") center / contain no-repeat;
-  filter: drop-shadow(0 0 10px color-mix(in srgb, var(--accent) 60%, transparent));
-  animation: gem-pulse 4s ease-in-out infinite;
+/* animated pixel hourglass logo: sand drains in pixel steps, then the glass flips — seamless loop */
+.brand-glass {
+  width: 27px; height: 36px; flex-shrink: 0; overflow: visible;
+  filter: drop-shadow(0 0 7px color-mix(in srgb, var(--gold) 40%, transparent));
+  animation: hg-glow 4s ease-in-out infinite;
 }
-@keyframes gem-pulse { 50% { filter: drop-shadow(0 0 18px var(--accent)); transform: translateY(-2px); } }
+.hg-body { transform-origin: 7.5px 10px; animation: hg-flip 7s ease-in-out infinite; }
+.hg-tint { fill: #cfeef7; fill-opacity: .14; }
+.hg-sand { fill: url(#hg-grain); }
+.hg-sand-top { animation: hg-top 7s steps(8, end) infinite; }
+.hg-sand-bot { animation: hg-bot 7s steps(7, end) infinite; }
+.hg-stream { fill: #f2c33c; animation: hg-stream 7s linear infinite; }
+.hg-edge { fill: #b9eaf5; }
+.hg-edge-dark { fill: #6fb4c8; }
+.hg-cap { fill: #e4f6fb; }
+.hg-cap-dark { fill: #8fb7c6; }
+.hg-shine { fill: #fff; fill-opacity: .7; }
+@keyframes hg-top { 0% { transform: translateY(0); } 82%, 100% { transform: translateY(8px); } }
+@keyframes hg-bot { 0% { transform: translateY(0); } 82%, 100% { transform: translateY(-7px); } }
+@keyframes hg-stream { 0%, 2% { opacity: 0; } 4%, 78% { opacity: 1; } 82%, 100% { opacity: 0; } }
+@keyframes hg-flip { 0%, 86% { transform: rotate(0); } 100% { transform: rotate(180deg); } }
+@keyframes hg-glow { 50% { filter: drop-shadow(0 0 12px color-mix(in srgb, var(--gold) 65%, transparent)); } }
 .nav { display: flex; gap: 2px; overflow-x: auto; flex: 1; scrollbar-width: none; }
 .nav::-webkit-scrollbar { display: none; }
 .nav-item {

@@ -97,3 +97,6 @@ Faces stop under `prefers-reduced-motion` (not even created).
 
 - **Trims = a preview tool**, not a catalogue: a HUD plus a real 3D character wearing the chosen armor and trim; per-pattern mini previews in the chosen armor + trim material; and a final materials list (templates, ingots, armor) for what is selected.
 - **Optional style toggle** (e.g. neumorphism): a token-set switch on a `data-style` attribute on `<html>` (like `data-theme`), overriding surface, shadow and radius tokens only, never component CSS.
+
+### Hall layout editor (`js/modules/hall-canvas.js`)
+"Your hall" is an infinite, zoomable canvas (Figma-like), not a fixed grid. Tiles live in world px (`hall.layout.pos`, 72px tiles on an 80px snap grid); the view (`hall.ui.view`) persists pan/zoom/snap/guides/minimap. During gestures only transforms change; the store is written once on release. Snap + smart guides by default (Alt bypasses), overlaps resolve to the nearest free spot, drop-onto swaps, undo/redo, align/distribute, tidy up, minimap, `?` shortcut overlay. Zoomed below 50% tiles show icons only.

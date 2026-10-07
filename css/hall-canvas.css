@@ -1,0 +1,168 @@
+/* ============ Hall canvas (js/modules/hall-canvas.js) ============
+ * Infinite, zoomable layout editor. Everything is prefixed hc- and uses tokens only, so it follows the
+ * feature accent (emerald) and both themes. World px: tile 72, grid unit 80 (see the JS header).
+ */
+.hc { position: relative; min-width: 0; }
+
+.hc-viewport {
+  --hc-dot: color-mix(in srgb, var(--text) 17%, transparent);
+  --hc-major: color-mix(in srgb, var(--accent) 10%, transparent);
+  position: relative; height: clamp(420px, 68vh, 820px); overflow: hidden; isolation: isolate;
+  border-radius: var(--radius); border: 1px solid var(--line); background: var(--bg-2);
+  touch-action: none; overscroll-behavior: contain; cursor: default;
+  user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; outline: none;
+}
+.hc-viewport:focus-visible { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.hc [hidden] { display: none !important; }
+
+/* dot grid + a faint major line every 5 units; size / offset follow the pan + zoom (set from JS) */
+.hc-bg {
+  position: absolute; inset: 0; pointer-events: none;
+  background-image:
+    radial-gradient(circle, var(--hc-dot) 1.2px, transparent 1.7px),
+    linear-gradient(90deg, var(--hc-major) 1px, transparent 1px),
+    linear-gradient(var(--hc-major) 1px, transparent 1px);
+  background-size: var(--hc-s, 80px) var(--hc-s, 80px), var(--hc-s5, 400px) var(--hc-s5, 400px), var(--hc-s5, 400px) var(--hc-s5, 400px);
+  background-position: var(--hc-ox, 0) var(--hc-oy, 0), var(--hc-ox5, 0) var(--hc-oy5, 0), var(--hc-ox5, 0) var(--hc-oy5, 0);
+}
+.hc-world { position: absolute; left: 0; top: 0; width: 0; height: 0; transform-origin: 0 0; }
+.hc-viewport.is-vchg .hc-world { will-change: transform; }
+.hc-ovl { position: absolute; inset: 0; pointer-events: none; z-index: 3; overflow: hidden; }
+.hc-live { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+/* ---- cursors ---- */
+.hc-viewport.is-space, .hc-viewport.is-space .hc-tile { cursor: grab; }
+.hc-viewport.is-panning, .hc-viewport.is-panning * { cursor: grabbing !important; }
+.hc-viewport.is-moving, .hc-viewport.is-moving * { cursor: grabbing !important; }
+.hc-viewport.is-marquee, .hc-viewport.is-marquee * { cursor: crosshair !important; }
+
+/* ---- the villager tile (72 x 72 world px) ---- */
+.hc-tile {
+  --st: var(--line-2);
+  position: absolute; left: 0; top: 0; width: 72px; height: 72px; box-sizing: border-box; margin: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  padding: 11px 3px 4px; border-radius: 5px; cursor: grab; font: inherit; color: var(--text);
+  border: 1px solid var(--st); background: var(--panel-2);
+  box-shadow: inset 1px 1px 0 var(--edge-hi), inset 0 -3px 0 var(--st);
+  transition: box-shadow .15s, border-color .15s, background .15s;
+  touch-action: none; -webkit-tap-highlight-color: transparent;
+}
+@media (hover: hover) { .hc-tile:hover { transform: translateY(-1px); border-color: color-mix(in srgb, var(--accent) 55%, var(--st)); } }
+.hc-tile:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; z-index: 3; }
+.hc-viewport img { -webkit-user-drag: none; user-select: none; }
+.hc-ico { display: grid; place-items: center; height: 28px; flex-shrink: 0; pointer-events: none; }
+.hc-name { max-width: 100%; font-size: 10.5px; font-weight: 600; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; }
+.hc-price { font: 500 9.5px/1 var(--mono); color: var(--faint); pointer-events: none; }
+.hc-price.is-paid { color: var(--gold); font-weight: 700; }
+.hc-lv { position: absolute; top: 3px; right: 4px; font: 500 9px/1 var(--mono); color: var(--muted); pointer-events: none; }
+.hc-marks { position: absolute; top: 3px; left: 3px; display: flex; align-items: center; gap: 3px; pointer-events: none; }
+.hc-tag { min-width: 13px; height: 13px; padding: 0 2px; border-radius: 2px; display: grid; place-items: center; font: 500 8.5px/1 var(--mono); background: var(--bg-2); color: var(--muted); }
+/* locked = a small padlock in the corner (never a stronger outline: that is the "selected" look) */
+.hc-lock { position: relative; display: block; width: 9px; height: 11px; color: var(--accent); }
+.hc-lock::before { content: ''; position: absolute; left: 1.5px; top: 0; width: 6px; height: 6px; box-sizing: border-box; border: 1.5px solid currentColor; border-bottom: 0; border-radius: 3px 3px 0 0; }
+.hc-lock::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 6px; border-radius: 1px; background: currentColor; }
+.hc-star { font: 700 13px/1 var(--mono); color: var(--gold); text-shadow: 0 0 6px color-mix(in srgb, var(--gold) 70%, transparent); }
+
+/* status */
+.hc-tile.is-needed { border-style: dashed; background: color-mix(in srgb, var(--panel-2) 70%, var(--bg-2)); box-shadow: none; }
+.hc-tile.is-needed .mc { opacity: .72; }
+.hc-tile.is-locked { background: color-mix(in srgb, var(--accent) 10%, var(--panel-2)); }
+.hc-tile.is-perfect {
+  --st: var(--gold); border-color: var(--gold);
+  background: linear-gradient(160deg, color-mix(in srgb, var(--gold) 26%, var(--panel-2)), color-mix(in srgb, var(--gold) 8%, var(--panel-2)));
+  box-shadow: inset 1px 1px 0 var(--edge-hi), inset 0 -3px 0 var(--gold), 0 0 12px -2px color-mix(in srgb, var(--gold) 60%, transparent);
+}
+.hc-tile.is-perfect .hc-name { color: var(--gold); }
+
+/* selected: accent outline + soft glow */
+.hc-tile.is-selected {
+  z-index: 2; border-color: var(--accent);
+  outline: 3px solid var(--accent); outline-offset: 1px;
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 22%, transparent), 0 8px 18px -6px color-mix(in srgb, var(--accent) 55%, transparent), inset 0 -3px 0 var(--st);
+}
+/* drag states */
+.hc-tile.is-press { transform: scale(.95); }
+.hc-tile.is-dragging { z-index: 6; transition: none; box-shadow: 0 14px 26px -8px rgb(0 0 0 / .55), 0 0 0 6px color-mix(in srgb, var(--accent) 22%, transparent), inset 0 -3px 0 var(--st); transform: none; cursor: grabbing; }
+.hc-tile.is-clash { outline: 3px solid var(--danger); outline-offset: 1px; border-color: var(--danger); background-color: color-mix(in srgb, var(--danger) 14%, var(--panel-2)); z-index: 5; }
+.hc-tile.is-swap-target { z-index: 5; outline: 3px dashed var(--accent); outline-offset: 2px; background-color: var(--accent-soft); }
+.hc-tile.is-swap-target::after {
+  content: '⇄'; position: absolute; left: 50%; top: 50%; translate: -50% -50%; width: 30px; height: 30px; display: grid; place-items: center;
+  border-radius: 50%; font: 700 17px/1 var(--mono); color: var(--accent-ink, #04210f); background: var(--accent); box-shadow: 0 2px 8px rgb(0 0 0 / .45); pointer-events: none;
+}
+.hc-gbadge {
+  position: absolute; right: -9px; bottom: -9px; min-width: 22px; height: 22px; padding: 0 5px; border-radius: 11px; display: grid; place-items: center;
+  font: 700 12px/1 var(--mono); background: var(--accent); color: var(--accent-ink, #04210f); box-shadow: 0 2px 6px rgb(0 0 0 / .5); pointer-events: none; z-index: 7;
+}
+/* the tile you just added from the check dialog */
+.hc-tile.is-pulse { animation: hc-pulse 1.1s ease-out 2; z-index: 4; }
+@keyframes hc-pulse {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 80%, transparent); transform: scale(1); }
+  50% { box-shadow: 0 0 0 14px color-mix(in srgb, var(--accent) 0%, transparent); transform: scale(1.12); }
+  100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 0%, transparent); transform: scale(1); }
+}
+
+/* zoomed far out: icons only (text would be unreadable and costly) */
+.hc-viewport.is-lod .hc-name, .hc-viewport.is-lod .hc-price, .hc-viewport.is-lod .hc-lv, .hc-viewport.is-lod .hc-tag { visibility: hidden; }
+.hc-viewport.is-lod .hc-ico { transform: scale(1.7); }
+.hc-viewport.is-lod .hc-tile { padding-top: 14px; }
+
+/* ---- screen-space overlays: selection box + smart guides ---- */
+.hc-marquee { position: absolute; border: 1px solid var(--accent); border-radius: 2px; background: color-mix(in srgb, var(--accent) 14%, transparent); pointer-events: none; }
+.hc-guide { position: absolute; background: var(--accent); opacity: .85; pointer-events: none; box-shadow: 0 0 0 .5px color-mix(in srgb, var(--accent) 40%, transparent); }
+
+/* ---- floating toolbar (raised blocks) ---- */
+.hc-bars { position: absolute; z-index: 5; top: 8px; left: 8px; right: 8px; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; pointer-events: none; }
+.hc-bar {
+  pointer-events: auto; display: flex; align-items: center; gap: 6px; max-width: 100%; overflow-x: auto; padding: 4px;
+  border-radius: 8px; border: 1px solid var(--line-2); background: color-mix(in srgb, var(--panel) 93%, transparent);
+  backdrop-filter: blur(6px); box-shadow: var(--shadow); scrollbar-width: none;
+}
+.hc-bar::-webkit-scrollbar { display: none; }
+.hc-grp { display: flex; align-items: center; gap: 3px; flex-shrink: 0; }
+.hc-grp + .hc-grp { padding-left: 6px; border-left: 1px solid var(--line); }
+.hc-bar-lbl { flex-shrink: 0; padding: 0 4px 0 6px; font: 400 10px var(--mono); text-transform: uppercase; letter-spacing: .8px; color: var(--muted); }
+.hc-btn {
+  display: grid; place-items: center; width: 30px; height: 30px; padding: 0; flex-shrink: 0; cursor: pointer;
+  border-radius: 4px; border: 1px solid var(--line-2); background: var(--panel-2); color: var(--text);
+  box-shadow: inset 1px 1px 0 var(--edge-hi), 0 2px 0 var(--edge-lo); transition: background .12s, border-color .12s, color .12s;
+}
+.hc-btn:hover { border-color: var(--muted); }
+.hc-btn:active { transform: translateY(2px); box-shadow: inset 1px 1px 0 var(--edge-hi); }
+.hc-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.hc-btn.on { color: var(--accent); background: var(--accent-soft); border-color: var(--accent); }
+.hc-btn:disabled { opacity: .4; cursor: not-allowed; transform: none; }
+.hc-btn.hc-zoom { width: auto; min-width: 50px; padding: 0 7px; font: 500 12px var(--mono); }
+.hc-pix svg { display: block; }
+
+/* ---- minimap ---- */
+.hc-minimap {
+  position: absolute; z-index: 5; right: 10px; bottom: 10px; width: 168px; height: 112px; overflow: hidden;
+  border-radius: 6px; border: 1px solid var(--line-2); background: color-mix(in srgb, var(--panel) 90%, transparent); box-shadow: var(--shadow);
+}
+.hc-mini-cv { display: block; width: 100%; height: 100%; cursor: pointer; touch-action: none; }
+
+/* ---- shortcuts overlay ---- */
+.hc-help {
+  position: absolute; z-index: 7; top: 52px; right: 8px; width: min(370px, calc(100% - 16px)); max-height: calc(100% - 64px); overflow-y: auto; overscroll-behavior: contain;
+  padding: 10px 12px 12px; border-radius: 8px; border: 1px solid var(--line-2); background: var(--panel); box-shadow: var(--shadow), 0 18px 40px -12px rgb(0 0 0 / .5);
+  user-select: text; -webkit-user-select: text; cursor: default;
+}
+.hc-help-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+.hc-help-head b { font: 400 14px var(--display); }
+.hc-help h4 { grid-column: 1 / -1; margin: 10px 0 2px; font: 400 10px var(--mono); text-transform: uppercase; letter-spacing: .8px; color: var(--accent); }
+.hc-help dl { display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; margin: 0; font-size: 12px; }
+.hc-help dt { color: var(--text); font-weight: 600; }
+.hc-help dd { margin: 0; color: var(--muted); }
+
+@media (max-width: 640px) {
+  .hc-viewport { border-radius: 0; border-left: 0; border-right: 0; }
+  .hc-minimap { width: 118px; height: 80px; right: 8px; bottom: 8px; }
+  .hc-help dl { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .hc-help dd { margin-bottom: 4px; }
+  .hc-help h4 { margin-top: 6px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hc-tile, .hc-btn { transition: none; }
+  .hc-tile.is-pulse { animation: none; outline: 3px solid var(--accent); }
+  .hc-tile:hover { transform: none; }
+}

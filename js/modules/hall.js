@@ -3,8 +3,8 @@
  *
  * One combined plan: librarian books + every other villager you want.
  *   1. Setup wizard (Start → Books → Trades → Review) picks WHAT you want.
- *   2. Dashboard shows WHERE you are: a free tile grid of your hall (drag / tap to
- *      arrange it), a sortable "Next up" list that becomes a details panel for the
+ *   2. Dashboard shows WHERE you are: an infinite, zoomable canvas of your hall (hall-canvas.js:
+ *      drag tiles anywhere, marquee-select, snap + guides, undo), a sortable "Next up" list that becomes a details panel for the
  *      selected villager, and "Check an offer" (judges an in-game offer, adds it in one tap).
  *
  * state.hall = {
@@ -12,13 +12,14 @@
  *   books:   { [enchId]: { level, stalls: [{ id, label, done, price }] } },  // one stall = one librarian
  *   archive: { [enchId]: book },             // removed books, restored with their progress if re-added
  *   trades:  [{ id, prof, purpose, target, have, group, note }],
- *   layout:  { v: 2, cols, rows, cells: { 'x,y': villagerKey } },   // free grid, user-arranged
+ *   layout:  { v: 3, pos: { [villagerKey]: { x, y } } },   // world px of each tile's top-left (tile 72, grid unit 80)
  *   check:   { open, ench, level, price, query },   // the "Check an offer" dialog
- *   ui:      { selected, multi: [keys] (2+ selected), nextSort: type|name|pos|price, search, expanded: { [enchId]: true } },
+ *   ui:      { selected, multi: [keys] (2+ selected), nextSort: type|name|pos|price, search, expanded: { [enchId]: true },
+ *            view: { px, py, z, snap, guides, map } | null (canvas pan / zoom / toolbar toggles) },
  *   activePreset,
  * }
  * villagerKey = 'b:' + stallId  |  't:' + tradeId + ':' + n   (n = 0 .. target-1)
- * Every villager always has a cell: new ones are auto-placed (sorted by type) into the first free slot.
+ * Every villager always has a position: new ones are auto-placed (sorted by type) into free space after the layout.
  */
 (function () {
   const { h, emerald, ring, clamp, uid, toast, stepper: baseStepper } = TH.util;
@@ -39,8 +40,7 @@
   const STATUS_LABEL = { needed: 'needed', locked: 'locked in', perfect: 'perfect price' };
   const TITLE = 'Trading Hall Planner';
   const LOCK_WHY = 'Locked = you traded with it once; Minecraft fixes its offers, so no more rerolling.';
-  const GRID_DEFAULT = { cols: 12, rows: 6 };
-  const GRID_MAX = 40;
+  const CG = 80; // canvas grid unit (tile 72 + gap 8); keep in sync with hall-canvas.js
 
   /** Why an enchant can't come from a librarian. */
   const NOT_LIBRARIAN = {
@@ -49,7 +49,7 @@
     wind_burst: 'Only from ominous trial vaults',
   };
 
-  /** Short English names that fit a grid tile (other languages use the full localized name, truncated). */
+  /** Short English names that fit a canvas tile (other languages use the full localized name, truncated). */
   const ABBR = {
     protection: 'Prot', fire_protection: 'FireP', blast_protection: 'Blast', projectile_protection: 'Proj',
     thorns: 'Thorn', feather_falling: 'Feath', depth_strider: 'Depth', frost_walker: 'Frost', soul_speed: 'Soul',
@@ -105,9 +105,9 @@
   const DEFAULTS = {
     setupDone: false, step: 0, editing: false, migrated: false,
     books: {}, archive: {}, trades: [],
-    layout: { v: 2, cols: GRID_DEFAULT.cols, rows: GRID_DEFAULT.rows, cells: {} },
+    layout: { v: 3, pos: {} },
     check: { open: false, ench: '', level: null, price: null, query: '' },
-    ui: { selected: null, multi: [], nextSort: 'type', search: '', expanded: {} },
+    ui: { selected: null, multi: [], nextSort: 'type', search: '', expanded: {}, view: null },
     activePreset: null,
   };
 
@@ -224,10 +224,10 @@
     return null;
   }
 
-  /* ================= hall grid (free layout) ================= */
+  /* ================= hall layout (free positions on the canvas) ================= */
 
-  const posKey = (x, y) => x + ',' + y;
-  const parsePos = (p) => { const [x, y] = String(p).split(',').map(Number); return { x, y }; };
+  /** Reading-order rank of a position (row by row), unplaced last. */
+  const posRank = (p) => (p ? Math.round(p.y / CG) * 100000 + Math.round(p.x / CG) : 1e9);
   /** Column letters like a spreadsheet: A..Z, AA.. */
   function colName(x) {
     let s = '';
@@ -235,53 +235,32 @@
     while (x > 0) { const m = (x - 1) % 26; s = String.fromCharCode(65 + m) + s; x = Math.floor((x - 1) / 26); }
     return s;
   }
-  /** "C4" for column C, row 4 — or "not placed". */
-  function posLabel(pos) {
-    if (!pos) return 'not placed';
-    const { x, y } = parsePos(pos);
-    return colName(x) + (y + 1);
+  /** Rough "C4" label for a position (nearest 80px cell from the origin); "not placed" without one. */
+  function posLabel(p) {
+    if (!p) return 'not placed';
+    const c = Math.round(p.x / CG), r = Math.round(p.y / CG);
+    return c >= 0 && r >= 0 ? colName(c) + (r + 1) : c + ',' + r;
   }
 
-  /** Who stands where. Only valid, in-bounds, de-duplicated cells count; `tray` = villagers that still need a cell (auto-placed on render). */
+  /** Who stands where. `posOf` = { key: {x, y} } for villagers that have a spot; `tray` = those that still need one. */
   function placement(hall) {
     const list = villagerList(hall);
     const byKey = Object.fromEntries(list.map((v) => [v.key, v]));
-    const { cols, rows } = hall.layout;
-    const cells = {}, posOf = {};
-    for (const [pos, key] of Object.entries(hall.layout.cells || {})) {
-      const { x, y } = parsePos(pos);
-      if (!(x >= 0 && y >= 0 && x < cols && y < rows) || !byKey[key] || posOf[key]) continue;
-      cells[pos] = key; posOf[key] = pos;
+    const src = (hall.layout && hall.layout.pos) || {};
+    const posOf = {};
+    for (const v of list) {
+      const p = src[v.key];
+      if (p && isFinite(p.x) && isFinite(p.y)) posOf[v.key] = p;
     }
-    const tray = list.filter((v) => !posOf[v.key]);
-    return { cells, posOf, byKey, list, tray, cols, rows };
-  }
-
-  /** Drop stale / out-of-bounds entries so moves operate on clean data. */
-  function cleanCells(hall) {
-    const pl = placement(hall);
-    hall.layout.cells = Object.assign({}, pl.cells);
-    return pl;
-  }
-
-  /** Move a villager to a cell; whoever stood there swaps into its old cell. */
-  function moveTo(hall, key, pos) {
-    const pl = cleanCells(hall);
-    if (!pl.byKey[key]) return;
-    const cells = hall.layout.cells;
-    const from = pl.posOf[key];
-    const occupant = cells[pos];
-    if (from === pos) return;
-    if (from) { if (occupant) cells[from] = occupant; else delete cells[from]; }
-    cells[pos] = key;
+    const stale = Object.keys(src).some((k) => !byKey[k]);
+    return { posOf, byKey, list, tray: list.filter((v) => !posOf[v.key]), stale };
   }
 
   /** Book stalls in hall reading order (row by row), unplaced last. */
   function stallsInHallOrder(hall) {
     const pl = placement(hall);
-    const rank = (pos) => { if (!pos) return 1e9; const { x, y } = parsePos(pos); return y * 1000 + x; };
     return pl.list.filter((v) => v.kind === 'book')
-      .map((v, i) => ({ v, r: rank(pl.posOf[v.key]), i }))
+      .map((v, i) => ({ v, r: posRank(pl.posOf[v.key]), i }))
       .sort((a, b) => a.r - b.r || a.i - b.i)
       .map((x) => Object.assign(x.v, { pos: pl.posOf[x.v.key] }));
   }
@@ -296,54 +275,22 @@
     return books.concat(trades);
   }
 
-  /** Put every villager without a cell into the free cells, in type order (adds rows if needed). Returns how many were placed. */
-  function fillGrid(hall) {
-    const pl = cleanCells(hall);
-    if (!pl.tray.length) return 0;
+  /** Give every villager without a spot one (free space after the existing layout, in type order) and drop spots of villagers that are gone. Returns how many were placed. */
+  function placeNew(hall) {
+    const pl = placement(hall);
+    if (!pl.tray.length && !pl.stale) return 0;
     const L = hall.layout;
-    const free = () => {
-      const out = [];
-      for (let y = 0; y < L.rows; y++) for (let x = 0; x < L.cols; x++) if (!L.cells[posKey(x, y)]) out.push(posKey(x, y));
-      return out;
-    };
-    let slots = free();
-    if (slots.length < pl.tray.length) {
-      L.rows = Math.min(GRID_MAX, L.rows + Math.ceil((pl.tray.length - slots.length) / L.cols));
-      slots = free();
-    }
-    let n = 0;
-    for (const v of autoOrder(pl.tray)) { const p = slots.shift(); if (!p) break; L.cells[p] = v.key; n++; }
-    return n;
+    L.pos = L.pos || {};
+    for (const k of Object.keys(L.pos)) if (!pl.byKey[k]) delete L.pos[k];
+    Object.assign(L.pos, TH.hallCanvas.autoPlace(autoOrder(pl.tray).map((v) => v.key), L.pos));
+    return pl.tray.length;
   }
 
   /** Silently give new villagers a spot (called on render + init; no re-render, no toast). */
   function ensurePlaced() {
-    if (!placement(get()).tray.length) return;
-    upd((hall) => { fillGrid(hall); }, { silent: true });
-  }
-
-  /** Reset: forget the arrangement and lay everyone out again, sorted by type. */
-  function resetGrid() {
-    if (Object.keys(placement(get()).cells).length && !confirm('Reset the grid? Every villager goes back to its sorted-by-type position.')) return;
-    upd((hall) => { hall.layout.cells = {}; setSel(hall.ui, []); fillGrid(hall); });
-    toast('Grid reset — villagers sorted by type');
-  }
-
-  function setGridSize(cols, rows) {
-    const total = placement(get()).list.length;
-    cols = clamp(cols, 1, GRID_MAX); rows = clamp(rows, 1, GRID_MAX);
-    if (cols * rows < total) { toast(`The grid needs at least ${total} slots for ${plural(total, 'villager')}`); TH.app.render(); return; }
-    upd((hall) => {
-      const pl = cleanCells(hall);
-      const L = hall.layout;
-      for (const p of Object.keys(pl.cells)) {
-        const { x, y } = parsePos(p);
-        if (x >= cols || y >= rows) delete L.cells[p];
-      }
-      L.cols = cols; L.rows = rows;
-      gridFocus.x = Math.min(gridFocus.x, cols - 1); gridFocus.y = Math.min(gridFocus.y, rows - 1);
-      fillGrid(hall);
-    });
+    const pl = placement(get());
+    if (!pl.tray.length && !pl.stale) return;
+    upd((hall) => { placeNew(hall); }, { silent: true });
   }
 
   /* ================= plan editing (books, trades, presets) ================= */
@@ -513,7 +460,7 @@
     if (price == null) return { ...base, kind: 'idle', title: `You already have ${nm}`, text: 'Enter the price to see if this one is cheaper.' };
     const priced = book.stalls.filter((s) => s.price != null);
     if (priced.length < book.stalls.length) {
-      return { ...base, kind: 'skip', title: 'Skip it — you already have it', text: 'One of your librarians has no price logged, so there’s nothing to compare. Set it on the hall grid.' };
+      return { ...base, kind: 'skip', title: 'Skip it — you already have it', text: 'One of your librarians has no price logged, so there’s nothing to compare. Set it on the hall canvas.' };
     }
     const worst = Math.max(...priced.map((s) => s.price));
     if (price < worst) return { ...base, kind: 'lock', title: `Lock it — cheaper than your ${worst} (save ${worst - price})`, text: `Replaces your priciest ${local} librarian.` };
@@ -545,22 +492,14 @@
     }
     stall.done = true;
     stall.price = c.price;
-    fillGrid(hall);
+    placeNew(hall);
     const pos = placement(hall).posOf['b:' + stall.id];
     return { e, level, stall, old, pos, perfect: c.price != null && c.price <= minPrice(e, level) };
   }
 
-  /** Scroll a tile into view and pulse it briefly (after adding an offer to the hall). */
+  /** Pan/zoom the canvas to a tile and pulse it briefly (after adding an offer to the hall). */
   function flashTile(key) {
-    setTimeout(() => {
-      const el = Array.from(document.querySelectorAll('.hl-cell')).find((n) => n.dataset.key === key);
-      if (!el) return;
-      el.scrollIntoView({ block: 'center', inline: 'center', behavior: reduced() ? 'auto' : 'smooth' });
-      el.classList.remove('is-pulse');
-      void el.offsetWidth;
-      el.classList.add('is-pulse');
-      setTimeout(() => el.classList.remove('is-pulse'), 2200);
-    }, 60);
+    setTimeout(() => { if (canvas) canvas.reveal(key, { pulse: true }); }, 80);
   }
 
   function doAdd(addIfMissing) {
@@ -1152,14 +1091,11 @@
         frac != null ? h('div.bar', h('span', { style: { width: Math.round(frac * 100) + '%' } })) : null));
   }
 
-  /* ---- hall grid ---- */
+  /* ---- hall canvas (the layout editor itself lives in hall-canvas.js) ---- */
 
-  // keyboard focus inside the grid (roving tabindex; not persisted)
-  const gridFocus = { x: 0, y: 0 };
+  let canvas = null;
   // what the side panel showed last render (slide-in only when it changes)
   let lastDetail = null;
-  // selection anchor for Shift+click ranges
-  let anchorKey = null;
 
   function villagerName(v) {
     if (v.kind === 'book') return enchLabel(v.ench, v.book.level) + (v.stall.label ? ' (' + v.stall.label + ')' : '');
@@ -1172,36 +1108,40 @@
       : TH.icon.prof(v.prof.id, { size });
   }
 
+  /** Short bits shown on a tile: name, level / #n corner, label letter, price. */
+  function tileParts(v) {
+    const book = v.kind === 'book';
+    return {
+      name: book ? enchShort(v.ench) : profShort(v.prof),
+      corner: book ? (v.ench.maxLevel > 1 ? lvlText(v.book.level) : null) : (v.trade.target > 1 ? '#' + (v.n + 1) : null),
+      tag: book && v.stall.label ? v.stall.label.charAt(0).toUpperCase() : null,
+      paid: book && v.stall.done && v.stall.price != null ? v.stall.price : null,
+      perfect: book ? minPrice(v.ench, v.book.level) : null,
+    };
+  }
+
   /** Tile contents: marks (star / padlock / label tag), level or #n, icon, short name, price. */
   function tileBody(v) {
-    const name = v.kind === 'book' ? enchShort(v.ench) : profShort(v.prof);
-    const corner = v.kind === 'book'
-      ? (v.ench.maxLevel > 1 ? lvlText(v.book.level) : null)
-      : (v.trade.target > 1 ? '#' + (v.n + 1) : null);
-    const tag = v.kind === 'book' && v.stall.label ? v.stall.label.charAt(0).toUpperCase() : null;
-    const st = status(v);
-    const mark = st === 'perfect' ? h('span.hl-tile-star', { title: 'Perfect price' }, '★')
-      : st === 'locked' ? h('span.hl-tile-lock', { title: 'Locked in' }) : null;
-    let price = null;
-    if (v.kind === 'book') {
-      price = v.stall.done && v.stall.price != null
-        ? h('span.hl-tile-price.is-paid', { title: 'You paid ' + v.stall.price }, v.stall.price)
-        : h('span.hl-tile-price', { title: 'Perfect price' }, minPrice(v.ench, v.book.level));
-    }
+    const t = tileParts(v), st = status(v);
+    const mark = st === 'perfect' ? h('span.hc-star', { title: 'Perfect price' }, '★')
+      : st === 'locked' ? h('span.hc-lock', { title: 'Locked in' }) : null;
+    const price = t.perfect == null ? null
+      : t.paid != null ? h('span.hc-price.is-paid', { title: 'You paid ' + t.paid }, t.paid)
+        : h('span.hc-price', { title: 'Perfect price' }, t.perfect);
     return [
-      mark || tag ? h('span.hl-tile-marks', mark, tag ? h('span.hl-tile-tag', { title: v.stall.label }, tag) : null) : null,
-      corner ? h('span.hl-tile-lv', corner) : null,
-      h('span.hl-tile-ico', villagerIcon(v, 28)),
-      h('span.hl-tile-name', name),
+      mark || t.tag ? h('span.hc-marks', mark, t.tag ? h('span.hc-tag', { title: v.stall.label }, t.tag) : null) : null,
+      t.corner ? h('span.hc-lv', t.corner) : null,
+      h('span.hc-ico', villagerIcon(v, 28)),
+      h('span.hc-name', t.name),
       price,
     ];
   }
 
-  function tileLabel(v, pos) {
+  function tileLabel(v) {
     const st = status(v);
     const extra = v.kind === 'book' && v.stall.done && v.stall.price != null ? `, ${v.stall.price} emeralds` : '';
     const who = v.kind === 'book' ? profName(PROF.librarian) : profName(v.prof);
-    return `${who}: ${villagerName(v)} — ${STATUS_LABEL[st]}${extra} (${posLabel(pos)})`;
+    return `${who}: ${villagerName(v)} — ${STATUS_LABEL[st]}${extra}`;
   }
 
   /* ---- selection (single: ui.selected, several: ui.multi) ---- */
@@ -1220,383 +1160,56 @@
   }
   const selCount = (hall) => (hall.ui.multi && hall.ui.multi.length >= 2 ? hall.ui.multi.length : hall.ui.selected ? 1 : 0);
 
-  /** Occupied cells between two villagers in reading order (row-major), inclusive. */
-  function rangeKeys(pl, a, b) {
-    const ra = posRank(pl.posOf[a]), rb = posRank(pl.posOf[b]);
-    const lo = Math.min(ra, rb), hi = Math.max(ra, rb);
-    return Object.keys(pl.cells).filter((p) => { const r = posRank(p); return r >= lo && r <= hi; })
-      .sort((p, q) => posRank(p) - posRank(q)).map((p) => pl.cells[p]);
-  }
-
-  /** Click / tap / Enter on a tile, with modifiers: Ctrl/Cmd toggles, Shift selects a range. */
-  function clickTile(key, m) {
-    const hall = get();
-    const pl = placement(hall);
-    const cur = selKeys(hall, pl);
-    let next;
-    if (m.shift) {
-      if (!anchorKey || !pl.posOf[anchorKey]) anchorKey = cur[cur.length - 1] || key;
-      const r = rangeKeys(pl, anchorKey, key);
-      next = m.ctrl ? cur.concat(r) : r;
-    } else if (m.ctrl) {
-      next = cur.includes(key) ? cur.filter((k) => k !== key) : cur.concat(key);
-      anchorKey = key;
-    } else {
-      next = cur.length === 1 && cur[0] === key ? [] : [key];
-      anchorKey = key;
-    }
-    if (pl.posOf[key]) TH.app.pendingFocus = 'cell-' + pl.posOf[key];
-    upd((x) => setSel(x.ui, next));
-  }
-
   function clearSelection() {
     const hall = get();
     if (selCount(hall)) upd((x) => setSel(x.ui, []));
   }
 
-  /* ---- moving ---- */
+  /** The canvas reports positions / selection / view; one store write per gesture. View-only changes are silent. */
+  function onCanvasChange(ch) {
+    upd((x) => {
+      if (ch.pos) x.layout.pos = ch.pos;
+      if (ch.sel) setSel(x.ui, ch.sel);
+      if (ch.view) x.ui.view = ch.view;
+    }, { silent: !!ch.view && !ch.pos && !ch.sel });
+  }
 
-  /** Where a group of villagers would land if shifted by (dx, dy). ok = fits (in bounds, only free cells or their own). */
-  function groupTargets(pl, keys, dx, dy) {
-    const set = new Set(keys);
-    const out = { ok: true, moves: [], cells: [] };
-    for (const k of keys) {
-      const from = pl.posOf[k];
-      if (!from) continue;
-      const p = parsePos(from);
-      const nx = p.x + dx, ny = p.y + dy;
-      if (nx < 0 || ny < 0 || nx >= pl.cols || ny >= pl.rows) { out.ok = false; continue; }
-      const to = posKey(nx, ny);
-      const occ = pl.cells[to];
-      if (occ && !set.has(occ)) out.ok = false;
-      out.moves.push([k, from, to]); out.cells.push(to);
+  function ensureCanvas() {
+    if (!canvas) {
+      canvas = TH.hallCanvas.mount(null, {
+        onChange: onCanvasChange, onNotify: toast,
+        // phones: the details sheet is fixed over the lower part of the page; tell the canvas how much of it is covered
+        getInset: (r) => {
+          const sheet = document.querySelector('.hl-detail');
+          return sheet && getComputedStyle(sheet).position === 'fixed' ? Math.max(0, r.bottom - sheet.getBoundingClientRect().top) : 0;
+        },
+      });
     }
-    return out;
-  }
-  function moveGroup(hall, keys, dx, dy) {
-    const pl = cleanCells(hall);
-    const t = groupTargets(pl, keys, dx, dy);
-    if (!t.ok) return false;
-    const cells = hall.layout.cells;
-    t.moves.forEach(([, from]) => { delete cells[from]; });
-    t.moves.forEach(([k, , to]) => { cells[to] = k; });
-    return true;
-  }
-
-  /** Keyboard "move here": Enter on a free slot while exactly one villager is selected. */
-  function moveSelectedTo(pos) {
-    const hall = get();
-    const pl = placement(hall);
-    const sel = selKeys(hall, pl);
-    if (sel.length !== 1) return;
-    const name = villagerName(pl.byKey[sel[0]]);
-    TH.app.pendingFocus = 'cell-' + pos;
-    upd((x) => { moveTo(x, sel[0], pos); });
-    toast(`Moved ${name} to ${posLabel(pos)}`);
-  }
-
-  /* ---- pointer gestures: drag to move, lasso to select ---- */
-
-  const HOLD_MS = 350, SLOP = 5, EDGE = 44;
-  let G = null;            // the active gesture
-  let gestureEnd = 0;      // when the last gesture ended (swallows the click that follows it)
-
-  function onGridPointerDown(ev) {
-    if (G || !ev.isPrimary || (ev.pointerType === 'mouse' && ev.button !== 0)) return;
-    if (ev.target.closest && ev.target.closest('.hl-grid-size, input, select')) return;
-    const scroll = ev.currentTarget;
-    const grid = scroll.querySelector('.hl-grid');
-    const cell = ev.target.closest('.hl-cell');
-    const tile = cell && cell.classList.contains('hl-tile') ? cell : null;
-    const touch = ev.pointerType !== 'mouse';
-    G = {
-      id: ev.pointerId, x0: ev.clientX, y0: ev.clientY, x: ev.clientX, y: ev.clientY, touch, scroll, grid, tile, cell,
-      key: tile ? tile.dataset.key : null, mode: 'pending', held: false,
-      ctrl: ev.ctrlKey || ev.metaKey, shift: ev.shiftKey,
-    };
-    if (!touch) { ev.preventDefault(); if (cell) cell.focus({ preventScroll: true }); }
-    G.timer = setTimeout(() => {
-      if (!G || G.mode !== 'pending') return;
-      G.held = true;
-      if (tile) tile.classList.add('is-hold');
-      if (touch) { // finger: hold a tile = pick it up, hold empty floor = lasso
-        if (navigator.vibrate) try { navigator.vibrate(12); } catch (e) { /* ignore */ }
-        if (tile) startDrag(); else startLasso();
-      }
-    }, HOLD_MS);
-    window.addEventListener('pointermove', onGesturePointerMove);
-    window.addEventListener('pointerup', onGesturePointerUp);
-    window.addEventListener('pointercancel', onGesturePointerCancel);
-  }
-
-  function onGesturePointerMove(ev) {
-    if (!G || ev.pointerId !== G.id) return;
-    G.x = ev.clientX; G.y = ev.clientY;
-    if (G.mode === 'pending') {
-      if (Math.hypot(G.x - G.x0, G.y - G.y0) < SLOP) return;
-      if (G.touch) { if (!G.held) endGesture(false); return; } // a swipe before the hold = scrolling the page
-      if (G.tile && !G.held) startDrag(); else startLasso();
-    }
-    if (G && G.mode !== 'pending') refreshGesture();
-  }
-  function onGesturePointerCancel(ev) { if (G && ev.pointerId === G.id) endGesture(false); }
-  function onGesturePointerUp(ev) {
-    if (!G || ev.pointerId !== G.id) return;
-    G.x = ev.clientX; G.y = ev.clientY;
-    const g = G;
-    if (g.mode === 'pending') {
-      endGesture(false);
-      if (g.tile) clickTile(g.key, g);
-      else if (!g.ctrl) clearSelection();
-    } else if (g.mode === 'drag') { endGesture(true); } else { endGesture(true); }
-  }
-
-  function startDrag() {
-    const g = G;
-    const hall = get(), pl = placement(hall);
-    const sel = selKeys(hall, pl);
-    g.mode = 'drag';
-    g.group = sel.length >= 2 && sel.includes(g.key);
-    g.keys = g.group ? sel : [g.key];
-    g.target = null;
-    const r = g.tile.getBoundingClientRect();
-    g.grab = { x: g.x0 - r.left, y: g.y0 - r.top };
-    const ghost = g.tile.cloneNode(true);
-    ghost.className = 'hl-ghost ' + Array.from(g.tile.classList).filter((c) => /^is-(needed|locked|perfect)$/.test(c)).join(' ');
-    ghost.removeAttribute('title'); ghost.removeAttribute('aria-label'); ghost.removeAttribute('data-focus'); ghost.tabIndex = -1;
-    ghost.style.width = r.width + 'px'; ghost.style.height = r.height + 'px';
-    if (g.group) ghost.append(h('span.hl-ghost-n', String(g.keys.length)));
-    document.body.append(ghost);
-    g.ghost = ghost;
-    const map = g.grid.closest('.hl-map'); if (map) map.classList.add('is-dragging-any');
-    g.keys.forEach((k) => { const el = g.grid.querySelector(`[data-key="${CSS.escape(k)}"]`); if (el) el.classList.add('is-dragging'); });
-    g.pl = pl;
-    g.raf = requestAnimationFrame(autoscrollTick);
-    refreshGesture();
-  }
-
-  function startLasso() {
-    const g = G;
-    g.mode = 'lasso';
-    const gr = g.grid.getBoundingClientRect();
-    g.ox = g.x0 - gr.left; g.oy = g.y0 - gr.top;
-    g.tiles = Array.from(g.grid.querySelectorAll('.hl-tile')).map((el) => ({
-      el, key: el.dataset.key, l: el.offsetLeft, t: el.offsetTop, r: el.offsetLeft + el.offsetWidth, b: el.offsetTop + el.offsetHeight,
-    }));
-    const hall = get();
-    g.base = g.ctrl ? selKeys(hall, placement(hall)) : [];
-    g.box = h('div.hl-lasso');
-    g.grid.append(g.box);
-    g.hits = [];
-    g.grid.classList.add('is-lassoing');
-    g.raf = requestAnimationFrame(autoscrollTick);
-    refreshGesture();
-  }
-
-  /** Re-evaluate the gesture for the current pointer position (also after autoscroll). */
-  function refreshGesture() {
-    const g = G;
-    if (!g) return;
-    if (g.mode === 'drag') {
-      g.ghost.style.transform = `translate(${g.x - g.grab.x}px, ${g.y - g.grab.y}px)`;
-      const under = document.elementFromPoint(g.x, g.y);
-      const cell = under && under.closest && under.closest('.hl-cell');
-      const pos = cell && g.grid.contains(cell) ? cell.dataset.pos : null;
-      g.grid.querySelectorAll('.is-drop, .is-drop-bad').forEach((el) => el.classList.remove('is-drop', 'is-drop-bad'));
-      g.target = null; g.fits = false;
-      if (!pos) return;
-      let cells = [pos], ok = true;
-      if (g.group) {
-        const a = parsePos(g.pl.posOf[g.key]), b = parsePos(pos);
-        const t = groupTargets(g.pl, g.keys, b.x - a.x, b.y - a.y);
-        cells = t.cells; ok = t.ok;
-      }
-      g.target = pos; g.fits = ok;
-      cells.forEach((p) => { const el = g.grid.querySelector(`[data-pos="${p}"]`); if (el) el.classList.add(ok ? 'is-drop' : 'is-drop-bad'); });
-      if (!ok && !cells.includes(pos)) { const el = cell; if (el) el.classList.add('is-drop-bad'); }
-    } else if (g.mode === 'lasso') {
-      const gr = g.grid.getBoundingClientRect();
-      const W = g.grid.offsetWidth, H = g.grid.offsetHeight;
-      const cx = clamp(g.x - gr.left, 0, W), cy = clamp(g.y - gr.top, 0, H);
-      const l = Math.min(g.ox, cx), t = Math.min(g.oy, cy), r = Math.max(g.ox, cx), b = Math.max(g.oy, cy);
-      Object.assign(g.box.style, { left: l + 'px', top: t + 'px', width: r - l + 'px', height: b - t + 'px' });
-      g.hits = [];
-      for (const it of g.tiles) {
-        const hit = it.l < r && it.r > l && it.t < b && it.b > t;
-        it.el.classList.toggle('is-lasso', hit);
-        if (hit) g.hits.push(it.key);
-      }
-    }
-  }
-
-  /** While dragging near an edge, scroll the grid sideways / the page vertically. */
-  function autoscrollTick() {
-    const g = G;
-    if (!g || g.mode === 'pending') return;
-    const r = g.scroll.getBoundingClientRect();
-    const top = (parseInt(getComputedStyle(document.documentElement).getPropertyValue('--hl-top'), 10) || 64) + 16;
-    const bottom = window.innerHeight - EDGE - (parseInt(getComputedStyle(document.documentElement).getPropertyValue('--bottom-bar'), 10) || 0);
-    let moved = false;
-    const sx = g.scroll.scrollLeft;
-    if (g.x < r.left + EDGE) g.scroll.scrollLeft -= Math.ceil((r.left + EDGE - g.x) / 3);
-    else if (g.x > r.right - EDGE) g.scroll.scrollLeft += Math.ceil((g.x - (r.right - EDGE)) / 3);
-    if (g.scroll.scrollLeft !== sx) moved = true;
-    const sy = window.scrollY;
-    if (g.y < top) window.scrollBy(0, -Math.ceil((top - g.y) / 3));
-    else if (g.y > bottom) window.scrollBy(0, Math.ceil((g.y - bottom) / 3));
-    if (window.scrollY !== sy) moved = true;
-    if (moved) refreshGesture();
-    g.raf = requestAnimationFrame(autoscrollTick);
-  }
-
-  /** Finish the gesture: commit (drop / apply the lasso) or cancel. */
-  function endGesture(commit) {
-    const g = G;
-    if (!g) return;
-    G = null;
-    gestureEnd = performance.now();
-    clearTimeout(g.timer);
-    if (g.raf) cancelAnimationFrame(g.raf);
-    window.removeEventListener('pointermove', onGesturePointerMove);
-    window.removeEventListener('pointerup', onGesturePointerUp);
-    window.removeEventListener('pointercancel', onGesturePointerCancel);
-    if (g.tile) g.tile.classList.remove('is-hold');
-    if (g.mode === 'drag') {
-      if (g.ghost) g.ghost.remove();
-      const map = g.grid.closest('.hl-map'); if (map) map.classList.remove('is-dragging-any');
-      g.grid.querySelectorAll('.is-dragging, .is-drop, .is-drop-bad').forEach((el) => el.classList.remove('is-dragging', 'is-drop', 'is-drop-bad'));
-      if (commit && g.target) dropAt(g);
-    } else if (g.mode === 'lasso') {
-      if (g.box) g.box.remove();
-      g.grid.classList.remove('is-lassoing');
-      g.grid.querySelectorAll('.is-lasso').forEach((el) => el.classList.remove('is-lasso'));
-      if (commit) {
-        const next = g.ctrl ? g.base.concat(g.hits) : g.hits;
-        anchorKey = next[next.length - 1] || null;
-        upd((x) => setSel(x.ui, next));
-      }
-    }
-  }
-
-  function dropAt(g) {
-    const hall = get(), pl = placement(hall);
-    const from = pl.posOf[g.key];
-    if (!from || from === g.target) return;
-    if (g.group) {
-      const a = parsePos(from), b = parsePos(g.target);
-      if (!g.fits) { toast('Doesn’t fit there — the selection would leave the grid or land on other villagers'); return; }
-      upd((x) => { moveGroup(x, g.keys, b.x - a.x, b.y - a.y); });
-      toast(`Moved ${plural(g.keys.length, 'villager')}`);
-      return;
-    }
-    const name = villagerName(pl.byKey[g.key]);
-    const occ = pl.cells[g.target];
-    const other = occ ? villagerName(pl.byKey[occ]) : null;
-    TH.app.pendingFocus = 'cell-' + g.target;
-    upd((x) => { moveTo(x, g.key, g.target); });
-    toast(other ? `Swapped ${name} with ${other}` : `Moved ${name} to ${posLabel(g.target)}`);
-  }
-
-  /* ---- keyboard ---- */
-
-  function onGridKey(ev) {
-    const el = ev.target.closest && ev.target.closest('.hl-cell');
-    if (!el) return;
-    if ((ev.ctrlKey || ev.metaKey) && (ev.key === 'a' || ev.key === 'A')) {
-      ev.preventDefault();
-      const pl = placement(get());
-      const all = Object.keys(pl.cells).sort((p, q) => posRank(p) - posRank(q)).map((p) => pl.cells[p]);
-      upd((x) => setSel(x.ui, all));
-      return;
-    }
-    const { x, y } = parsePos(el.dataset.pos);
-    const { cols, rows } = get().layout;
-    let nx = x, ny = y;
-    if (ev.key === 'ArrowRight') nx++;
-    else if (ev.key === 'ArrowLeft') nx--;
-    else if (ev.key === 'ArrowDown') ny++;
-    else if (ev.key === 'ArrowUp') ny--;
-    else if (ev.key === 'Home') nx = 0;
-    else if (ev.key === 'End') nx = cols - 1;
-    else return;
-    ev.preventDefault();
-    nx = clamp(nx, 0, cols - 1); ny = clamp(ny, 0, rows - 1);
-    const grid = el.closest('.hl-grid');
-    const next = grid.querySelector(`[data-pos="${posKey(nx, ny)}"]`);
-    if (!next) return;
-    el.tabIndex = -1; next.tabIndex = 0;
-    gridFocus.x = nx; gridFocus.y = ny;
-    next.focus();
+    return canvas;
   }
 
   function renderMap(hall, pl) {
     const keys = selKeys(hall, pl);
-    const selSet = new Set(keys);
-    const single = keys.length === 1 ? keys[0] : null;
-    const { cols, rows } = pl;
-    gridFocus.x = clamp(gridFocus.x, 0, cols - 1); gridFocus.y = clamp(gridFocus.y, 0, rows - 1);
-
-    const head = h('div.hl-map-head',
-      h('div.hl-map-title', h('h3', 'Your hall'),
-        h('span.hl-map-count', `${plural(pl.list.length, 'villager')} · ${cols}×${rows}`),
-        h('button.btn.small.ghost', { type: 'button', onclick: resetGrid, title: 'Lay everyone out again, sorted by type' }, '↻ Reset')),
-      h('p.hl-hint', 'Villagers start sorted by type. Arrange them like your real build and tap one for details.'));
-
-    const at = (x, y) => `grid-area: ${y + 2} / ${x + 2}`;
-    const grid = h('div.hl-grid', {
-      role: 'group', 'aria-label': `Hall grid, ${cols} columns by ${rows} rows. Arrow keys move, Enter selects, Ctrl+Enter adds to the selection, Ctrl+A selects all, Enter on an empty slot moves the selected villager there.`,
-      style: '--cols:' + cols + ';--rows:' + rows, onkeydown: onGridKey,
-    },
-    h('span.hl-axis.hl-corner', { 'aria-hidden': 'true', style: 'grid-area: 1 / 1' }),
-    Array.from({ length: cols }, (_, x) => h('span.hl-axis.is-col', { 'aria-hidden': 'true', style: 'grid-area: 1 / ' + (x + 2) }, colName(x))));
-    for (let y = 0; y < rows; y++) {
-      grid.append(h('span.hl-axis.is-row', { 'aria-hidden': 'true', style: 'grid-area: ' + (y + 2) + ' / 1' }, String(y + 1)));
-      for (let x = 0; x < cols; x++) {
-        const pos = posKey(x, y);
-        const key = pl.cells[pos];
-        const v = key ? pl.byKey[key] : null;
-        const focusable = x === gridFocus.x && y === gridFocus.y;
-        const isSel = !!v && selSet.has(key);
-        const cls = '.hl-cell' + (v ? '.hl-tile.is-' + status(v) : '.is-free') + (isSel ? '.is-selected' : '');
-        const label = v
-          ? tileLabel(v, pos) + (isSel ? ' — selected' : '')
-          : `Empty slot ${posLabel(pos)}${single ? ' — move the selected villager here' : ''}`;
-        grid.append(h('button' + cls, {
-          type: 'button', 'data-pos': pos, 'data-key': key || null, 'data-focus': 'cell-' + pos, style: at(x, y),
-          tabindex: focusable ? '0' : '-1', 'aria-label': label, title: v ? villagerName(v) + ' · ' + posLabel(pos) : posLabel(pos),
-          'aria-pressed': v ? String(isSel) : null,
-          onclick: (ev) => { // pointer clicks are handled on pointerup; this is the keyboard / assistive-tech path
-            if (ev.detail !== 0) return;
-            if (v) clickTile(key, { ctrl: ev.ctrlKey || ev.metaKey, shift: ev.shiftKey });
-            else if (single) moveSelectedTo(pos);
-          },
-          onfocus: () => { gridFocus.x = x; gridFocus.y = y; },
-        }, v ? tileBody(v) : null));
-      }
-    }
-
-    const sizeCtl = h('div.hl-grid-size',
-      h('span.hl-field-label', 'Grid'),
-      h('span.hl-size-pair', h('span.faint', 'columns'),
-        stepper(cols, { min: 1, max: GRID_MAX, label: 'columns', key: 'cols', onChange: (n) => setGridSize(n, get().layout.rows) })),
-      h('span.hl-size-pair', h('span.faint', 'rows'),
-        stepper(rows, { min: 1, max: GRID_MAX, label: 'rows', key: 'rows', onChange: (n) => setGridSize(get().layout.cols, n) })));
+    const cv = ensureCanvas();
+    const items = autoOrder(pl.list).map((v) => {
+      const t = tileParts(v), st = status(v);
+      return {
+        key: v.key, status: st, label: tileLabel(v), color: v.kind === 'book' ? PROF.librarian.color : v.prof.color,
+        sig: [I18.lang, st, t.name, t.corner, t.tag, t.paid, t.perfect].join('|'),
+        body: () => tileBody(v),
+      };
+    });
+    cv.update({ items, selected: keys, pos: hall.layout.pos, view: hall.ui.view });
 
     const legend = h('ul.hl-legend', { 'aria-label': 'Legend' },
       ['needed', 'locked', 'perfect'].map((k) => h('li', h('i.hl-sw.is-' + k, { 'aria-hidden': 'true' }), STATUS_LABEL[k])),
       h('li', h('i.hl-sw.is-selected', { 'aria-hidden': 'true' }), 'selected'));
 
-    const gestures = h('p.hl-gestures',
-      h('span.hl-g-mouse',
-        h('b', 'Drag'), ' a villager to move it (drop on another to swap) · ', h('b', 'drag across empty floor'), ' — or hold a villager, then drag — to lasso · ',
-        h('kbd', 'Ctrl'), '/', h('kbd', '⌘'), '-click adds or removes · ', h('kbd', 'Shift'), '-click selects a range · ', h('kbd', 'Ctrl'), '+', h('kbd', 'A'), ' all · ', h('kbd', 'Esc'), ' clears'),
-      h('span.hl-g-touch',
-        h('b', 'Tap'), ' to select · ', h('b', 'hold a villager, then drag'), ' to move it · ', h('b', 'hold empty floor, then drag'), ' to lasso · a swipe still scrolls'));
-
-    const scroll = h('div.hl-grid-scroll', { onpointerdown: onGridPointerDown, oncontextmenu: (e) => { if (G) e.preventDefault(); } }, grid);
-    return h('section.panel.hl-map' + (keys.length ? '.has-selection' : ''), { 'aria-label': 'Hall grid' },
-      head, scroll, gestures,
-      h('div.hl-map-foot', legend, sizeCtl));
+    return h('section.panel.hl-map' + (keys.length ? '.has-selection' : ''), { 'aria-label': 'Hall layout' },
+      h('div.hl-map-head',
+        h('div.hl-map-title', h('h3', 'Your hall'), h('span.hl-map-count', plural(pl.list.length, 'villager')), legend),
+        h('p.hl-hint', 'Arrange villagers like your real build: drag them anywhere, scroll to pan, Ctrl + scroll to zoom. Press ? for all shortcuts.')),
+      cv.el);
   }
 
   /* ---- right column: Next up, or the selection's details / overview ---- */
@@ -1632,12 +1245,12 @@
     toast(n ? `${on ? 'Locked' : 'Unlocked'} ${plural(n, 'villager')}` : 'Nothing to change');
   }
 
-  /** Swap the cells of exactly two villagers. */
+  /** Swap the positions of exactly two villagers (undoable on the canvas). */
   function swapTwo(keys) {
-    if (keys.length !== 2) return;
+    if (keys.length !== 2 || !canvas) return;
     const pl = placement(get());
     const names = keys.map((k) => villagerName(pl.byKey[k]));
-    upd((x) => { const p = cleanCells(x).posOf; moveTo(x, keys[0], p[keys[1]]); });
+    canvas.swap(keys[0], keys[1]);
     toast(`Swapped ${names[0]} with ${names[1]}`);
   }
 
@@ -1706,7 +1319,7 @@
         keys.length === 2 ? h('button.btn.small', { type: 'button', 'data-focus': 'swap', onclick: () => swapTwo(keys) }, '⇄ Swap') : null,
         h('button.btn.small.ghost', { type: 'button', disabled: true, title: 'Select a single librarian to check an offer' }, 'Check offer'),
         h('button.btn.small.ghost', { type: 'button', onclick: clearSelection }, 'Clear selection')),
-      h('p.hl-hint.hl-detail-hint', 'Drag any selected villager to move them all together. Ctrl/⌘-click adds or removes one. Click anywhere else to close.'));
+      h('p.hl-hint.hl-detail-hint', 'Drag any selected villager to move them all together. Ctrl/⌘-click adds or removes one. Click empty canvas to close.'));
   }
 
   function renderDetail(hall, pl, v, fresh) {
@@ -1721,7 +1334,7 @@
       h('button.btn.small' + (isLocked ? '' : '.primary'), { type: 'button', 'data-focus': 'lock-btn', onclick: () => { if (!isLocked && v.kind === 'book' && v.stall.price == null) TH.app.pendingFocus = 'price-' + v.stall.id; bulkLock([v.key], !isLocked); } },
         isLocked ? 'Unlock' : 'Lock'),
       h('span.hl-lock-why', LOCK_WHY + (v.kind === 'book' ? ' Optionally log the price you paid below.' : '')));
-    const moveHint = h('p.hl-hint.hl-detail-hint', 'Drag it to an empty slot to move it, or onto another villager to swap. Click anywhere else to close.');
+    const moveHint = h('p.hl-hint.hl-detail-hint', 'Drag it anywhere to move it, or onto another villager to swap. Click empty canvas to close.');
     const wrap = (pc, label, icon, title, sub, body) => h('section.panel.hl-detail' + (fresh ? '.enter' : ''), {
       style: pc ? '--pc:' + pc : null, role: 'region', 'aria-label': label,
     },
@@ -1792,8 +1405,7 @@
   const SORT_IDS = SORTS.map((s) => s[0]);
   const ENCH_ORDER = Object.fromEntries(SORTED.map((e, i) => [e.id, i]));
   const GROUP_ORDER = Object.fromEntries(GROUPS.map((g, i) => [g.id, i]));
-  const posRank = (pos) => { if (!pos) return 1e9; const { x, y } = parsePos(pos); return y * 1000 + x; };
-  const byLocale = (a, b) => a.localeCompare(b, (I18.lang || 'en_us').replace('_', '-'), { sensitivity: 'base' });
+    const byLocale = (a, b) => a.localeCompare(b, (I18.lang || 'en_us').replace('_', '-'), { sensitivity: 'base' });
 
   /** Sort comparators for Next up. Books and trades each get one; ties fall back to type order. */
   function sorters(sort, pl) {
@@ -1829,10 +1441,8 @@
     const toGet = hall.trades.filter((t) => t.have < t.target).slice().sort(cmp.trade);
     const profs = profCounts(hall);
     const selectCell = (key) => {
-      anchorKey = key;
       upd((x) => { setSel(x.ui, [key]); });
-      const el = document.querySelector('.hl-tile.is-selected');
-      if (el) el.scrollIntoView({ block: 'center', inline: 'center', behavior: reduced() ? 'auto' : 'smooth' });
+      if (canvas) canvas.reveal(key);
     };
     const stallTitle = (v) => [h('b', enchLabel(v.ench, v.book.level)), v.stall.label ? h('small', v.stall.label) : null];
 
@@ -1855,7 +1465,7 @@
         }, label))));
 
     return h('div.panel.hl-next-panel', { role: 'region', 'aria-label': 'Next up' },
-      h('div.hl-next-head', h('h3', 'Next up'), h('p.hl-hint', 'What’s left to do. Tap a row to find it on the grid and open its details.')),
+      h('div.hl-next-head', h('h3', 'Next up'), h('p.hl-hint', 'What’s left to do. Tap a row to find it on the canvas and open its details.')),
       sortCtl,
       group('Still needed', needed.length, needed.map((v) => row(v,
         [v.book.stalls.length > 1 ? `${v.idx + 1} of ${v.book.stalls.length} · ` : '', 'perfect', cost(minPrice(v.ench, v.book.level))],
@@ -2039,7 +1649,7 @@
     return backdrop;
   }
 
-  /** Global keys: Esc / Enter / Tab trap in the check dialog; Esc clears the grid selection. */
+  /** Global keys: Esc / Enter / Tab trap in the check dialog; Esc clears the canvas selection. */
   function onKey(ev) {
     if (!document.querySelector('.module-hall')) return;
     const hall = get();
@@ -2059,22 +1669,18 @@
       }
       return;
     }
-    if (G && ev.key === 'Escape') { ev.preventDefault(); endGesture(false); return; }
     if (ev.key === 'Escape' && hall.setupDone && selCount(hall) && (!typing || (t.closest && t.closest('.hl-detail')))) {
-      const key = hall.ui.selected;
-      const pos = key && placement(hall).posOf[key];
-      if (pos) TH.app.pendingFocus = 'cell-' + pos;
       upd((x) => { setSel(x.ui, []); });
     }
   }
 
-  /** A click outside the tile context (details panel, grid, Next up, dialogs) closes it. */
+  /** A click outside the tile context (details panel, canvas, Next up, dialogs, menus) closes it. */
   function onDocClick(ev) {
     if (!document.querySelector('.module-hall')) return;
     const hall = get();
-    if (!hall.setupDone || !selCount(hall) || G || performance.now() - gestureEnd < 120) return;
+    if (!hall.setupDone || !selCount(hall) || (canvas && canvas.busy())) return;
     const t = ev.target;
-    if (!t || !t.closest || t.closest('.hl-detail, .hl-grid-scroll, .hl-side, .hl-check-backdrop, .toast, [data-keep-selection]')) return;
+    if (!t || !t.closest || t.closest('.hl-detail, .hc-viewport, .hl-side, .hl-check-backdrop, .toast, [role="dialog"], [role="menu"], .menu, [data-keep-selection]')) return;
     upd((x) => { setSel(x.ui, []); });
   }
 
@@ -2113,14 +1719,18 @@
     }
   }
 
-  /** Old "walls" layout (auto-assigned) → empty free grid; everyone is then auto-placed by type. */
+  /** Layouts: v2 (cols x rows cell grid) → free positions in world px (col * 80, row * 80); anything older starts fresh. */
   function migrateLayout(hall) {
     const L = hall.layout || {};
-    if (L.v === 2 && L.cells && L.cols > 0 && L.rows > 0) {
-      L.cols = clamp(L.cols | 0, 1, GRID_MAX); L.rows = clamp(L.rows | 0, 1, GRID_MAX);
-      return;
+    if (L.v === 3 && L.pos && typeof L.pos === 'object') return;
+    const pos = {};
+    if (L.v === 2 && L.cells) {
+      for (const [cell, key] of Object.entries(L.cells)) {
+        const [c, r] = String(cell).split(',').map(Number);
+        if (typeof key === 'string' && isFinite(c) && isFinite(r)) pos[key] = { x: c * CG, y: r * CG };
+      }
     }
-    hall.layout = structuredClone(DEFAULTS.layout);
+    hall.layout = Object.assign({}, L.v === 2 ? L : {}, { v: 3, pos }); // old cols / rows / cells stay behind, unused
   }
 
   /* ================= module ================= */
@@ -2189,11 +1799,10 @@
       hall.archive = hall.archive || {};
       if (!Array.isArray(s.customPresets)) s.customPresets = [];
       migrate(s);
-      if (hall.setupDone) fillGrid(hall);
+      if (hall.setupDone) placeNew(hall);
       store.update(() => {}, { silent: true }); // persist migration / defaults
       document.addEventListener('keydown', onKey);
       document.addEventListener('click', onDocClick, true);
-      document.addEventListener('touchmove', (e) => { if (G && G.mode !== 'pending' && e.cancelable) e.preventDefault(); }, { passive: false });
       window.addEventListener('hashchange', () => document.body.classList.remove('hl-noscroll'));
       trackTopbar();
     },

@@ -256,7 +256,7 @@ TH.anvil = (function () {
   const DEFAULTS = {
     item: 'sword', material: 'diamond', existing: {}, uses: 0, showExisting: false,
     selected: {}, loadout: null, gearId: null, gear: [], saveName: '', renaming: null, renameText: '',
-    mode: 'single', planEditing: null, plan: [], planGot: {},
+    mode: 'single', planEditing: null, plan: [], planGot: {}, renameCost: '',
   };
 
   const st = () => TH.store.get().enchanting;
@@ -315,7 +315,12 @@ TH.anvil = (function () {
   }
 
   /* ---------- state helpers ---------- */
-  const applicable = (s) => itemById[s.item].enchants.map((id) => byId[id]).filter(Boolean);
+  /** Most-used first: Mending, Unbreaking, then the item's own main enchants in data order (stable sort). */
+  const RANK = { mending: 0, unbreaking: 1 };
+  const rank = (id) => (id in RANK ? RANK[id] : 2);
+  const byUse = (a, b) => rank(a) - rank(b);
+  const sortIds = (ids) => ids.slice().sort(byUse);
+  const applicable = (s) => itemById[s.item].enchants.slice().sort(byUse).map((id) => byId[id]).filter(Boolean);
   const conflictList = (id, ids) => ids.filter((x) => TH.anvil.conflicts(x, id));
 
   function resetPlan(e) {
@@ -407,12 +412,23 @@ TH.anvil = (function () {
 
   /* ---------- saved gear ---------- */
 
+  /** Armor section = the four armor pieces plus elytra and shield; everything else is Tools. Armor is listed first. */
+  const ARMOR_IDS = ['helmet', 'chestplate', 'leggings', 'boots', 'elytra', 'shield'];
+  const isArmorItem = (id) => ARMOR_IDS.includes(id);
+  function armorToolSections(entries, itemOf, render, listCls) {
+    const armor = entries.filter((x) => isArmorItem(itemOf(x))).sort((a, b) => ARMOR_IDS.indexOf(itemOf(a)) - ARMOR_IDS.indexOf(itemOf(b)));
+    const tools = entries.filter((x) => !isArmorItem(itemOf(x)));
+    return [['Armor', armor], ['Tools', tools]].filter(([, l]) => l.length).map(([name, l]) => h('div.ec-sec',
+      h('div.ec-group-name', h('span', name)),
+      h('div' + (listCls || ''), l.map(render))));
+  }
+
   function renderGear(state) {
     const s = state.enchanting;
     if (!s.gear.length) return null;
     return h('section.ec-gear', { 'aria-label': 'Saved gear' },
       h('div.ec-section-head', h('h3.section-title', 'Your gear'), h('span.faint', 'Click to load and plan upgrades')),
-      h('div.ec-gear-list', s.gear.map((g) => {
+      armorToolSections(s.gear, (g) => g.item, (g) => {
         const it = itemById[g.item] || itemById.sword;
         const n = Object.keys(g.enchants).length;
         const active = s.gearId === g.id;
@@ -459,7 +475,7 @@ TH.anvil = (function () {
                 set((e) => { e.gear = e.gear.filter((x) => x.id !== g.id); if (e.gearId === g.id) e.gearId = null; });
               },
             }, '✕')));
-      })));
+      }, '.ec-gear-list'));
   }
 
   /* ---------- 1. material, then item ---------- */
@@ -471,42 +487,100 @@ TH.anvil = (function () {
     return null;
   }
 
-  function itemButton(it, s) {
-    const on = it.id === s.item;
-    const name = itemName(it.id, s.material);
-    return h('button.ec-item' + (on ? '.on' : ''), {
-      type: 'button', 'aria-pressed': String(on), 'data-focus': 'ec-item-' + it.id, title: name,
+  /** Material icon overrides (the data file's chain texture isn't what players recognise). */
+  const MAT_ICON = { chainmail: 'item/chainmail_chestplate' };
+  const matIcon = (m, size) => TH.icon(MAT_ICON[m] || D.materials[m].icon, { size });
+
+  /** The player's inventory screen: armor beside the silhouette, offhand, hotbar, then the extra row. */
+  const HUD_ARMOR = ['helmet', 'chestplate', 'leggings', 'boots'];
+  const HUD_OFFHAND = ['shield'];
+  const HUD_HOTBAR = ['sword', 'axe', 'pickaxe', 'shovel', 'hoe', 'spear'];
+  const HUD_EXTRA = ['bow', 'trident', 'mace', 'elytra', 'crossbow', 'fishing_rod'];
+
+  function itemButton(itemId, s, extraCls) {
+    const it = itemById[itemId];
+    if (!it) return null;
+    const ok = fits(it, s.material);
+    const on = ok && it.id === s.item;
+    const name = itemName(it.id, ok ? s.material : it.defaultMaterial);
+    const tip = ok ? name : name + ' — not available in ' + matName(s.material);
+    return h('button.ec-item' + (on ? '.on' : '') + (ok ? '' : '.na') + (extraCls || ''), {
+      type: 'button', 'aria-pressed': String(on), 'data-focus': 'ec-item-' + it.id, title: tip, disabled: !ok,
       onclick: () => pickItem(it.id),
     },
     itemIcon(it.id, s.material, 32),
-    h('span.ec-item-name', name),
+    h('span.ec-item-name', ok ? name : itemName(it.id, it.defaultMaterial)),
     it.since ? h('span.ec-new', it.since) : null);
   }
 
   function renderPicker(s) {
-    // items that don't exist in the picked material (leather sword, turtle boots…) are hidden; the hint says why
-    const matItems = D.items.filter((i) => !isPlain(i) && i.materials.includes(s.material));
-    const plainItems = D.items.filter(isPlain);
+    const placed = new Set(HUD_ARMOR.concat(HUD_OFFHAND, HUD_HOTBAR, HUD_EXTRA));
+    const rest = D.items.filter((i) => !placed.has(i.id)).map((i) => i.id);
     const hint = materialHint(s.material);
+    const slots = (ids, cls) => h('div.ec-slots' + (cls || ''), ids.map((id) => itemButton(id, s)));
     return h('section.panel.ec-card.ec-picker',
       h('div.ec-card-head', h('span.ec-num', '1'), h('h3', 'Pick material, then item')),
       h('div.ec-mats', { role: 'radiogroup', 'aria-label': 'Material' }, MATS.map((m) => {
         const on = s.material === m;
+        const nm = matName(m);
         return h('button.ec-mat' + (on ? '.on' : ''), {
-          type: 'button', role: 'radio', 'aria-checked': String(on), 'data-focus': 'ec-mat-' + m,
-          title: T.item(D.materials[m].lang), onclick: () => pickMaterial(m),
-        }, TH.icon(D.materials[m].icon, { size: 22 }), h('span', matName(m)));
+          type: 'button', role: 'radio', 'aria-checked': String(on), 'aria-label': nm, 'data-focus': 'ec-mat-' + m,
+          title: nm, onclick: () => pickMaterial(m),
+        }, matIcon(m, 26));
       })),
-      h('div.ec-group-name', h('span', matName(s.material)), hint ? h('span.ec-mat-hint', hint) : null),
-      h('div.ec-items', { role: 'group', 'aria-label': matName(s.material) + ' items' },
-        matItems.map((it) => itemButton(it, s))),
-      h('div.ec-group-name.ec-indep', h('span', 'Material-independent'), h('span.ec-mat-hint', 'Look the same in every material')),
-      h('div.ec-items', { role: 'group', 'aria-label': 'Material-independent items' },
-        plainItems.map((it) => itemButton(it, s))),
+      h('div.ec-mat-line', h('b', matName(s.material)), hint ? h('span.ec-mat-hint', hint) : null),
+      h('div.ec-group-name', h('span', 'Armor')),
+      h('div.ec-armor',
+        h('div.ec-slots.col', HUD_ARMOR.map((id) => itemButton(id, s))),
+        h('div.ec-sil', { 'aria-hidden': 'true' }, h('i.hd'), h('i.bd'), h('i.arm.l'), h('i.arm.r'), h('i.lg.l'), h('i.lg.r')),
+        h('div.ec-offhand', h('span.ec-off-label', 'Offhand'), slots(HUD_OFFHAND, '.col'))),
+      h('div.ec-group-name.ec-indep', h('span', 'Tools')),
+      h('div.ec-hud-label', 'Hotbar'),
+      slots(HUD_HOTBAR, '.row'),
+      h('div.ec-hud-label', 'Inventory'),
+      slots(HUD_EXTRA.concat(rest), '.row'),
     );
   }
 
   /* ---------- 2. current item ---------- */
+
+  /** Reads the anvil's rename cost back into prior-work penalty and anvil uses. */
+  function renameResult(raw) {
+    const n = parseInt(raw, 10);
+    if (!raw || !isFinite(n)) return { text: 'Enter the cost to see how many times it went through an anvil.' };
+    if (n < 1) return { text: 'The rename cost is at least 1.' };
+    const pen = n - 1;
+    const uses = Math.log2(pen + 1);
+    if (!Number.isInteger(uses)) return { text: `Penalty ${pen} isn’t 0, 1, 3, 7, 15, 31 … so that cost can’t come from anvil work alone (other renames or mods?).` };
+    return { uses, text: `Penalty ${pen} → ${uses} anvil use${uses === 1 ? '' : 's'}` };
+  }
+
+  function renderUsesHelper(s) {
+    const out = h('span.ec-rc-out');
+    const btn = h('button.btn.small', { type: 'button', hidden: true }, 'Use this');
+    let cur = null;
+    const update = (raw) => {
+      cur = renameResult(raw);
+      out.textContent = cur.text;
+      out.classList.toggle('ok', cur.uses != null);
+      btn.hidden = cur.uses == null || cur.uses === st().uses;
+    };
+    btn.onclick = () => { if (cur && cur.uses != null) set((e) => { e.uses = clamp(cur.uses, 0, MAX_USES + 4); }); };
+    update(s.renameCost);
+    return h('div.ec-uses-help',
+      h('p.ec-help', 'Every anvil job on an item adds “prior work”: the next job costs 2 × (previous penalty) + 1 more levels, so the penalty is 0, 1, 3, 7, 15, 31 … = 2',
+        h('sup', 'uses'), ' − 1. Enchanted books you found or bought carry their own penalty too.'),
+      h('div.ec-rc',
+        h('label.ec-rc-label', { for: 'ec-rename-cost' }, 'Don’t know the uses? Put the item in an anvil, type any name, and read the cost:'),
+        h('div.ec-rc-row',
+          h('input.field', {
+            id: 'ec-rename-cost', type: 'number', min: 1, max: 99, inputmode: 'numeric', placeholder: 'rename cost', value: s.renameCost, 'data-focus': 'ec-rename-cost',
+            'aria-label': 'Rename cost shown in the anvil',
+            oninput: (ev) => { set((e) => { e.renameCost = ev.target.value; }, { silent: true }); update(ev.target.value); },
+          }),
+          h('span.ec-rc-eq', 'cost − 1 = penalty →'),
+          out, btn)));
+  }
 
   function renderCurrent(s) {
     const pen = TH.anvil.penalty(s.uses);
@@ -535,6 +609,7 @@ TH.anvil = (function () {
           }), h('span')),
           h('span.ec-toggle-text', 'It already has enchantments'),
           ex.length ? h('span.chip.ec-count', ex.length) : null),
+        open ? renderUsesHelper(s) : null,
         open
           ? h('div.ec-existing',
             list.map((ench) => {
@@ -544,7 +619,7 @@ TH.anvil = (function () {
               return h('div.ec-ex-row' + (cur ? '.on' : ''),
                 h('span.ec-ex-name', nm, blockedBy.length && !cur ? h('span.faint', ' · replaces ' + blockedBy.map(enchName).join(', ')) : null),
                 h('div.lvl-chips.ec-lv', { role: 'group', 'aria-label': nm + ' level on item' },
-                  h('button' + (!cur ? '.on' : ''), { type: 'button', 'aria-pressed': String(!cur), 'aria-label': nm + ': none', 'data-focus': `ec-ex-${ench.id}-0`, onclick: () => setExisting(ench.id, 0) }, '–'),
+                  h('button.none' + (!cur ? '.on' : ''), { type: 'button', 'aria-pressed': String(!cur), 'aria-label': nm + ': none', 'data-focus': `ec-ex-${ench.id}-0`, onclick: () => setExisting(ench.id, 0) }, '–'),
                   Array.from({ length: ench.maxLevel }, (_, i) => h('button' + (cur === i + 1 ? '.on' : ''), {
                     type: 'button', 'aria-pressed': String(cur === i + 1), 'aria-label': lvlName(ench.id, i + 1), 'data-focus': `ec-ex-${ench.id}-${i + 1}`,
                     onclick: () => setExisting(ench.id, i + 1),
@@ -599,14 +674,14 @@ TH.anvil = (function () {
             (it.anvilOnly || []).includes(id) ? h('span.pill.tier-good', { title: 'The enchanting table can’t put this on this item, but an anvil can' }, 'anvil only') : null),
           h('span.ec-ench-sub' + subCls, { id: inputId + '-sub', title: sub }, sub)),
         h('div.ec-ench-side',
+          hallChip(status),
           ench.maxLevel > 1 && !blocked
             ? h('div.lvl-chips.ec-lv', { role: 'group', 'aria-label': nm + ' book level' },
               Array.from({ length: ench.maxLevel }, (_, i) => i + 1).filter((l) => l > has).map((l) => h('button' + (sel === l ? '.on' : ''), {
                 type: 'button', 'aria-pressed': String(sel === l), 'aria-label': lvlName(id, l), 'data-focus': `ec-lv-${id}-${l}`,
                 onclick: () => (sel === l ? toggleSelect(id) : setSelectedLevel(id, l)),
               }, lvl(l))))
-            : null,
-          hallChip(status)));
+            : null));
     }
 
     return h('section.panel.ec-card',
@@ -697,14 +772,14 @@ TH.anvil = (function () {
       itemIcon(s.item, s.material, 32),
       h('div.ec-final-body',
         h('b', itemName(s.item, s.material)),
-        h('div.ec-final-ench', Object.keys(fin.enchants).map((id) => h('span.ec-ench-pill', lvlName(id, fin.enchants[id]))))));
+        h('div.ec-final-ench', sortIds(Object.keys(fin.enchants)).map((id) => h('span.ec-ench-pill', lvlName(id, fin.enchants[id]))))));
     const finWarn = TH.anvil.penalty(fin.uses) >= 31
       ? h('p.ec-note', 'After this, more anvil work on it (even repairs) will be Too Expensive.')
       : null;
 
     // books to get
     let emeraldTotal = 0, fromHall = 0;
-    const shop = plan.books.map((b) => {
+    const shop = plan.books.slice().sort((a, b) => byUse(a.id, b.id)).map((b) => {
       const status = hallStatus(offers, b.id, b.level);
       if (status && status.cls === 'have') { emeraldTotal += status.price || 0; fromHall++; }
       return h('li', bookIcon(16), h('span.ec-shop-name', lvlName(b.id, b.level)), hallChip(status));
@@ -750,22 +825,13 @@ TH.anvil = (function () {
     const canApply = plan && plan.steps.length > 0;
     const dirty = g && (g.item !== s.item || g.material !== s.material || g.uses !== s.uses || JSON.stringify(sortObj(g.enchants)) !== JSON.stringify(sortObj(s.existing)));
 
-    const applyBtn = canApply ? h('button.btn.primary', {
-      type: 'button', title: 'Update the item to the result of this plan',
-      onclick: () => {
-        set((e) => {
-          e.existing = Object.assign({}, plan.final.enchants);
-          e.uses = Math.min(plan.final.uses, MAX_USES + 4);
-          e.selected = {}; e.loadout = null; e.showExisting = true;
-          const x = e.gear.find((y) => y.id === e.gearId);
-          if (x) { x.enchants = Object.assign({}, e.existing); x.uses = e.uses; x.updated = Date.now(); }
-          // a linked plan entry is now finished, too
-          const pe = e.plan.find((y) => y.id === e.planEditing);
-          if (pe) { pe.done = true; e.planEditing = null; }
-        });
-        toast(g ? `“${g.name}” updated` : 'Applied — the item now has these enchants');
-      },
-    }, g ? 'Mark as applied' : 'I did it — apply to item') : null;
+    const linked = editingEntry(s);
+    const isDone = !!(linked && linked.done);
+    const applyBtn = canApply || isDone ? h('button.btn' + (isDone ? '.ec-undone' : '.primary'), {
+      type: 'button', 'aria-pressed': String(isDone), 'data-focus': 'ec-done',
+      title: isDone ? 'Mark as not done again' : 'Check this item off in your plan' + (g ? ' and update the saved gear' : ''),
+      onclick: () => doneFromEditor(plan),
+    }, isDone ? '✓ Done — undo' : 'Done') : null;
 
     return h('div.ec-savebox',
       g ? h('div.ec-loaded', h('span', 'Editing ', h('b', g.name)),
@@ -871,19 +937,43 @@ TH.anvil = (function () {
     });
   }
 
-  function markDone(en, p) {
-    const g = en.gearId && st().gear.find((x) => x.id === en.gearId);
-    withEntry(en.id, (x, e) => {
-      x.done = true;
+  /** Check an item off (or back on). Checking it also updates the saved gear it came from; unchecking restores that. */
+  function setDone(id, on, p) {
+    let gearName = null;
+    withEntry(id, (x, e) => {
       const gg = x.gearId && e.gear.find((y) => y.id === x.gearId);
-      if (gg) {
-        gg.item = x.item; gg.material = x.material;
-        gg.enchants = Object.assign({}, p.final.enchants);
-        gg.uses = Math.min(p.final.uses, MAX_USES + 4); gg.updated = Date.now();
+      if (on) {
+        if (gg && p && p.final) {
+          x.gearBefore = { item: gg.item, material: gg.material, enchants: Object.assign({}, gg.enchants), uses: gg.uses };
+          gg.item = x.item; gg.material = x.material;
+          gg.enchants = Object.assign({}, p.final.enchants);
+          gg.uses = Math.min(p.final.uses, MAX_USES + 4); gg.updated = Date.now();
+          gearName = gg.name;
+        }
+        x.done = true;
+      } else {
+        if (gg && x.gearBefore) { Object.assign(gg, x.gearBefore, { updated: Date.now() }); }
+        delete x.gearBefore;
+        x.done = false;
       }
-      if (e.planEditing === x.id) e.planEditing = null;
     });
-    toast(g ? `Done — “${g.name}” updated` : 'Item done');
+    if (on) toast(gearName ? `Done — “${gearName}” updated` : 'Item done');
+  }
+
+  /** The editor's Done button: adds the item to the plan if needed, then checks it off / back on. */
+  function doneFromEditor(plan) {
+    const cur = st();
+    let en = editingEntry(cur);
+    if (en && en.done) { setDone(en.id, false); return; }
+    if (!en) {
+      set((e) => {
+        const n = Object.assign({ id: uid('plan'), upgrade: false, gearId: e.gearId || null, ticks: [], done: false, added: Date.now() }, snapshot(e));
+        e.plan.push(n); e.planEditing = n.id; en = n;
+      });
+    } else if (!sameEntry(en, cur)) {
+      set((e) => { const x = e.plan.find((y) => y.id === en.id); if (x) Object.assign(x, snapshot(e), { ticks: [] }); });
+    }
+    setDone(en.id, true, plan);
   }
 
   function removeEntry(en) {
@@ -901,13 +991,14 @@ TH.anvil = (function () {
 
   function renderModeSwitch(s) {
     const n = s.plan.filter((x) => !x.done).length;
+    const total = s.plan.length;
     const btn = (mode, label, icon, extra) => h('button' + (s.mode === mode ? '.on' : ''), {
       type: 'button', 'aria-pressed': String(s.mode === mode), 'data-focus': 'ec-mode-' + mode,
       onclick: () => set((e) => { e.mode = mode; }),
     }, TH.icon(icon, { size: 16 }), h('span', label), extra);
     return h('div.seg.ec-mode', { role: 'group', 'aria-label': 'Enchanting view' },
       btn('single', 'Single item', 'enchanted_book'),
-      btn('plan', 'My plan', 'item/writable_book', h('span.count', { 'aria-label': n + ' open items' }, n)));
+      btn('plan', 'My plan', 'item/writable_book', total ? h('span.nav-badge.count', { 'aria-label': (total - n) + ' of ' + total + ' items done' }, (total - n) + '/' + total) : null));
   }
 
   /** Banner above the editor while it is linked to a plan entry. */
@@ -966,11 +1057,11 @@ TH.anvil = (function () {
         h('div.ec-pi-head',
           h('span.ec-pi-icon', itemIcon(en.item, en.material, 28)),
           h('div.ec-pi-title', h('b', name), gear ? h('span.faint', gear.name) : null),
-          h('span.ec-done-pill', '✓ Done'),
-          h('div.ec-pi-actions',
-            h('button.btn.small.ghost', { type: 'button', 'data-focus': 'ec-pi-reopen-' + en.id, onclick: () => withEntry(en.id, (x) => { x.done = false; }) }, 'Reopen'),
-            remove)),
-        h('div.ec-final-ench.ec-pi-ench', Object.keys(fin).map((id) => h('span.ec-ench-pill', lvlName(id, fin[id])))));
+          h('label.ec-done-check', { title: 'Uncheck to put it back on your to-do list' },
+            h('span.check', h('input', { type: 'checkbox', checked: true, 'aria-label': name + ' is done', 'data-focus': 'ec-pi-done-' + en.id, onchange: () => setDone(en.id, false) }), h('span')),
+            h('span.ec-done-pill', 'Done')),
+          h('div.ec-pi-actions', remove)),
+        h('div.ec-final-ench.ec-pi-ench', sortIds(Object.keys(fin)).map((id) => h('span.ec-ench-pill', lvlName(id, fin[id])))));
     }
 
     // to-do rows: optional smithing upgrade, then the anvil steps
@@ -1017,7 +1108,7 @@ TH.anvil = (function () {
         h('div.ec-pi-actions',
           h('button.btn.small', { type: 'button', title: 'Load into the editor', 'data-focus': 'ec-pi-edit-' + en.id, onclick: () => editEntry(en) }, 'Edit'),
           remove)),
-      h('div.ec-pi-ench', books.map((b) => h('span.ec-want', bookIcon(14), lvlName(b.id, b.level)))),
+      h('div.ec-pi-ench', books.slice().sort((a, b) => byUse(a.id, b.id)).map((b) => h('span.ec-want', bookIcon(14), lvlName(b.id, b.level)))),
       canUpgrade(en) ? h('label.ec-tile' + (upgrade ? '.on' : ''),
         h('span.switch', h('input', {
           type: 'checkbox', checked: upgrade, 'data-focus': 'ec-pi-up-' + en.id,
@@ -1027,10 +1118,10 @@ TH.anvil = (function () {
       alert,
       rows.length ? progressBar(done, rows.length, name + ' progress') : null,
       rows.length ? h('ol.ec-todos', rows.map((r) => todoRow(en.id, r.key, en.ticks.includes(r.key), r.body, r.cost, r.bad ? '.bad' : ''))) : null,
-      rows.length ? h('div.ec-pi-foot',
-        h('span.ec-pi-total', h('b', p.totalLevels || 0), ' levels · ', rows.length, ' step' + (rows.length === 1 ? '' : 's')),
-        all ? h('button.btn.primary.small', { type: 'button', 'data-focus': 'ec-pi-done-' + en.id, onclick: () => markDone(en, p) },
-          '✓ Mark item done', gear ? ' & update gear' : '') : null) : null);
+      h('div.ec-pi-foot',
+        rows.length ? h('span.ec-pi-total', h('b', p.totalLevels || 0), ' levels · ', rows.length, ' step' + (rows.length === 1 ? '' : 's')) : h('span'),
+        h('button.btn.small' + (all ? '.primary' : ''), { type: 'button', 'data-focus': 'ec-pi-done-' + en.id, title: gear ? 'Check off and update “' + gear.name + '”' : 'Check this item off', onclick: () => setDone(en.id, true, p) },
+          'Done')));
   }
 
   function renderPlanView(state, s) {
@@ -1144,7 +1235,7 @@ TH.anvil = (function () {
         h('section.ec-pv-main', { 'aria-label': 'Anvil to-do checklist' },
           h('div.ec-section-head', h('h3.section-title', 'Anvil to-do'),
             allSteps ? h('span.faint', doneSteps + ' of ' + allSteps + ' steps done') : null),
-          rows.map(({ en, p }, i) => renderEntry(en, p, s, i)))),
+          armorToolSections(rows.map((r, i) => Object.assign({ i }, r)), (r) => r.en.item, (r) => renderEntry(r.en, r.p, s, r.i), '.ec-pi-list'))),
     ];
   }
 
@@ -1176,6 +1267,7 @@ TH.anvil = (function () {
   function migrate(s) {
     if (!Array.isArray(s.gear)) s.gear = [];
     s.renaming = null;
+    if (typeof s.renameCost !== 'string') s.renameCost = '';
     s.uses = clamp(s.uses | 0, 0, MAX_USES + 4);
     if (!MATS.includes(s.material)) s.material = 'diamond';
     if (s.mode !== 'plan') s.mode = 'single';
@@ -1191,6 +1283,7 @@ TH.anvil = (function () {
         upgrade: !!en.upgrade && material === 'netherite', gearId: en.gearId || null,
         ticks: Array.isArray(en.ticks) ? en.ticks.filter((k) => typeof k === 'string') : [],
         done: !!en.done, added: en.added || Date.now(),
+        gearBefore: en.gearBefore && typeof en.gearBefore === 'object' ? en.gearBefore : undefined,
       };
     });
     if (!s.plan.some((en) => en.id === s.planEditing)) s.planEditing = null;
@@ -1203,5 +1296,9 @@ TH.anvil = (function () {
       migrate(store.get().enchanting);
     },
     render,
+    badge(state) {
+      const plan = (state.enchanting && state.enchanting.plan) || [];
+      return plan.length ? { done: plan.filter((x) => x.done).length, total: plan.length } : null;
+    },
   });
 })();

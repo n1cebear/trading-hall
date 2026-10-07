@@ -116,10 +116,76 @@ TH.app = (function () {
     }
   }
 
+
+  /**
+   * Pixel-art glyphs for the top toolbar, drawn on an 8x8 grid and shown at 2x (16px) with
+   * crispEdges, so they stay sharp and render even when the texture CDN is unreachable.
+   * Palette letters: see PX_PAL (c = currentColor, d = currentColor at 45%).
+   */
+  const PX_PAL = {
+    y: '#ffd23c', o: '#f08a1c', w: '#f4f1e6', k: '#2a2a35', c: 'currentColor', d: 'currentColor',
+    m: '#d9e4f2', n: '#9fb3cc', s: '#ffe27a',
+    b: '#3b6fd6', B: '#86b2ff', g: '#3fb250',
+    t: '#b9783a', T: '#8a5424', G: '#f2c33c', L: '#5a3716',
+    r: '#d6332a', R: '#9c1f19',
+  };
+  const PX = {
+    sun: ['...oo...', '.o.yy.o.', '..yyyy..', 'oyyyyyyo', 'oyyyyyyo', '..yyyy..', '.o.yy.o.', '...oo...'],
+    moon: ['..mmmm..', '.mmmm...', 'mmmm....', 'mmmm....', 'mmmn....', 'mmmmn...', '.mmmnnn.', '..nnnn..'],
+    menu: ['cccccccc', 'dddddddd', '........', 'cccccccc', 'dddddddd', '........', 'cccccccc', 'dddddddd'],
+    chest: ['.LLLLLL.', 'LttttttL', 'LtttttTL', 'LLLLLLLL', 'LTttGttL', 'LttttttL', 'LTTTTTTL', '.LLLLLL.'],
+    globe: ['..bbbb..', '.bggBbb.', 'bgggbbgb', 'bggbbggb', 'bbbbgggb', 'bbgbbggb', '.bbbbbb.', '..bbbb..'],
+    up: ['...cc...', '..cccc..', '.cccccc.', '...cc...', '...cc...', '...cc...', 'cccccccc', '........'],
+    down: ['........', 'cccccccc', '...cc...', '...cc...', '...cc...', '.cccccc.', '..cccc..', '...cc...'],
+    tnt: ['rrrrrrrr', 'rRrRrRrR', 'wwwwwwww', 'wkwkkwkw', 'wwwwwwww', 'rRrRrRrR', 'rrrrrrrr', '........'],
+  };
+  function pixIcon(name, scale = 2) {
+    const art = PX[name];
+    let rects = '';
+    art.forEach((row, y) => {
+      for (let x = 0; x < row.length;) {
+        const ch = row[x];
+        let e = x + 1;
+        while (e < row.length && row[e] === ch) e++;
+        if (ch !== '.') rects += `<rect x="${x}" y="${y}" width="${e - x}" height="1" fill="${PX_PAL[ch]}"${ch === 'd' ? ' fill-opacity=".45"' : ''}/>`;
+        x = e;
+      }
+    });
+    const n = art.length * scale;
+    const span = document.createElement('span');
+    span.className = 'pix';
+    span.innerHTML = `<svg viewBox="0 0 8 8" width="${n}" height="${n}" shape-rendering="crispEdges" aria-hidden="true">${rects}</svg>`;
+    return span;
+  }
+
+  function isDark() {
+    const t = document.documentElement.dataset.theme;
+    return t ? t === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+  }
+
+  /** Fill the toolbar buttons with pixel glyphs (theme glyph shows the current mode: sun by day, moon by night). */
+  function initToolbarIcons() {
+    document.getElementById('backupBtn').replaceChildren(pixIcon('chest'));
+    document.getElementById('menuBtn').replaceChildren(pixIcon('menu'));
+    document.querySelector('.lang-globe').replaceChildren(pixIcon('globe'));
+    document.querySelectorAll('#menu .mi').forEach((el) => el.replaceChildren(pixIcon(el.dataset.ico)));
+    const tb = document.getElementById('themeBtn');
+    tb.replaceChildren(pixIcon('sun'), pixIcon('moon'));
+    matchMedia('(prefers-color-scheme: dark)').addEventListener('change', syncThemeBtn);
+  }
+  function syncThemeBtn() {
+    const tb = document.getElementById('themeBtn');
+    const dark = isDark();
+    tb.dataset.mode = dark ? 'dark' : 'light';
+    tb.setAttribute('aria-pressed', dark);
+    tb.title = dark ? 'Night mode (click for light)' : 'Day mode (click for dark)';
+  }
+
   function applyTheme() {
     const t = TH.store.get().settings.theme;
     if (t === 'auto') delete document.documentElement.dataset.theme;
     else document.documentElement.dataset.theme = t;
+    syncThemeBtn();
   }
 
   /** Top-right ⋯ menu: backup export/import and reset. */
@@ -135,7 +201,7 @@ TH.app = (function () {
     document.addEventListener('click', () => toggle(false));
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape') toggle(false); });
     menu.addEventListener('click', (e) => {
-      const act = e.target.dataset.act;
+      const act = e.target.closest('[data-act]')?.dataset.act;
       if (act === 'export') {
         TH.util.download(`trading-hall-${new Date().toISOString().slice(0, 10)}.json`, TH.store.exportJSON());
       } else if (act === 'import') {
@@ -160,11 +226,10 @@ TH.app = (function () {
 
   function start() {
     modules.forEach((m) => m.init && m.init(TH.store));
+    initToolbarIcons();
     applyTheme();
     document.getElementById('themeBtn').addEventListener('click', () => {
-      const dark = document.documentElement.dataset.theme
-        ? document.documentElement.dataset.theme === 'dark'
-        : matchMedia('(prefers-color-scheme: dark)').matches;
+      const dark = isDark();
       TH.store.update((s) => { s.settings.theme = dark ? 'light' : 'dark'; });
       applyTheme();
     });
@@ -192,7 +257,6 @@ TH.app = (function () {
       t = setTimeout(() => el.classList.remove('flash'), 900);
     });
     const btn = document.getElementById('backupBtn');
-    btn.appendChild(TH.icon('item/bundle', { size: 20 }));
     btn.addEventListener('click', () => {
       TH.util.download(`toolbox-backup-${new Date().toISOString().slice(0, 10)}.json`, TH.store.exportJSON());
       TH.util.toast('Backup file saved — import it via ⋯ on another device');

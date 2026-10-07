@@ -454,16 +454,53 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; }
 }
 
 /* ============ top-bar menu ============ */
-.topbar-actions { display: flex; gap: 6px; }
-.menu-wrap { position: relative; }
-.menu {
-  position: absolute; right: 0; top: calc(100% + 6px); z-index: 70; min-width: 190px;
-  display: flex; flex-direction: column; padding: 5px; border-radius: 11px;
-  background: var(--panel); border: 1px solid var(--line); box-shadow: var(--shadow);
+.topbar-actions { display: flex; align-items: center; gap: 10px; }
+.menu-wrap { position: relative; display: flex; }
+
+/* toolbar cluster: one raised inventory strip, 3px block under-shadow, 1px dividers between segments */
+.toolbar {
+  display: inline-flex; align-items: stretch; height: 38px; margin-bottom: 3px;
+  border: 1px solid var(--line-2); border-radius: var(--radius); background: var(--panel-2);
+  box-shadow: 0 3px 0 var(--edge-lo), 0 1px 0 var(--edge-hi) inset;
 }
-.menu button { text-align: left; border: 0; background: transparent; padding: 8px 10px; border-radius: 7px; cursor: pointer; }
-.menu button:hover, .menu button:focus-visible { background: var(--panel-2); outline: none; }
+.toolbar > * + * { border-left: 1px solid var(--line); box-shadow: -1px 0 0 var(--edge-hi); }
+.tb-btn {
+  position: relative; display: grid; place-items: center; width: 38px; height: 100%; padding: 0; border: 0; border-radius: 0;
+  background: transparent; color: var(--text); cursor: pointer; transition: background .12s;
+}
+.toolbar > :first-child, .toolbar > :first-child.tb-btn { border-radius: calc(var(--radius) - 1px) 0 0 calc(var(--radius) - 1px); }
+.toolbar > :last-child .tb-btn { border-radius: 0 calc(var(--radius) - 1px) calc(var(--radius) - 1px) 0; }
+.tb-btn:hover { background: color-mix(in srgb, var(--text) 9%, transparent); }
+.tb-btn:focus-visible, .lang:focus-within { outline: 2px solid var(--accent); outline-offset: -3px; }
+.tb-btn:active, .tb-btn[aria-expanded="true"] { background: var(--slot); box-shadow: var(--slot-shadow); }
+.tb-btn:active .pix { transform: translateY(2px); }
+.pix { display: inline-grid; line-height: 0; image-rendering: pixelated; transition: transform .08s; }
+.pix svg { display: block; }
+/* theme glyph: sun by day, moon by night (the one that is not current is hidden) */
+#themeBtn .pix { grid-area: 1 / 1; }
+#themeBtn[data-mode="dark"] .pix:first-child, #themeBtn:not([data-mode="dark"]) .pix:last-child { display: none; }
+
+.menu {
+  position: absolute; right: -1px; top: calc(100% + 10px); z-index: 70; min-width: 210px;
+  display: flex; flex-direction: column; gap: 2px; padding: 6px; border-radius: var(--radius);
+  background: var(--panel); border: 1px solid var(--line-2);
+  box-shadow: 0 1px 0 var(--edge-hi) inset, 0 3px 0 var(--edge-lo), 0 18px 32px -12px rgb(0 0 0 / .6);
+}
+.menu::before { /* pointer nub toward the menu button */
+  content: ''; position: absolute; right: 14px; top: -6px; width: 9px; height: 9px; transform: rotate(45deg);
+  background: var(--panel); border-left: 1px solid var(--line-2); border-top: 1px solid var(--line-2);
+}
+.menu-title { font: 400 10.5px/1 var(--mono); text-transform: uppercase; letter-spacing: 1.2px; color: var(--faint); padding: 6px 8px 7px; border-bottom: 1px solid var(--line); margin-bottom: 3px; }
+.menu button {
+  display: flex; align-items: center; gap: 10px; text-align: left; border: 1px solid transparent; background: transparent;
+  padding: 7px 8px; border-radius: 4px; cursor: pointer; font-weight: 600; white-space: nowrap;
+}
+.menu .mi { display: inline-grid; width: 16px; height: 16px; color: var(--muted); }
+.menu button:hover, .menu button:focus-visible { background: var(--slot); box-shadow: var(--slot-shadow); border-color: var(--line); outline: none; }
+.menu button:hover .mi { color: var(--text); }
+.menu button:active .pix { transform: translateY(1px); }
 .menu button.danger { color: var(--danger); }
+.menu button.danger .mi { color: inherit; }
 .menu hr { border: 0; border-top: 1px solid var(--line); margin: 4px 2px; width: auto; }
 .module-error { padding: 16px; color: var(--danger); }
 
@@ -495,24 +532,25 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; }
 }
 
 /* ============ language picker ============ */
-.lang { position: relative; display: inline-flex; align-items: center; }
-.lang .field { height: 36px; max-width: 200px; padding-left: 32px; font-size: 13px; }
-.lang-globe {
-  position: absolute; left: 9px; top: 50%; width: 16px; height: 16px; transform: translateY(-50%); pointer-events: none;
-  background: url("https://cdn.jsdelivr.net/gh/InventivetalentDev/minecraft-assets@1.21.11/assets/minecraft/textures/item/filled_map.png") center / contain no-repeat;
-  image-rendering: pixelated;
-}
+.lang { position: relative; display: flex; align-items: stretch; background: var(--slot); box-shadow: var(--slot-shadow); }
+.lang .field { height: 100%; max-width: 168px; padding-left: 32px; font-size: 12.5px; text-overflow: ellipsis; background-color: transparent; border: 0; border-radius: 0; box-shadow: none; }
+.lang .field:focus { box-shadow: none; }
+.lang-globe { position: absolute; left: 9px; top: 50%; transform: translateY(-50%); pointer-events: none; line-height: 0; }
 @media (max-width: 640px) {
   /* phones: picker collapses to its map icon; section nav becomes a bottom tab bar */
   .lang .field { width: 36px; max-width: 36px; padding: 0; color: transparent; background-image: none; }
   .lang .field option { color: var(--text); }
   .lang-globe { left: 10px; }
+  .toolbar { height: 36px; }
+  .tb-btn { width: 36px; }
+  .topbar-actions { gap: 6px; }
+  .menu { position: fixed; right: 12px; top: 60px; }
+  .menu::before { right: 22px; }
   .topbar { gap: 8px; padding: 8px 0; }
   .brand { flex: 1; min-width: 0; gap: 10px; }
   .brand h1 { font-size: 14px; overflow: hidden; text-overflow: ellipsis; }
   .brand-sub { display: none; }
   .topbar-actions { gap: 4px; flex-shrink: 0; }
-  .topbar-actions .icon-btn, .lang .field { width: 34px; height: 34px; }
   #backupBtn { display: none; } /* export lives in the ⋯ menu on phones */
   .nav {
     position: fixed; left: 0; right: 0; bottom: 0; z-index: 60; gap: 0; overflow: visible;
@@ -531,7 +569,7 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; }
 
 /* ============ save status + backup ============ */
 .save-state {
-  display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 10px; border-radius: 4px;
+  display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 4px; border-radius: 4px;
   font: 500 11px var(--mono); color: var(--muted); white-space: nowrap; transition: color .2s;
 }
 .save-state::before { content: ''; width: 7px; height: 7px; border-radius: 1px; background: var(--accent); box-shadow: 0 0 6px var(--accent); }

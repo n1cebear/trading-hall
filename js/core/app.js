@@ -252,28 +252,64 @@ TH.app = (function () {
     if (yr) yr.textContent = new Date().getFullYear();
     if (!btn || !box) return;
     box.inert = true;
+    const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const ease = (t) => 1 - Math.pow(1 - t, 4);
+    let raf = 0;
+    const stop = () => { cancelAnimationFrame(raf); raf = 0; };
+    ['wheel', 'touchstart', 'keydown', 'mousedown'].forEach((ev) => window.addEventListener(ev, stop, { passive: true }));
+    /** After opening, scroll just enough that the whole panel (and the bar below it) is visible, in step with the reveal. */
+    const revealPanel = () => {
+      const clip = box.firstElementChild, grow = clip.scrollHeight - clip.offsetHeight;
+      const nav = document.getElementById('nav');
+      const bottomLimit = innerHeight - (getComputedStyle(nav).position === 'fixed' ? nav.offsetHeight : 0) - 8;
+      const tb = document.querySelector('.topbar');
+      const topLimit = (tb ? tb.getBoundingClientRect().bottom : 0) + 8;
+      const foot = btn.closest('.foot').getBoundingClientRect();
+      let delta = Math.max(0, foot.bottom + grow - bottomLimit);
+      // never push the top of the panel under the sticky top bar
+      delta = Math.min(delta, Math.max(0, box.getBoundingClientRect().top - topLimit));
+      if (delta < 1) return;
+      const y0 = scrollY;
+      if (reduced()) { scrollTo(0, y0 + delta); return; }
+      const t0 = performance.now(), D = 450;
+      stop();
+      const step = (now) => {
+        const p = Math.min(1, (now - t0) / D);
+        scrollTo(0, y0 + delta * ease(p));
+        raf = p < 1 ? requestAnimationFrame(step) : 0;
+      };
+      raf = requestAnimationFrame(step);
+    };
     const set = (open) => {
       btn.setAttribute('aria-expanded', open);
-      box.classList.toggle('open', open);
       box.inert = !open;
+      if (open) revealPanel();
+      box.classList.toggle('open', open);
     };
     btn.addEventListener('click', () => set(btn.getAttribute('aria-expanded') !== 'true'));
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && btn.getAttribute('aria-expanded') === 'true' && box.contains(document.activeElement)) { set(false); btn.focus(); } });
   }
 
-  /** "Saved" status in the top bar (data auto-saves on every change) + one-click backup file. */
+  /** Save status lives on the chest (backup) button as an outline: saved = accent, pending = neutral pulse, error = red. */
   function initSaveState() {
-    const el = document.getElementById('saveState');
-    const txt = el.querySelector('.save-text');
-    let t;
-    window.addEventListener('th:saved', () => {
-      txt.textContent = 'Saved';
-      el.classList.add('flash');
-      el.title = 'Saved automatically in this browser at ' + new Date().toLocaleTimeString();
-      clearTimeout(t);
-      t = setTimeout(() => el.classList.remove('flash'), 900);
-    });
     const btn = document.getElementById('backupBtn');
+    let t, last = null;
+    const set = (state) => {
+      btn.dataset.save = state;
+      const label = state === 'error' ? 'Could not save in this browser · click to back up'
+        : state === 'pending' ? 'Saving… · click to back up'
+        : 'All changes saved' + (last ? ' (' + last + ')' : '') + ' · click to back up';
+      btn.title = label;
+      btn.setAttribute('aria-label', label);
+    };
+    window.addEventListener('th:saved', () => {
+      last = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      set('pending');
+      clearTimeout(t);
+      t = setTimeout(() => set('saved'), 650);
+    });
+    window.addEventListener('th:save-error', () => { clearTimeout(t); set('error'); });
+    set('saved');
     btn.addEventListener('click', () => {
       TH.util.download(`toolbox-backup-${new Date().toISOString().slice(0, 10)}.json`, TH.store.exportJSON());
       TH.util.toast('Backup file saved — import it via ⋯ on another device');
@@ -285,14 +321,6 @@ TH.app = (function () {
    * (see sw.js + js/core/icon-list.js). Shows "Offline" in the status when there is no network.
    */
   function initOffline() {
-    const el = document.getElementById('saveState');
-    const net = () => {
-      el.classList.toggle('offline', !navigator.onLine);
-      el.querySelector('.save-text').textContent = navigator.onLine ? 'Saved' : 'Saved · offline';
-    };
-    window.addEventListener('online', net);
-    window.addEventListener('offline', net);
-    net();
     if (!('serviceWorker' in navigator) || !/^https?:$/.test(location.protocol)) return;
     navigator.serviceWorker.register('sw.js').then((reg) => {
       const warm = () => {
@@ -303,16 +331,93 @@ TH.app = (function () {
     }).catch(() => { /* offline support is a bonus */ });
   }
 
-  /** Language picker: switches game terms only (official Mojang strings); UI stays English. */
+  /** Short bar code from a locale code: "en_us" -> EN, "en_gb" -> EN-GB, "pt_br" -> PT-BR, "esan" -> ESAN. */
+  function langShort(l) {
+    const parts = l.code.split('_');
+    if (parts.length < 2) return l.code.toUpperCase();
+    const [base, reg] = parts;
+    const shared = TH.i18n.languages.filter((x) => x.code.split('_')[0] === base).length > 1;
+    if (!shared || reg === base || l.code === 'en_us') return base.toUpperCase();
+    return (base + '-' + reg).toUpperCase();
+  }
+
+  /** Language picker: custom listbox (button shows a short code, the list shows full names). Game terms only; UI stays English. */
   function initLang() {
-    const sel = document.getElementById('langSel');
-    const cur = TH.store.get().settings.lang || 'en_us';
-    sel.replaceChildren(...TH.i18n.languages.map((l) =>
-      h('option', { value: l.code, selected: l.code === cur }, l.region && TH.i18n.languages.filter((x) => x.name === l.name).length > 1 ? `${l.name} (${l.region})` : l.name)));
-    sel.addEventListener('change', () => {
-      const code = sel.value;
+    const wrap = document.getElementById('lang'), btn = document.getElementById('langBtn'), list = document.getElementById('langList'), codeEl = document.getElementById('langCode');
+    const langs = TH.i18n.languages;
+    const label = (l) => (l.region && langs.filter((x) => x.name === l.name).length > 1 ? `${l.name} (${l.region})` : l.name);
+    let cur = TH.store.get().settings.lang || 'en_us';
+    if (!langs.some((l) => l.code === cur)) cur = 'en_us';
+    const opts = langs.map((l) => h('li.lang-opt', { role: 'option', id: 'lang-' + l.code, 'data-code': l.code, 'aria-selected': 'false' },
+      h('span.lang-opt-code', langShort(l)), h('span.lang-opt-name', label(l))));
+    list.replaceChildren(...opts);
+    const curLang = () => langs.find((l) => l.code === cur) || langs[0];
+    const paint = () => {
+      const l = curLang();
+      codeEl.textContent = langShort(l);
+      btn.title = 'Game names language: ' + label(l);
+      opts.forEach((o) => o.setAttribute('aria-selected', String(o.dataset.code === cur)));
+    };
+    let active = 0, typed = '', typedT;
+    const setActive = (i, scroll = true) => {
+      active = Math.max(0, Math.min(opts.length - 1, i));
+      opts.forEach((o, k) => o.classList.toggle('active', k === active));
+      list.setAttribute('aria-activedescendant', opts[active].id);
+      if (scroll) opts[active].scrollIntoView({ block: 'nearest' });
+    };
+    const isOpen = () => !list.classList.contains('hidden');
+    const open = () => {
+      list.classList.remove('hidden');
+      btn.setAttribute('aria-expanded', 'true');
+      setActive(langs.findIndex((l) => l.code === cur), false);
+      list.focus({ preventScroll: true });
+      list.scrollTop = Math.max(0, opts[active].offsetTop - list.clientHeight / 2 + opts[active].offsetHeight / 2);
+    };
+    const close = (refocus) => {
+      if (!isOpen()) return;
+      list.classList.add('hidden');
+      btn.setAttribute('aria-expanded', 'false');
+      if (refocus) btn.focus();
+    };
+    const choose = (i) => {
+      const code = langs[i].code;
+      close(true);
+      if (code === cur) return;
+      cur = code;
+      paint();
       TH.i18n.setLang(code).then(() => TH.store.update((s) => { s.settings.lang = code; }));
+    };
+    btn.addEventListener('click', (e) => { e.stopPropagation(); isOpen() ? close(true) : open(); });
+    btn.addEventListener('keydown', (e) => {
+      if (['ArrowDown', 'ArrowUp'].includes(e.key)) { e.preventDefault(); open(); }
     });
+    list.addEventListener('click', (e) => { e.stopPropagation(); const o = e.target.closest('.lang-opt'); if (o) choose(opts.indexOf(o)); });
+    list.addEventListener('mousemove', (e) => { const o = e.target.closest('.lang-opt'); if (o && opts.indexOf(o) !== active) setActive(opts.indexOf(o), false); });
+    list.addEventListener('keydown', (e) => {
+      const k = e.key, page = Math.max(1, Math.floor(list.clientHeight / 30) - 1);
+      if (k === 'ArrowDown') setActive(active + 1);
+      else if (k === 'ArrowUp') setActive(active - 1);
+      else if (k === 'PageDown') setActive(active + page);
+      else if (k === 'PageUp') setActive(active - page);
+      else if (k === 'Home') setActive(0);
+      else if (k === 'End') setActive(opts.length - 1);
+      else if (k === 'Enter' || k === ' ') choose(active);
+      else if (k === 'Escape') close(true);
+      else if (k === 'Tab') close(false);
+      else if (k.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        typed += k.toLowerCase();
+        clearTimeout(typedT);
+        typedT = setTimeout(() => { typed = ''; }, 700);
+        const names = langs.map((l) => label(l).toLowerCase());
+        let i = names.findIndex((n, j) => j >= (typed.length > 1 ? active : active + 1) && n.startsWith(typed));
+        if (i < 0) i = names.findIndex((n) => n.startsWith(typed));
+        if (i >= 0) setActive(i);
+      } else return;
+      e.preventDefault();
+      e.stopPropagation();
+    });
+    document.addEventListener('click', (e) => { if (!wrap.contains(e.target)) close(false); });
+    paint();
   }
 
   return { register, start, render, refreshBadges, pendingFocus: null, get modules() { return modules; } };

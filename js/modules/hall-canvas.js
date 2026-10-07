@@ -78,6 +78,7 @@ TH.hallCanvas = (function () {
     plus: [[2, 5, 7, 1], [5, 2, 1, 7]],
     fit: [[1, 1, 3, 1], [1, 2, 1, 2], [7, 1, 3, 1], [9, 2, 1, 2], [1, 7, 1, 2], [1, 9, 3, 1], [9, 7, 1, 2], [7, 9, 3, 1], [3, 3, 2, 2], [6, 6, 2, 2]],
     sel: [[1, 1, 3, 1], [1, 2, 1, 2], [7, 1, 3, 1], [9, 2, 1, 2], [1, 7, 1, 2], [1, 9, 3, 1], [9, 7, 1, 2], [7, 9, 3, 1], [3, 3, 5, 5]],
+    grid: [0, 1, 2].flatMap((r) => [0, 1, 2].map((c) => [1 + c * 4, 1 + r * 4, 1, 1])),
     snap: [0, 1, 2].flatMap((r) => [0, 1, 2].map((c) => [c * 4, r * 4, 3, 3])),
     guides: [[5, 0, 1, 2], [5, 3, 1, 2], [5, 6, 1, 2], [5, 9, 1, 2], [0, 5, 2, 1], [3, 5, 2, 1], [6, 5, 2, 1], [9, 5, 2, 1], [5, 5, 1, 1]],
     undo: [[2, 4, 1, 1], [3, 3, 1, 3], [4, 2, 1, 5], [5, 4, 4, 1], [9, 5, 1, 2], [8, 7, 1, 1], [5, 8, 3, 1]],
@@ -120,7 +121,7 @@ TH.hallCanvas = (function () {
     opts = opts || {};
     const S = {
       items: new Map(), order: [], pos: {}, sel: new Set(),
-      view: { px: 0, py: 0, z: 1 }, prefs: { snap: true, guides: true, map: matchMedia('(min-width: 641px)').matches },
+      view: { px: 0, py: 0, z: 1 }, prefs: { snap: false, grid: true, guides: true, map: matchMedia('(min-width: 641px)').matches },
       past: [], future: [], pinned: new Set(), tipTimer: 0, tipKey: null, g: null, ptrs: new Map(), pinch: null, space: false, hover: false,
       size: { w: 0, h: 0 }, haveView: false, needFit: true, anim: 0, dirty: true, lastNudge: null, colors: null, colorsAt: 0, orderSig: '',
     };
@@ -140,7 +141,8 @@ TH.hallCanvas = (function () {
     const btn = (ico, title, fn, extra) => h('button.hc-btn' + (extra || ''), { type: 'button', title, 'aria-label': title.replace(/\s*\(.*\)$/, ''), onclick: fn }, icon(ico));
     const bUndo = btn('undo', 'Undo (Ctrl+Z)', () => undo());
     const bRedo = btn('redo', 'Redo (Ctrl+Shift+Z)', () => redo());
-    const bSnap = btn('snap', 'Snap to grid (hold Alt to bypass)', () => togglePref('snap'));
+    const bSnap = btn('snap', 'Snap to grid (off by default; hold Alt to bypass)', () => togglePref('snap'));
+    const bGrid = btn('grid', 'Show grid', () => togglePref('grid'));
     const bGuides = btn('guides', 'Smart guides', () => togglePref('guides'));
     const bMap = btn('map', 'Minimap', () => togglePref('map'));
     const bHelp = btn('help', 'Shortcuts (?)', () => toggleHelp());
@@ -149,7 +151,7 @@ TH.hallCanvas = (function () {
     const mainBar = h('div.hc-bar',
       h('div.hc-grp', btn('minus', 'Zoom out (−)', () => zoomBy(1 / 1.25)), zoomBtn, btn('plus', 'Zoom in (+)', () => zoomBy(1.25))),
       h('div.hc-grp', btn('fit', 'Fit all (F)', () => fit(true)), bSelZoom),
-      h('div.hc-grp', bSnap, bGuides),
+      h('div.hc-grp', bGrid, bSnap, bGuides),
       h('div.hc-grp', bUndo, bRedo),
       h('div.hc-grp', btn('tidy', 'Tidy up: sort by type into rows', () => tidy())),
       h('div.hc-grp', bMap, bHelp));
@@ -232,11 +234,17 @@ TH.hallCanvas = (function () {
     }
     function schedule() { if (!raf) raf = requestAnimationFrame(frame); }
 
+    function paintGrid() {
+      const sz = G * S.view.z, on = S.prefs.grid && sz >= 10;
+      vp.classList.toggle('has-grid', on);
+      if (on) { vp.style.setProperty('--hc-gs', sz + 'px'); vp.style.setProperty('--hc-gx', (Math.round(S.view.px) - sz / 2) + 'px'); vp.style.setProperty('--hc-gy', (Math.round(S.view.py) - sz / 2) + 'px'); }
+    }
     function applyView() {
       const { px, py, z } = S.view;
       const rx = Math.round(px), ry = Math.round(py);
       world.style.transform = `translate3d(${rx}px, ${ry}px, 0) scale(${z})`;
       vp.classList.toggle('is-lod', z < 0.5);
+      paintGrid();
       zoomBtn.textContent = Math.round(z * 100) + '%';
     }
 
@@ -333,9 +341,11 @@ TH.hallCanvas = (function () {
     const persistView = debounce(() => {
       if (opts.onChange) opts.onChange({ view: viewState() });
     }, 350);
+    // flush a pending view save if the page is left/reloaded within the debounce window
+    addEventListener('pagehide', () => { if (opts.onChange) opts.onChange({ view: viewState() }); });
     const viewState = () => ({
       px: Math.round(S.view.px * 100) / 100, py: Math.round(S.view.py * 100) / 100, z: Math.round(S.view.z * 1000) / 1000,
-      snap: S.prefs.snap, guides: S.prefs.guides, map: S.prefs.map,
+      snap: S.prefs.snap, grid: S.prefs.grid, guides: S.prefs.guides, map: S.prefs.map, sv: 2,
     });
 
     /** Announce for screen readers; `toast` also shows it on screen (only for things the user can't otherwise see). */
@@ -380,6 +390,7 @@ TH.hallCanvas = (function () {
     function updateBtns() {
       bUndo.disabled = !S.past.length; bRedo.disabled = !S.future.length;
       bSnap.classList.toggle('on', S.prefs.snap); bSnap.setAttribute('aria-pressed', String(S.prefs.snap));
+      bGrid.classList.toggle('on', S.prefs.grid); bGrid.setAttribute('aria-pressed', String(S.prefs.grid));
       bGuides.classList.toggle('on', S.prefs.guides); bGuides.setAttribute('aria-pressed', String(S.prefs.guides));
       bMap.classList.toggle('on', S.prefs.map); bMap.setAttribute('aria-pressed', String(S.prefs.map));
       mini.hidden = !S.prefs.map;
@@ -547,7 +558,7 @@ TH.hallCanvas = (function () {
     }
 
     function togglePref(k) {
-      S.prefs[k] = !S.prefs[k]; updateBtns(); S.miniDirty = true; schedule(); persistView();
+      S.prefs[k] = !S.prefs[k]; if (k === 'grid') paintGrid(); updateBtns(); S.miniDirty = true; schedule(); persistView();
     }
     function toggleHelp(on) {
       help.hidden = on == null ? !help.hidden : !on;
@@ -688,33 +699,37 @@ TH.hallCanvas = (function () {
       if (S.prefs.snap && !free) { dx = snapG(o.x + dx) - o.x; dy = snapG(o.y + dy) - o.y; }
       const guides = [];
       if (S.prefs.guides && !free && g.others.length) {
-        const thr = GUIDE_PX / z, bb = g.bb;
-        const mx = [bb.x0 + dx, (bb.x0 + bb.x1) / 2 + dx, bb.x1 + dx], my = [bb.y0 + dy, (bb.y0 + bb.y1) / 2 + dy, bb.y1 + dy];
-        const lines = (c, axis) => {
-          let best = null;
+        const thr = GUIDE_PX / z, bb = g.bb, gridOn = S.prefs.snap;
+        // one guide per axis: the closest centre-centre or same-edge (min-min, max-max) match; cross-edge pairs are ignored
+        const best = (axis) => {
+          const lo = axis === 'x' ? bb.x0 + dx : bb.y0 + dy, hi = axis === 'x' ? bb.x1 + dx : bb.y1 + dy;
+          const mine = [lo, (lo + hi) / 2, hi];
+          let pick = null;
           for (const s of g.others) {
-            const sv = axis === 'x' ? [s.x, s.x + TILE / 2, s.x + TILE] : [s.y, s.y + TILE / 2, s.y + TILE];
-            for (const a of c) for (const b of sv) { const d = b - a; if (Math.abs(d) <= thr && (!best || Math.abs(d) < Math.abs(best))) best = d; }
+            const a0 = axis === 'x' ? s.x : s.y, ref = [a0, a0 + TILE / 2, a0 + TILE];
+            for (let i = 0; i < 3; i++) {
+              const d = ref[i] - mine[i];
+              if (Math.abs(d) > thr) continue;
+              if (gridOn && Math.abs(d) < 0.5) continue; // already on the grid line: no guide needed
+              if (!pick || Math.abs(d) < Math.abs(pick.d)) pick = { d, i, at: ref[i] };
+            }
           }
-          return best;
+          return pick;
         };
-        const sx = lines(mx, 'x'), sy = lines(my, 'y');
-        if (sx != null) dx += sx;
-        if (sy != null) dy += sy;
-        // collect the guide lines that now line up (within half a px)
-        const fx = [bb.x0 + dx, (bb.x0 + bb.x1) / 2 + dx, bb.x1 + dx], fy = [bb.y0 + dy, (bb.y0 + bb.y1) / 2 + dy, bb.y1 + dy];
-        const by0 = bb.y0 + dy, by1 = bb.y1 + dy, bx0 = bb.x0 + dx, bx1 = bb.x1 + dx;
-        const seenV = new Map(), seenH = new Map();
-        for (const s of g.others) {
-          for (const sv of [s.x, s.x + TILE / 2, s.x + TILE]) for (const a of fx) if (Math.abs(a - sv) < 0.5) {
-            const e = seenV.get(sv) || { from: by0, to: by1 }; e.from = Math.min(e.from, s.y); e.to = Math.max(e.to, s.y + TILE); seenV.set(sv, e);
-          }
-          for (const sv of [s.y, s.y + TILE / 2, s.y + TILE]) for (const a of fy) if (Math.abs(a - sv) < 0.5) {
-            const e = seenH.get(sv) || { from: bx0, to: bx1 }; e.from = Math.min(e.from, s.x); e.to = Math.max(e.to, s.x + TILE); seenH.set(sv, e);
-          }
+        const px = best('x'), py = best('y');
+        if (px) dx += px.d;
+        if (py) dy += py.d;
+        const bx0 = bb.x0 + dx, bx1 = bb.x1 + dx, by0 = bb.y0 + dy, by1 = bb.y1 + dy;
+        if (px) { // vertical line; spans the dragged selection plus every tile sharing that line
+          let from = by0, to = by1;
+          for (const s of g.others) { const v = [s.x, s.x + TILE / 2, s.x + TILE][px.i]; if (Math.abs(v - px.at) < 0.5) { from = Math.min(from, s.y); to = Math.max(to, s.y + TILE); } }
+          guides.push({ v: true, at: px.at, from, to });
         }
-        seenV.forEach((e, at) => guides.push({ v: true, at, from: e.from, to: e.to }));
-        seenH.forEach((e, at) => guides.push({ v: false, at, from: e.from, to: e.to }));
+        if (py) {
+          let from = bx0, to = bx1;
+          for (const s of g.others) { const v = [s.y, s.y + TILE / 2, s.y + TILE][py.i]; if (Math.abs(v - py.at) < 0.5) { from = Math.min(from, s.x); to = Math.max(to, s.x + TILE); } }
+          guides.push({ v: false, at: py.at, from, to });
+        }
       }
       g.dx = dx; g.dy = dy;
       const desired = {};
@@ -1070,7 +1085,9 @@ TH.hallCanvas = (function () {
       }
       if (!S.viewApplied) { // the saved view only seeds the very first update; after that the canvas owns it
         S.viewApplied = true;
-        if (d.view && typeof d.view.snap === 'boolean') S.prefs.snap = d.view.snap;
+        // sv < 2: snap used to default on and was never distinguishable from a deliberate choice, so it is reset to off once
+        if (d.view && d.view.sv === 2 && typeof d.view.snap === 'boolean') S.prefs.snap = d.view.snap;
+        if (d.view && typeof d.view.grid === 'boolean') S.prefs.grid = d.view.grid;
         if (d.view && typeof d.view.guides === 'boolean') S.prefs.guides = d.view.guides;
         if (d.view && typeof d.view.map === 'boolean') S.prefs.map = d.view.map;
         if (d.view && isFinite(d.view.px) && isFinite(d.view.py) && isFinite(d.view.z)) { S.view = { px: d.view.px, py: d.view.py, z: clamp(d.view.z, ZMIN, ZMAX) }; S.needFit = false; S.haveView = true; }

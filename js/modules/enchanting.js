@@ -298,17 +298,17 @@ TH.anvil = (function () {
   /** {cls, text, price} describing where a book comes from. */
   function hallStatus(offers, id, level) {
     const ench = byId[id];
-    if (!ench.librarian) return { cls: 'none', text: 'not sold by librarians' };
+    if (!ench.librarian) return { cls: 'none', text: 'not sold', title: 'Not sold by librarians (treasure)' };
     if (!offers) return null;
     const o = offers[id];
-    if (!o) return { cls: 'missing', text: 'not in your hall' };
-    if (o.level >= level) return { cls: 'have', text: 'In your hall', price: o.price, perfect: o.perfect };
-    return { cls: 'low', text: `Hall has ${lvl(o.level)}`, price: o.price };
+    if (!o) return { cls: 'missing', text: 'not in hall' };
+    if (o.level >= level) return { cls: 'have', text: 'in hall', price: o.price, perfect: o.perfect };
+    return { cls: 'low', text: `hall has ${lvl(o.level)}`, price: o.price };
   }
 
   function hallChip(status) {
     if (!status) return null;
-    return h('span.ec-hall.' + status.cls, { title: status.text + (status.price != null ? ` · ${status.price} emeralds` : '') },
+    return h('span.ec-hall.' + status.cls, { title: (status.title || status.text) + (status.price != null ? ` · ${status.price} emeralds` : '') },
       h('span.ec-hall-text', status.text),
       status.price != null ? h('span.ec-price', h('b', status.price), emerald()) : null,
       status.perfect ? h('span.ec-star', { 'aria-label': 'perfect price' }, '★') : null);
@@ -676,14 +676,14 @@ TH.anvil = (function () {
             (it.anvilOnly || []).includes(id) ? h('span.pill.tier-good', { title: 'The enchanting table can’t put this on this item, but an anvil can' }, 'anvil only') : null),
           h('span.ec-ench-sub' + subCls, { id: inputId + '-sub', title: sub }, sub)),
         h('div.ec-ench-side',
-          hallChip(status),
           ench.maxLevel > 1 && !blocked
             ? h('div.lvl-chips.ec-lv', { role: 'group', 'aria-label': nm + ' book level' },
               Array.from({ length: ench.maxLevel }, (_, i) => i + 1).filter((l) => l > has).map((l) => h('button' + (sel === l ? '.on' : ''), {
                 type: 'button', 'aria-pressed': String(sel === l), 'aria-label': lvlName(id, l), 'data-focus': `ec-lv-${id}-${l}`,
                 onclick: () => (sel === l ? toggleSelect(id) : setSelectedLevel(id, l)),
               }, lvl(l))))
-            : h('div.lvl-chips.ec-lv.is-empty', { 'aria-hidden': 'true' })));
+            : h('div.lvl-chips.ec-lv.is-empty', { 'aria-hidden': 'true' }),
+          h('div.ec-hall-slot', hallChip(status))));
     }
 
     return h('section.panel.ec-card',
@@ -1064,10 +1064,10 @@ TH.anvil = (function () {
     if (!byId[id] || !byId[id].librarian) return h('span.ec-hall.none', 'Not sold by librarians (treasure)');
     if (!offers) return null;
     const o = offers[id];
-    if (!o) return h('span.ec-hall.missing', 'Not in your hall');
-    if (o.level < level) return h('span.ec-hall.low', 'Your hall only has ' + lvl(o.level));
-    return h('span.ec-hall.have', { title: o.price != null ? `Your hall · ${o.price} emeralds + 1 book${count > 1 ? ' each' : ''}` : 'Your hall · price not set' },
-      h('span.ec-hall-text', 'Your hall ·'),
+    if (!o) return h('span.ec-hall.missing', 'Not in hall');
+    if (o.level < level) return h('span.ec-hall.low', 'Hall only has ' + lvl(o.level));
+    return h('span.ec-hall.have', { title: o.price != null ? `In hall · ${o.price} emeralds + 1 book${count > 1 ? ' each' : ''}` : 'In hall · price not set' },
+      h('span.ec-hall-text', 'In hall ·'),
       o.price != null ? [h('span.ec-price', h('b', o.price), emerald()), count > 1 ? h('span.ec-each', 'each') : null] : h('span.ec-hall-text', 'price not set'),
       o.perfect ? h('span.ec-star', { 'aria-label': 'perfect price' }, '★') : null);
   }

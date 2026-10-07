@@ -147,7 +147,7 @@
 .lvl-chips.ec-lv button.on { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); box-shadow: inset 1px 1px 0 var(--edge-hi), 0 0 10px -3px var(--accent); }
 /* "none" is not a tier: selected = plain and muted, no glow */
 .lvl-chips.ec-lv button.none.on { color: var(--text); border-color: var(--line-2); background: var(--panel-2); box-shadow: none; }
-.ec-ench-side .lvl-chips.ec-lv { width: 162px; }
+.ec-ench-side .lvl-chips.ec-lv { width: 200px; flex-wrap: nowrap; }
 .lvl-chips.ec-lv.is-empty { background: none; border: 0; box-shadow: none; padding: 0; min-height: 0; }
 
 /* ---------- 3. enchantments as strips ---------- */
@@ -192,6 +192,8 @@
 .ec-hall.low { color: var(--gold); background: color-mix(in srgb, var(--gold) 13%, transparent); }
 .ec-hall.missing { color: var(--faint); background: var(--bg-2); }
 .ec-hall.none { color: var(--faint); font-style: italic; padding: 0; }
+.ec-hall-slot { width: 124px; display: flex; justify-content: flex-end; flex-shrink: 0; }
+.ec-hall-slot:empty { min-height: 22px; }
 .ec-star { color: var(--gold); }
 
 /* ---------- plan panel ---------- */
@@ -425,6 +427,8 @@
 @media (max-width: 640px) {
   .ec-card, .ec-plan { padding: 12px; }
   .ec-ench-side .lvl-chips.ec-lv { width: auto; justify-content: flex-start; }
+  .ec-hall-slot { width: auto; }
+  .ec-hall-slot:empty { display: none; }
   .lvl-chips.ec-lv.is-empty { display: none; }
   .ec-item { min-height: 76px; font-size: 11px; }
   .ec-act-row { grid-auto-flow: row; }

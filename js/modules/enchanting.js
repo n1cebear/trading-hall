@@ -1286,6 +1286,39 @@ TH.anvil = (function () {
 
   /* ---------- page ---------- */
 
+  /* Structural changes replay the tab-switch entrance (TH.util.reveal); level chips and typing never do. */
+  let lastSig = null;
+  function structSig(s) {
+    const single = s.mode !== 'plan';
+    return {
+      mode: s.mode,
+      mat: single ? s.material : null,
+      item: single ? s.item + '|' + (s.gearId || '') : null,
+      lo: single ? s.loadout || '' : null,
+      plan: !single ? s.plan.map((x) => x.id).join(',') : null,
+    };
+  }
+  function revealChanges(root, s) {
+    const sig = structSig(s), prev = lastSig;
+    lastSig = sig;
+    const rv = TH.util.reveal;
+    if (!prev || !rv || root.classList.contains('enter')) return; // first paint / tab switch already animates
+    Promise.resolve().then(() => {
+      if (!root.isConnected) return;
+      if (sig.mode !== prev.mode) return rv(root, { from: 1 });
+      if (sig.mode === 'plan') {
+        if (sig.plan !== prev.plan) rv(root, { items: '.ec-pi-list > *, .ec-pv-side > *', max: 14, step: 0.045 });
+        return;
+      }
+      if (sig.item !== prev.item) {
+        rv(root, { items: '.ec-main > :not(.ec-picker), .ec-side > *' });
+      } else if (sig.lo !== prev.lo && sig.lo) {
+        rv(root, { items: '.ec-ench-list > *', step: 0.03 });
+      }
+      if (sig.mat !== prev.mat) rv(root, { items: '.ec-picker .ec-mat-line, .ec-picker .ec-slots > *', step: 0.025, max: 20 });
+    });
+  }
+
   function render(root, state) {
     const s = state.enchanting;
     if (!itemById[s.item]) s.item = 'sword';
@@ -1307,6 +1340,7 @@ TH.anvil = (function () {
           h('div.ec-side', renderPreview(s), renderPlan(state, s))),
       ],
     ]);
+    revealChanges(root, s);
   }
 
   function migrate(s) {

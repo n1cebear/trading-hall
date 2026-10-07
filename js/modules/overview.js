@@ -15,6 +15,9 @@
     { id: 'trims', icon: () => TH.icon.trim('sentry', { size: 56 }), kicker: 'Armor trims', soon: true,
       pitch: 'Track your smithing templates and preview patterns and materials on a full outfit. The previewer is on its way.',
       cta: 'Peek at the preview', unit: 'templates owned' },
+    { id: 'builds', icon: () => TH.icon('block/crafting_table_front', { size: 56 }), kicker: 'Build planning', soon: true, soonLabel: 'soon',
+      pitch: 'Plan a build and get the materials list for it. Blocks, stacks and shulker boxes, worked out for you.',
+      cta: 'See what is coming', unit: '' },
   ];
 
   function stat(mod, state, unit) {
@@ -41,7 +44,7 @@
       return h('a.ov-card', { href: '#/' + t.id, 'data-tool': t.id, style: { '--i': i } },
         h('div.ov-art', h('span.ov-icon', t.icon())),
         h('div.ov-body',
-          h('div.ov-kicker', t.kicker, t.soon ? h('span.ov-soon', 'preview') : null),
+          h('div.ov-kicker', t.kicker, t.soon ? h('span.ov-soon', t.soonLabel || 'preview') : null),
           h('h3', mod.name),
           h('p', t.pitch),
           st),

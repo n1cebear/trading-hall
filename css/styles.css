@@ -17,7 +17,7 @@
   --muted: #a4a3ae;
   --faint: #6b6a76;
   /* per-feature colours (see [data-tool] block below); dark values */
-  --c-hall: #17dd62; --c-ench: #b07cff; --c-trim: #4aedd9; --c-home: #f5c04a;
+  --c-hall: #17dd62; --c-ench: #b07cff; --c-trim: #4aedd9; --c-home: #f5c04a; --c-build: #ff8a3d;
   --on-accent: #04140a; --mix-hi: #fff;
   --accent: #17dd62;          /* default = Trading Hall emerald; [data-tool] swaps the whole family */
   --accent-2: #7af0b3;
@@ -61,7 +61,7 @@
     --edge-hi: rgb(255 255 255 / .6); --edge-lo: rgb(90 60 20 / .18);
     --shadow: 0 1px 0 var(--edge-hi) inset, 0 -2px 0 var(--edge-lo) inset, 0 8px 22px -14px rgb(70 45 10 / .45);
     --grid-line: rgb(90 60 20 / .045); --glow-a: rgb(38 71 184 / .10); --glow-b: rgb(18 134 79 / .10); --mob-op: .16;
-    --c-hall: #0b7a35; --c-ench: #7b3fc4; --c-trim: #0d7d76; --c-home: #8f5f0c; --on-accent: #fbf5e6; --mix-hi: #000;
+    --c-hall: #0b7a35; --c-ench: #7b3fc4; --c-trim: #0d7d76; --c-home: #8f5f0c; --c-build: #b85a12; --on-accent: #fbf5e6; --mix-hi: #000;
     color-scheme: light;
   }
 }
@@ -75,18 +75,19 @@
   --edge-hi: rgb(255 255 255 / .6); --edge-lo: rgb(90 60 20 / .18);
   --shadow: 0 1px 0 var(--edge-hi) inset, 0 -2px 0 var(--edge-lo) inset, 0 8px 22px -14px rgb(70 45 10 / .45);
   --grid-line: rgb(90 60 20 / .045); --glow-a: rgb(38 71 184 / .10); --glow-b: rgb(18 134 79 / .10); --mob-op: .16;
-  --c-hall: #0b7a35; --c-ench: #7b3fc4; --c-trim: #0d7d76; --c-home: #8f5f0c; --on-accent: #fbf5e6; --mix-hi: #000;
+  --c-hall: #0b7a35; --c-ench: #7b3fc4; --c-trim: #0d7d76; --c-home: #8f5f0c; --c-build: #b85a12; --on-accent: #fbf5e6; --mix-hi: #000;
   color-scheme: light;
 }
 
 /* ============ per-feature accent ============
-   app.js sets <html data-tool="hall|enchanting|trims|overview">. Only --c-* (per theme, above) differ;
+   app.js sets <html data-tool="hall|enchanting|trims|builds|overview">. Only --c-* (per theme, above) differ;
    the whole accent family is derived here so every primary button, check, switch, selected state, focus ring,
    progress bar and nav marker follows the feature. Gold stays for prices; --tier-* stay data colours. */
 :root[data-tool="hall"] { --tc: var(--c-hall); }
 :root[data-tool="enchanting"] { --tc: var(--c-ench); }
 :root[data-tool="trims"] { --tc: var(--c-trim); }
 :root[data-tool="overview"] { --tc: var(--c-home); }
+:root[data-tool="builds"] { --tc: var(--c-build); }
 :root[data-tool] {
   --accent: var(--tc);
   --accent-2: color-mix(in srgb, var(--tc) 72%, var(--mix-hi));
@@ -220,6 +221,7 @@ h1, h2, h3 { margin: 0; }
 .nav-item[data-tool="hall"] { --tc: var(--c-hall); }
 .nav-item[data-tool="enchanting"] { --tc: var(--c-ench); }
 .nav-item[data-tool="trims"] { --tc: var(--c-trim); }
+.nav-item[data-tool="builds"] { --tc: var(--c-build); }
 .nav-item {
   --accent: var(--tc); --accent-deep: color-mix(in srgb, var(--tc) 52%, #000); --accent-ink: var(--on-accent);
   --accent-soft: color-mix(in srgb, var(--tc) 20%, var(--panel));
@@ -255,6 +257,8 @@ h1, h2, h3 { margin: 0; }
 .module.enter > *:nth-child(4) { animation-delay: .20s; }
 .module.enter > *:nth-child(5) { animation-delay: .26s; }
 .module.enter > *:nth-child(n+6) { animation-delay: .32s; }
+/* TH.util.reveal(): the same entrance on demand for in-module changes (items get .th-rv + --i) */
+.th-rv { animation: rise .55s cubic-bezier(.2, .8, .2, 1) both; animation-delay: calc(.02s + var(--i, 0) * var(--rv-step, .06s)); }
 @keyframes rise { from { opacity: 0; transform: translateY(14px); filter: blur(3px); } to { opacity: 1; transform: none; filter: none; } }
 
 /* ============ shared components ============ */

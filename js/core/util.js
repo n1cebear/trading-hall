@@ -95,5 +95,42 @@ TH.util = (function () {
     setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 0);
   }
 
-  return { h, append, roman, clamp, uid, debounce, toast, emerald, stepper, ring, download };
+  /**
+   * Replays the tab-switch entrance (fade + rise, staggered) on part of the page, for structural in-module changes
+   * (material / item / mode / list re-sort). Same keyframes as `.module.enter` (`rise` in styles.css).
+   *   reveal(container, { items, from, step, max })
+   *   items: selector (scoped to container; ":scope > x" ok) or array of elements; default = container's direct children
+   *   from:  skip the first N items; step: seconds between items (default .06); max: cap on staggered index (default 12)
+   * Restarts cleanly when called again, does nothing under prefers-reduced-motion, removes its classes when done.
+   */
+  const revealing = new WeakMap();
+  function reveal(container, opts) {
+    try {
+      if (!container || (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches)) return;
+      opts = opts || {};
+      let els = !opts.items ? Array.from(container.children)
+        : typeof opts.items === 'string' ? Array.from(container.querySelectorAll(opts.items)) : Array.from(opts.items);
+      els = els.slice(opts.from || 0);
+      if (!els.length) return;
+      const max = opts.max || 12, step = opts.step == null ? 0.06 : opts.step;
+      const prev = revealing.get(container);
+      if (prev) prev.forEach((el) => { el.classList.remove('th-rv'); el.style.removeProperty('--i'); });
+      els.forEach((el) => { el.classList.remove('th-rv'); });
+      void container.offsetWidth; // flush so the animation restarts
+      els.forEach((el, i) => {
+        el.style.setProperty('--i', Math.min(i, max));
+        el.style.setProperty('--rv-step', step + 's');
+        el.classList.add('th-rv');
+      });
+      revealing.set(container, els);
+      const done = (el) => { el.classList.remove('th-rv'); el.style.removeProperty('--i'); el.style.removeProperty('--rv-step'); };
+      els.forEach((el) => {
+        const on = (e) => { if (e.target === el && e.animationName === 'rise') { el.removeEventListener('animationend', on); done(el); } };
+        el.addEventListener('animationend', on);
+      });
+      setTimeout(() => els.forEach((el) => { if (el.classList.contains('th-rv')) done(el); }), 700 + Math.min(els.length, max) * step * 1000);
+    } catch (e) { /* motion is a bonus */ }
+  }
+
+  return { h, append, roman, clamp, uid, debounce, toast, emerald, stepper, ring, download, reveal };
 })();

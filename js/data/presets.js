@@ -7,7 +7,7 @@ TH.data = TH.data || {};
  * enchants: id -> 'max' | level | { level, slots: ['label', ...] }
  *   `slots` = one librarian per entry (e.g. Protection IV for helmet, chest, legs).
  *   The special value 'all-librarian' means every librarian-tradeable enchant at max.
- * roles: non-librarian villagers, each with a purpose and how many you want.
+ * roles: non-librarian villagers, each with a purpose, a one-word `short` label (shown on hall tiles) and how many you want.
  *   Librarians are derived automatically from the enchant list.
  */
 TH.data.presets = [
@@ -55,16 +55,16 @@ TH.data.presets = [
       riptide: 'max',
     },
     roles: [
-      { prof: 'fletcher', purpose: 'Sticks → Emerald', target: 4, group: 'generator', note: '32 sticks → 1 emerald. Fed by log farm.' },
-      { prof: 'farmer', purpose: 'Pumpkins / Melons → Emerald', target: 2, group: 'generator', note: 'Pumpkins 15 → 1, Melons 4 → 1.' },
-      { prof: 'cleric', purpose: 'Rotten Flesh → Emerald', target: 2, group: 'generator', note: '32 flesh → 1 emerald. Zombie farm drops.' },
-      { prof: 'mason', purpose: 'Clay / Stone → Emerald', target: 2, group: 'generator', note: '20 clay → 1 emerald. Dumps strip-mine junk.' },
-      { prof: 'armorer', purpose: 'Iron → Emerald · Diamond armor', target: 1, group: 'blacksmith', note: '4 iron → 1 emerald. Master: enchanted diamond armor.' },
-      { prof: 'toolsmith', purpose: 'Diamond pickaxe / axe', target: 1, group: 'blacksmith', note: 'Renewable diamond tools.' },
-      { prof: 'weaponsmith', purpose: 'Diamond sword', target: 1, group: 'blacksmith', note: 'Master rolls enchanted swords — buy & disenchant.' },
-      { prof: 'farmer', purpose: 'Emerald → Golden Carrot', target: 1, group: 'utility', note: 'Best food in the game.' },
-      { prof: 'cleric', purpose: 'Emerald → Ender Pearl', target: 1, group: 'utility', note: '5 emeralds → 1 pearl.' },
-      { prof: 'cartographer', purpose: 'Explorer maps', target: 1, group: 'utility', note: 'Mansions, monuments, trial chambers.' },
+      { prof: 'fletcher', purpose: 'Sticks → Emerald', short: 'Sticks', target: 4, group: 'generator', note: '32 sticks → 1 emerald. Fed by log farm.' },
+      { prof: 'farmer', purpose: 'Pumpkins / Melons → Emerald', short: 'Pumpkin', target: 2, group: 'generator', note: 'Pumpkins 15 → 1, Melons 4 → 1.' },
+      { prof: 'cleric', purpose: 'Rotten Flesh → Emerald', short: 'Flesh', target: 2, group: 'generator', note: '32 flesh → 1 emerald. Zombie farm drops.' },
+      { prof: 'mason', purpose: 'Clay / Stone → Emerald', short: 'Clay', target: 2, group: 'generator', note: '20 clay → 1 emerald. Dumps strip-mine junk.' },
+      { prof: 'armorer', purpose: 'Iron → Emerald · Diamond armor', short: 'Iron', target: 1, group: 'blacksmith', note: '4 iron → 1 emerald. Master: enchanted diamond armor.' },
+      { prof: 'toolsmith', purpose: 'Diamond pickaxe / axe', short: 'Pickaxe', target: 1, group: 'blacksmith', note: 'Renewable diamond tools.' },
+      { prof: 'weaponsmith', purpose: 'Diamond sword', short: 'Sword', target: 1, group: 'blacksmith', note: 'Master rolls enchanted swords — buy & disenchant.' },
+      { prof: 'farmer', purpose: 'Emerald → Golden Carrot', short: 'Gold carrot', target: 1, group: 'utility', note: 'Best food in the game.' },
+      { prof: 'cleric', purpose: 'Emerald → Ender Pearl', short: 'Pearl', target: 1, group: 'utility', note: '5 emeralds → 1 pearl.' },
+      { prof: 'cartographer', purpose: 'Explorer maps', short: 'Maps', target: 1, group: 'utility', note: 'Mansions, monuments, trial chambers.' },
     ],
   },
   {
@@ -73,14 +73,14 @@ TH.data.presets = [
     desc: 'No books, just the villagers that turn farm output into emeralds.',
     enchants: {},
     roles: [
-      { prof: 'fletcher', purpose: 'Sticks → Emerald', target: 4, group: 'generator', note: '32 sticks → 1 emerald. Fed by a tree farm.' },
-      { prof: 'farmer', purpose: 'Pumpkins / Melons → Emerald', target: 2, group: 'generator', note: 'Pumpkins 15 → 1, Melons 4 → 1.' },
-      { prof: 'farmer', purpose: 'Crops → Emerald', target: 1, group: 'generator', note: 'Carrots or potatoes.' },
-      { prof: 'cleric', purpose: 'Rotten Flesh → Emerald', target: 2, group: 'generator', note: '32 flesh → 1 emerald. Zombie farm drops.' },
-      { prof: 'mason', purpose: 'Clay / Stone → Emerald', target: 2, group: 'generator', note: '20 clay → 1 emerald.' },
-      { prof: 'shepherd', purpose: 'Wool → Emerald', target: 1, group: 'generator', note: 'Novice trade. Sheep farm output.' },
-      { prof: 'fisherman', purpose: 'String / Coal → Emerald', target: 1, group: 'generator', note: 'Novice trades. Pairs with a spider farm.' },
-      { prof: 'armorer', purpose: 'Iron → Emerald · Diamond armor', target: 1, group: 'generator', note: '4 iron → 1 emerald. Iron farm output.' },
+      { prof: 'fletcher', purpose: 'Sticks → Emerald', short: 'Sticks', target: 4, group: 'generator', note: '32 sticks → 1 emerald. Fed by a tree farm.' },
+      { prof: 'farmer', purpose: 'Pumpkins / Melons → Emerald', short: 'Pumpkin', target: 2, group: 'generator', note: 'Pumpkins 15 → 1, Melons 4 → 1.' },
+      { prof: 'farmer', purpose: 'Crops → Emerald', short: 'Carrot', target: 1, group: 'generator', note: 'Carrots or potatoes.' },
+      { prof: 'cleric', purpose: 'Rotten Flesh → Emerald', short: 'Flesh', target: 2, group: 'generator', note: '32 flesh → 1 emerald. Zombie farm drops.' },
+      { prof: 'mason', purpose: 'Clay / Stone → Emerald', short: 'Clay', target: 2, group: 'generator', note: '20 clay → 1 emerald.' },
+      { prof: 'shepherd', purpose: 'Wool → Emerald', short: 'Wool', target: 1, group: 'generator', note: 'Novice trade. Sheep farm output.' },
+      { prof: 'fisherman', purpose: 'String / Coal → Emerald', short: 'String', target: 1, group: 'generator', note: 'Novice trades. Pairs with a spider farm.' },
+      { prof: 'armorer', purpose: 'Iron → Emerald · Diamond armor', short: 'Iron', target: 1, group: 'generator', note: '4 iron → 1 emerald. Iron farm output.' },
     ],
   },
   {

@@ -7,8 +7,9 @@
  * pointerup, through opts.onChange. All hit-testing uses our own position map, never the DOM.
  *
  *   const api = TH.hallCanvas.mount(holder, { onChange({pos, sel, view}), onNotify(msg) });
- *   api.update({ items, selected, pos, view })   items: [{ key, status, sig, label, color, body() }]
- *   api.reveal(key, { pulse })   api.swap(a, b)   api.busy()   api.el
+ *   api.update({ items, selected, pos, view })   items: [{ key, status, sig, label, color, pinned, tip: {title, sub}, body() }]
+ *   opts.onPin(keys): the P key asks the host to toggle "pin position" (pinned tiles never move; the host owns the set)
+ *   api.reveal(key, { pulse })   api.swap(a, b) -> bool   api.busy()   api.el
  *   TH.hallCanvas.autoPlace(keys, pos) -> { key: {x, y} }  (spots for tiles without a position)
  */
 window.TH = window.TH || {};
@@ -98,9 +99,16 @@ TH.hallCanvas = (function () {
     return h('span.hc-pix', { 'aria-hidden': 'true', html: `<svg viewBox="0 0 11 11" width="22" height="22" shape-rendering="crispEdges" fill="currentColor">${rects}</svg>` });
   }
 
+  /** Pushpin (pin position) as a pixel icon; shared with the host's side panel. */
+  const PIN_RECTS = [[3, 0, 5, 1], [4, 1, 3, 4], [2, 5, 7, 1], [5, 6, 1, 4]];
+  function pinIcon(size) {
+    const rects = PIN_RECTS.map(([x, y, w, hh]) => `<rect x="${x}" y="${y}" width="${w}" height="${hh}"/>`).join('');
+    return h('span.hc-pix.hc-pinico', { 'aria-hidden': 'true', html: `<svg viewBox="0 0 11 11" width="${size || 14}" height="${size || 14}" shape-rendering="crispEdges" fill="currentColor">${rects}</svg>` });
+  }
+
   const HELP = [
     ['Select', [['Click', 'select a villager'], ['Ctrl / ⌘ + click', 'add or remove one'], ['Shift + click', 'add to selection'], ['Drag empty space', 'select with a box (Ctrl/Shift adds)'], ['Click empty space', 'clear selection']]],
-    ['Move', [['Drag a villager', 'moves the whole selection'], ['Drop on a villager', 'swap the two'], ['Hold Alt', 'no snapping or guides while dragging'], ['Arrow keys', 'nudge 80px (Shift: 8px)']]],
+    ['Move', [['Drag a villager', 'moves the whole selection'], ['Drop on a villager', 'swap the two'], ['Hold Alt', 'no snapping or guides while dragging'], ['Arrow keys', 'nudge 80px (Shift: 8px)'], ['P', 'pin or unpin the selection: pinned villagers stay put']]],
     ['Navigate', [['Scroll / trackpad', 'pan'], ['Ctrl / ⌘ + scroll, pinch', 'zoom to the cursor'], ['Space + drag, middle / right drag', 'pan'], ['F or Shift 1', 'fit everything'], ['Shift 2', 'zoom to selection'], ['0  ·  + / −', '100%  ·  zoom']]],
     ['Edit', [['Ctrl / ⌘ + A', 'select all'], ['Ctrl / ⌘ + Z', 'undo (Shift or Y: redo)'], ['Esc', 'clear selection']]],
     ['Touch', [['One finger', 'pan'], ['Two fingers', 'pinch to zoom'], ['Hold, then drag', 'on a villager: move  ·  on empty space: select box']]],
@@ -113,17 +121,17 @@ TH.hallCanvas = (function () {
     const S = {
       items: new Map(), order: [], pos: {}, sel: new Set(),
       view: { px: 0, py: 0, z: 1 }, prefs: { snap: true, guides: true, map: matchMedia('(min-width: 641px)').matches },
-      past: [], future: [], g: null, ptrs: new Map(), pinch: null, space: false, hover: false,
+      past: [], future: [], pinned: new Set(), tipTimer: 0, tipKey: null, g: null, ptrs: new Map(), pinch: null, space: false, hover: false,
       size: { w: 0, h: 0 }, haveView: false, needFit: true, anim: 0, dirty: true, lastNudge: null, colors: null, colorsAt: 0, orderSig: '',
     };
     let raf = 0;
 
     /* ---------- DOM ---------- */
-    const bg = h('div.hc-bg', { 'aria-hidden': 'true' });
     const world = h('div.hc-world');
     const ovl = h('div.hc-ovl', { 'aria-hidden': 'true' });
     const marquee = h('div.hc-marquee');
     const guideEls = [];
+    const tip = h('div.hc-tip.hc-ui', { hidden: true, role: 'presentation', 'aria-hidden': 'true' });
     const live = h('div.hc-live', { role: 'status', 'aria-live': 'polite' });
     const miniCv = h('canvas.hc-mini-cv', { 'aria-hidden': 'true' });
     const mini = h('div.hc-minimap.hc-ui', miniCv);
@@ -162,7 +170,7 @@ TH.hallCanvas = (function () {
     const vp = h('div.hc-viewport', {
       tabindex: '0', role: 'group', 'data-focus': 'hc-vp',
       'aria-label': 'Hall layout canvas. Tab through villagers, Enter selects, arrow keys move the selection, question mark lists shortcuts.',
-    }, bg, world, ovl, bars, mini, help);
+    }, world, ovl, bars, mini, tip, help);
     const root = h('div.hc', vp, live);
     if (container) container.append(root);
 
@@ -200,6 +208,7 @@ TH.hallCanvas = (function () {
     }
     /** Set logical positions for some tiles; the visuals glide there (JS tween, so re-parenting the canvas can't cut it short). */
     function place(partial, glide) {
+      hideTip();
       const tw = {};
       if (S.tw) { const old = S.tw; S.tw = null; for (const k in old.items) if (!(k in partial)) setTile(k); }
       for (const k in partial) {
@@ -225,12 +234,8 @@ TH.hallCanvas = (function () {
 
     function applyView() {
       const { px, py, z } = S.view;
-      const rx = Math.round(px), ry = Math.round(py), s = G * z;
+      const rx = Math.round(px), ry = Math.round(py);
       world.style.transform = `translate3d(${rx}px, ${ry}px, 0) scale(${z})`;
-      const st = bg.style;
-      st.setProperty('--hc-s', s + 'px'); st.setProperty('--hc-s5', 5 * s + 'px');
-      st.setProperty('--hc-ox', (rx - 4 * z - s / 2) + 'px'); st.setProperty('--hc-oy', (ry - 4 * z - s / 2) + 'px');
-      st.setProperty('--hc-ox5', (rx - 4 * z) + 'px'); st.setProperty('--hc-oy5', (ry - 4 * z) + 'px');
       vp.classList.toggle('is-lod', z < 0.5);
       zoomBtn.textContent = Math.round(z * 100) + '%';
     }
@@ -241,6 +246,7 @@ TH.hallCanvas = (function () {
       // while the view changes the world is a GPU-scaled layer (cheap); once it settles it re-rasterises, so text stays crisp
       if (!vp.classList.contains('is-vchg')) vp.classList.add('is-vchg');
       settleView();
+      hideTip();
       S.dirty = true; S.miniDirty = true; schedule();
       if (persist !== false) persistView();
     }
@@ -388,7 +394,7 @@ TH.hallCanvas = (function () {
     }
     function applySnapshot(snap) {
       const part = {};
-      for (const k of S.items.keys()) if (snap[k]) part[k] = snap[k];
+      for (const k of S.items.keys()) if (snap[k] && !S.pinned.has(k)) part[k] = snap[k]; // a pinned tile never moves, not even by undo
       commit(part, { noHistory: true, glide: true });
       updateBtns();
     }
@@ -407,7 +413,7 @@ TH.hallCanvas = (function () {
       let swap = null;
       if (keys.length === 1) {
         const d = desired[keys[0]], cx = d.x + TILE / 2, cy = d.y + TILE / 2;
-        for (const o of others) if (cx >= o.x && cx < o.x + TILE && cy >= o.y && cy < o.y + TILE) { swap = o.key; break; }
+        for (const o of others) if (!S.pinned.has(o.key) && cx >= o.x && cx < o.x + TILE && cy >= o.y && cy < o.y + TILE) { swap = o.key; break; }
       }
       for (const k of keys) {
         const d = desired[k];
@@ -444,8 +450,10 @@ TH.hallCanvas = (function () {
 
     /* ---------- operations ---------- */
     function swap(a, b) {
-      if (!S.pos[a] || !S.pos[b]) return;
+      if (!S.pos[a] || !S.pos[b]) return false;
+      if (S.pinned.has(a) || S.pinned.has(b)) { notify('Pinned villagers can’t be swapped. Unpin them first (P).', true); return false; }
       commit({ [a]: S.pos[b], [b]: S.pos[a] }, { glide: true });
+      return true;
     }
     function tidy() {
       const keys = S.order.filter((k) => S.pos[k]);
@@ -454,11 +462,24 @@ TH.hallCanvas = (function () {
       const cols = clamp(Math.round(Math.sqrt(n * asp)), 4, 14);
       const bb = bboxOf(keys);
       const ox = snapG(bb.x0), oy = snapG(bb.y0);
+      // pinned tiles stay where they are; everyone else flows row by row around them
+      const fixed = keys.filter((k) => S.pinned.has(k)).map((k) => S.pos[k]);
       const part = {};
-      keys.forEach((k, i) => { part[k] = { x: ox + (i % cols) * G, y: oy + Math.floor(i / cols) * G }; });
+      let slot = 0;
+      for (const k of keys) {
+        if (S.pinned.has(k)) continue;
+        let x, y;
+        for (let guard = 0; guard < 20000; guard++, slot++) {
+          x = ox + (slot % cols) * G; y = oy + Math.floor(slot / cols) * G;
+          if (!fixed.some((f) => hit(x, y, f.x, f.y))) break;
+        }
+        slot++;
+        part[k] = { x, y };
+      }
+      if (!Object.keys(part).length) { notify('Everything is pinned, nothing to tidy', true); return; }
       commit(part, { glide: true });
       setTimeout(() => fit(true), 120);
-      notify('Tidied up: sorted by type', true);
+      notify(fixed.length ? `Tidied up around ${fixed.length} pinned` : 'Tidied up: sorted by type', true);
     }
     function separate(part, keys) {
       // after align / distribute: nudge tiles that now sit on top of others to the nearest free snapped spot
@@ -483,7 +504,15 @@ TH.hallCanvas = (function () {
           y: mode === 'y0' ? bb.y0 : mode === 'y1' ? bb.y1 - TILE : mode === 'yc' ? Math.round((bb.y0 + bb.y1) / 2 - TILE / 2) : p.y,
         };
       }
-      commit(separate(part, keys), { glide: true });
+      commitMovable(part, keys);
+    }
+    /** Align / distribute result: pinned tiles act as fixed references and are not moved. */
+    function commitMovable(part, keys) {
+      const mv = keys.filter((k) => !S.pinned.has(k));
+      for (const k of keys) if (S.pinned.has(k)) delete part[k];
+      if (!mv.length) { notify('Pinned villagers stay put. Unpin them first (P).', true); return; }
+      commit(separate(part, mv), { glide: true });
+      if (mv.length < keys.length) notify(`${keys.length - mv.length} pinned stayed in place`, true);
     }
     function distribute(axis) {
       const keys = Array.from(S.sel).filter((k) => S.pos[k]);
@@ -491,10 +520,12 @@ TH.hallCanvas = (function () {
       keys.sort((a, b) => S.pos[a][axis] - S.pos[b][axis]);
       const lo = S.pos[keys[0]][axis], hi = S.pos[keys[keys.length - 1]][axis], part = {};
       keys.forEach((k, i) => { part[k] = Object.assign({}, S.pos[k], { [axis]: Math.round(lo + ((hi - lo) * i) / (keys.length - 1)) }); });
-      commit(separate(part, keys), { glide: true });
+      commitMovable(part, keys);
     }
     function nudge(dx, dy) {
-      const keys = Array.from(S.sel).filter((k) => S.pos[k]);
+      let keys = Array.from(S.sel).filter((k) => S.pos[k]);
+      if (keys.length && keys.every((k) => S.pinned.has(k))) { notify('Pinned villagers stay put. Unpin them first (P).', true); return; }
+      keys = keys.filter((k) => !S.pinned.has(k));
       if (!keys.length) { cancelAnim(); setView({ z: S.view.z, px: S.view.px - dx * S.view.z * 0.75, py: S.view.py - dy * S.view.z * 0.75 }); return; }
       const desired = {}, orig = {};
       keys.forEach((k) => { orig[k] = { x: S.pos[k].x, y: S.pos[k].y }; desired[k] = { x: orig[k].x + dx, y: orig[k].y + dy }; });
@@ -529,9 +560,9 @@ TH.hallCanvas = (function () {
       guideEls.forEach((e, i) => {
         const g = list[i];
         if (!g) { e.hidden = true; return; }
-        e.hidden = false;
-        if (g.v) { const a = toLocal(g.at, g.from), b = toLocal(g.at, g.to); Object.assign(e.style, { left: Math.round(a.x) + 'px', top: a.y + 'px', width: '1px', height: b.y - a.y + 'px' }); }
-        else { const a = toLocal(g.from, g.at), b = toLocal(g.to, g.at); Object.assign(e.style, { left: a.x + 'px', top: Math.round(a.y) + 'px', height: '1px', width: b.x - a.x + 'px' }); }
+        e.hidden = false; e.classList.toggle('is-h', !g.v);
+        if (g.v) { const a = toLocal(g.at, g.from), b = toLocal(g.at, g.to); Object.assign(e.style, { left: Math.round(a.x) + 'px', top: a.y + 'px', width: '1px', height: Math.round(b.y - a.y) + 'px' }); }
+        else { const a = toLocal(g.from, g.at), b = toLocal(g.to, g.at); Object.assign(e.style, { left: a.x + 'px', top: Math.round(a.y) + 'px', height: '1px', width: Math.round(b.x - a.x) + 'px' }); }
       });
     };
 
@@ -624,19 +655,27 @@ TH.hallCanvas = (function () {
 
     /* ---- move ---- */
     function startMove(g) {
+      if (S.pinned.has(g.key)) { // grabbing a pinned tile does nothing (and never selects it by accident)
+        g.mode = 'blocked'; clearTimeout(g.timer);
+        const pressed = S.items.get(g.key); if (pressed) pressed.el.classList.remove('is-press');
+        notify('Pinned: unpin it (P) to move it', true);
+        return;
+      }
       g.mode = 'move';
       if (!S.sel.has(g.key)) {
         const next = (g.mods.ctrl || g.mods.shift) ? Array.from(S.sel).concat(g.key) : [g.key];
         g.selBefore = Array.from(S.sel);
         S.sel = new Set(next); paintSel(); g.selChanged = true;
       }
-      g.keys = Array.from(S.sel).filter((k) => S.pos[k]);
+      g.keys = Array.from(S.sel).filter((k) => S.pos[k] && !S.pinned.has(k)); // pinned members of a group stay behind
+      g.skipped = S.sel.size - g.keys.length;
       g.orig = {}; g.keys.forEach((k) => { g.orig[k] = { x: S.pos[k].x, y: S.pos[k].y }; });
       g.bb = bboxOf(g.keys);
       g.start = toWorld(g.x0, g.y0);
       g.others = othersOf(g.keys);
       g.flag = new Set();
       g.keys.forEach((k) => S.items.get(k).el.classList.add('is-dragging'));
+      hideTip();
       if (g.keys.length > 1) { g.badge = h('span.hc-gbadge', String(g.keys.length)); S.items.get(g.key).el.append(g.badge); }
       if (S.tw) { const old = S.tw; S.tw = null; for (const k in old.items) setTile(k); }
       vp.classList.add('is-moving');
@@ -712,6 +751,7 @@ TH.hallCanvas = (function () {
       if (moved) {
         commit(res.pos, { glide: true, extra });
         if (res.swap) notify('Swapped two villagers', true);
+        else if (g.skipped) notify(`${g.skipped} pinned stayed in place`, true);
       } else {
         place(g.orig, true);
         if (extra && opts.onChange) opts.onChange(extra);
@@ -773,6 +813,7 @@ TH.hallCanvas = (function () {
 
     function onWheel(ev) {
       if (ev.target.closest('.hc-help')) return;
+      hideTip();
       ev.preventDefault();
       cancelAnim();
       const r = rectOf(), lx = ev.clientX - r.left, ly = ev.clientY - r.top;
@@ -820,10 +861,11 @@ TH.hallCanvas = (function () {
       const c = colors(), { px, py, z } = S.view, { w, h: hh } = S.size;
       const vwr = { x0: -px / z, y0: -py / z, x1: (w - px) / z, y1: (hh - py) / z };
       const bb = bboxOf(keysArr()) || { x0: 0, y0: 0, x1: TILE, y1: TILE };
-      const x0 = Math.min(bb.x0, vwr.x0) - 40, y0 = Math.min(bb.y0, vwr.y0) - 40, x1 = Math.max(bb.x1, vwr.x1) + 40, y1 = Math.max(bb.y1, vwr.y1) + 40;
+      // scale from the tiles only (never the viewport), so panning / zooming can't make the map breathe
+      const x0 = bb.x0 - 40, y0 = bb.y0 - 40, x1 = bb.x1 + 40, y1 = bb.y1 + 40;
       const s = Math.min(W / (x1 - x0), H / (y1 - y0));
       const ox = (W - (x1 - x0) * s) / 2 - x0 * s, oy = (H - (y1 - y0) * s) / 2 - y0 * s;
-      S.mm = { s, ox, oy };
+      S.mm = { s, ox, oy, W, H };
       for (const k of S.order) {
         const p = S.pos[k], rec = S.items.get(k); if (!p) continue;
         ctx.fillStyle = (rec && rec.color) || c.acc;
@@ -833,7 +875,10 @@ TH.hallCanvas = (function () {
         if (S.sel.has(k)) { ctx.globalAlpha = 1; ctx.strokeStyle = c.acc; ctx.lineWidth = 1; ctx.strokeRect(Math.round(p.x * s + ox) - 1.5, Math.round(p.y * s + oy) - 1.5, sz + 3, sz + 3); }
       }
       ctx.globalAlpha = 1;
-      const rx = vwr.x0 * s + ox, ry = vwr.y0 * s + oy, rw = (vwr.x1 - vwr.x0) * s, rh = (vwr.y1 - vwr.y0) * s;
+      // the view rectangle is clamped to the map: when you pan away it rests against the edge instead of rescaling
+      let rw = (vwr.x1 - vwr.x0) * s, rh = (vwr.y1 - vwr.y0) * s, rx = vwr.x0 * s + ox, ry = vwr.y0 * s + oy;
+      rw = Math.min(rw, W - 2); rh = Math.min(rh, H - 2);
+      rx = clamp(rx, 1, W - 1 - rw); ry = clamp(ry, 1, H - 1 - rh);
       ctx.fillStyle = c.acc; ctx.globalAlpha = 0.12; ctx.fillRect(rx, ry, rw, rh);
       ctx.globalAlpha = 1; ctx.strokeStyle = c.acc; ctx.lineWidth = 1.5; ctx.strokeRect(rx + 0.5, ry + 0.5, rw - 1, rh - 1);
     }
@@ -877,6 +922,10 @@ TH.hallCanvas = (function () {
       else if (k === '0') { ev.preventDefault(); zoomTo(1); }
       else if (k === '+' || k === '=') { ev.preventDefault(); zoomBy(1.25); }
       else if (k === '-' || k === '_') { ev.preventDefault(); zoomBy(1 / 1.25); }
+      else if (k === 'p' || k === 'P') {
+        ev.preventDefault();
+        if (!S.sel.size) notify('Select something to pin first', true); else if (opts.onPin) opts.onPin(Array.from(S.sel));
+      }
       else if (k === '?') { ev.preventDefault(); toggleHelp(); }
     }
     const spaceOk = () => S.hover || vp.contains(document.activeElement);
@@ -901,6 +950,39 @@ TH.hallCanvas = (function () {
         animateView({ z, px: S.size.w / 2 - (p.x + TILE / 2) * z, py: S.size.h / 2 - (p.y + TILE / 2) * z }, 200);
       }
     }
+
+    /* ---------- tooltip (a styled panel anchored to the tile, not the mouse) ---------- */
+    function hideTip() {
+      clearTimeout(S.tipTimer); S.tipTimer = 0;
+      if (S.tipKey != null) { S.tipKey = null; tip.hidden = true; }
+    }
+    function showTip(key) {
+      const rec = S.items.get(key), p = S.pos[key];
+      if (!rec || !p || !rec.tip || S.g || S.pinch || S.anim || (S.tw && S.tw.items[key])) return;
+      tip.replaceChildren(h('b.hc-tip-t', rec.tip.title), rec.tip.sub ? h('span.hc-tip-s', rec.tip.sub) : null);
+      tip.hidden = false; tip.style.visibility = 'hidden';
+      const a = toLocal(p.x, p.y), tw = TILE * S.view.z, w = tip.offsetWidth, hh = tip.offsetHeight, gap = 8;
+      let x = a.x + tw / 2 - w / 2, y = a.y - hh - gap, below = false;
+      if (y < 4) { y = a.y + tw + gap; below = true; }
+      x = clamp(x, 6, Math.max(6, S.size.w - w - 6)); y = clamp(y, 4, Math.max(4, S.size.h - hh - 4));
+      tip.style.left = Math.round(x) + 'px'; tip.style.top = Math.round(y) + 'px';
+      tip.classList.toggle('is-below', below);
+      tip.style.visibility = ''; S.tipKey = key;
+    }
+    function armTip(key, delay) {
+      hideTip();
+      if (!key || S.g || S.pinch) return;
+      S.tipTimer = setTimeout(() => { S.tipTimer = 0; showTip(key); }, delay);
+    }
+    vp.addEventListener('pointerover', (ev) => {
+      if (ev.pointerType === 'touch') return;
+      const t = ev.target.closest && ev.target.closest('.hc-tile');
+      if (t) { if (t.dataset.key !== S.tipKey) armTip(t.dataset.key, 250); } else if (!ev.target.closest('.hc-tip')) hideTip();
+    });
+    vp.addEventListener('pointerleave', hideTip);
+    vp.addEventListener('pointerdown', hideTip, true);
+    vp.addEventListener('focusin', (ev) => { const t = ev.target.matches && ev.target.matches('.hc-tile:focus-visible') && ev.target; if (t) armTip(t.dataset.key, 250); });
+    vp.addEventListener('focusout', hideTip);
 
     /* ---------- events ---------- */
     vp.addEventListener('pointerdown', onDown);
@@ -939,15 +1021,18 @@ TH.hallCanvas = (function () {
 
     function update(d) {
       const busy = !!(S.g && S.g.mode !== 'pending') || !!S.pinch;
-      const seen = new Set();
+      const seen = new Set(), pinned = new Set();
       for (const it of d.items) {
         seen.add(it.key);
         let rec = S.items.get(it.key);
         if (!rec) { rec = { key: it.key, el: makeTile(it.key), sig: null, status: '' }; S.items.set(it.key, rec); world.append(rec.el); }
-        rec.color = it.color; rec.label = it.label;
+        rec.color = it.color; rec.label = it.label; rec.tip = it.tip || null;
+        if (it.pinned) pinned.add(it.key);
+        rec.el.classList.toggle('is-pinned', !!it.pinned);
         if (rec.sig !== it.sig) { rec.sig = it.sig; rec.el.replaceChildren(...[].concat(it.body()).flat(Infinity).filter(Boolean)); rec.el.setAttribute('aria-label', it.label); }
         if (rec.status !== it.status) { if (rec.status) rec.el.classList.remove('is-' + rec.status); rec.status = it.status; rec.el.classList.add('is-' + it.status); }
       }
+      S.pinned = pinned;
       for (const [k, rec] of S.items) if (!seen.has(k)) { rec.el.remove(); S.items.delete(k); delete S.pos[k]; S.sel.delete(k); }
       S.order = d.items.map((i) => i.key);
       const osig = S.order.join('|');
@@ -980,9 +1065,9 @@ TH.hallCanvas = (function () {
     }
 
     return {
-      el: root, update, reveal, swap, fit: () => fit(true), busy: () => !!(S.g && S.g.mode !== 'pending') || !!S.pinch,
+      el: root, update, reveal, swap, minimap: () => (S.mm ? Object.assign({}, S.mm) : null), fit: () => fit(true), busy: () => !!(S.g && S.g.mode !== 'pending') || !!S.pinch,
     };
   }
 
-  return { mount, autoPlace };
+  return { mount, autoPlace, pinIcon };
 })();

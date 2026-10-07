@@ -642,7 +642,12 @@ button.hl-strip-main { cursor: pointer; }
 }
 
 /* ============ side panel: lock + multi-selection overview ============ */
+.hl-lockrows { display: flex; flex-direction: column; gap: 8px; }
 .hl-lockrow { display: flex; align-items: center; gap: 10px; }
+.hl-lockrow > .btn { flex: 0 0 106px; justify-content: center; }
+.hl-lockrow .btn.on { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+.hl-ov-actions .btn .hc-pinico, .hl-lockrow .btn .hc-pinico { margin-right: 5px; display: inline-flex; vertical-align: -2px; }
+.hl-side-ws li .hl-ws-name small { color: var(--faint); font-size: 11px; }
 .hl-lock-why { font-size: 11.5px; line-height: 1.4; color: var(--faint); margin: 0; }
 .hl-multi-icon b { font: 700 18px var(--mono); color: var(--accent); }
 .hl-ov-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }

@@ -7,12 +7,15 @@
  *      drag tiles anywhere, marquee-select, snap + guides, undo), a sortable "Next up" list that becomes a details panel for the
  *      selected villager, and "Check an offer" (judges an in-game offer, adds it in one tap).
  *
+ * Trade catalog entries / preset roles may carry `short` (one-word tile label); it is derived from `purpose` when missing.
+ *
  * state.hall = {
  *   setupDone, step, editing, migrated,
  *   books:   { [enchId]: { level, stalls: [{ id, label, done, price }] } },  // one stall = one librarian
  *   archive: { [enchId]: book },             // removed books, restored with their progress if re-added
  *   trades:  [{ id, prof, purpose, target, have, group, note }],
- *   layout:  { v: 3, pos: { [villagerKey]: { x, y } } },   // world px of each tile's top-left (tile 72, grid unit 80)
+ *   layout:  { v: 3, pos: { [villagerKey]: { x, y } }, pinned: [villagerKey] },   // pinned = position fixed (separate from a trade being locked in)
+ *     // pos = world px of each tile's top-left (tile 72, grid unit 80)
  *   check:   { open, ench, level, price, query },   // the "Check an offer" dialog
  *   ui:      { selected, multi: [keys] (2+ selected), nextSort: type|name|pos|price, search, expanded: { [enchId]: true },
  *            view: { px, py, z, snap, guides, map } | null (canvas pan / zoom / toolbar toggles) },
@@ -39,7 +42,8 @@
   const TIER_LABEL = { perfect: 'Perfect', great: 'Great', good: 'Okay', meh: 'Pricey', unknown: 'No price' };
   const STATUS_LABEL = { needed: 'needed', locked: 'locked in', perfect: 'perfect price' };
   const TITLE = 'Trading Hall Planner';
-  const LOCK_WHY = 'Locked = you traded with it once; Minecraft fixes its offers, so no more rerolling.';
+  const LOCK_WHY = 'Lock trade: you traded with it once; Minecraft fixes its offers, so no more rerolling.';
+  const PIN_WHY = 'Pin: fixes its place on the canvas, so it can’t be dragged, swapped or tidied away (P).';
   const CG = 80; // canvas grid unit (tile 72 + gap 8); keep in sync with hall-canvas.js
 
   /** Why an enchant can't come from a librarian. */
@@ -69,31 +73,47 @@
   /** Curated catalog of useful non-librarian trades (wizard step 3). */
   const CATALOG = [
     // emerald generators
-    { prof: 'fletcher', purpose: 'Sticks → Emerald', item: 'item/stick', group: 'generator', target: 4, note: '32 sticks → 1 emerald. Fed by a tree farm.' },
-    { prof: 'farmer', purpose: 'Pumpkins / Melons → Emerald', item: 'item/melon_slice', group: 'generator', target: 2, note: 'Auto pumpkin & melon farms pay for everything.' },
-    { prof: 'farmer', purpose: 'Crops → Emerald', item: 'item/carrot', group: 'generator', target: 1, note: 'Wheat, carrots, potatoes or beetroot.' },
-    { prof: 'cleric', purpose: 'Rotten Flesh → Emerald', item: 'item/rotten_flesh', group: 'generator', target: 2, note: '32 flesh → 1 emerald. Zombie farm drops.' },
-    { prof: 'mason', purpose: 'Clay / Stone → Emerald', item: 'item/clay_ball', group: 'generator', target: 2, note: 'Dumps strip-mine stone and clay.' },
-    { prof: 'fisherman', purpose: 'String / Coal → Emerald', item: 'item/string', group: 'generator', target: 1, note: 'Novice trades. Pairs with a spider farm.' },
-    { prof: 'shepherd', purpose: 'Wool → Emerald', item: 'block/white_wool', group: 'generator', target: 1, note: 'Novice trade. Sheep farm output.' },
-    { prof: 'butcher', purpose: 'Kelp / Berries → Emerald', item: 'item/dried_kelp', group: 'generator', target: 1, note: 'Dried kelp blocks & sweet berries.' },
-    { prof: 'leatherworker', purpose: 'Leather → Emerald', item: 'item/leather', group: 'generator', target: 1, note: 'Novice trade. Pairs with a cow farm.' },
+    { prof: 'fletcher', purpose: 'Sticks → Emerald', short: 'Sticks', item: 'item/stick', group: 'generator', target: 4, note: '32 sticks → 1 emerald. Fed by a tree farm.' },
+    { prof: 'farmer', purpose: 'Pumpkins / Melons → Emerald', short: 'Pumpkin', item: 'item/melon_slice', group: 'generator', target: 2, note: 'Auto pumpkin & melon farms pay for everything.' },
+    { prof: 'farmer', purpose: 'Crops → Emerald', short: 'Carrot', item: 'item/carrot', group: 'generator', target: 1, note: 'Wheat, carrots, potatoes or beetroot.' },
+    { prof: 'cleric', purpose: 'Rotten Flesh → Emerald', short: 'Flesh', item: 'item/rotten_flesh', group: 'generator', target: 2, note: '32 flesh → 1 emerald. Zombie farm drops.' },
+    { prof: 'mason', purpose: 'Clay / Stone → Emerald', short: 'Clay', item: 'item/clay_ball', group: 'generator', target: 2, note: 'Dumps strip-mine stone and clay.' },
+    { prof: 'fisherman', purpose: 'String / Coal → Emerald', short: 'String', item: 'item/string', group: 'generator', target: 1, note: 'Novice trades. Pairs with a spider farm.' },
+    { prof: 'shepherd', purpose: 'Wool → Emerald', short: 'Wool', item: 'block/white_wool', group: 'generator', target: 1, note: 'Novice trade. Sheep farm output.' },
+    { prof: 'butcher', purpose: 'Kelp / Berries → Emerald', short: 'Kelp', item: 'item/dried_kelp', group: 'generator', target: 1, note: 'Dried kelp blocks & sweet berries.' },
+    { prof: 'leatherworker', purpose: 'Leather → Emerald', short: 'Leather', item: 'item/leather', group: 'generator', target: 1, note: 'Novice trade. Pairs with a cow farm.' },
     // blacksmiths
-    { prof: 'armorer', purpose: 'Iron → Emerald · Diamond armor', item: 'item/iron_ingot', group: 'blacksmith', target: 1, note: 'Iron farm → emeralds. Master sells enchanted diamond armor.' },
-    { prof: 'toolsmith', purpose: 'Diamond pickaxe / axe', item: 'item/diamond_pickaxe', group: 'blacksmith', target: 1, note: 'Renewable (often enchanted) diamond tools.' },
-    { prof: 'weaponsmith', purpose: 'Diamond sword', item: 'item/diamond_sword', group: 'blacksmith', target: 1, note: 'Master rolls enchanted swords.' },
+    { prof: 'armorer', purpose: 'Iron → Emerald · Diamond armor', short: 'Iron', item: 'item/iron_ingot', group: 'blacksmith', target: 1, note: 'Iron farm → emeralds. Master sells enchanted diamond armor.' },
+    { prof: 'toolsmith', purpose: 'Diamond pickaxe / axe', short: 'Pickaxe', item: 'item/diamond_pickaxe', group: 'blacksmith', target: 1, note: 'Renewable (often enchanted) diamond tools.' },
+    { prof: 'weaponsmith', purpose: 'Diamond sword', short: 'Sword', item: 'item/diamond_sword', group: 'blacksmith', target: 1, note: 'Master rolls enchanted swords.' },
     // utility
-    { prof: 'farmer', purpose: 'Emerald → Golden Carrot', item: 'item/golden_carrot', group: 'utility', target: 1, note: 'Best food in the game.' },
-    { prof: 'cleric', purpose: 'Emerald → Ender Pearl', item: 'item/ender_pearl', group: 'utility', target: 1, note: 'Pearls for stasis chambers & travel.' },
-    { prof: 'cleric', purpose: 'Emerald → Bottle o’ Enchanting', item: 'item/experience_bottle', group: 'utility', target: 1, note: 'XP for anvils and mending.' },
-    { prof: 'cartographer', purpose: 'Explorer maps', item: 'item/filled_map', group: 'utility', target: 1, note: 'Mansions, monuments, trial chambers.' },
-    { prof: 'mason', purpose: 'Emerald → Quartz blocks', item: 'block/quartz_block_side', group: 'utility', target: 1, note: 'Master trade: quartz without the Nether trip.' },
-    { prof: 'mason', purpose: 'Emerald → Terracotta', item: 'block/terracotta', group: 'utility', target: 1, note: 'Glazed & dyed terracotta for builds.' },
-    { prof: 'shepherd', purpose: 'Emerald → Colored wool & banners', item: 'block/red_wool', group: 'utility', target: 1, note: 'Every color without dye farms.' },
-    { prof: 'leatherworker', purpose: 'Emerald → Saddle', item: 'item/saddle', group: 'utility', target: 1, note: 'Master trade.' },
-    { prof: 'butcher', purpose: 'Emerald → Cooked food', item: 'item/cooked_porkchop', group: 'utility', target: 1, note: 'Rabbit stew, porkchops, chicken.' },
-    { prof: 'fletcher', purpose: 'Emerald → Arrows', item: 'item/arrow', group: 'utility', target: 1, note: 'Arrows, flint and tipped arrows.' },
+    { prof: 'farmer', purpose: 'Emerald → Golden Carrot', short: 'Gold carrot', item: 'item/golden_carrot', group: 'utility', target: 1, note: 'Best food in the game.' },
+    { prof: 'cleric', purpose: 'Emerald → Ender Pearl', short: 'Pearl', item: 'item/ender_pearl', group: 'utility', target: 1, note: 'Pearls for stasis chambers & travel.' },
+    { prof: 'cleric', purpose: 'Emerald → Bottle o’ Enchanting', short: 'XP bottle', item: 'item/experience_bottle', group: 'utility', target: 1, note: 'XP for anvils and mending.' },
+    { prof: 'cartographer', purpose: 'Explorer maps', short: 'Maps', item: 'item/filled_map', group: 'utility', target: 1, note: 'Mansions, monuments, trial chambers.' },
+    { prof: 'mason', purpose: 'Emerald → Quartz blocks', short: 'Quartz', item: 'block/quartz_block_side', group: 'utility', target: 1, note: 'Master trade: quartz without the Nether trip.' },
+    { prof: 'mason', purpose: 'Emerald → Terracotta', short: 'Terracotta', item: 'block/terracotta', group: 'utility', target: 1, note: 'Glazed & dyed terracotta for builds.' },
+    { prof: 'shepherd', purpose: 'Emerald → Colored wool & banners', short: 'Dyed wool', item: 'block/red_wool', group: 'utility', target: 1, note: 'Every color without dye farms.' },
+    { prof: 'leatherworker', purpose: 'Emerald → Saddle', short: 'Saddle', item: 'item/saddle', group: 'utility', target: 1, note: 'Master trade.' },
+    { prof: 'butcher', purpose: 'Emerald → Cooked food', short: 'Cooked', item: 'item/cooked_porkchop', group: 'utility', target: 1, note: 'Rabbit stew, porkchops, chicken.' },
+    { prof: 'fletcher', purpose: 'Emerald → Arrows', short: 'Arrows', item: 'item/arrow', group: 'utility', target: 1, note: 'Arrows, flint and tipped arrows.' },
   ];
+
+  /** Catalog entry for a trade (matched by profession + purpose). */
+  const tradeShort = (t) => shortOf(t.prof, t.purpose);
+  const PRESET_SHORT = {};
+  (D.presets || []).forEach((p) => (p.roles || []).forEach((r) => { if (r.short) PRESET_SHORT[r.prof + '|' + r.purpose] = r.short; }));
+  const catOf = (profId, purpose) => CATALOG.find((c) => c.prof === profId && c.purpose === purpose);
+  /** What a villager is about, in a word or two: explicit `short` from the catalog, else derived from its purpose ("A → B": the side that is not Emerald). */
+  function shortOf(profId, purpose) {
+    const c = catOf(profId, purpose);
+    if (c && c.short) return c.short;
+    if (PRESET_SHORT[profId + '|' + purpose]) return PRESET_SHORT[profId + '|' + purpose];
+    if (!purpose) return '';
+    const parts = purpose.split('→').map((x) => x.trim());
+    const w = (parts.find((x) => !/^emerald/i.test(x)) || parts[0]).split(/[\/,·&]/)[0].trim();
+    return w.length > 12 ? w.slice(0, 11) + '…' : w;
+  }
 
   const STEPS = [
     { t: 'Start', d: 'Pick a starting point', help: 'Start from a preset or from scratch. You can tweak everything in the next steps.' },
@@ -105,7 +125,7 @@
   const DEFAULTS = {
     setupDone: false, step: 0, editing: false, migrated: false,
     books: {}, archive: {}, trades: [],
-    layout: { v: 3, pos: {} },
+    layout: { v: 3, pos: {}, pinned: [] },
     check: { open: false, ench: '', level: null, price: null, query: '' },
     ui: { selected: null, multi: [], nextSort: 'type', search: '', expanded: {}, view: null },
     activePreset: null,
@@ -282,6 +302,7 @@
     const L = hall.layout;
     L.pos = L.pos || {};
     for (const k of Object.keys(L.pos)) if (!pl.byKey[k]) delete L.pos[k];
+    if (L.pinned) L.pinned = L.pinned.filter((k) => pl.byKey[k]);
     Object.assign(L.pos, TH.hallCanvas.autoPlace(autoOrder(pl.tray).map((v) => v.key), L.pos));
     return pl.tray.length;
   }
@@ -598,6 +619,13 @@
   function tradeSummary(hall) { return profCounts(hall).filter((r) => r.prof.id !== 'librarian').sort((a, b) => b.target - a.target); }
   const bookChipText = (b) => enchShort(b.e) + (b.e.maxLevel > 1 ? ' ' + lvlText(b.level) : '');
 
+  /** "Pumpkin, Carrot" — which trades a profession is used for in the plan (for lists that only name the profession). */
+  function tradeShorts(hall, profId) {
+    const out = [];
+    for (const t of hall.trades) if (t.prof === profId) { const sh = tradeShort(t); if (sh && !out.includes(sh)) out.push(sh); }
+    return out.join(', ');
+  }
+
   let justAdded = null;
   /** Last rendered sidebar numbers, so a changed value can play a small "bump" animation. */
   const sideSeen = {};
@@ -625,8 +653,8 @@
         h('div.hl-side-chips', books.map((b) => h('span.hl-fchip', bookChipText(b), b.n > 1 ? h('em', '×' + b.n) : null)))) : null,
       profs.length ? h('div.hl-side-sec.hl-side-profs',
         h('div.hl-side-h', 'Workstations'),
-        h('ul.hl-side-ws', profs.map((r) => h('li', { style: '--pc:' + r.prof.color, title: wsName(r.prof) },
-          TH.icon.prof(r.prof.id, { size: 18 }), h('span.hl-ws-name', wsName(r.prof)), h('em', '×' + r.target))))) : null,
+        h('ul.hl-side-ws', profs.map((r) => h('li', { style: '--pc:' + r.prof.color, title: wsName(r.prof) + (tradeShorts(hall, r.prof.id) ? ': ' + tradeShorts(hall, r.prof.id) : '') },
+          TH.icon.prof(r.prof.id, { size: 18 }), h('span.hl-ws-name', wsName(r.prof), tradeShorts(hall, r.prof.id) ? h('small', ' ' + tradeShorts(hall, r.prof.id)) : null), h('em', '×' + r.target))))) : null,
       h('div.hl-wiz-nav',
         step > 0 ? h('button.btn.hl-nav-back', { type: 'button', onclick: () => goStep(step - 1) }, '← Back') : null,
         last
@@ -1111,8 +1139,10 @@
   /** Short bits shown on a tile: name, level / #n corner, label letter, price. */
   function tileParts(v) {
     const book = v.kind === 'book';
+    const c = book ? null : catOf(v.prof.id, v.trade.purpose);
     return {
-      name: book ? enchShort(v.ench) : profShort(v.prof),
+      name: book ? enchShort(v.ench) : (tradeShort(v.trade) || profShort(v.prof)),
+      item: c && c.item ? c.item : null,
       corner: book ? (v.ench.maxLevel > 1 ? lvlText(v.book.level) : null) : (v.trade.target > 1 ? '#' + (v.n + 1) : null),
       tag: book && v.stall.label ? v.stall.label.charAt(0).toUpperCase() : null,
       paid: book && v.stall.done && v.stall.price != null ? v.stall.price : null,
@@ -1121,7 +1151,7 @@
   }
 
   /** Tile contents: marks (star / padlock / label tag), level or #n, icon, short name, price. */
-  function tileBody(v) {
+  function tileBody(v, pinned) {
     const t = tileParts(v), st = status(v);
     const mark = st === 'perfect' ? h('span.hc-star', { title: 'Perfect price' }, '★')
       : st === 'locked' ? h('span.hc-lock', { title: 'Locked in' }) : null;
@@ -1131,17 +1161,38 @@
     return [
       mark || t.tag ? h('span.hc-marks', mark, t.tag ? h('span.hc-tag', { title: v.stall.label }, t.tag) : null) : null,
       t.corner ? h('span.hc-lv', t.corner) : null,
-      h('span.hc-ico', villagerIcon(v, 28)),
+      pinned ? h('span.hc-pin', { title: 'Position pinned' }, TH.hallCanvas.pinIcon(11)) : null,
+      h('span.hc-ico', villagerIcon(v, 28), t.item ? h('span.hc-item', TH.icon(t.item, { size: 13 })) : null),
       h('span.hc-name', t.name),
       price,
     ];
   }
 
-  function tileLabel(v) {
+  function tileLabel(v, pinned) {
     const st = status(v);
     const extra = v.kind === 'book' && v.stall.done && v.stall.price != null ? `, ${v.stall.price} emeralds` : '';
     const who = v.kind === 'book' ? profName(PROF.librarian) : profName(v.prof);
-    return `${who}: ${villagerName(v)} — ${STATUS_LABEL[st]}${extra}`;
+    return `${who}: ${villagerName(v)} — ${STATUS_LABEL[st]}${extra}${pinned ? ', position pinned' : ''}`;
+  }
+
+  /** Hover tooltip: books "Unbreaking III" / "Librarian · perfect 11 · locked in"; villagers "Farmer — Pumpkins / Melons → Emerald" / state. */
+  function tileTip(v, pinned) {
+    const st = status(v);
+    const state = [STATUS_LABEL[st]];
+    if (v.kind === 'book') {
+      if (v.stall.done && v.stall.price != null) state.push('paid ' + v.stall.price);
+      if (pinned) state.push('pinned');
+      return {
+        title: enchLabel(v.ench, v.book.level) + (v.stall.label ? ' (' + v.stall.label + ')' : ''),
+        sub: [profName(PROF.librarian), 'perfect ' + minPrice(v.ench, v.book.level)].concat(state).join(' · '),
+      };
+    }
+    if (pinned) state.push('pinned');
+    const t = v.trade;
+    return {
+      title: profName(v.prof) + (t.purpose ? ' — ' + t.purpose : ''),
+      sub: (t.target > 1 ? `#${v.n + 1} of ${t.target} · ` : '') + state.join(' · '),
+    };
   }
 
   /* ---- selection (single: ui.selected, several: ui.multi) ---- */
@@ -1178,6 +1229,7 @@
     if (!canvas) {
       canvas = TH.hallCanvas.mount(null, {
         onChange: onCanvasChange, onNotify: toast,
+        onPin: (keys) => { const pins = pinnedSet(get()); setPinned(keys, keys.some((k) => !pins.has(k))); },
         // phones: the details sheet is fixed over the lower part of the page; tell the canvas how much of it is covered
         getInset: (r) => {
           const sheet = document.querySelector('.hl-detail');
@@ -1191,12 +1243,14 @@
   function renderMap(hall, pl) {
     const keys = selKeys(hall, pl);
     const cv = ensureCanvas();
+    const pins = pinnedSet(hall);
     const items = autoOrder(pl.list).map((v) => {
-      const t = tileParts(v), st = status(v);
+      const t = tileParts(v), st = status(v), pinned = pins.has(v.key);
       return {
-        key: v.key, status: st, label: tileLabel(v), color: v.kind === 'book' ? PROF.librarian.color : v.prof.color,
-        sig: [I18.lang, st, t.name, t.corner, t.tag, t.paid, t.perfect].join('|'),
-        body: () => tileBody(v),
+        key: v.key, status: st, label: tileLabel(v, pinned), color: v.kind === 'book' ? PROF.librarian.color : v.prof.color,
+        pinned, tip: tileTip(v, pinned),
+        sig: [I18.lang, st, t.name, t.item, t.corner, t.tag, t.paid, t.perfect, pinned ? 'p' : ''].join('|'),
+        body: () => tileBody(v, pinned),
       };
     });
     cv.update({ items, selected: keys, pos: hall.layout.pos, view: hall.ui.view });
@@ -1222,6 +1276,18 @@
     else if (keys.length > 1) detail = renderMulti(hall, pl, keys, lastDetail !== 'multi');
     lastDetail = id;
     return h('aside.hl-side' + (keys.length ? '.has-detail' : ''), renderNext(hall, pl), detail);
+  }
+
+  /** Pinned villager keys (position fixed on the canvas), only those that still exist. */
+  const pinnedSet = (hall) => new Set((hall.layout && hall.layout.pinned) || []);
+  function setPinned(keys, on) {
+    let n = 0;
+    upd((x) => {
+      const set = pinnedSet(x);
+      for (const k of keys) { if (on !== set.has(k)) { n++; if (on) set.add(k); else set.delete(k); } }
+      x.layout.pinned = Array.from(set);
+    });
+    toast(n ? `${on ? 'Pinned' : 'Unpinned'} ${plural(n, 'villager')}` : 'Nothing to change');
   }
 
   /** Bulk lock / unlock: librarians get their lock ticked, other villagers count as "have" (up to / below each one's number). */
@@ -1250,7 +1316,7 @@
     if (keys.length !== 2 || !canvas) return;
     const pl = placement(get());
     const names = keys.map((k) => villagerName(pl.byKey[k]));
-    canvas.swap(keys[0], keys[1]);
+    if (!canvas.swap(keys[0], keys[1])) return;
     toast(`Swapped ${names[0]} with ${names[1]}`);
   }
 
@@ -1287,6 +1353,7 @@
       h('span.hl-ov-n', '×' + r.n));
     const stat = (cls, n, label) => h('div.hl-ov-stat' + cls, h('b', n), h('span', label));
     const lockedAll = cnt.locked + cnt.perfect;
+    const pins = pinnedSet(hall), pinnedN = keys.filter((k) => pins.has(k)).length;
     const sec = (title, n, body) => h('section.hl-ov-sec', h('h4.hl-side-h', title, h('em', n)), body);
 
     return h('section.panel.hl-detail.hl-multi' + (fresh ? '.enter' : ''), { role: 'region', 'aria-label': 'Selection overview' },
@@ -1296,6 +1363,7 @@
           h('div.hl-detail-sub', plural(books.length, 'librarian'), ' · ', plural(vs.length - books.length, 'other villager'))),
         h('button.x-btn.hl-detail-close', { type: 'button', 'aria-label': 'Clear selection', title: 'Clear selection (Esc)', 'data-focus': 'detail-close', onclick: clearSelection }, '✕')),
       h('p.hl-hint.hl-lock-why', LOCK_WHY),
+      h('p.hl-hint.hl-lock-why', PIN_WHY),
       h('div.hl-ov-stats',
         stat('', lockedAll, 'locked in'),
         stat('.is-perfect', cnt.perfect, 'perfect ★'),
@@ -1312,14 +1380,16 @@
       byTrade.size ? sec('Villagers', byTrade.size, h('ul.hl-ov-list', Array.from(byTrade.values()).map((r) => row(
         TH.icon.prof(r.v.prof.id, { size: 22 }),
         r.v.trade.purpose || profName(r.v.prof),
-        `${profName(r.v.prof)} · ${r.done} of ${r.n} in your hall`, r)))) : null,
+        `${profName(r.v.prof)}${tradeShort(r.v.trade) ? ' · ' + tradeShort(r.v.trade) : ''} · ${r.done} of ${r.n} in your hall`, r)))) : null,
       h('div.hl-row-btns.hl-ov-actions',
-        h('button.btn.small' + (cnt.needed >= lockedAll ? '.primary' : ''), { type: 'button', disabled: cnt.needed === 0, onclick: () => bulkLock(keys, true) }, cnt.needed && lockedAll ? `Lock ${cnt.needed} more` : 'Lock all'),
-        h('button.btn.small', { type: 'button', disabled: lockedAll === 0, onclick: () => bulkLock(keys, false) }, lockedAll && cnt.needed ? `Unlock ${lockedAll}` : 'Unlock all'),
-        keys.length === 2 ? h('button.btn.small', { type: 'button', 'data-focus': 'swap', onclick: () => swapTwo(keys) }, '⇄ Swap') : null,
+        h('button.btn.small' + (cnt.needed >= lockedAll ? '.primary' : ''), { type: 'button', disabled: cnt.needed === 0, onclick: () => bulkLock(keys, true) }, cnt.needed && lockedAll ? `Lock ${cnt.needed} more` : 'Lock trades'),
+        h('button.btn.small', { type: 'button', disabled: lockedAll === 0, onclick: () => bulkLock(keys, false) }, lockedAll && cnt.needed ? `Unlock ${lockedAll}` : 'Unlock trades'),
+        h('button.btn.small', { type: 'button', disabled: pinnedN === keys.length, 'data-focus': 'pin-all', onclick: () => setPinned(keys, true) }, TH.hallCanvas.pinIcon(13), pinnedN ? `Pin ${keys.length - pinnedN} more` : 'Pin all'),
+        h('button.btn.small', { type: 'button', disabled: pinnedN === 0, onclick: () => setPinned(keys, false) }, TH.hallCanvas.pinIcon(13), pinnedN && pinnedN < keys.length ? `Unpin ${pinnedN}` : 'Unpin all'),
+        keys.length === 2 ? h('button.btn.small', { type: 'button', 'data-focus': 'swap', disabled: pinnedN > 0, title: pinnedN ? 'Pinned villagers can’t be swapped' : null, onclick: () => swapTwo(keys) }, '⇄ Swap') : null,
         h('button.btn.small.ghost', { type: 'button', disabled: true, title: 'Select a single librarian to check an offer' }, 'Check offer'),
         h('button.btn.small.ghost', { type: 'button', onclick: clearSelection }, 'Clear selection')),
-      h('p.hl-hint.hl-detail-hint', 'Drag any selected villager to move them all together. Ctrl/⌘-click adds or removes one. Click empty canvas to close.'));
+      h('p.hl-hint.hl-detail-hint', 'Drag any selected villager to move them all together (pinned ones stay put). Ctrl/⌘-click adds or removes one. Click empty canvas to close.'));
   }
 
   function renderDetail(hall, pl, v, fresh) {
@@ -1330,11 +1400,17 @@
       onclick: () => upd((x) => { setSel(x.ui, []); }),
     }, '✕');
     const isLocked = status(v) !== 'needed';
-    const lockRow = h('div.hl-lockrow',
-      h('button.btn.small' + (isLocked ? '' : '.primary'), { type: 'button', 'data-focus': 'lock-btn', onclick: () => { if (!isLocked && v.kind === 'book' && v.stall.price == null) TH.app.pendingFocus = 'price-' + v.stall.id; bulkLock([v.key], !isLocked); } },
-        isLocked ? 'Unlock' : 'Lock'),
-      h('span.hl-lock-why', LOCK_WHY + (v.kind === 'book' ? ' Optionally log the price you paid below.' : '')));
-    const moveHint = h('p.hl-hint.hl-detail-hint', 'Drag it anywhere to move it, or onto another villager to swap. Click empty canvas to close.');
+    const isPinned = pinnedSet(hall).has(v.key);
+    const lockRow = h('div.hl-lockrows',
+      h('div.hl-lockrow',
+        h('button.btn.small' + (isLocked ? '' : '.primary'), { type: 'button', 'data-focus': 'lock-btn', onclick: () => { if (!isLocked && v.kind === 'book' && v.stall.price == null) TH.app.pendingFocus = 'price-' + v.stall.id; bulkLock([v.key], !isLocked); } },
+          isLocked ? 'Unlock trade' : 'Lock trade'),
+        h('span.hl-lock-why', LOCK_WHY + (v.kind === 'book' ? ' You can log the price below.' : ''))),
+      h('div.hl-lockrow',
+        h('button.btn.small' + (isPinned ? '.on' : ''), { type: 'button', 'aria-pressed': String(isPinned), 'data-focus': 'pin-btn', onclick: () => setPinned([v.key], !isPinned) },
+          TH.hallCanvas.pinIcon(13), isPinned ? 'Unpin' : 'Pin'),
+        h('span.hl-lock-why', PIN_WHY)));
+    const moveHint = h('p.hl-hint.hl-detail-hint', isPinned ? 'Pinned: it stays where it is until you unpin it. Click empty canvas to close.' : 'Drag it anywhere to move it, or onto another villager to swap. Click empty canvas to close.');
     const wrap = (pc, label, icon, title, sub, body) => h('section.panel.hl-detail' + (fresh ? '.enter' : ''), {
       style: pc ? '--pc:' + pc : null, role: 'region', 'aria-label': label,
     },
@@ -1431,6 +1507,9 @@
     return { book: bType, trade: tType };
   }
 
+  /** Set when the sort changed: the next render fades its rows in (same entrance as a tab switch). */
+  let revealNext = false;
+
   function renderNext(hall, pl) {
     const sort = SORT_IDS.includes(hall.ui.nextSort) ? hall.ui.nextSort : 'type';
     const cmp = sorters(sort, pl);
@@ -1461,10 +1540,10 @@
       h('div.seg.hl-seg', { role: 'group', 'aria-labelledby': 'hl-sort-label' },
         SORTS.map(([id, label]) => h('button' + (sort === id ? '.on' : ''), {
           type: 'button', 'aria-pressed': String(sort === id), 'data-focus': 'sort-' + id,
-          onclick: () => upd((x) => { x.ui.nextSort = id; }),
+          onclick: () => { if (id !== sort) revealNext = true; upd((x) => { x.ui.nextSort = id; }); },
         }, label))));
 
-    return h('div.panel.hl-next-panel', { role: 'region', 'aria-label': 'Next up' },
+    const panel = h('div.panel.hl-next-panel', { role: 'region', 'aria-label': 'Next up' },
       h('div.hl-next-head', h('h3', 'Next up'), h('p.hl-hint', 'What’s left to do. Tap a row to find it on the canvas and open its details.')),
       sortCtl,
       group('Still needed', needed.length, needed.map((v) => row(v,
@@ -1480,7 +1559,7 @@
       group('Villagers to get', toGet.reduce((a, t) => a + t.target - t.have, 0), toGet.map((t) => h('li.hl-strip.hl-strip-next', { style: '--pc:' + profOf(t).color },
         h('div.hl-strip-main',
           TH.icon.prof(profOf(t).id, { size: 20, cls: 'hl-strip-icon' }),
-          h('span.hl-strip-text', h('b', t.purpose || profName(profOf(t))), h('small', profName(profOf(t)), ' · ', h('b', t.have), ' / ', t.target))),
+          h('span.hl-strip-text', h('b', t.purpose || profName(profOf(t))), h('small', profName(profOf(t)), tradeShort(t) ? ' · ' + tradeShort(t) : '', ' · ', h('b', t.have), ' / ', t.target))),
         h('button.btn.small', {
           type: 'button', 'aria-label': `Got one more ${profName(profOf(t))} (${t.purpose})`, 'data-focus': 'plus-' + t.id,
           onclick: () => upd((x) => { const tr = x.trades.find((y) => y.id === t.id); if (tr) tr.have = Math.min(tr.target, tr.have + 1); }),
@@ -1496,6 +1575,11 @@
               h('span.hl-strip-text', h('b', wsName(r.prof)), h('small', profName(r.prof)))),
             h('span.hl-ws-count', h('b', '×' + r.target), left ? h('span.faint', `${left} to go`) : h('span.hl-ok', 'done')));
         }))));
+    if (revealNext) {
+      revealNext = false;
+      TH.util.reveal && TH.util.reveal(panel, { items: '.hl-strip-next:not(.hl-strip-ro), .hl-done-line', step: 0.035, max: 14 });
+    }
+    return panel;
   }
 
   /* ---- "Check an offer" dialog ---- */
@@ -1774,7 +1858,7 @@
     return out;
   }
 
-  TH.hall = { bookOffers, applyPreset, totals: (state) => totals((state || TH.store.get()).hall), catalog: CATALOG };
+  TH.hall = { bookOffers, applyPreset, canvasApi: () => canvas, totals: (state) => totals((state || TH.store.get()).hall), catalog: CATALOG };
 
   TH.app.register({
     id: 'hall',

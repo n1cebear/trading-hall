@@ -16,8 +16,7 @@
 .ec-head-icon { display: inline-flex; }
 .ec-num {
   width: 24px; height: 24px; border-radius: 3px; display: grid; place-items: center; flex-shrink: 0;
-  font: 400 13px/1 var(--mono); color: var(--muted); background: var(--panel-2); border: 1px solid var(--line);
-  box-shadow: inset 1px 1px 0 var(--edge-hi), inset -1px -1px 0 var(--edge-lo);
+  font: 400 13px/1 var(--mono); color: var(--accent); background: var(--accent-soft);
 }
 .ec-label { font-size: 11.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .7px; color: var(--muted); }
 .ec-help { margin: 2px 0 0; font-size: 12.5px; color: var(--muted); max-width: 60ch; }
@@ -41,7 +40,7 @@
 .ec-rename .field { flex: 1 1 120px; }
 
 /* ---------- 1. material, then item ---------- */
-.ec-mats { display: flex; flex-wrap: nowrap; gap: 4px; padding: 4px; margin-bottom: 8px; border-radius: 4px; background: var(--slot); box-shadow: var(--slot-shadow); border: 1px solid var(--line); overflow-x: auto; }
+.ec-mats { display: flex; flex-wrap: nowrap; gap: 4px; padding: 4px; margin-bottom: 8px; border-radius: 4px; background: var(--bg-2); overflow-x: auto; }
 .ec-mat {
   flex: 1 0 40px; display: grid; place-items: center; min-width: 40px; height: 40px; padding: 0; border-radius: 3px;
   border: 1px solid transparent; background: transparent; cursor: pointer; color: var(--muted);
@@ -64,8 +63,8 @@
 .ec-indep { margin-top: 16px; padding-top: 12px; border-top: 1px dashed var(--line-2); }
 
 /* picker: armor row on top, tools & weapons (2 x 8) underneath */
-.ec-segs { display: flex; flex-direction: column; gap: 12px; }
-.ec-seg { min-width: 0; padding: 10px; border-radius: 4px; background: var(--slot); box-shadow: var(--slot-shadow); border: 1px solid var(--line); }
+.ec-segs { display: flex; flex-direction: column; gap: 18px; }
+.ec-seg { min-width: 0; }
 .ec-seg .ec-group-name { margin-bottom: 8px; }
 .ec-slots { display: grid; gap: 6px; }
 .ec-slots.armor { grid-template-columns: repeat(6, minmax(0, 1fr)); }
@@ -148,6 +147,7 @@
 /* "none" is not a tier: selected = plain and muted, no glow */
 .lvl-chips.ec-lv button.none.on { color: var(--text); border-color: var(--line-2); background: var(--panel-2); box-shadow: none; }
 .ec-ench-side .lvl-chips.ec-lv { width: 200px; flex-wrap: nowrap; }
+.ec-ench-side .lvl-chips.ec-lv.is-empty { width: 0; }
 .lvl-chips.ec-lv.is-empty { background: none; border: 0; box-shadow: none; padding: 0; min-height: 0; }
 
 /* ---------- 3. enchantments as strips ---------- */
@@ -156,11 +156,10 @@
 .ec-lo.on { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); box-shadow: 0 2px 0 var(--edge-lo), 0 0 12px -4px var(--accent); }
 .ec-lo-desc { margin: 0 0 10px; font-size: 12.5px; color: var(--muted); }
 
-.ec-ench-list { display: flex; flex-direction: column; gap: 0; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
-.ec-ench-list > .ec-ench + .ec-ench { border-top: 1px solid var(--line); }
+.ec-ench-list { display: flex; flex-direction: column; gap: 3px; }
 .ec-ench {
   display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; align-items: center; gap: 12px;
-  min-height: var(--ec-strip); padding: 6px 10px 6px 12px; border-radius: 0;
+  min-height: var(--ec-strip); padding: 6px 10px 6px 12px; border-radius: 4px;
   background: var(--panel-2); box-shadow: inset 4px 0 0 transparent;
   transition: background .15s, box-shadow .15s;
 }
@@ -197,13 +196,12 @@
 .ec-star { color: var(--gold); }
 
 /* ---------- plan panel ---------- */
-.ec-plan { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 12px; }
-.ec-plan-head { display: flex; align-items: center; gap: 9px; }
-.ec-plan-head h3 { font: 400 17px/1.1 var(--display); letter-spacing: .3px; }
+.ec-plan { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 14px; }
+.ec-plan .ec-card-head { margin-bottom: 0; }
 .ec-empty { padding: 22px 8px; }
 
 /* total: one compact line, no hero number */
-.ec-sum { display: flex; flex-direction: column; gap: 3px; padding: 9px 12px; border-radius: 4px; background: var(--slot); box-shadow: var(--slot-shadow); border: 1px solid var(--line); }
+.ec-sum { display: flex; flex-direction: column; gap: 3px; padding: 9px 12px; border-radius: 4px; background: var(--bg-2); }
 .ec-sum-main { display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 14px; font-size: 13.5px; color: var(--muted); }
 .ec-sum-item b { font: 400 18px/1 var(--mono); color: var(--text); font-variant-numeric: tabular-nums; margin-right: 2px; }
 .ec-sum.bad .ec-sum-item b { color: var(--danger); }
@@ -265,7 +263,7 @@
 .ec-sub-head { display: flex; align-items: baseline; gap: 6px; font-size: 11.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .7px; color: var(--muted); }
 .ec-shop-total { margin-top: 8px; display: flex; align-items: center; gap: 8px; font-size: 12.5px; padding: 6px 10px; border-radius: 4px; background: var(--accent-soft); color: var(--accent); }
 
-.ec-actions { display: flex; flex-direction: column; gap: 8px; padding-top: 12px; border-top: 1px solid var(--line); }
+.ec-actions { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
 .ec-save { display: flex; gap: 6px; }
 .ec-save .field { flex: 1; min-width: 0; }
 .ec-act-row { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 6px; }
@@ -351,7 +349,7 @@
 .btn.ec-undone { color: var(--muted); }
 
 /* anvil uses helper */
-.ec-uses-help { display: flex; flex-direction: column; gap: 8px; padding: 8px 10px; border-radius: 4px; background: var(--slot); box-shadow: var(--slot-shadow); border: 1px solid var(--line); }
+.ec-uses-help { display: flex; flex-direction: column; gap: 8px; }
 .ec-uses-help .ec-help { max-width: none; }
 .ec-rc { display: flex; flex-direction: column; gap: 6px; }
 .ec-rc-label { font-size: 12.5px; color: var(--muted); }
@@ -451,3 +449,63 @@
 .ec-sec + .ec-sec { margin-top: 14px; }
 .ec-pi-list { display: flex; flex-direction: column; gap: 10px; }
 .ec-sec > .ec-gear-list { margin-top: 0; }
+
+/* ---------- 5. flow: progress, single enchant list, plan restyle ---------- */
+.ec-card-sub { font-size: 12px; color: var(--faint); min-width: 0; }
+.ec-progress { list-style: none; margin: 0 0 var(--ec-gap); padding: 0; display: flex; gap: 6px; }
+.ec-progress li { flex: 1 1 0; min-width: 0; display: flex; align-items: center; gap: 8px; padding: 7px 12px; border-radius: 4px; background: var(--panel-2); color: var(--faint); font-size: 13px; font-weight: 600; }
+.ec-pg-n { width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; flex-shrink: 0; font: 400 11px/1 var(--mono); background: var(--bg-2); color: var(--muted); }
+.ec-pg-t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ec-progress li.done { color: var(--muted); }
+.ec-progress li.done .ec-pg-n { color: var(--accent); }
+.ec-progress li.cur { color: var(--text); background: var(--ec-on-bg); }
+.ec-progress li.cur .ec-pg-n { background: var(--accent); color: var(--bg); }
+
+.ec-picker .ec-mat-line { margin-bottom: 18px; }
+.ec-group-name { margin-bottom: 8px; }
+
+/* "already on item" control on each strip */
+.ec-own { display: inline-flex; align-items: center; justify-content: flex-end; gap: 4px; flex-shrink: 0; width: 140px; }
+.ec-own-btn { height: 24px; padding: 0 8px; border-radius: 3px; border: 0; background: transparent; color: var(--faint); font: inherit; font-size: 11.5px; cursor: pointer; white-space: nowrap; }
+.ec-own-btn:hover { color: var(--text); background: var(--bg-2); }
+.ec-own.on .ec-own-btn { color: var(--muted); background: var(--bg-2); }
+.ec-own-sel { width: auto; height: 26px; padding: 0 22px 0 8px; font: 400 12px var(--mono); }
+
+/* anvil uses: slim collapsible row at the top of the list */
+.ec-usesrow { margin: 0 0 8px; border-radius: 4px; background: var(--bg-2); }
+.ec-usesrow summary { display: flex; align-items: center; gap: 10px; padding: 7px 12px; cursor: pointer; font-size: 12.5px; list-style: none; }
+.ec-usesrow summary::-webkit-details-marker { display: none; }
+.ec-usesrow summary:focus-visible { outline: 2px solid var(--lapis); outline-offset: -2px; }
+.ec-uses-n { font: 400 14px/1 var(--mono); }
+.ec-uses-edit { margin-left: auto; color: var(--lapis); font-size: 12px; }
+.ec-uses-body { display: flex; flex-direction: column; gap: 12px; padding: 4px 12px 12px; }
+.ec-uses-help .ec-help { margin-bottom: 4px; }
+
+/* plan card */
+.ec-plan .ec-label, .ec-sub-head { font-size: 11.5px; }
+.ec-sum { flex-direction: row; flex-wrap: wrap; align-items: baseline; gap: 2px 14px; }
+.ec-sum-main { gap: 2px 14px; }
+.ec-compare { flex-basis: 100%; }
+.ec-plan-block { display: flex; flex-direction: column; gap: 6px; }
+.ec-step { grid-template-columns: 24px minmax(0, 1fr) auto; min-height: 44px; background: var(--panel-2); }
+.ec-step-num { border: 0; background: var(--bg-2); }
+.ec-step-cost { justify-self: end; text-align: right; font-family: var(--mono); min-width: 5.5em; justify-content: flex-end; }
+.ec-step-cost b { font-size: 16px; }
+.ec-ref { border: 0; }
+.ec-ench-pill { border: 0; background: var(--bg-2); }
+.ec-final { background: var(--enchant-soft); }
+.ec-act-foot { margin-top: 2px; }
+
+@media (max-width: 640px) {
+  .ec-progress li { padding: 6px 8px; gap: 6px; font-size: 12px; }
+  .ec-card-sub { display: none; }
+  .ec-ench-side .ec-own { width: auto; }
+  .ec-step-cost { min-width: 0; }
+}
+.ec-sub-head .ec-slot-hint { margin: 0 0 0 auto; text-transform: none; letter-spacing: 0; font-weight: 400; font-size: 11.5px; }
+
+.ec-step-line { display: grid; grid-template-columns: 14px minmax(0, 1fr); gap: 3px 4px; align-items: center; }
+.ec-step-line > .ec-node:first-child { grid-column: 1 / -1; }
+.ec-step-line > .ec-node:last-child { grid-column: 2; }
+.ec-uses-text { display: none; }
+.ec-uses { flex-wrap: nowrap; }

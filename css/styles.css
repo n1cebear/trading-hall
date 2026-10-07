@@ -267,9 +267,9 @@ h1, h2, h3 { margin: 0; }
 @keyframes rise { from { opacity: 0; transform: translateY(14px); filter: blur(3px); } to { opacity: 1; transform: none; filter: none; } }
 
 /* ============ shared components ============ */
-.page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin: 22px 0 16px; }
-.page-head h2 { font: 400 30px/1.05 var(--display); letter-spacing: .3px; text-shadow: 3px 3px 0 var(--edge-lo); }
-.page-head p { margin: 6px 0 0; color: var(--muted); max-width: 110ch; text-wrap: pretty; }
+.page-head { display: flex; align-items: center; justify-content: space-between; gap: 8px 16px; flex-wrap: wrap; margin: 12px 0 10px; }
+.page-head h2 { font: 400 22px/1.1 var(--display); letter-spacing: .3px; text-shadow: 2px 2px 0 var(--edge-lo); }
+.page-head p { margin: 3px 0 0; font-size: 13px; color: var(--muted); max-width: 90ch; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .panel {
   background: linear-gradient(180deg, color-mix(in srgb, var(--panel) 100%, white 2%), var(--panel));
@@ -475,7 +475,8 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; }
   .grid { grid-template-columns: 1fr; }
   .search, .search .field { width: 100%; }
   .search { flex: 1 1 100%; }
-  .page-head h2 { font-size: 24px; }
+  .page-head h2 { font-size: 19px; }
+  .page-head p { white-space: normal; }
 }
 
 /* ============ top-bar menu ============ */

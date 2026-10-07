@@ -239,7 +239,7 @@ button.hl-strip-main { cursor: pointer; }
 
 /* compact page title on the overview so the canvas can claim the viewport */
 .module-hall:has(.hl-dash) .hl-page-head { margin: 12px 0 10px; align-items: baseline; }
-.module-hall:has(.hl-dash) .hl-page-head h2 { font-size: 24px; }
+.module-hall:has(.hl-dash) .hl-page-head h2 { font-size: 22px; }
 .module-hall:has(.hl-dash) .hl-page-head p { margin: 0; font-size: 13px; }
 .module-hall:has(.hl-dash) .hl-page-head > div { display: flex; align-items: baseline; gap: 4px 16px; flex-wrap: wrap; }
 

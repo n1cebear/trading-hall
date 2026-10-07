@@ -256,7 +256,7 @@ TH.anvil = (function () {
   const DEFAULTS = {
     item: 'sword', material: 'diamond', existing: {}, uses: 0, showExisting: false,
     selected: {}, loadout: null, gearId: null, gear: [], saveName: '', renaming: null, renameText: '',
-    mode: 'single', planEditing: null, plan: [], planGot: {}, renameCost: '',
+    mode: 'single', planEditing: null, plan: [], planGot: {}, renameCost: '', anvilName: '',
   };
 
   const st = () => TH.store.get().enchanting;
@@ -324,7 +324,7 @@ TH.anvil = (function () {
   const conflictList = (id, ids) => ids.filter((x) => TH.anvil.conflicts(x, id));
 
   function resetPlan(e) {
-    e.existing = {}; e.selected = {}; e.uses = 0; e.loadout = null; e.gearId = null; e.showExisting = false; e.planEditing = null;
+    e.existing = {}; e.selected = {}; e.uses = 0; e.loadout = null; e.gearId = null; e.showExisting = false; e.planEditing = null; e.anvilName = '';
   }
 
   function pickItem(id) {
@@ -495,19 +495,22 @@ TH.anvil = (function () {
   const HUD_ARMOR = ['helmet', 'chestplate', 'leggings', 'boots', 'shield', 'elytra'];
   const HUD_TOOLS = ['sword', 'axe', 'pickaxe', 'shovel', 'hoe', 'spear', 'bow', 'crossbow', 'trident', 'mace', 'fishing_rod'];
 
+  /** Material-less name for greyed-out tiles ("Sword", "Fishing Rod"). */
+  const genericName = (id) => id.split('_').map((w) => w[0].toUpperCase() + w.slice(1)).join(' ');
+
   function itemButton(itemId, s, extraCls) {
     const it = itemById[itemId];
     if (!it) return null;
     const ok = fits(it, s.material);
     const on = ok && it.id === s.item;
-    const name = itemName(it.id, ok ? s.material : it.defaultMaterial);
-    const tip = ok ? name : name + ' — not available in ' + matName(s.material);
+    const name = ok ? itemName(it.id, s.material) : genericName(it.id);
+    const tip = ok ? name : 'Not available in ' + matName(s.material);
     return h('button.ec-item' + (on ? '.on' : '') + (ok ? '' : '.na') + (extraCls || ''), {
       type: 'button', 'aria-pressed': String(on), 'data-focus': 'ec-item-' + it.id, title: tip, disabled: !ok,
       onclick: () => pickItem(it.id),
     },
-    itemIcon(it.id, s.material, 32),
-    h('span.ec-item-name', ok ? name : itemName(it.id, it.defaultMaterial)),
+    ok ? itemIcon(it.id, s.material, 32) : itemIcon(it.id, it.materials.includes('iron') ? 'iron' : it.defaultMaterial, 32),
+    h('span.ec-item-name', name),
     it.since ? h('span.ec-new', it.since) : null);
   }
 
@@ -528,7 +531,7 @@ TH.anvil = (function () {
       h('div.ec-mat-line', h('b', matName(s.material)), hint ? h('span.ec-mat-hint', hint) : null),
       h('div.ec-segs',
         h('div.ec-seg', h('div.ec-group-name', h('span', 'Armor')),
-          h('div.ec-slots.col', HUD_ARMOR.map((id) => itemButton(id, s)))),
+          h('div.ec-slots.armor', HUD_ARMOR.map((id) => itemButton(id, s)))),
         h('div.ec-seg', h('div.ec-group-name', h('span', 'Tools & weapons')),
           h('div.ec-slots.grid', HUD_TOOLS.concat(rest).map((id) => itemButton(id, s))))),
     );
@@ -654,14 +657,14 @@ TH.anvil = (function () {
       else if (selConf.length) { sub = 'Replaces ' + selConf.map(enchName).join(', '); subCls = '.warn'; }
       else sub = (sel && lo && lo.reasons[id]) || ench.desc;
 
-      return h('div.ec-ench' + (sel ? '.on' : '') + (blocked ? '.blocked' : '') + (selConf.length ? '.conflict' : ''),
+      return h('div.ec-ench' + (sel ? '.on' : '') + (has ? '.has' : '') + (blocked ? '.blocked' : '') + (selConf.length ? '.conflict' : ''),
         h('label.check', h('input', {
           type: 'checkbox', id: inputId, checked: !!sel, disabled: blocked, 'data-focus': inputId,
           'aria-describedby': inputId + '-sub', onchange: () => toggleSelect(id),
         }), h('span')),
         h('label.ec-ench-text', { for: inputId },
           h('span.ec-ench-name', h('span.ec-ench-title', nm),
-            has && !maxed ? h('span.pill.tier-unknown', 'has ' + lvl(has)) : null,
+            has ? h('span.pill.ec-onitem', { title: 'Already on your item' }, 'on item' + (maxed ? '' : ' ' + lvl(has))) : null,
             ench.category === 'curse' ? h('span.pill.tier-meh', 'curse') : null,
             (it.anvilOnly || []).includes(id) ? h('span.pill.tier-good', { title: 'The enchanting table can’t put this on this item, but an anvil can' }, 'anvil only') : null),
           h('span.ec-ench-sub' + subCls, { id: inputId + '-sub', title: sub }, sub)),
@@ -673,7 +676,7 @@ TH.anvil = (function () {
                 type: 'button', 'aria-pressed': String(sel === l), 'aria-label': lvlName(id, l), 'data-focus': `ec-lv-${id}-${l}`,
                 onclick: () => (sel === l ? toggleSelect(id) : setSelectedLevel(id, l)),
               }, lvl(l))))
-            : null));
+            : h('div.lvl-chips.ec-lv.is-empty', { 'aria-hidden': 'true' })));
     }
 
     return h('section.panel.ec-card',
@@ -714,14 +717,26 @@ TH.anvil = (function () {
     });
     const ids = sortIds(Object.keys(fin));
     const ench = ids.length > 0;
+    const custom = (s.anvilName || '').trim();
     const lines = ids.map((id) => {
-      const isNew = s.selected[id] > 0 && s.existing[id] !== s.selected[id];
       const curse = byId[id] && byId[id].category === 'curse';
-      return h('div.mct-line' + (curse ? '.curse' : '') + (isNew ? '.new' : ''), isNew ? h('i', { title: 'new' }, '+') : null, lvlName(id, fin[id]));
+      return h('div.mct-line' + (curse ? '.curse' : '') + '', lvlName(id, fin[id]));
     });
     return h('div.panel.ec-preview', { 'aria-label': 'Preview of the finished item', 'aria-live': 'polite' },
-      h('div.mct-slot', TH.icon.item(s.item, effMat(s.item, s.material), { size: 32, glint: ench })),
-      h('div.mct', h('div.mct-name' + (ench ? '.ench' : ''), itemName(s.item, s.material)), lines));
+      h('div.ec-pv-row',
+        h('div.mct-slot', TH.icon.item(s.item, effMat(s.item, s.material), { size: 32, glint: ench })),
+        h('div.mct', h('div.mct-name' + (ench ? '.ench' : '') + (custom ? '.custom' : ''), custom || itemName(s.item, s.material)), lines)),
+      h('label.ec-pv-rename',
+        h('span', 'Rename in anvil'),
+        h('input.field', {
+          type: 'text', value: s.anvilName, maxlength: 50, placeholder: 'optional custom name', 'data-focus': 'ec-anvil-name', 'aria-label': 'Custom name (anvil rename)',
+          oninput: (ev) => {
+            const v = ev.target.value;
+            set((e) => { e.anvilName = v; }, { silent: true });
+            const nm = ev.target.closest('.ec-preview').querySelector('.mct-name');
+            if (nm) { nm.textContent = v.trim() || itemName(st().item, st().material); nm.classList.toggle('custom', !!v.trim()); }
+          },
+        })));
   }
 
   function renderPlan(state, s) {
@@ -1279,6 +1294,7 @@ TH.anvil = (function () {
     if (!Array.isArray(s.gear)) s.gear = [];
     s.renaming = null;
     if (typeof s.renameCost !== 'string') s.renameCost = '';
+    if (typeof s.anvilName !== 'string') s.anvilName = '';
     s.uses = clamp(s.uses | 0, 0, MAX_USES + 4);
     if (!MATS.includes(s.material)) s.material = 'diamond';
     if (s.mode !== 'plan') s.mode = 'single';

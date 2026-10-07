@@ -446,9 +446,11 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; }
   content: ''; position: absolute; inset: 0; pointer-events: none;
   -webkit-mask: var(--mc-src) center / 100% 100% no-repeat; mask: var(--mc-src) center / 100% 100% no-repeat;
   background: linear-gradient(115deg, transparent 20%, rgb(190 120 255 / .75) 40%, transparent 55%, rgb(150 90 255 / .5) 75%, transparent 90%);
-  background-size: 300% 300%; mix-blend-mode: screen; animation: mc-glint 3.2s linear infinite;
+  /* tiled sheen moved by exactly one tile per loop, so the loop has no seam */
+  --gl: calc(var(--mc, 16px) * 3);
+  background-size: var(--gl) var(--gl); background-repeat: repeat; mix-blend-mode: screen; animation: mc-glint 3.6s linear infinite;
 }
-@keyframes mc-glint { from { background-position: 100% 100%; } to { background-position: 0 0; } }
+@keyframes mc-glint { from { background-position: 0 0; } to { background-position: var(--gl) var(--gl); } }
 .emerald { display: inline-grid; width: auto; height: auto; color: inherit; }
 
 @media (prefers-reduced-motion: reduce) {
@@ -486,6 +488,7 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; }
   .nav-item .nav-name { overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
   .nav-item::after { left: 20%; right: 20%; top: -1px; bottom: auto; height: 3px; border-radius: 0 0 3px 3px; }
   .nav-badge, .nav-soon { position: absolute; top: 3px; left: calc(50% + 8px); padding: 2px 4px; font-size: 9px; }
+  :root { --bottom-bar: calc(58px + env(safe-area-inset-bottom)); }
   .app { padding-bottom: calc(84px + env(safe-area-inset-bottom)); }
   .toast { bottom: calc(76px + env(safe-area-inset-bottom)); max-width: calc(100vw - 24px); }
 }

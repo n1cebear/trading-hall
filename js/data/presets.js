@@ -12,8 +12,23 @@ TH.data = TH.data || {};
  */
 TH.data.presets = [
   {
+    id: 'bare',
+    name: 'Bare minimum',
+    desc: 'Just the seven books every survival world needs. No other villagers.',
+    enchants: {
+      protection: 4,
+      feather_falling: 4,
+      efficiency: 5,
+      fortune: 3,
+      unbreaking: 3,
+      mending: 'max',
+      sharpness: 5,
+    },
+    roles: [],
+  },
+  {
     id: 'blueprint',
-    name: 'My Blueprint',
+    name: 'Essentials',
     desc: 'From your Trading Hall Blueprint sheet: 23 librarian stalls + 16 generator, blacksmith & utility villagers.',
     enchants: {
       // core
@@ -53,15 +68,31 @@ TH.data.presets = [
     ],
   },
   {
+    id: 'generators',
+    name: 'Emerald generators',
+    desc: 'No books, just the villagers that turn farm output into emeralds.',
+    enchants: {},
+    roles: [
+      { prof: 'fletcher', purpose: 'Sticks → Emerald', target: 4, group: 'generator', note: '32 sticks → 1 emerald. Fed by a tree farm.' },
+      { prof: 'farmer', purpose: 'Pumpkins / Melons → Emerald', target: 2, group: 'generator', note: 'Pumpkins 15 → 1, Melons 4 → 1.' },
+      { prof: 'farmer', purpose: 'Crops → Emerald', target: 1, group: 'generator', note: 'Carrots or potatoes.' },
+      { prof: 'cleric', purpose: 'Rotten Flesh → Emerald', target: 2, group: 'generator', note: '32 flesh → 1 emerald. Zombie farm drops.' },
+      { prof: 'mason', purpose: 'Clay / Stone → Emerald', target: 2, group: 'generator', note: '20 clay → 1 emerald.' },
+      { prof: 'shepherd', purpose: 'Wool → Emerald', target: 1, group: 'generator', note: 'Novice trade. Sheep farm output.' },
+      { prof: 'fisherman', purpose: 'String / Coal → Emerald', target: 1, group: 'generator', note: 'Novice trades. Pairs with a spider farm.' },
+      { prof: 'armorer', purpose: 'Iron → Emerald · Diamond armor', target: 1, group: 'generator', note: '4 iron → 1 emerald. Iron farm output.' },
+    ],
+  },
+  {
     id: 'all',
-    name: 'Everything tradeable',
+    name: 'Every single enchantment',
     desc: 'Every enchantment a librarian can sell, at max level. Keeps your current roles.',
     enchants: 'all-librarian',
   },
   {
     id: 'empty',
-    name: 'Blank slate',
-    desc: 'Clear the wanted list and roles. Logged prices are remembered if you add an enchant back.',
+    name: 'Blank',
+    desc: 'Empty plan. Pick every book and villager yourself. Logged prices are remembered if you add an enchant back.',
     enchants: {},
     roles: [],
   },

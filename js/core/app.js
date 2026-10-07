@@ -121,10 +121,55 @@ TH.app = (function () {
     });
     initMenu();
     initLang();
+    initSaveState();
+    initOffline();
     TH.store.subscribe(render);
     window.addEventListener('hashchange', route);
     // load the saved language's official game names before the first paint
     TH.i18n.setLang(TH.store.get().settings.lang || 'en_us').then(route);
+  }
+
+  /** "Saved" status in the top bar (data auto-saves on every change) + one-click backup file. */
+  function initSaveState() {
+    const el = document.getElementById('saveState');
+    const txt = el.querySelector('.save-text');
+    let t;
+    window.addEventListener('th:saved', () => {
+      txt.textContent = 'Saved';
+      el.classList.add('flash');
+      el.title = 'Saved automatically in this browser at ' + new Date().toLocaleTimeString();
+      clearTimeout(t);
+      t = setTimeout(() => el.classList.remove('flash'), 900);
+    });
+    const btn = document.getElementById('backupBtn');
+    btn.appendChild(TH.icon('item/bundle', { size: 20 }));
+    btn.addEventListener('click', () => {
+      TH.util.download(`toolbox-backup-${new Date().toISOString().slice(0, 10)}.json`, TH.store.exportJSON());
+      TH.util.toast('Backup file saved — import it via ⋯ on another device');
+    });
+  }
+
+  /**
+   * Offline: on http(s) a service worker caches the app and every Minecraft texture
+   * (see sw.js + js/core/icon-list.js). Shows "Offline" in the status when there is no network.
+   */
+  function initOffline() {
+    const el = document.getElementById('saveState');
+    const net = () => {
+      el.classList.toggle('offline', !navigator.onLine);
+      el.querySelector('.save-text').textContent = navigator.onLine ? 'Saved' : 'Saved · offline';
+    };
+    window.addEventListener('online', net);
+    window.addEventListener('offline', net);
+    net();
+    if (!('serviceWorker' in navigator) || !/^https?:$/.test(location.protocol)) return;
+    navigator.serviceWorker.register('sw.js').then((reg) => {
+      const warm = () => {
+        const sw = navigator.serviceWorker.controller || reg.active;
+        if (sw && TH.iconList) sw.postMessage({ type: 'warm', urls: TH.iconList.map(TH.icon.remote) });
+      };
+      navigator.serviceWorker.ready.then(() => setTimeout(warm, 1500));
+    }).catch(() => { /* offline support is a bonus */ });
   }
 
   /** Language picker: switches game terms only (official Mojang strings); UI stays English. */

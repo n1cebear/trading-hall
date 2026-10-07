@@ -7,15 +7,15 @@
 /* ============ tokens ============ */
 /* dark "Obsidian" is the base; light "Parchment" overrides below */
 :root {
-  --bg: #0f0c16;
-  --bg-2: #171221;
-  --panel: #1b1527;
-  --panel-2: #241c33;
-  --line: #2f2642;
-  --line-2: #43375c;
-  --text: #ece6f5;
-  --muted: #a99fbd;
-  --faint: #6c6282;
+  --bg: #0e0e12;
+  --bg-2: #15151b;
+  --panel: #1a1a21;
+  --panel-2: #23232c;
+  --line: #2d2d38;
+  --line-2: #40404d;
+  --text: #ecebf0;
+  --muted: #a4a3ae;
+  --faint: #6b6a76;
   --accent: #3ee08f;          /* emerald — the one dominant action colour */
   --accent-2: #7af0b3;
   --accent-ink: #062014;      /* text on emerald */
@@ -37,7 +37,7 @@
   --grid-line: rgb(255 255 255 / .025);
   --glow-a: rgb(91 140 255 / .16);
   --glow-b: rgb(62 224 143 / .10);
-  --rune: rgb(196 139 255 / .22);
+  --rune: rgb(170 160 220 / .14);
   --radius: 6px;
   --font: 'Bricolage Grotesque', 'Trebuchet MS', sans-serif;
   --display: 'Monocraft', 'Bricolage Grotesque', monospace;
@@ -122,7 +122,8 @@ h1, h2, h3 { margin: 0; }
   border-bottom: 1px solid var(--line);
 }
 .brand { display: flex; align-items: center; gap: 13px; flex-shrink: 0; padding-left: 4px; }
-.brand h1 { font: 400 20px/1 var(--display); letter-spacing: .5px; white-space: nowrap; }
+.brand h1 { font: 400 17px/1.15 var(--display); letter-spacing: .5px; white-space: nowrap; }
+.brand h1 span { display: block; }
 .brand-sub { margin: 2px 0 0; font: 500 9.5px/1 var(--mono); color: var(--muted); letter-spacing: 1.5px; text-transform: uppercase; }
 /* animated pixel hourglass logo: sand drains in pixel steps, then the glass flips — seamless loop */
 .brand-glass {
@@ -183,7 +184,7 @@ h1, h2, h3 { margin: 0; }
 /* ============ shared components ============ */
 .page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin: 22px 0 16px; }
 .page-head h2 { font: 400 30px/1.05 var(--display); letter-spacing: .3px; text-shadow: 3px 3px 0 var(--edge-lo); }
-.page-head p { margin: 6px 0 0; color: var(--muted); max-width: 62ch; }
+.page-head p { margin: 6px 0 0; color: var(--muted); max-width: 110ch; text-wrap: pretty; }
 
 .panel {
   background: linear-gradient(180deg, color-mix(in srgb, var(--panel) 100%, white 2%), var(--panel));
@@ -451,5 +452,15 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; }
   .lang-globe { left: 12px; }
   .topbar { flex-wrap: wrap; row-gap: 6px; padding: 10px 0 8px; }
   .brand { flex: 1; min-width: 0; }
-  .brand h1 { font-size: 17px; }
+  .brand h1 { font-size: 15px; }
 }
+
+/* ============ save status + backup ============ */
+.save-state {
+  display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 10px; border-radius: 4px;
+  font: 500 11px var(--mono); color: var(--muted); white-space: nowrap; transition: color .2s;
+}
+.save-state::before { content: ''; width: 7px; height: 7px; border-radius: 1px; background: var(--accent); box-shadow: 0 0 6px var(--accent); }
+.save-state.flash { color: var(--accent); }
+.save-state.offline::before { background: var(--gold); box-shadow: 0 0 6px var(--gold); }
+@media (max-width: 640px) { .save-state .save-text { display: none; } .save-state { padding: 0 6px; } }

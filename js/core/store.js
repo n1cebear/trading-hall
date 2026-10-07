@@ -21,7 +21,10 @@ TH.store = (function () {
   }
 
   function save() {
-    try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { /* ignore */ }
+    try {
+      localStorage.setItem(KEY, JSON.stringify(state));
+      window.dispatchEvent(new Event('th:saved'));
+    } catch (e) { /* storage blocked */ }
   }
 
   /** Register a module slice with default values (merged shallowly, never overwrites saved data). */

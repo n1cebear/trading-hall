@@ -3,18 +3,18 @@
  *
  * One combined plan: librarian books + every other villager you want.
  *   1. Setup wizard (Start → Books → Trades → Review) picks WHAT you want.
- *   2. Dashboard shows WHERE you are: a free tile grid of your hall (you arrange
- *      it yourself), a "next up" list and roll mode (tracks in-game rerolls and
- *      judges each offer).
+ *   2. Dashboard shows WHERE you are: a free tile grid of your hall (drag / tap to
+ *      arrange it), a sortable "Next up" list that becomes a details panel for the
+ *      selected villager, and "Check an offer" (judges an in-game offer, adds it in one tap).
  *
  * state.hall = {
  *   setupDone, step, editing, migrated,
- *   books:   { [enchId]: { level, stalls: [{ id, label, done, price, rolls }] } },  // one stall = one librarian
+ *   books:   { [enchId]: { level, stalls: [{ id, label, done, price }] } },  // one stall = one librarian
  *   archive: { [enchId]: book },             // removed books, restored with their progress if re-added
  *   trades:  [{ id, prof, purpose, target, have, group, note }],
  *   layout:  { v: 2, cols, rows, cells: { 'x,y': villagerKey } },   // free grid, user-arranged
- *   roll:    { open, ench, level, price, query, target, count, session },
- *   ui:      { selected, arrange, pick, search, expanded: { [enchId]: true } },
+ *   check:   { open, ench, level, price, query },   // the "Check an offer" dialog
+ *   ui:      { selected, nextSort: type|name|pos|price, search, expanded: { [enchId]: true } },
  *   activePreset,
  * }
  * villagerKey = 'b:' + stallId  |  't:' + tradeId + ':' + n   (n = 0 .. target-1)
@@ -36,7 +36,8 @@
   const LIB_ENCH = SORTED.filter((e) => e.librarian);
   const GROUPS = D.roleGroups.concat([{ id: 'other', name: 'Other', hint: 'Anything else you want' }]);
   const TIER_LABEL = { perfect: 'Perfect', great: 'Great', good: 'Okay', meh: 'Pricey', unknown: 'No price' };
-  const STATUS_LABEL = { needed: 'needed', rolling: 'rolling', locked: 'locked in', perfect: 'perfect price' };
+  const STATUS_LABEL = { needed: 'needed', locked: 'locked in', perfect: 'perfect price' };
+  const TITLE = 'Trading Hall Planner';
   const GRID_DEFAULT = { cols: 12, rows: 6 };
   const GRID_MAX = 40;
 
@@ -104,8 +105,8 @@
     setupDone: false, step: 0, editing: false, migrated: false,
     books: {}, archive: {}, trades: [],
     layout: { v: 2, cols: GRID_DEFAULT.cols, rows: GRID_DEFAULT.rows, cells: {} },
-    roll: { open: false, ench: '', level: null, price: null, query: '', target: '', count: 0, session: 0 },
-    ui: { selected: null, arrange: true, pick: null, search: '', expanded: {} },
+    check: { open: false, ench: '', level: null, price: null, query: '' },
+    ui: { selected: null, nextSort: 'type', search: '', expanded: {} },
     activePreset: null,
   };
 
@@ -123,10 +124,14 @@
   const wsName = (p) => I18.block(p.workstationId);
   const profShort = (p) => (isEn() && PROF_SHORT[p.id]) || profName(p);
   const minPrice = (e, lvl) => D.bookPrice(e, lvl).min;
-  const newStall = (label) => ({ id: uid('st'), label: label || '', done: false, price: null, rolls: 0 });
-  const hasProgress = (st) => st.done || st.price != null || st.rolls > 0;
+  const newStall = (label) => ({ id: uid('st'), label: label || '', done: false, price: null });
+  const hasProgress = (st) => st.done || st.price != null;
   const plural = (n, one, many) => n + ' ' + (n === 1 ? one : (many || one + 's'));
   const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /** "23 librarians · 20 different books" — leads with librarians (one book can need several). */
+  const libBooks = (stalls, books) => [h('b', stalls), stalls === 1 ? ' librarian' : ' librarians', ' · ',
+    h('b', books), books === 1 ? ' book' : ' different books'];
 
   /** Emerald + number, vertically centred (flex). */
   const cost = (n, cls) => h('span.hl-cost' + (cls ? '.' + cls : ''), emerald(), h('b', n));
@@ -166,12 +171,12 @@
     return out;
   }
 
-  /** needed | rolling | locked | perfect */
+  /** needed | locked | perfect */
   function status(v) {
     if (v.kind === 'trade') return v.n < v.trade.have ? 'locked' : 'needed';
     const s = v.stall;
     if (s.done) return s.price != null && s.price <= minPrice(v.ench, v.book.level) ? 'perfect' : 'locked';
-    return s.rolls > 0 ? 'rolling' : 'needed';
+    return 'needed';
   }
 
   /** Counters for the header, stats and nav badge. */
@@ -284,14 +289,6 @@
       .map((x) => Object.assign(x.v, { pos: pl.posOf[x.v.key] }));
   }
 
-  /** Swap two villagers by key (used when a lock lands on a different stall than the lectern you rolled). */
-  function swapVillagers(hall, keyA, keyB) {
-    const cells = hall.layout.cells;
-    const pa = Object.keys(cells).find((p) => cells[p] === keyA);
-    const pb = Object.keys(cells).find((p) => cells[p] === keyB);
-    if (pa && pb) { cells[pa] = keyB; cells[pb] = keyA; } else if (pb) { cells[pb] = keyA; }
-  }
-
   /** Put every unplaced villager into the free cells, row by row (adds rows if needed). */
   function autoPlace() {
     let n = 0;
@@ -309,14 +306,13 @@
         slots = free();
       }
       for (const v of pl.tray) { const p = slots.shift(); if (!p) break; L.cells[p] = v.key; n++; }
-      hall.ui.pick = null;
     });
     toast(n ? `Placed ${plural(n, 'villager')} — drag them around to match your build` : 'Nothing left to place');
   }
 
   function clearGrid() {
     if (!confirm('Move every villager back to the “Not placed yet” tray?')) return;
-    upd((hall) => { hall.layout.cells = {}; hall.ui.pick = null; });
+    upd((hall) => { hall.layout.cells = {}; hall.ui.selected = null; });
   }
 
   function setGridSize(cols, rows) {
@@ -437,135 +433,131 @@
 
   function findTrade(hall, prof, purpose) { return hall.trades.find((t) => t.prof === prof && t.purpose === purpose); }
 
-  /* ================= roll mode logic ================= */
+  /* ================= "Check an offer" logic ================= */
+  // The player rerolls in-game (break + re-place the lectern). Whenever an offer shows up they
+  // enter it here, get a verdict, and add it to the hall in one tap. No reroll bookkeeping.
 
   // typeahead UI state (not persisted)
   const ta = { open: false, hi: 0 };
-  let rollJustOpened = false;
+  let checkJustOpened = false;
 
-  function openRoll(stallId) {
-    ta.open = false; ta.hi = 0; rollJustOpened = true;
-    TH.app.pendingFocus = 'roll-q';
+  /** Open the dialog; enchId pre-fills the enchantment (from a Next-up row or the details panel). */
+  function openCheck(enchId) {
+    const e = enchId && ENCH[enchId];
+    ta.open = false; ta.hi = 0; checkJustOpened = true;
+    TH.app.pendingFocus = e ? 'chk-price' : 'chk-q';
     upd((hall) => {
-      const r = hall.roll;
-      const first = stallsInHallOrder(hall).find((v) => !v.stall.done);
-      Object.assign(r, { open: true, count: 0, ench: '', query: '', level: null, price: null, target: stallId || (first ? first.stall.id : '') });
+      const c = hall.check;
+      Object.assign(c, { open: true, ench: '', query: '', level: null, price: null });
+      if (e) Object.assign(c, { ench: e.id, query: enchLocal(e), level: hall.books[e.id] ? hall.books[e.id].level : e.maxLevel });
     });
   }
-  function closeRoll() {
-    upd((hall) => { hall.roll.open = false; });
+  function closeCheck() {
+    upd((hall) => { hall.check.open = false; });
     document.body.classList.remove('hl-noscroll');
   }
-  function clearOffer(r) { Object.assign(r, { ench: '', query: '', level: null, price: null }); }
+  function clearOffer(c) { Object.assign(c, { ench: '', query: '', level: null, price: null }); }
+  function clearCheck() {
+    ta.open = false; ta.hi = 0;
+    TH.app.pendingFocus = 'chk-q';
+    upd((hall) => clearOffer(hall.check));
+  }
 
-  /** Decide what to do with the current offer. kind: idle | lock | skip | warn. */
+  /** Decide what to do with the offer. kind: idle | lock | skip | warn. */
   function verdict(hall) {
-    const r = hall.roll;
-    const e = ENCH[r.ench];
-    if (!e) return { kind: 'idle', title: 'Waiting for an offer…', text: 'Type or tap the enchantment the librarian is offering in-game.' };
-    const level = clamp(r.level || e.maxLevel, 1, e.maxLevel);
+    const c = hall.check;
+    const e = ENCH[c.ench];
+    if (!e) return { kind: 'idle', title: 'Waiting for an offer…', text: 'Type or tap the enchantment the librarian is offering.' };
+    const level = clamp(c.level || e.maxLevel, 1, e.maxLevel);
     const range = D.bookPrice(e, level);
-    const price = r.price;
+    const price = c.price;
     const nm = enchLabel(e, level);
-    const tgt = r.target && findStall(hall, r.target);
-    const hit = !!(tgt && tgt.id === e.id && !tgt.stall.done);
-    const base = { e, level, price, range, hit };
-    const skip = 'Break the lectern for a new offer, then press Next offer.';
+    const local = enchLocal(e);
+    const base = { e, level, price, range };
     if (price != null && (price < range.min || price > range.max)) {
-      return { ...base, kind: 'warn', title: 'Hmm, price outside possible range', text: `${nm} always costs ${range.min}–${range.max} emeralds. Check the level and price.`, primary: 'next' };
+      return { ...base, kind: 'warn', title: 'Hmm, that price can’t happen', text: `${nm} always costs ${range.min}–${range.max} emeralds. Check the level and price.` };
     }
     const book = hall.books[e.id];
-    if (!book) return { ...base, kind: 'skip', title: 'Skip it — not on your list', text: `You didn’t plan a ${nm} librarian. ${skip}`, primary: 'next', canAdd: true };
+    if (!book) return { ...base, kind: 'skip', title: 'Skip it — not on your list', text: `You didn’t plan a ${nm} librarian. Reroll for the next offer.`, canAdd: true };
     if (level < book.level) {
-      return { ...base, kind: 'skip', title: 'Skip it — level too low', text: `You want ${enchLabel(e, book.level)}; this one is only ${lvlText(level)}. ${skip}`, primary: 'next' };
+      return { ...base, kind: 'skip', title: 'Skip it — level too low', text: `You want ${enchLabel(e, book.level)}; this one is only ${lvlText(level)}. Reroll.` };
     }
     const open = book.stalls.filter((s) => !s.done).length;
     if (open) {
+      const tier = price == null ? 'unknown' : D.priceTier(e, level, price);
+      const what = open > 1 ? `${open} ${local} librarians are still open.` : `Fills your open ${nm} spot.`;
+      if (tier === 'meh') {
+        return { ...base, kind: 'lock', title: 'Lock it — but it’s pricey', text: `${what} Perfect is ${range.min}; keep rerolling if you’re patient.` };
+      }
       return {
-        ...base, kind: 'lock', title: 'Lock it — you need this', primary: 'lock',
-        text: (hit ? `That’s the ${enchLocal(e)} you’re rolling for!` : open > 1 ? `${open} ${enchLocal(e)} stalls are still open.` : `Fills your open ${nm} stall.`)
-          + ' Trade with it once in-game so the offer sticks.',
+        ...base, kind: 'lock',
+        title: tier === 'perfect' ? 'Lock it — perfect price!' : 'Lock it — you need this',
+        text: what + ' Trade with it once in-game so the offer sticks.',
       };
     }
-    if (price == null) return { ...base, kind: 'idle', title: `You already have ${nm}`, text: 'Enter the price to see if this one is cheaper.', primary: 'next' };
+    if (price == null) return { ...base, kind: 'idle', title: `You already have ${nm}`, text: 'Enter the price to see if this one is cheaper.' };
     const priced = book.stalls.filter((s) => s.price != null);
     if (priced.length < book.stalls.length) {
-      return { ...base, kind: 'skip', title: 'Skip it — you already have it', text: 'One of your stalls has no price logged, so I can’t compare. Log it on the hall grid.', primary: 'next' };
+      return { ...base, kind: 'skip', title: 'Skip it — you already have it', text: 'One of your librarians has no price logged, so there’s nothing to compare. Set it on the hall grid.' };
     }
     const worst = Math.max(...priced.map((s) => s.price));
-    if (price < worst) return { ...base, kind: 'lock', title: `Lock it — cheaper than your ${worst} (save ${worst - price})`, text: `Replaces your priciest ${enchLocal(e)} stall.`, primary: 'lock' };
-    return { ...base, kind: 'skip', title: `Skip it — you already have it for ${worst}`, text: price === worst ? 'Same price — nothing to gain.' : `This one is ${price - worst} more expensive.`, primary: 'next' };
+    if (price < worst) return { ...base, kind: 'lock', title: `Lock it — cheaper than your ${worst} (save ${worst - price})`, text: `Replaces your priciest ${local} librarian.` };
+    return { ...base, kind: 'skip', title: `Skip it — you already have it for ${worst}`, text: price === worst ? 'Same price — nothing to gain.' : `This one is ${price - worst} more expensive.` };
   }
 
-  /** Lock the current offer into a stall. Returns a result for the toast, or null. */
+  /**
+   * Lock the offer into the best matching stall: the first open stall of that enchant
+   * (in hall order); if all are locked and the offer is cheaper, replace the priciest one.
+   */
   function lockOffer(hall, addIfMissing) {
-    const r = hall.roll;
-    const e = ENCH[r.ench];
+    const c = hall.check;
+    const e = ENCH[c.ench];
     if (!e) return null;
-    const level = clamp(r.level || e.maxLevel, 1, e.maxLevel);
+    const level = clamp(c.level || e.maxLevel, 1, e.maxLevel);
     let book = hall.books[e.id];
     if (!book) {
       if (!addIfMissing) return null;
       book = addBook(hall, e.id, level);
     }
-    const tgt = r.target ? findStall(hall, r.target) : null;
-    let stall = tgt && tgt.id === e.id && !tgt.stall.done ? tgt.stall : book.stalls.find((s) => !s.done);
-    let replaced = false;
+    const order = stallsInHallOrder(hall).filter((v) => v.ench.id === e.id);
+    const open = order.find((v) => !v.stall.done);
+    let stall = open ? open.stall : null;
+    let old = null;
     if (!stall) {
       const worst = book.stalls.filter((s) => s.price != null).sort((a, b) => b.price - a.price)[0];
-      if (!worst || r.price == null || r.price >= worst.price) return null;
-      stall = worst; replaced = true;
+      if (!worst || c.price == null || c.price >= worst.price) return null;
+      stall = worst; old = worst.price;
     }
     stall.done = true;
-    stall.price = r.price;
-    // the librarian you just locked stands at the lectern you were rolling → move the stall there on the grid
-    if (tgt && tgt.stall !== stall) swapVillagers(hall, 'b:' + stall.id, 'b:' + tgt.stall.id);
-    return { e, level, stall, replaced, perfect: r.price != null && r.price <= minPrice(e, level) };
+    stall.price = c.price;
+    const pos = placement(hall).posOf['b:' + stall.id];
+    return { e, level, stall, old, pos, perfect: c.price != null && c.price <= minPrice(e, level) };
   }
 
-  /** After locking, aim at the next open stall (in hall order) after the one just locked. */
-  function advanceTarget(hall, lockedId) {
-    const order = stallsInHallOrder(hall);
-    const i = order.findIndex((v) => v.stall.id === lockedId);
-    const next = order.slice(i + 1).concat(order.slice(0, i + 1)).find((v) => !v.stall.done);
-    hall.roll.target = next ? next.stall.id : '';
-  }
-
-  function doLock(addIfMissing) {
+  function doAdd(addIfMissing) {
     let res = null;
     ta.open = false; ta.hi = 0;
-    TH.app.pendingFocus = 'roll-q';
+    TH.app.pendingFocus = 'chk-q';
     upd((hall) => {
       res = lockOffer(hall, addIfMissing);
-      if (!res) return;
-      clearOffer(hall.roll);
-      advanceTarget(hall, res.stall.id);
+      if (res) clearOffer(hall.check);
     });
     if (res) {
-      const where = res.stall.label ? ` (${res.stall.label})` : '';
-      toast(`${res.replaced ? 'Replaced' : 'Locked'} ${enchLabel(res.e, res.level)}${where}${res.perfect ? ' — perfect price!' : ''}`);
+      const nm = enchLabel(res.e, res.level) + (res.stall.label ? ` (${res.stall.label})` : '');
+      const where = res.pos ? ` at ${posLabel(res.pos)}` : '';
+      toast(res.old != null
+        ? `Replaced your ${res.old}-emerald ${nm}${where} — saved ${res.old - res.stall.price}`
+        : `Locked ${nm}${where}${res.perfect ? ' — perfect price!' : ''}`);
     } else if (addIfMissing) {
       toast('Added back to your list — you already had it locked');
     }
   }
 
-  /** Count one in-game reroll at the current lectern and clear the offer fields. */
-  function nextOffer() {
-    ta.open = false; ta.hi = 0;
-    TH.app.pendingFocus = 'roll-q';
-    upd((hall) => {
-      const r = hall.roll;
-      r.count++; r.session++;
-      const t = r.target && findStall(hall, r.target);
-      if (t) t.stall.rolls = (t.stall.rolls || 0) + 1;
-      clearOffer(r);
-    });
-  }
-
+  /** Enter: add when the verdict says lock; on a skip, clear the fields for the next offer. */
   function primaryAction() {
     const v = verdict(get());
-    if (v.primary === 'lock') doLock(false);
-    else if (v.primary === 'next') nextOffer();
+    if (v.kind === 'lock') doAdd(false);
+    else if (v.kind === 'skip') clearCheck();
   }
 
   /** Typeahead options: still-needed first, then on-list, then the rest. Matches localized + English names. */
@@ -586,11 +578,12 @@
   function pickOffer(id) {
     const e = ENCH[id];
     ta.open = false; ta.hi = 0;
-    TH.app.pendingFocus = 'roll-price';
+    TH.app.pendingFocus = 'chk-price';
     upd((hall) => {
-      const r = hall.roll;
-      r.ench = id; r.query = enchLocal(e);
-      r.level = e.maxLevel; // default to max; easy to change with the level chips
+      const c = hall.check;
+      c.ench = id; c.query = enchLocal(e);
+      // default to the level you planned (or max); easy to change with the level chips
+      c.level = hall.books[id] ? hall.books[id].level : e.maxLevel;
     });
   }
 
@@ -613,8 +606,8 @@
     root.append(
       h('div.page-head.hl-wiz-head',
         h('div',
-          h('h2', hall.editing ? 'Edit your hall' : 'Plan your trading hall'),
-          h('p', STEPS[step].help)),
+          h('h2', TITLE),
+          h('p', (hall.editing ? 'Editing your plan. ' : '') + STEPS[step].help)),
         hall.editing ? h('button.btn', { type: 'button', onclick: finishSetup }, '← Back to hall') : null,
       ),
       h('nav.hl-steps', { 'aria-label': 'Setup steps' },
@@ -717,7 +710,7 @@
         type: 'search', placeholder: 'Search books or items…', value: hall.ui.search || '', 'data-focus': 'wiz-search', 'aria-label': 'Search enchantments',
         oninput: (e) => upd((x) => { x.ui.search = e.target.value; }),
       })),
-      h('span.hl-toolbar-info', h('b', nBooks), ' books · ', h('b', t.stalls), ' librarians'),
+      h('span.hl-toolbar-info', libBooks(t.stalls, nBooks)),
       h('span.spacer'),
       nBooks ? h('button.btn.ghost.small', {
         type: 'button', onclick: () => { if (confirm('Deselect all books? Their progress is remembered if you add them back.')) upd((x) => { Object.keys(x.books).forEach((id) => removeBook(x, id)); }); },
@@ -950,7 +943,7 @@
           h('span.hl-badge.is-static', '×' + r.target)))),
         h('p.hl-total-line', h('b', t.total), ' villagers · ', plural(profs.length, 'profession'))),
       h('section.panel.hl-review-card',
-        h('div.hl-review-head', h('h3.section-title', `Books (${ids.length})`), h('button.btn.ghost.small', { type: 'button', onclick: () => goStep(1) }, 'Edit')),
+        h('div.hl-review-head', h('h3.section-title', 'Books'), h('span.hl-toolbar-info', libBooks(t.stalls, ids.length)), h('span.spacer'), h('button.btn.ghost.small', { type: 'button', onclick: () => goStep(1) }, 'Edit')),
         ids.length ? h('ul.hl-strips.hl-strips-flat', ids.map((id) => {
           const b = hall.books[id];
           const labels = b.stalls.map((s) => s.label).filter(Boolean);
@@ -982,41 +975,45 @@
     const hall = state.hall;
     const pl = placement(hall);
     const t = totals(hall);
-    const toRoll = t.stalls - t.locked;
+    const toFind = t.stalls - t.locked;
     const toGet = t.trades - t.have;
     const preset = hall.activePreset && (D.presets.concat(state.customPresets).find((p) => p.id === hall.activePreset));
 
-    const editBtn = h('button.btn', { type: 'button', onclick: () => upd((x) => { x.setupDone = false; x.editing = true; x.step = 1; }) }, '✎ Edit setup');
+    const editBtn = h('button.btn', { type: 'button', onclick: () => upd((x) => { x.setupDone = false; x.editing = true; x.step = 1; x.ui.selected = null; }) }, '✎ Edit setup');
+    const head = (sub) => h('div.page-head.hl-page-head', h('div', h('h2', TITLE), h('p', sub)));
 
     if (!t.total) {
-      root.append(h('div.panel.empty.hl-empty-hall',
-        h('div.empty-icon', TH.icon('bell', { size: 36 })), h('h2', 'Your hall is empty'),
-        h('p', 'Pick the books and villagers you want, and this page turns into your to-do list.'),
-        h('button.btn.primary', { type: 'button', onclick: () => upd((x) => { x.setupDone = false; x.editing = false; x.step = 0; }) }, 'Start planning')));
+      root.append(
+        head('Nothing planned yet.'),
+        h('div.panel.empty.hl-empty-hall',
+          h('div.empty-icon', TH.icon('bell', { size: 36 })), h('h3', 'Your hall is empty'),
+          h('p', 'Pick the books and villagers you want, and this page turns into your to-do list.'),
+          h('button.btn.primary', { type: 'button', onclick: () => upd((x) => { x.setupDone = false; x.editing = false; x.step = 0; }) }, 'Start planning')));
       return;
     }
 
     const line = t.done === t.total
       ? 'Everything is locked in. What a hall!'
-      : [toRoll ? plural(toRoll, 'librarian') + ' to roll' : null, toGet ? plural(toGet, 'villager') + ' to find' : null].filter(Boolean).join(' · ');
+      : [toFind ? plural(toFind, 'librarian') + ' still needed' : null, toGet ? plural(toGet, 'villager') + ' to find' : null].filter(Boolean).join(' · ');
 
     root.append(
+      head('Your hall at a glance. Check offers as you reroll, and arrange villagers like your real build.'),
       h('section.panel.hl-hero',
         ring(t.done, t.total, 76),
         h('div.hl-hero-text',
-          h('h2', `${t.done} / ${t.total} villagers locked in`),
+          h('h3', `${t.done} / ${t.total} villagers locked in`),
           h('p', line),
           preset ? h('span.chip', 'Based on ', preset.name) : null),
         h('div.hl-hero-actions', editBtn,
-          toRoll ? h('button.btn.primary', { type: 'button', onclick: () => openRoll(null) }, TH.icon('enchanted_book', { size: 18 }), 'Roll a librarian') : null)),
+          t.stalls ? h('button.btn.primary', { type: 'button', 'data-focus': 'hero-check', onclick: () => openCheck(null) }, TH.icon('enchanted_book', { size: 18 }), 'Check an offer') : null)),
       h('div.stats.hl-stats',
         statTile(TH.icon('enchanted_book', { size: 28, glint: true }), `${t.locked}/${t.stalls}`, 'librarians locked', t.stalls ? t.locked / t.stalls : 0),
         statTile(TH.icon('villager', { size: 28 }), `${t.have}/${t.trades}`, 'other villagers', t.trades ? t.have / t.trades : 0),
         statTile(TH.icon('star', { size: 28 }), t.perfect, 'perfect-price books'),
         statTile(TH.icon('emerald', { size: 28 }), t.over, 'emeralds above perfect' + (t.locked && !t.over ? ' — nice!' : ''))),
-      h('div.hl-dash', renderMap(hall, pl), renderNext(hall, pl)),
+      h('div.hl-dash', renderMap(hall, pl), renderSide(hall, pl)),
     );
-    if (hall.roll.open) root.append(renderRoll(hall));
+    if (hall.check.open) root.append(renderCheck(hall));
   }
 
   function statTile(icon, num, label, frac) {
@@ -1031,6 +1028,8 @@
   // keyboard focus inside the grid (roving tabindex; not persisted)
   const gridFocus = { x: 0, y: 0 };
   let dragKey = null;
+  // which villager the details panel showed last render (slide-in only when it changes)
+  let lastDetail = null;
 
   function villagerName(v) {
     if (v.kind === 'book') return enchLabel(v.ench, v.book.level) + (v.stall.label ? ' (' + v.stall.label + ')' : '');
@@ -1045,7 +1044,6 @@
 
   /** Tile contents (shared by grid + tray). */
   function tileBody(v) {
-    const st = status(v);
     const name = v.kind === 'book' ? enchShort(v.ench) : profShort(v.prof);
     const corner = v.kind === 'book'
       ? (v.ench.maxLevel > 1 ? lvlText(v.book.level) : null)
@@ -1056,16 +1054,13 @@
       h('span.hl-tile-name', name),
       corner ? h('span.hl-tile-lv', corner) : null,
       tag ? h('span.hl-tile-tag', { title: v.stall.label }, tag) : null,
-      st === 'rolling' && !tag ? h('span.hl-tile-badge', '↻' + v.stall.rolls) : null,
     ];
   }
 
   function tileLabel(v, pos) {
     const st = status(v);
-    let extra = '';
-    if (v.kind === 'book' && v.stall.rolls && st === 'rolling') extra = `, ${plural(v.stall.rolls, 'reroll')}`;
-    if (v.kind === 'book' && v.stall.done && v.stall.price != null) extra = `, ${v.stall.price} emeralds`;
-    const who = v.kind === 'book' ? 'Librarian' : profName(v.prof);
+    const extra = v.kind === 'book' && v.stall.done && v.stall.price != null ? `, ${v.stall.price} emeralds` : '';
+    const who = v.kind === 'book' ? profName(PROF.librarian) : profName(v.prof);
     return `${who}: ${villagerName(v)} — ${STATUS_LABEL[st]}${extra} (${posLabel(pos)})`;
   }
 
@@ -1102,29 +1097,44 @@
     };
   }
 
+  /** The selected villager's key, if it still exists. */
+  function selectedKey(hall, pl) {
+    const k = hall.ui.selected;
+    return k && pl.byKey[k] ? k : null;
+  }
+
+  /**
+   * Tap on a grid slot. Nothing selected: select the tile (details open on the side).
+   * Something selected: move it here (swapping with whoever stands here), or deselect on a second tap.
+   */
   function onCellActivate(pos, key) {
     const hall = get();
-    const pick = hall.ui.pick;
-    if (pick) {
-      if (pick === key) { upd((x) => { x.ui.pick = null; }); return; }
-      upd((x) => { moveTo(x, pick, pos); x.ui.pick = null; });
+    const pl = placement(hall);
+    const sel = selectedKey(hall, pl);
+    if (sel) {
+      if (sel === key) { upd((x) => { x.ui.selected = null; }); return; }
+      const name = villagerName(pl.byKey[sel]);
+      const other = key ? villagerName(pl.byKey[key]) : null;
+      upd((x) => { moveTo(x, sel, pos); x.ui.selected = null; });
+      toast(other ? `Swapped ${name} with ${other}` : `Moved ${name} to ${posLabel(pos)}`);
       return;
     }
-    if (!key) return;
-    if (hall.ui.arrange) upd((x) => { x.ui.pick = key; x.ui.selected = null; });
-    else upd((x) => { x.ui.selected = x.ui.selected === key ? null : key; });
+    if (key) upd((x) => { x.ui.selected = key; });
   }
 
   function onTrayActivate(key) {
-    // picking from the tray always means "place it": switch to arranging, aim keyboard focus at the first free cell
     const hall = get();
-    if (hall.ui.pick === key) { upd((x) => { x.ui.pick = null; }); return; }
+    if (hall.ui.selected === key) { upd((x) => { x.ui.selected = null; }); return; }
+    // aim keyboard focus at the first free slot so Enter places it right away
     const pl = placement(hall);
     outer: for (let y = 0; y < pl.rows; y++) for (let x = 0; x < pl.cols; x++) {
       if (!pl.cells[posKey(x, y)]) { gridFocus.x = x; gridFocus.y = y; break outer; }
     }
-    TH.app.pendingFocus = 'cell-' + posKey(gridFocus.x, gridFocus.y);
-    upd((x) => { x.ui.pick = key; x.ui.arrange = true; x.ui.selected = null; });
+    upd((x) => { x.ui.selected = key; });
+  }
+
+  function sendToTray(key) {
+    upd((x) => { toTray(x, key); x.ui.selected = null; });
   }
 
   function onGridKey(ev) {
@@ -1141,8 +1151,7 @@
     else if (ev.key === 'End') nx = cols - 1;
     else if ((ev.key === 'Delete' || ev.key === 'Backspace') && el.dataset.key) {
       ev.preventDefault();
-      const k = el.dataset.key;
-      upd((hl) => { toTray(hl, k); if (hl.ui.pick === k) hl.ui.pick = null; });
+      sendToTray(el.dataset.key);
       return;
     } else return;
     ev.preventDefault();
@@ -1156,32 +1165,19 @@
   }
 
   function renderMap(hall, pl) {
-    const ui = hall.ui;
-    const arranging = !!ui.arrange;
-    const pick = ui.pick && pl.byKey[ui.pick] ? ui.pick : null;
-    const sel = !arranging && ui.selected && pl.byKey[ui.selected] ? ui.selected : null;
+    const sel = selectedKey(hall, pl);
+    const selPlaced = !!(sel && pl.posOf[sel]);
     const { cols, rows } = pl;
     gridFocus.x = clamp(gridFocus.x, 0, cols - 1); gridFocus.y = clamp(gridFocus.y, 0, rows - 1);
 
+    // the hint never changes, so nothing above the grid moves when a tile gets selected
     const head = h('div.hl-map-head',
-      h('div',
-        h('h3', 'Your hall'),
-        h('p.hl-hint', arranging
-          ? 'Build it like your real hall: drag villagers onto the slots, or tap one, then tap where it stands.'
-          : 'Tap a villager to log its price or progress.')),
-      h('div.seg.hl-mode', { role: 'group', 'aria-label': 'Grid mode' },
-        h('button' + (!arranging ? '.on' : ''), {
-          type: 'button', 'aria-pressed': String(!arranging), 'data-focus': 'mode-track',
-          onclick: () => upd((x) => { x.ui.arrange = false; x.ui.pick = null; }),
-        }, 'Track'),
-        h('button' + (arranging ? '.on' : ''), {
-          type: 'button', 'aria-pressed': String(arranging), 'data-focus': 'mode-arrange',
-          onclick: () => upd((x) => { x.ui.arrange = true; x.ui.selected = null; }),
-        }, 'Arrange')));
+      h('h3', 'Your hall'),
+      h('p.hl-hint', 'Drag villagers to match your real hall. Tap one for details — while it’s selected, tap a slot to move it or another villager to swap.'));
 
     // tray of unplaced villagers
-    const trayDrop = dropProps((key) => upd((x) => { toTray(x, key); x.ui.pick = null; }));
-    const tray = h('section.hl-tray' + (pl.tray.length ? '' : '.is-empty') + (pick && pl.posOf[pick] ? '.is-target' : ''),
+    const trayDrop = dropProps((key) => upd((x) => { toTray(x, key); }));
+    const tray = h('section.hl-tray' + (pl.tray.length ? '' : '.is-empty') + (selPlaced ? '.is-target' : ''),
       Object.assign({ 'aria-label': 'Not placed yet' }, trayDrop),
       h('div.hl-tray-head',
         h('b', 'Not placed yet'), h('span.hl-badge.is-static', pl.tray.length),
@@ -1190,20 +1186,23 @@
         Object.keys(pl.cells).length ? h('button.btn.small.ghost', { type: 'button', onclick: clearGrid }, 'Clear grid') : null),
       pl.tray.length
         ? h('ul.hl-tray-list', pl.tray.map((v) => h('li',
-          h('button.hl-tile.is-' + status(v) + (pick === v.key ? '.is-picked' : ''), Object.assign({
-            type: 'button', 'data-focus': 'tray-' + v.key, 'aria-pressed': String(pick === v.key),
-            'aria-label': (pick === v.key ? 'Holding: ' : 'Place: ') + tileLabel(v, null), title: villagerName(v),
+          h('button.hl-tile.is-' + status(v) + (sel === v.key ? '.is-selected' : ''), Object.assign({
+            type: 'button', 'data-focus': 'tray-' + v.key, 'aria-pressed': String(sel === v.key),
+            'aria-label': tileLabel(v, null), title: villagerName(v),
             onclick: () => onTrayActivate(v.key),
           }, dragProps(v.key)), tileBody(v)))))
-        : h('p.hl-tray-empty', pick && pl.posOf[pick] ? 'Drop or tap here to take it off the grid.' : 'Every villager has a spot. Drag one here to take it off the grid.'));
-    if (pick && pl.posOf[pick]) {
-      tray.addEventListener('click', (e) => { if (e.target.closest('button')) return; upd((x) => { toTray(x, pick); x.ui.pick = null; }); });
+        : h('p.hl-tray-empty', 'Every villager has a spot. Drag one here — or select it and tap here — to take it off the grid.'));
+    if (selPlaced) {
+      tray.addEventListener('click', (e) => { if (e.target.closest('button')) return; sendToTray(sel); });
     }
 
     // the grid
-    const grid = h('div.hl-grid', { role: 'group', 'aria-label': `Hall grid, ${cols} columns by ${rows} rows. Arrow keys move, Enter picks or places.`, style: '--cols:' + cols, onkeydown: onGridKey },
-      h('span.hl-axis.hl-corner', { 'aria-hidden': 'true' }),
-      Array.from({ length: cols }, (_, x) => h('span.hl-axis', { 'aria-hidden': 'true' }, colName(x))));
+    const grid = h('div.hl-grid', {
+      role: 'group', 'aria-label': `Hall grid, ${cols} columns by ${rows} rows. Arrow keys move, Enter selects, Enter on another slot moves it there, Delete sends it to the tray.`,
+      style: '--cols:' + cols, onkeydown: onGridKey,
+    },
+    h('span.hl-axis.hl-corner', { 'aria-hidden': 'true' }),
+    Array.from({ length: cols }, (_, x) => h('span.hl-axis', { 'aria-hidden': 'true' }, colName(x))));
     for (let y = 0; y < rows; y++) {
       grid.append(h('span.hl-axis', { 'aria-hidden': 'true' }, String(y + 1)));
       for (let x = 0; x < cols; x++) {
@@ -1212,17 +1211,17 @@
         const v = key ? pl.byKey[key] : null;
         const focusable = x === gridFocus.x && y === gridFocus.y;
         const cls = '.hl-slot' + (v ? '.hl-tile.is-' + status(v) : '.is-free')
-          + (v && pick === key ? '.is-picked' : '') + (v && sel === key ? '.is-selected' : '') + (pick && !v ? '.is-target' : '');
+          + (v && sel === key ? '.is-selected' : '') + (sel && sel !== key ? '.is-target' : '');
         const label = v
-          ? (pick === key ? 'Holding: ' : '') + tileLabel(v, pos)
-          : `Empty slot ${posLabel(pos)}${pick ? ' — place here' : ''}`;
+          ? tileLabel(v, pos) + (sel && sel !== key ? ' — swap here' : sel === key ? ' — selected' : '')
+          : `Empty slot ${posLabel(pos)}${sel ? ' — move here' : ''}`;
         grid.append(h('button' + cls, Object.assign({
           type: 'button', 'data-pos': pos, 'data-key': key || null, 'data-focus': 'cell-' + pos,
           tabindex: focusable ? '0' : '-1', 'aria-label': label, title: v ? villagerName(v) + ' · ' + posLabel(pos) : posLabel(pos),
-          'aria-pressed': v ? String(arranging ? pick === key : sel === key) : null,
+          'aria-pressed': v ? String(sel === key) : null,
           onclick: () => onCellActivate(pos, key),
           onfocus: () => { gridFocus.x = x; gridFocus.y = y; },
-        }, v ? dragProps(key) : {}, dropProps((k) => upd((hl) => { moveTo(hl, k, pos); hl.ui.pick = null; }))),
+        }, v ? dragProps(key) : {}, dropProps((k) => upd((hl) => { moveTo(hl, k, pos); }))),
         v ? tileBody(v) : null));
       }
     }
@@ -1235,69 +1234,78 @@
         stepper(rows, { min: 1, max: GRID_MAX, label: 'rows', key: 'rows', onChange: (n) => setGridSize(get().layout.cols, n) })));
 
     const legend = h('ul.hl-legend', { 'aria-label': 'Legend' },
-      ['needed', 'rolling', 'locked', 'perfect'].map((k) => h('li', h('i.hl-sw.is-' + k, { 'aria-hidden': 'true' }), STATUS_LABEL[k])));
+      ['needed', 'locked', 'perfect'].map((k) => h('li', h('i.hl-sw.is-' + k, { 'aria-hidden': 'true' }), STATUS_LABEL[k])),
+      h('li', h('i.hl-sw.is-selected', { 'aria-hidden': 'true' }), 'selected'));
 
-    const holding = pick ? (() => {
-      const v = pl.byKey[pick];
-      return h('div.hl-holding', { role: 'status' },
-        villagerIcon(v, 22),
-        h('span', h('b', villagerName(v)), pl.posOf[pick] ? ` from ${posLabel(pl.posOf[pick])}` : '', ' — tap a slot to place it'),
-        h('span.spacer'),
-        pl.posOf[pick] ? h('button.btn.small.ghost', { type: 'button', onclick: () => upd((x) => { toTray(x, pick); x.ui.pick = null; }) }, 'Back to tray') : null,
-        h('button.btn.small', { type: 'button', onclick: () => upd((x) => { x.ui.pick = null; }) }, 'Cancel'));
-    })() : null;
-
-    const panel = h('section.panel.hl-map' + (arranging ? '.is-arranging' : '') + (pick ? '.is-holding' : ''), { 'aria-label': 'Hall grid' },
+    return h('section.panel.hl-map' + (sel ? '.has-selection' : ''), { 'aria-label': 'Hall grid' },
       head,
       tray,
-      holding,
       h('div.hl-grid-scroll', grid),
-      h('div.hl-map-foot', legend, arranging ? sizeCtl : null));
-
-    if (sel) panel.append(renderDetail(hall, pl, pl.byKey[sel]));
-    return panel;
+      h('div.hl-map-foot', legend, sizeCtl));
   }
 
-  /* ---- details panel ---- */
+  /* ---- right column: Next up, or the selected villager's details ---- */
 
-  function renderDetail(hall, pl, v) {
-    const where = posLabel(pl.posOf[v.key]);
-    const close = h('button.x-btn', { type: 'button', 'aria-label': 'Close details', onclick: () => upd((x) => { x.ui.selected = null; }) }, '✕');
+  function renderSide(hall, pl) {
+    const sel = selectedKey(hall, pl);
+    const detail = sel ? renderDetail(hall, pl, pl.byKey[sel], sel !== lastDetail) : null;
+    lastDetail = sel;
+    return h('aside.hl-side' + (sel ? '.has-detail' : ''), renderNext(hall, pl), detail);
+  }
+
+  function renderDetail(hall, pl, v, fresh) {
+    const pos = pl.posOf[v.key];
+    const where = pos ? posLabel(pos) : 'not placed';
+    const close = h('button.x-btn.hl-detail-close', {
+      type: 'button', 'aria-label': 'Close details', title: 'Close (Esc)', 'data-focus': 'detail-close',
+      onclick: () => upd((x) => { x.ui.selected = null; }),
+    }, '✕');
+    const trayBtn = pos
+      ? h('button.btn.small.ghost', { type: 'button', 'data-focus': 'detail-tray', onclick: () => sendToTray(v.key) }, '↩ Send back to tray')
+      : null;
+    const moveHint = h('p.hl-hint.hl-detail-hint', pos
+      ? 'Tap an empty slot to move it, or another villager to swap.'
+      : 'Tap a slot on the grid to place it.');
+    const wrap = (pc, label, icon, title, sub, body) => h('section.panel.hl-detail' + (fresh ? '.enter' : ''), {
+      style: pc ? '--pc:' + pc : null, role: 'region', 'aria-label': label,
+    },
+    h('div.hl-detail-head',
+      h('span.hl-detail-icon', { 'aria-hidden': 'true' }, icon),
+      h('div', h('h3', title), h('div.hl-detail-sub', sub)),
+      close),
+    body, moveHint);
 
     if (v.kind === 'trade') {
       const t = v.trade, p = v.prof;
       const set = (fn, opts) => upd((x) => { const tr = x.trades.find((y) => y.id === t.id); if (tr) fn(tr); }, opts);
-      return h('section.hl-detail', { style: '--pc:' + p.color, 'aria-label': 'Villager details' },
-        h('div.hl-detail-head',
-          h('span.hl-detail-icon', { 'aria-hidden': 'true' }, TH.icon.prof(p.id, { size: 32 })),
-          h('div', h('h4', t.purpose || profName(p)), h('div.faint', `${profName(p)} · ${wsName(p)} · ${where}`)),
-          close),
-        h('div.hl-detail-grid',
-          h('div.hl-field', h('span.hl-field-label', 'In your hall'),
-            h('div.hl-inline', stepper(t.have, { min: 0, max: t.target, label: 'villagers you have', onChange: (n) => set((tr) => { tr.have = n; }) }),
-              h('span.muted', 'of ' + t.target + ' wanted'))),
-          h('label.hl-field.hl-grow', h('span.hl-field-label', 'Note'),
-            h('input.field', {
-              value: t.note || '', placeholder: 'Perfect roll, location…', 'data-focus': 'tnote-' + t.id,
-              oninput: (e) => set((tr) => { tr.note = e.target.value; }, { silent: true }),
-            }))),
-        h('details.hl-keytrades', h('summary', `Notable ${profName(p).toLowerCase()} trades`),
-          h('ul', p.keyTrades.map((k) => h('li', h('span.faint', k.level), ` ${k.give} → ${k.get}`)))),
-      );
+      return wrap(p.color, 'Villager details', TH.icon.prof(p.id, { size: 32 }),
+        [t.purpose || profName(p), t.target > 1 ? h('span.chip', '#' + (v.n + 1)) : null],
+        [h('span.hl-pos', where), h('span', profName(p) + ' · ' + wsName(p))],
+        [
+          h('div.hl-detail-grid',
+            h('div.hl-field', h('span.hl-field-label', 'In your hall'),
+              h('div.hl-inline', stepper(t.have, { min: 0, max: t.target, label: 'villagers you have', key: 'have-' + t.id, onChange: (n) => set((tr) => { tr.have = n; }) }),
+                h('span.muted', 'of ' + t.target + ' wanted'))),
+            h('label.hl-field.hl-grow', h('span.hl-field-label', 'Note'),
+              h('input.field', {
+                value: t.note || '', placeholder: 'Perfect roll, location…', 'data-focus': 'tnote-' + t.id,
+                oninput: (e) => set((tr) => { tr.note = e.target.value; }, { silent: true }),
+              }))),
+          h('details.hl-keytrades', h('summary', `Notable ${profName(p).toLowerCase()} trades`),
+            h('ul', p.keyTrades.map((k) => h('li', h('span.faint', k.level), ` ${k.give} → ${k.get}`)))),
+          trayBtn ? h('div.hl-row-btns', trayBtn) : null,
+        ]);
     }
 
     const e = v.ench, b = v.book, s = v.stall;
     const range = D.bookPrice(e, b.level);
     const setStall = (fn, opts) => upd((x) => { const f = findStall(x, s.id); if (f) fn(f.stall, f.book); }, opts);
     const pill = tierPill(e, b.level, s.price);
-    return h('section.hl-detail', { 'aria-label': 'Librarian details' },
-      h('div.hl-detail-head',
-        h('span.hl-detail-icon', { 'aria-hidden': 'true' }, TH.icon('enchanted_book', { size: 32, glint: true })),
-        h('div', h('h4', enchLabel(e, b.level), s.label ? h('span.chip', s.label) : null),
-          h('div.hl-detail-sub', `${profName(PROF.librarian)} · ${where} · perfect`, cost(range.min), `· max ${range.max}`)),
-        close),
-      h('div.hl-detail-grid',
-        h('label.hl-lock',
+    return wrap(null, 'Librarian details', TH.icon('enchanted_book', { size: 32, glint: status(v) === 'perfect' }),
+      [enchLabel(e, b.level), s.label ? h('span.chip', s.label) : null],
+      [h('span.hl-pos', where), h('span', profName(PROF.librarian) + ' · perfect'), cost(range.min), h('span', `· max ${range.max}`)],
+      [
+        h('label.hl-lock' + (s.done ? '.is-on' : ''),
           h('span.check', h('input', {
             type: 'checkbox', checked: s.done, 'data-focus': 'lock-' + s.id,
             onchange: (ev) => {
@@ -1307,46 +1315,79 @@
             },
           }), h('span')),
           h('span', h('b', s.done ? 'Locked in' : 'Not locked yet'), h('small.faint', s.done ? 'You traded with it, so the offer is fixed.' : 'Tick once you’ve traded with this librarian.'))),
-        h('div.hl-field', h('span.hl-field-label', 'Price'),
-          h('div.hl-inline',
-            h('label.price', emerald(), h('input', {
-              type: 'number', min: 1, max: 64, placeholder: '–', value: s.price ?? '', 'data-focus': 'price-' + s.id, 'aria-label': 'Price in emeralds',
-              oninput: (ev) => {
-                const val = ev.target.value === '' ? null : clamp(+ev.target.value, 1, 64);
-                setStall((st) => { st.price = val; }, { silent: true });
-                const tier = D.priceTier(e, b.level, val);
-                pill.className = 'pill tier-' + tier; pill.textContent = TIER_LABEL[tier];
-              },
+        h('div.hl-detail-grid',
+          h('div.hl-field', h('span.hl-field-label', 'Price'),
+            h('div.hl-inline',
+              h('label.price', emerald(), h('input', {
+                type: 'number', min: 1, max: 64, placeholder: '–', value: s.price ?? '', 'data-focus': 'price-' + s.id, 'aria-label': 'Price in emeralds',
+                oninput: (ev) => {
+                  const val = ev.target.value === '' ? null : clamp(+ev.target.value, 1, 64);
+                  setStall((st) => { st.price = val; }, { silent: true });
+                  const tier = D.priceTier(e, b.level, val);
+                  pill.className = 'pill tier-' + tier; pill.textContent = TIER_LABEL[tier];
+                },
+                onchange: () => setTimeout(TH.app.render, 0),
+              })),
+              pill)),
+          h('label.hl-field.hl-grow', h('span.hl-field-label', 'Label'),
+            h('input.field', {
+              value: s.label, placeholder: 'e.g. Helmet', 'data-focus': 'slabel-' + s.id,
+              oninput: (ev) => setStall((st) => { st.label = ev.target.value; }, { silent: true }),
               onchange: () => setTimeout(TH.app.render, 0),
-            })),
-            pill)),
-        h('label.hl-field', h('span.hl-field-label', 'Label'),
-          h('input.field', {
-            value: s.label, placeholder: 'e.g. Helmet', 'data-focus': 'slabel-' + s.id,
-            oninput: (ev) => setStall((st) => { st.label = ev.target.value; }, { silent: true }),
-            onchange: () => setTimeout(TH.app.render, 0),
-          })),
-        h('div.hl-field', h('span.hl-field-label', 'Rerolls'),
-          stepper(s.rolls || 0, { min: 0, max: 9999, label: 'rerolls', onChange: (n) => setStall((st) => { st.rolls = n; }) }))),
-      h('div.hl-row-btns',
-        h('button.btn' + (s.done ? '' : '.primary'), { type: 'button', onclick: () => openRoll(s.id) },
-          TH.icon('enchanted_book', { size: 16 }), s.done ? 'Roll for a cheaper one' : 'Roll for this')),
-    );
+            }))),
+        h('div.hl-row-btns',
+          h('button.btn.small' + (s.done ? '' : '.primary'), { type: 'button', 'data-focus': 'detail-check', onclick: () => openCheck(e.id) },
+            TH.icon('enchanted_book', { size: 16 }), s.done ? 'Check a cheaper offer' : 'Check'),
+          trayBtn),
+      ]);
   }
 
   /* ---- next up ---- */
 
+  const SORTS = [['type', 'Type'], ['name', 'Name'], ['pos', 'Position'], ['price', 'Price']];
+  const SORT_IDS = SORTS.map((s) => s[0]);
+  const ENCH_ORDER = Object.fromEntries(SORTED.map((e, i) => [e.id, i]));
+  const GROUP_ORDER = Object.fromEntries(GROUPS.map((g, i) => [g.id, i]));
+  const posRank = (pos) => { if (!pos) return 1e9; const { x, y } = parsePos(pos); return y * 1000 + x; };
+  const byLocale = (a, b) => a.localeCompare(b, (I18.lang || 'en_us').replace('_', '-'), { sensitivity: 'base' });
+
+  /** Sort comparators for Next up. Books and trades each get one; ties fall back to type order. */
+  function sorters(sort, pl) {
+    const bType = (a, b) => (ENCH_ORDER[a.ench.id] - ENCH_ORDER[b.ench.id]) || (a.idx - b.idx);
+    const tType = (a, b) => (GROUP_ORDER[a.group || 'other'] - GROUP_ORDER[b.group || 'other']) || byLocale(profName(profOf(a)), profName(profOf(b)));
+    const tPos = (t) => {
+      let best = 1e9;
+      for (let n = 0; n < t.target; n++) best = Math.min(best, posRank(pl.posOf['t:' + t.id + ':' + n]));
+      return best;
+    };
+    if (sort === 'name') {
+      return {
+        book: (a, b) => byLocale(enchLabel(a.ench, a.book.level), enchLabel(b.ench, b.book.level)) || bType(a, b),
+        trade: (a, b) => byLocale(a.purpose || profName(profOf(a)), b.purpose || profName(profOf(b))) || tType(a, b),
+      };
+    }
+    if (sort === 'pos') {
+      return { book: (a, b) => (posRank(a.pos) - posRank(b.pos)) || bType(a, b), trade: (a, b) => (tPos(a) - tPos(b)) || tType(a, b) };
+    }
+    if (sort === 'price') {
+      return { book: (a, b) => (minPrice(a.ench, a.book.level) - minPrice(b.ench, b.book.level)) || bType(a, b), trade: tType };
+    }
+    return { book: bType, trade: tType };
+  }
+
   function renderNext(hall, pl) {
+    const sort = SORT_IDS.includes(hall.ui.nextSort) ? hall.ui.nextSort : 'type';
+    const cmp = sorters(sort, pl);
     const stalls = stallsInHallOrder(hall);
-    const toRoll = stalls.filter((v) => !v.stall.done);
-    const improve = stalls.filter((v) => v.stall.done && v.stall.price != null && v.stall.price > minPrice(v.ench, v.book.level));
-    const noPrice = stalls.filter((v) => v.stall.done && v.stall.price == null);
-    const toGet = hall.trades.filter((t) => t.have < t.target);
+    const needed = stalls.filter((v) => !v.stall.done).sort(cmp.book);
+    const improve = stalls.filter((v) => v.stall.done && v.stall.price != null && v.stall.price > minPrice(v.ench, v.book.level)).sort(cmp.book);
+    const noPrice = stalls.filter((v) => v.stall.done && v.stall.price == null).sort(cmp.book);
+    const toGet = hall.trades.filter((t) => t.have < t.target).slice().sort(cmp.trade);
     const profs = profCounts(hall);
     const selectCell = (key) => {
-      upd((x) => { x.ui.selected = key; x.ui.arrange = false; x.ui.pick = null; });
-      const el = document.querySelector('.hl-slot.is-selected');
-      if (el) el.scrollIntoView({ block: 'center', inline: 'center', behavior: reduced() ? 'auto' : 'smooth' });
+      upd((x) => { x.ui.selected = key; });
+      const el = document.querySelector('.hl-tile.is-selected');
+      if (el) el.scrollIntoView({ block: 'nearest', inline: 'center', behavior: reduced() ? 'auto' : 'smooth' });
     };
     const stallTitle = (v) => [h('b', enchLabel(v.ench, v.book.level)), v.stall.label ? h('small', v.stall.label) : null];
 
@@ -1354,94 +1395,103 @@
       h('h4', title, h('span.hl-badge.is-static', n)),
       n ? h('ul.hl-strips.hl-strips-flat', items) : h('p.hl-done-line', '✓ ', empty));
 
-    const row = (v, sub, action, onMain, title) => h('li.hl-strip.hl-strip-next' + (v && v.pos ? '' : '.is-unplaced'),
-      h('button.hl-strip-main', { type: 'button', onclick: onMain, title },
+    const row = (v, sub, action, onMain, title) => h('li.hl-strip.hl-strip-next' + (v.pos ? '' : '.is-unplaced'),
+      h('button.hl-strip-main', { type: 'button', onclick: onMain, title, 'data-focus': 'next-' + v.key },
         h('span.hl-pos', v.pos ? posLabel(v.pos) : '–'),
         TH.icon('enchanted_book', { size: 20, cls: 'hl-strip-icon' }),
         h('span.hl-strip-text', h('span.hl-strip-title', stallTitle(v)), h('small', sub))),
       action);
+    const checkBtn = (v, primary) => h('button.btn.small' + (primary ? '.primary' : ''), {
+      type: 'button', 'data-focus': 'nchk-' + v.key,
+      'aria-label': (primary ? 'Check an offer for ' : 'Check a cheaper offer for ') + enchLabel(v.ench, v.book.level),
+      onclick: () => openCheck(v.ench.id),
+    }, 'Check');
 
-    return h('aside.hl-next', { 'aria-label': 'Next up' },
-      h('div.panel.hl-next-panel',
-        h('div.hl-next-head', h('h3', 'Next up'), h('p.hl-hint', 'What’s left, in hall order (row by row).')),
-        group('Still to roll', toRoll.length, toRoll.map((v) => row(v,
-          [v.stall.rolls ? plural(v.stall.rolls, 'reroll') : 'not started', ' · perfect', cost(minPrice(v.ench, v.book.level))],
-          h('button.btn.small.primary', { type: 'button', 'aria-label': 'Roll for ' + enchLabel(v.ench, v.book.level), onclick: () => openRoll(v.stall.id) }, 'Roll'),
-          () => selectCell(v.key), 'Show on grid')),
-          'All librarians locked in'),
-        improve.length || noPrice.length ? group('Could improve', improve.length + noPrice.length,
-          improve.map((v) => row(v,
-            [cost(v.stall.price, 'is-old'), '→', cost(minPrice(v.ench, v.book.level), 'is-new'), `save ${v.stall.price - minPrice(v.ench, v.book.level)}`],
-            h('button.btn.small', { type: 'button', 'aria-label': 'Roll a cheaper ' + enchLocal(v.ench), onclick: () => openRoll(v.stall.id) }, 'Roll'),
-            () => selectCell(v.key), 'Show on grid')).concat(
-            noPrice.map((v) => row(v, 'No price logged — tap to add it', null, () => selectCell(v.key), 'Log the price'))),
-          '') : null,
-        group('Villagers to get', toGet.reduce((a, t) => a + t.target - t.have, 0), toGet.map((t) => h('li.hl-strip.hl-strip-next', { style: '--pc:' + profOf(t).color },
-          h('div.hl-strip-main',
-            TH.icon.prof(profOf(t).id, { size: 20, cls: 'hl-strip-icon' }),
-            h('span.hl-strip-text', h('b', t.purpose || profName(profOf(t))), h('small', profName(profOf(t)), ' · ', h('b', t.have), ' / ', t.target))),
-          h('button.btn.small', {
-            type: 'button', 'aria-label': `Got one more ${profName(profOf(t))} (${t.purpose})`, 'data-focus': 'plus-' + t.id,
-            onclick: () => upd((x) => { const tr = x.trades.find((y) => y.id === t.id); if (tr) tr.have = Math.min(tr.target, tr.have + 1); }),
-          }, '+1'))),
-          'Every other villager is in'),
-        h('section.hl-next-group',
-          h('h4', 'Workstations to place'),
-          h('ul.hl-strips.hl-strips-flat', profs.map((r) => {
-            const left = r.target - r.have;
-            return h('li.hl-strip.hl-strip-ro.hl-strip-next', { style: '--pc:' + r.prof.color },
-              h('span.hl-strip-main',
-                TH.icon.prof(r.prof.id, { size: 20, cls: 'hl-strip-icon' }),
-                h('span.hl-strip-text', h('b', wsName(r.prof)), h('small', profName(r.prof)))),
-              h('span.hl-ws-count', h('b', '×' + r.target), left ? h('span.faint', `${left} to go`) : h('span.hl-ok', 'done')));
-          })))));
+    const sortCtl = h('div.hl-sort',
+      h('span.hl-field-label', { id: 'hl-sort-label' }, 'Sort'),
+      h('div.seg.hl-seg', { role: 'group', 'aria-labelledby': 'hl-sort-label' },
+        SORTS.map(([id, label]) => h('button' + (sort === id ? '.on' : ''), {
+          type: 'button', 'aria-pressed': String(sort === id), 'data-focus': 'sort-' + id,
+          onclick: () => upd((x) => { x.ui.nextSort = id; }),
+        }, label))));
+
+    return h('div.panel.hl-next-panel', { role: 'region', 'aria-label': 'Next up' },
+      h('div.hl-next-head', h('h3', 'Next up'), h('p.hl-hint', 'What’s left to do. Tap a row to find it on the grid.')),
+      sortCtl,
+      group('Still needed', needed.length, needed.map((v) => row(v,
+        [v.book.stalls.length > 1 ? `${v.idx + 1} of ${v.book.stalls.length} · ` : '', 'perfect', cost(minPrice(v.ench, v.book.level))],
+        checkBtn(v, true), () => selectCell(v.key), 'Show on grid')),
+        'All librarians locked in'),
+      improve.length || noPrice.length ? group('Could improve', improve.length + noPrice.length,
+        improve.map((v) => row(v,
+          [cost(v.stall.price, 'is-old'), '→', cost(minPrice(v.ench, v.book.level), 'is-new'), `save ${v.stall.price - minPrice(v.ench, v.book.level)}`],
+          checkBtn(v, false), () => selectCell(v.key), 'Show on grid')).concat(
+          noPrice.map((v) => row(v, 'No price logged — tap to add it', null, () => selectCell(v.key), 'Log the price'))),
+        '') : null,
+      group('Villagers to get', toGet.reduce((a, t) => a + t.target - t.have, 0), toGet.map((t) => h('li.hl-strip.hl-strip-next', { style: '--pc:' + profOf(t).color },
+        h('div.hl-strip-main',
+          TH.icon.prof(profOf(t).id, { size: 20, cls: 'hl-strip-icon' }),
+          h('span.hl-strip-text', h('b', t.purpose || profName(profOf(t))), h('small', profName(profOf(t)), ' · ', h('b', t.have), ' / ', t.target))),
+        h('button.btn.small', {
+          type: 'button', 'aria-label': `Got one more ${profName(profOf(t))} (${t.purpose})`, 'data-focus': 'plus-' + t.id,
+          onclick: () => upd((x) => { const tr = x.trades.find((y) => y.id === t.id); if (tr) tr.have = Math.min(tr.target, tr.have + 1); }),
+        }, '+1'))),
+        'Every other villager is in'),
+      h('section.hl-next-group',
+        h('h4', 'Workstations to place'),
+        h('ul.hl-strips.hl-strips-flat', profs.map((r) => {
+          const left = r.target - r.have;
+          return h('li.hl-strip.hl-strip-ro.hl-strip-next', { style: '--pc:' + r.prof.color },
+            h('span.hl-strip-main',
+              TH.icon.prof(r.prof.id, { size: 20, cls: 'hl-strip-icon' }),
+              h('span.hl-strip-text', h('b', wsName(r.prof)), h('small', profName(r.prof)))),
+            h('span.hl-ws-count', h('b', '×' + r.target), left ? h('span.faint', `${left} to go`) : h('span.hl-ok', 'done')));
+        }))));
   }
 
-  /* ---- roll mode overlay ---- */
+  /* ---- "Check an offer" dialog ---- */
 
-  function renderRoll(hall) {
-    const r = hall.roll;
-    const e = ENCH[r.ench];
-    const tgt = r.target ? findStall(hall, r.target) : null;
-    const order = stallsInHallOrder(hall);
+  function renderCheck(hall) {
+    const c = hall.check;
+    const e = ENCH[c.ench];
     const needed = LIB_ENCH.filter((x) => hall.books[x.id] && hall.books[x.id].stalls.some((s) => !s.done));
 
     const listbox = h('ul.hl-ta-list', { id: 'hl-ta-list', role: 'listbox', 'aria-label': 'Matching enchantments' });
     const vbox = h('div.hl-verdict-wrap', { 'aria-live': 'polite' });
-    const abox = h('div.hl-roll-actions');
+    const abox = h('div.hl-check-actions');
     const qInput = h('input.field.hl-ta-input', {
-      id: 'hl-roll-q', type: 'text', autocomplete: 'off', spellcheck: 'false',
+      id: 'hl-check-q', type: 'text', autocomplete: 'off', spellcheck: 'false',
       role: 'combobox', 'aria-autocomplete': 'list', 'aria-controls': 'hl-ta-list', 'aria-expanded': 'false',
-      placeholder: 'Start typing, e.g. “mend”', value: r.query || '', 'data-focus': 'roll-q',
-      onfocus: () => { if (!get().roll.ench) { ta.open = true; paintList(); } },
+      placeholder: 'Start typing, e.g. “mend”', value: c.query || '', 'data-focus': 'chk-q',
+      onfocus: () => { if (!get().check.ench) { ta.open = true; paintList(); } },
       onblur: () => setTimeout(() => { ta.open = false; paintList(); }, 120),
       oninput: (ev) => {
         const val = ev.target.value;
-        const wasSet = !!get().roll.ench;
+        const wasSet = !!get().check.ench;
         ta.open = true; ta.hi = 0;
         TH.store.update((s) => {
-          const rr = s.hall.roll;
-          rr.query = val;
-          if (rr.ench && enchLocal(ENCH[rr.ench]) !== val) { rr.ench = ''; rr.level = null; }
+          const cc = s.hall.check;
+          cc.query = val;
+          if (cc.ench && enchLocal(ENCH[cc.ench]) !== val) { cc.ench = ''; cc.level = null; }
         }, { silent: !wasSet });
         if (!wasSet) { paintList(); paintVerdict(); }
       },
       onkeydown: (ev) => {
-        const opts = ta.open && !get().roll.ench ? offerOptions(get(), get().roll.query) : [];
+        const opts = ta.open && !get().check.ench ? offerOptions(get(), get().check.query) : [];
         if (ev.key === 'ArrowDown' && opts.length) { ev.preventDefault(); ta.hi = (ta.hi + 1) % opts.length; paintList(); }
         else if (ev.key === 'ArrowUp' && opts.length) { ev.preventDefault(); ta.hi = (ta.hi - 1 + opts.length) % opts.length; paintList(); }
         else if (ev.key === 'Enter') {
           ev.preventDefault();
-          if (opts.length && (get().roll.query || '').trim()) pickOffer(opts[clamp(ta.hi, 0, opts.length - 1)].e.id);
+          if (opts.length && (get().check.query || '').trim()) pickOffer(opts[clamp(ta.hi, 0, opts.length - 1)].e.id);
           else primaryAction();
-        } else if (ev.key === 'Escape' && ta.open) { ev.preventDefault(); ev.stopPropagation(); ta.open = false; paintList(); }
+        } else if (ev.key === 'Escape' && ta.open && opts.length) { ev.preventDefault(); ev.stopPropagation(); ta.open = false; paintList(); }
       },
     });
 
     function paintList() {
       const hl = get();
-      const show = ta.open && !hl.roll.ench;
-      const opts = show ? offerOptions(hl, hl.roll.query) : [];
+      const show = ta.open && !hl.check.ench;
+      const opts = show ? offerOptions(hl, hl.check.query) : [];
       ta.hi = clamp(ta.hi, 0, Math.max(0, opts.length - 1));
       qInput.setAttribute('aria-expanded', String(show && opts.length > 0));
       if (show && opts.length) qInput.setAttribute('aria-activedescendant', 'hl-opt-' + ta.hi);
@@ -1456,117 +1506,94 @@
           onmousedown: (ev) => ev.preventDefault(),
           onclick: () => pickOffer(o.e.id),
         },
-          TH.icon('enchanted_book', { size: 18 }),
-          h('span.hl-ta-name', local, local !== o.e.name ? h('small', o.e.name) : null),
-          o.rank === 0 ? h('span.pill.tier-perfect', 'needed') : o.rank === 1 ? h('span.pill.tier-unknown', 'have') : null,
-          cost(minPrice(o.e, lvl)));
+        TH.icon('enchanted_book', { size: 18 }),
+        h('span.hl-ta-name', local, local !== o.e.name ? h('small', o.e.name) : null),
+        o.rank === 0 ? h('span.pill.tier-perfect', 'needed') : o.rank === 1 ? h('span.pill.tier-unknown', 'have') : null,
+        cost(minPrice(o.e, lvl)));
       }));
       const active = listbox.querySelector('.is-hi');
       if (active && active.scrollIntoView) active.scrollIntoView({ block: 'nearest' });
     }
 
     function paintVerdict() {
-      const hl = get();
-      const v = verdict(hl);
+      const v = verdict(get());
       const vIcon = v.kind === 'lock' ? TH.icon('enchanted_book', { size: 30, glint: true })
         : v.kind === 'skip' ? TH.icon('item/barrier', { size: 26 })
           : v.kind === 'warn' ? TH.icon('item/redstone', { size: 26 })
             : TH.icon('block/lectern_front', { size: 26 });
-      vbox.replaceChildren(h('div.hl-verdict.is-' + v.kind + (v.hit && v.kind === 'lock' ? '.is-hit' : ''),
+      vbox.replaceChildren(h('div.hl-verdict.is-' + v.kind,
         h('span.hl-verdict-icon', { 'aria-hidden': 'true' }, vIcon),
         h('div',
           h('div.hl-verdict-title', v.title),
-          h('div.hl-verdict-text', v.text,
-            v.e && v.price != null && v.kind !== 'warn' ? tierPill(v.e, v.level, v.price) : null)),
-        v.hit && v.kind === 'lock' ? h('span.pill.hl-hit', 'target') : null));
+          h('div.hl-verdict-text', v.text),
+          v.e ? h('div.hl-verdict-meta',
+            v.price != null && v.kind !== 'warn' ? tierPill(v.e, v.level, v.price) : null,
+            h('span', 'perfect price'), cost(v.range.min), h('span.faint', `· max ${v.range.max}`)) : null)));
       abox.replaceChildren(...[
-        h('button.btn.hl-big' + (v.primary === 'lock' ? '.primary' : ''), {
-          type: 'button', disabled: v.kind !== 'lock', onclick: () => doLock(false),
-        }, TH.icon('emerald', { size: 18 }), 'Lock it in', v.primary === 'lock' ? h('kbd', 'Enter') : null),
-        h('button.btn.hl-big' + (v.primary === 'next' ? '.hl-next-primary' : ''), {
-          type: 'button', onclick: nextOffer, title: 'You broke & re-placed the lectern in-game: count one reroll and clear the fields',
-        }, 'Next offer ↻', h('kbd', v.primary === 'next' ? 'Enter' : 'N')),
-        v.canAdd ? h('button.btn.ghost.small', { type: 'button', onclick: () => doLock(true) }, '+ Add to my list & lock it') : null,
+        h('button.btn.primary.hl-big', {
+          type: 'button', disabled: v.kind !== 'lock', 'data-focus': 'chk-add', onclick: () => doAdd(false),
+        }, TH.icon('emerald', { size: 18 }), 'Add to my hall', v.kind === 'lock' ? h('kbd', 'Enter') : null),
+        v.canAdd ? h('button.btn.hl-big', { type: 'button', onclick: () => doAdd(true) }, '+ Add to my list anyway') : null,
+        v.e ? h('button.btn.ghost', { type: 'button', onclick: clearCheck, title: 'Clear the fields for the next offer' }, 'Clear') : null,
       ].filter(Boolean));
     }
 
     const priceInput = h('input', {
-      type: 'number', min: 1, max: 64, inputmode: 'numeric', placeholder: '–', value: r.price ?? '', 'data-focus': 'roll-price', 'aria-label': 'Offered price in emeralds',
+      type: 'number', min: 1, max: 64, inputmode: 'numeric', placeholder: '–', value: c.price ?? '', 'data-focus': 'chk-price', 'aria-label': 'Offered price in emeralds',
       oninput: (ev) => {
         const val = ev.target.value === '' ? null : clamp(+ev.target.value, 1, 64);
-        TH.store.update((s) => { s.hall.roll.price = val; }, { silent: true });
+        TH.store.update((s) => { s.hall.check.price = val; }, { silent: true });
         paintVerdict();
       },
       onkeydown: (ev) => { if (ev.key === 'Enter') { ev.preventDefault(); primaryAction(); } },
     });
 
-    const level = e ? clamp(r.level || e.maxLevel, 1, e.maxLevel) : null;
+    const level = e ? clamp(c.level || e.maxLevel, 1, e.maxLevel) : null;
     const range = e ? D.bookPrice(e, level) : null;
-    const optLabel = (v) => `${posLabel(v.pos)} · ${enchLabel(v.ench, v.book.level)}${v.stall.label ? ' (' + v.stall.label + ')' : ''}`;
 
-    const dialog = h('div.hl-roll.panel', { role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'hl-roll-title', 'aria-describedby': 'hl-roll-how' },
-      h('div.hl-roll-head',
+    const dialog = h('div.hl-check.panel', { role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'hl-check-title', 'aria-describedby': 'hl-check-hint' },
+      h('div.hl-check-head',
         h('div',
-          h('h2', { id: 'hl-roll-title' }, TH.icon.prof('librarian', { size: 28 }), 'Roll mode'),
-          h('p.hl-hint', 'You reroll in-game — this tracks your attempts and judges each offer.')),
-        h('div.hl-counter', { 'aria-label': `${r.count} rerolls this session` },
-          h('b', r.count), h('small', r.count === 1 ? 'reroll' : 'rerolls')),
-        h('button.x-btn.hl-roll-close', { type: 'button', 'aria-label': 'Close roll mode (Esc)', onclick: closeRoll }, '✕')),
-      h('ol.hl-how', { id: 'hl-roll-how' },
-        h('li', h('b', '1'), TH.icon('block/lectern_front', { size: 18 }), h('span', 'Break & re-place the lectern in-game')),
-        h('li', h('b', '2'), TH.icon('enchanted_book', { size: 18 }), h('span', 'Enter the new offer here')),
-        h('li', h('b', '3'), TH.icon('emerald', { size: 18 }), h('span', 'Good? Lock it. Otherwise ', h('i', 'Next offer')))),
-      h('div.hl-roll-target' + (tgt ? '' : '.is-none'),
-        h('label.hl-field-label', { for: 'hl-roll-target' }, 'Lectern'),
-        h('select.field', {
-          id: 'hl-roll-target', 'data-focus': 'roll-target',
-          onchange: (ev) => upd((x) => { x.roll.target = ev.target.value; }),
-        },
-          h('option', { value: '', selected: !r.target }, '— not tracking a lectern —'),
-          h('optgroup', { label: 'Still to roll' }, order.filter((v) => !v.stall.done).map((v) => h('option', { value: v.stall.id, selected: v.stall.id === r.target }, optLabel(v)))),
-          h('optgroup', { label: 'Locked (roll a cheaper one)' }, order.filter((v) => v.stall.done).map((v) => h('option', { value: v.stall.id, selected: v.stall.id === r.target },
-            optLabel(v) + (v.stall.price != null ? ' @ ' + v.stall.price : ''))))),
-        tgt ? h('span.hl-roll-target-info',
-          'Rolling for', h('b', enchLabel(tgt.ench, tgt.book.level)), '· perfect', cost(minPrice(tgt.ench, tgt.book.level)),
-          '·', plural(tgt.stall.rolls || 0, 'reroll') + ' here', tgt.stall.done && tgt.stall.price != null ? ['· locked @', cost(tgt.stall.price)] : null) : null),
-      h('div.hl-roll-offer',
-        h('label.hl-field-label', { for: 'hl-roll-q' }, 'The librarian offers'),
+          h('h2', { id: 'hl-check-title' }, TH.icon.prof('librarian', { size: 28 }), 'Check an offer'),
+          h('p.hl-hint', { id: 'hl-check-hint' }, 'Saw a trade in-game? Enter it here — we’ll tell you if it’s worth locking.')),
+        h('button.x-btn.hl-check-close', { type: 'button', 'aria-label': 'Close (Esc)', onclick: closeCheck }, '✕')),
+      h('div.hl-check-offer',
+        h('label.hl-field-label', { for: 'hl-check-q' }, 'Enchantment'),
         h('div.hl-ta', qInput, listbox),
         needed.length ? h('div.hl-quick', { role: 'group', 'aria-label': 'Still needed — tap to pick' },
-          needed.map((x) => h('button.hl-quick-chip' + (r.ench === x.id ? '.on' : '') + (tgt && tgt.id === x.id ? '.is-target' : ''), {
-            type: 'button', onclick: () => pickOffer(x.id),
+          needed.map((x) => h('button.hl-quick-chip' + (c.ench === x.id ? '.on' : ''), {
+            type: 'button', 'aria-pressed': String(c.ench === x.id), onclick: () => pickOffer(x.id),
           }, enchLocal(x)))) : null),
-      h('div.hl-roll-row',
+      h('div.hl-check-row',
         h('div.hl-field', h('span.hl-field-label', 'Level'),
-          e ? levelChips(e, level, (lv) => upd((x) => { x.roll.level = lv; }), { key: 'roll-lvl', label: 'Offered level', disabled: e.maxLevel === 1 })
+          e ? levelChips(e, level, (lv) => upd((x) => { x.check.level = lv; }), { key: 'chk-lvl', label: 'Offered level', disabled: e.maxLevel === 1 })
             : h('div.lvl-chips', h('button', { type: 'button', disabled: true }, '–'))),
         h('div.hl-field', h('span.hl-field-label', 'Price'),
           h('div.hl-inline', h('label.price.hl-price-lg', emerald(), priceInput),
             range ? h('span.faint.hl-range', `${range.min}–${range.max}`) : null))),
       vbox, abox,
-      h('p.hl-keys', 'type', h('kbd', 'Enter'), 'price', h('kbd', 'Enter'), '· ', h('kbd', 'N'), ' next offer · ', h('kbd', 'Esc'), ' close'),
+      h('p.hl-keys', h('kbd', 'Enter'), ' adds · ', h('kbd', 'Esc'), ' closes'),
     );
 
     paintList();
     paintVerdict();
-    const backdrop = h('div.hl-roll-backdrop' + (rollJustOpened ? '.enter' : ''), {
-      onclick: (ev) => { if (ev.target === ev.currentTarget) closeRoll(); },
+    const backdrop = h('div.hl-check-backdrop' + (checkJustOpened ? '.enter' : ''), {
+      onclick: (ev) => { if (ev.target === ev.currentTarget) closeCheck(); },
     }, dialog);
-    rollJustOpened = false;
+    checkJustOpened = false;
     document.body.classList.add('hl-noscroll');
     return backdrop;
   }
 
-  /** Global keys: Esc / N / Enter / Tab trap in roll mode; Esc cancels a pick or clears the selection. */
+  /** Global keys: Esc / Enter / Tab trap in the check dialog; Esc clears the grid selection. */
   function onKey(ev) {
     if (!document.querySelector('.module-hall')) return;
     const hall = get();
-    const dlg = document.querySelector('.hl-roll');
+    const dlg = document.querySelector('.hl-check');
     const t = ev.target;
     const typing = t && t.matches && t.matches('input, textarea, select');
-    if (dlg && hall.roll.open) {
-      if (ev.key === 'Escape') { ev.preventDefault(); closeRoll(); }
-      else if (/^[nNrR]$/.test(ev.key) && !typing && !ev.ctrlKey && !ev.metaKey && !ev.altKey) { ev.preventDefault(); nextOffer(); }
+    if (dlg && hall.check.open) {
+      if (ev.key === 'Escape') { ev.preventDefault(); closeCheck(); }
       else if (ev.key === 'Enter' && !typing && !(t && t.closest && t.closest('button, a, summary'))) { ev.preventDefault(); primaryAction(); }
       else if (ev.key === 'Tab') {
         const f = Array.from(dlg.querySelectorAll('button:not([disabled]), input, select, [tabindex]:not([tabindex="-1"])'));
@@ -1578,8 +1605,11 @@
       }
       return;
     }
-    if (ev.key === 'Escape' && hall.setupDone && (hall.ui.pick || hall.ui.selected) && !typing) {
-      upd((x) => { if (x.ui.pick) x.ui.pick = null; else x.ui.selected = null; });
+    if (ev.key === 'Escape' && hall.setupDone && hall.ui.selected && (!typing || (t.closest && t.closest('.hl-detail')))) {
+      const key = hall.ui.selected;
+      const pos = placement(hall).posOf[key];
+      if (pos) TH.app.pendingFocus = 'cell-' + pos;
+      upd((x) => { x.ui.selected = null; });
     }
   }
 
@@ -1600,7 +1630,7 @@
       const slots = ent.slots && ent.slots.length ? ent.slots : [{}];
       const book = {
         level: clamp(ent.level || e.maxLevel, 1, e.maxLevel),
-        stalls: slots.map((sl) => ({ id: uid('st'), label: sl.label || '', done: !!sl.done, price: sl.price ?? null, rolls: 0 })),
+        stalls: slots.map((sl) => ({ id: uid('st'), label: sl.label || '', done: !!sl.done, price: sl.price ?? null })),
       };
       if (ent.wanted) { hall.books[id] = book; any = true; }
       else if (book.stalls.some(hasProgress)) hall.archive[id] = book;
@@ -1645,7 +1675,7 @@
       document.body.classList.remove('hl-noscroll');
       renderWizard(root, state);
     } else {
-      if (!state.hall.roll.open) document.body.classList.remove('hl-noscroll');
+      if (!state.hall.check.open) document.body.classList.remove('hl-noscroll');
       renderDashboard(root, state);
     }
   }
@@ -1680,9 +1710,15 @@
       const s = store.get();
       const hall = s.hall;
       // nested objects are replaced wholesale by saved data -> fill in any new fields
-      hall.roll = Object.assign(structuredClone(DEFAULTS.roll), hall.roll, { open: false });
-      hall.ui = Object.assign(structuredClone(DEFAULTS.ui), hall.ui, { pick: null });
-      delete hall.ui.rearrange; delete hall.ui.layoutOpen;
+      // round 3: roll mode became "Check an offer" — drop reroll tracking silently
+      delete hall.roll;
+      hall.check = structuredClone(DEFAULTS.check);
+      hall.ui = Object.assign(structuredClone(DEFAULTS.ui), hall.ui);
+      ['arrange', 'pick', 'rearrange', 'layoutOpen'].forEach((k) => delete hall.ui[k]);
+      if (!SORT_IDS.includes(hall.ui.nextSort)) hall.ui.nextSort = 'type';
+      for (const b of Object.values(hall.books || {}).concat(Object.values(hall.archive || {}))) {
+        (b && b.stalls || []).forEach((st) => { delete st.rolls; delete st.count; delete st.session; delete st.target; });
+      }
       if (!hall.ui.expanded || typeof hall.ui.expanded !== 'object') hall.ui.expanded = {};
       migrateLayout(hall);
       hall.archive = hall.archive || {};

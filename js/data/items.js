@@ -85,6 +85,15 @@ TH.data.materials = {
 };
 TH.data.materialOrder = ['netherite', 'diamond', 'iron', 'golden', 'copper', 'stone', 'wooden', 'chainmail', 'leather', 'turtle'];
 
+/**
+ * Smithing-table cost of upgrading ONE diamond item to netherite (enchantments and anvil uses carry over).
+ * `id` = Minecraft item id (name via TH.i18n.item), `icon` = texture path for TH.icon.
+ */
+TH.data.netheriteUpgrade = [
+  { id: 'netherite_ingot', icon: 'item/netherite_ingot', count: 1 },
+  { id: 'netherite_upgrade_smithing_template', icon: 'item/netherite_upgrade_smithing_template', count: 1 }
+];
+
 (function () {
   var TOOL = ['wooden', 'stone', 'copper', 'iron', 'golden', 'diamond', 'netherite'];
   var ARMOR = ['leather', 'chainmail', 'copper', 'iron', 'golden', 'diamond', 'netherite'];

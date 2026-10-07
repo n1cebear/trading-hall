@@ -7,6 +7,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&display=swap" rel="stylesheet">
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#0e0e12">
   <link rel="stylesheet" href="css/styles.css">
   <link rel="stylesheet" href="css/hall.css">
   <link rel="stylesheet" href="css/enchanting.css">
@@ -35,12 +37,13 @@
           </g>
         </svg>
         <div>
-          <h1>n1cebear's toolbox</h1>
-          <p class="brand-sub">minecraft helpers</p>
+          <h1><span>n1cebear's</span><span>toolbox</span></h1>
         </div>
       </div>
       <nav class="nav" id="nav" aria-label="Sections"></nav>
       <div class="topbar-actions">
+        <span class="save-state" id="saveState" title="Everything saves automatically in this browser"><span class="save-text">Saved</span></span>
+        <button class="icon-btn" id="backupBtn" title="Save a backup file (move your data to another device)" aria-label="Save backup file"></button>
         <label class="lang" title="Game names (enchantments, items, villagers) in Minecraft's official translations">
           <span class="lang-globe" aria-hidden="true"></span>
           <select id="langSel" class="field" aria-label="Language for game names"></select>
@@ -70,6 +73,7 @@
   <script src="js/data/items.js"></script>
   <!-- core -->
   <script src="js/core/icons.js"></script>
+  <script src="js/core/icon-list.js"></script>
   <script src="js/core/i18n.js"></script>
   <script src="js/data/lang/index.js"></script>
   <script src="js/core/util.js"></script>

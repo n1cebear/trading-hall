@@ -491,11 +491,9 @@ TH.anvil = (function () {
   const MAT_ICON = { chainmail: 'item/chainmail_chestplate' };
   const matIcon = (m, size) => TH.icon(MAT_ICON[m] || D.materials[m].icon, { size });
 
-  /** The player's inventory screen: armor beside the silhouette, offhand, hotbar, then the extra row. */
-  const HUD_ARMOR = ['helmet', 'chestplate', 'leggings', 'boots'];
-  const HUD_OFFHAND = ['shield'];
-  const HUD_HOTBAR = ['sword', 'axe', 'pickaxe', 'shovel', 'hoe', 'spear'];
-  const HUD_EXTRA = ['bow', 'trident', 'mace', 'elytra', 'crossbow', 'fishing_rod'];
+  /** Two segments side by side: armor (helmet to boots, then shield/elytra) and tools & weapons. */
+  const HUD_ARMOR = ['helmet', 'chestplate', 'leggings', 'boots', 'shield', 'elytra'];
+  const HUD_TOOLS = ['sword', 'axe', 'pickaxe', 'shovel', 'hoe', 'spear', 'bow', 'crossbow', 'trident', 'mace', 'fishing_rod'];
 
   function itemButton(itemId, s, extraCls) {
     const it = itemById[itemId];
@@ -514,10 +512,9 @@ TH.anvil = (function () {
   }
 
   function renderPicker(s) {
-    const placed = new Set(HUD_ARMOR.concat(HUD_OFFHAND, HUD_HOTBAR, HUD_EXTRA));
+    const placed = new Set(HUD_ARMOR.concat(HUD_TOOLS));
     const rest = D.items.filter((i) => !placed.has(i.id)).map((i) => i.id);
     const hint = materialHint(s.material);
-    const slots = (ids, cls) => h('div.ec-slots' + (cls || ''), ids.map((id) => itemButton(id, s)));
     return h('section.panel.ec-card.ec-picker',
       h('div.ec-card-head', h('span.ec-num', '1'), h('h3', 'Pick material, then item')),
       h('div.ec-mats', { role: 'radiogroup', 'aria-label': 'Material' }, MATS.map((m) => {
@@ -529,16 +526,11 @@ TH.anvil = (function () {
         }, matIcon(m, 26));
       })),
       h('div.ec-mat-line', h('b', matName(s.material)), hint ? h('span.ec-mat-hint', hint) : null),
-      h('div.ec-group-name', h('span', 'Armor')),
-      h('div.ec-armor',
-        h('div.ec-slots.col', HUD_ARMOR.map((id) => itemButton(id, s))),
-        h('div.ec-sil', { 'aria-hidden': 'true' }, h('i.hd'), h('i.bd'), h('i.arm.l'), h('i.arm.r'), h('i.lg.l'), h('i.lg.r')),
-        h('div.ec-offhand', h('span.ec-off-label', 'Offhand'), slots(HUD_OFFHAND, '.col'))),
-      h('div.ec-group-name.ec-indep', h('span', 'Tools')),
-      h('div.ec-hud-label', 'Hotbar'),
-      slots(HUD_HOTBAR, '.row'),
-      h('div.ec-hud-label', 'Inventory'),
-      slots(HUD_EXTRA.concat(rest), '.row'),
+      h('div.ec-segs',
+        h('div.ec-seg', h('div.ec-group-name', h('span', 'Armor')),
+          h('div.ec-slots.col', HUD_ARMOR.map((id) => itemButton(id, s)))),
+        h('div.ec-seg', h('div.ec-group-name', h('span', 'Tools & weapons')),
+          h('div.ec-slots.grid', HUD_TOOLS.concat(rest).map((id) => itemButton(id, s))))),
     );
   }
 
@@ -711,6 +703,25 @@ TH.anvil = (function () {
         bookIcon(20), h('span', 'Book from step ', h('b.ec-ref', node.fromStep)));
     }
     return h('span.ec-node.book', bookIcon(20), h('span', names[0]));
+  }
+
+  /** Minecraft-style item slot + tooltip for the gear as it will look (existing + picked enchants). */
+  function renderPreview(s) {
+    const fin = Object.assign({}, s.existing);
+    Object.keys(s.selected).forEach((id) => {
+      Object.keys(fin).forEach((x) => { if (x !== id && conflictList(id, [x]).length) delete fin[x]; });
+      if (s.selected[id] > 0) fin[id] = s.selected[id];
+    });
+    const ids = sortIds(Object.keys(fin));
+    const ench = ids.length > 0;
+    const lines = ids.map((id) => {
+      const isNew = s.selected[id] > 0 && s.existing[id] !== s.selected[id];
+      const curse = byId[id] && byId[id].category === 'curse';
+      return h('div.mct-line' + (curse ? '.curse' : '') + (isNew ? '.new' : ''), isNew ? h('i', { title: 'new' }, '+') : null, lvlName(id, fin[id]));
+    });
+    return h('div.panel.ec-preview', { 'aria-label': 'Preview of the finished item', 'aria-live': 'polite' },
+      h('div.mct-slot', TH.icon.item(s.item, effMat(s.item, s.material), { size: 32, glint: ench })),
+      h('div.mct', h('div.mct-name' + (ench ? '.ench' : ''), itemName(s.item, s.material)), lines));
   }
 
   function renderPlan(state, s) {
@@ -1259,7 +1270,7 @@ TH.anvil = (function () {
         renderGear(state),
         h('div.ec-layout',
           h('div.ec-main', renderLinked(s), renderPicker(s), renderCurrent(s), renderSelect(state, s)),
-          h('div.ec-side', renderPlan(state, s))),
+          h('div.ec-side', renderPreview(s), renderPlan(state, s))),
       ],
     ]);
   }

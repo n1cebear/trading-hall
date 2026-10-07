@@ -7,7 +7,10 @@
 .ov-hero h2 em { font-style: normal; color: var(--accent); }
 .ov-hero p { margin: 16px auto 0; max-width: 56ch; color: var(--muted); font-size: 16px; text-wrap: pretty; }
 
-.ov-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: clamp(14px, 1.6vw, 22px); max-width: 1560px; margin: 0 auto; }
+.ov-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: clamp(14px, 1.6vw, 22px); max-width: 1320px; margin: 0 auto; }
+/* 5 cards = 3 + 2 centered (6-column grid, each card spans 2) */
+.ov-grid > .ov-card { grid-column: span 2; }
+.ov-grid > .ov-card:nth-child(4):nth-last-child(2) { grid-column: 2 / span 2; }
 .ov-card {
   --accent: var(--tc); --accent-deep: color-mix(in srgb, var(--tc) 52%, #000); --accent-ink: var(--on-accent);
   --accent-2: color-mix(in srgb, var(--tc) 72%, var(--mix-hi));
@@ -20,6 +23,7 @@
 .ov-card[data-tool="enchanting"] { --tc: var(--c-ench); }
 .ov-card[data-tool="trims"] { --tc: var(--c-trim); }
 .ov-card[data-tool="builds"] { --tc: var(--c-build); }
+.ov-card[data-tool="portal"] { --tc: var(--c-portal); }
 .ov-card:hover, .ov-card:focus-visible {
   transform: translateY(-5px); border-color: var(--tc);
   box-shadow: var(--shadow), 0 18px 40px -16px color-mix(in srgb, var(--tc) 65%, transparent);
@@ -68,10 +72,13 @@
 .module-overview.enter > .ov-grid { animation: none; }
 
 @media (max-width: 1180px) {
-  .ov-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); max-width: 860px; }
+  .ov-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); max-width: 860px; }
+  .ov-grid > .ov-card, .ov-grid > .ov-card:nth-child(n), .ov-grid > .ov-card:nth-child(4):nth-last-child(2) { grid-column: span 2; }
+  .ov-grid > .ov-card:last-child:nth-child(odd) { grid-column: 2 / span 2; }
 }
 @media (max-width: 700px) {
   .ov-grid { grid-template-columns: minmax(0, 1fr); max-width: 520px; }
+  .ov-grid > .ov-card, .ov-grid > .ov-card:nth-child(n), .ov-grid > .ov-card:nth-child(4):nth-last-child(2), .ov-grid > .ov-card:last-child:nth-child(odd) { grid-column: auto; }
   .ov-art { height: 120px; }
 }
 @media (max-width: 640px) {

@@ -7,6 +7,7 @@ window.TH = window.TH || {};
  *   TH.app.register({
  *     id: 'trims', name: 'Armor Trims', icon: '◆',
  *     soon: false,                       // optional "coming soon" tag in nav
+ *     short: 'Portal',                   // optional: shorter nav label on phones
  *     hidden: true,                      // optional: routable but not a nav tab (the overview landing)
  *     init(store) {},                    // optional: define state slice
  *     render(root, state) {},            // required: draw into root
@@ -82,7 +83,7 @@ TH.app = (function () {
       const badge = m.badge && m.badge(state);
       return h('a.nav-item' + (m === current ? '.active' : ''), { href: '#/' + m.id, 'data-tool': m.id, 'aria-current': m === current ? 'page' : null },
         h('span.nav-icon', { 'aria-hidden': 'true' }, typeof m.icon === 'string' && m.icon.startsWith('mc:') ? TH.icon(m.icon.slice(3), { size: 18 }) : m.icon),
-        h('span.nav-name', m.name),
+        h('span.nav-name', m.short ? [h('span.nm-full', m.name), h('span.nm-short', m.short)] : m.name),
         badgeEl(badge),
         m.soon ? h('span.nav-soon', 'soon') : null,
       );
@@ -237,11 +238,27 @@ TH.app = (function () {
     initLang();
     initSaveState();
     initOffline();
+    initFooter();
     initAtmosphere();
     TH.store.subscribe(render);
     window.addEventListener('hashchange', route);
     // load the saved language's official game names before the first paint
     TH.i18n.setLang(TH.store.get().settings.lang || 'en_us').then(route);
+  }
+
+  /** Global footer: (c) + current year, and an About toggle that expands the footer upward (aria-expanded, Esc closes). */
+  function initFooter() {
+    const yr = document.getElementById('footYear'), btn = document.getElementById('footToggle'), box = document.getElementById('footAbout');
+    if (yr) yr.textContent = new Date().getFullYear();
+    if (!btn || !box) return;
+    box.inert = true;
+    const set = (open) => {
+      btn.setAttribute('aria-expanded', open);
+      box.classList.toggle('open', open);
+      box.inert = !open;
+    };
+    btn.addEventListener('click', () => set(btn.getAttribute('aria-expanded') !== 'true'));
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && btn.getAttribute('aria-expanded') === 'true' && box.contains(document.activeElement)) { set(false); btn.focus(); } });
   }
 
   /** "Saved" status in the top bar (data auto-saves on every change) + one-click backup file. */

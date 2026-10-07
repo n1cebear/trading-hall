@@ -4,15 +4,15 @@
  * - Minecraft textures, wiki icons and fonts: cache-first (they never change for a given version).
  * - The page posts { type: 'warm', urls } once, and every texture the app can show is cached in the background.
  */
-const APP = 'toolbox-app-v4';
+const APP = 'toolbox-app-v5';
 const ASSETS = 'toolbox-assets-v1';
 const CORE = [
   './', 'index.html', 'manifest.webmanifest', 'icon.svg',
-  'css/styles.css', 'css/hall.css', 'css/hall-canvas.css', 'css/enchanting.css', 'css/overview.css', 'fonts/Monocraft.ttf',
+  'css/styles.css', 'css/hall.css', 'css/hall-canvas.css', 'css/enchanting.css', 'css/overview.css', 'css/builds.css', 'fonts/Monocraft.ttf',
   'js/core/icons.js', 'js/core/icon-list.js', 'js/core/i18n.js', 'js/core/util.js', 'js/core/store.js', 'js/core/app.js',
   'js/data/enchantments.js', 'js/data/villagers.js', 'js/data/trims.js', 'js/data/presets.js', 'js/data/items.js',
   'js/data/lang/index.js', 'js/data/lang/en_us.js',
-  'js/modules/hall.js', 'js/modules/hall-canvas.js', 'js/modules/enchanting.js', 'js/modules/trims.js', 'js/modules/builds.js', 'js/modules/overview.js',
+  'js/modules/hall.js', 'js/modules/hall-canvas.js', 'js/modules/enchanting.js', 'js/modules/trims.js', 'js/modules/builds.js', 'js/modules/portal.js', 'js/modules/overview.js',
 ];
 const ASSET_HOSTS = ['cdn.jsdelivr.net', 'minecraft.wiki', 'fonts.googleapis.com', 'fonts.gstatic.com'];
 

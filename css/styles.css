@@ -17,7 +17,7 @@
   --muted: #a4a3ae;
   --faint: #6b6a76;
   /* per-feature colours (see [data-tool] block below); dark values */
-  --c-hall: #17dd62; --c-ench: #b07cff; --c-trim: #4aedd9; --c-home: #f5c04a; --c-build: #ff8a3d;
+  --c-hall: #17dd62; --c-ench: #b07cff; --c-trim: #4aedd9; --c-home: #f5c04a; --c-build: #ff8a3d; --c-portal: #ff5a4e;
   --on-accent: #04140a; --mix-hi: #fff;
   --accent: #17dd62;          /* default = Trading Hall emerald; [data-tool] swaps the whole family */
   --accent-2: #7af0b3;
@@ -61,7 +61,7 @@
     --edge-hi: rgb(255 255 255 / .6); --edge-lo: rgb(90 60 20 / .18);
     --shadow: 0 1px 0 var(--edge-hi) inset, 0 -2px 0 var(--edge-lo) inset, 0 8px 22px -14px rgb(70 45 10 / .45);
     --grid-line: rgb(90 60 20 / .045); --glow-a: rgb(38 71 184 / .10); --glow-b: rgb(18 134 79 / .10); --mob-op: .16;
-    --c-hall: #0b7a35; --c-ench: #7b3fc4; --c-trim: #0d7d76; --c-home: #8f5f0c; --c-build: #b85a12; --on-accent: #fbf5e6; --mix-hi: #000;
+    --c-hall: #0b7a35; --c-ench: #7b3fc4; --c-trim: #0d7d76; --c-home: #8f5f0c; --c-build: #b85a12; --c-portal: #b3261e; --on-accent: #fbf5e6; --mix-hi: #000;
     color-scheme: light;
   }
 }
@@ -75,12 +75,12 @@
   --edge-hi: rgb(255 255 255 / .6); --edge-lo: rgb(90 60 20 / .18);
   --shadow: 0 1px 0 var(--edge-hi) inset, 0 -2px 0 var(--edge-lo) inset, 0 8px 22px -14px rgb(70 45 10 / .45);
   --grid-line: rgb(90 60 20 / .045); --glow-a: rgb(38 71 184 / .10); --glow-b: rgb(18 134 79 / .10); --mob-op: .16;
-  --c-hall: #0b7a35; --c-ench: #7b3fc4; --c-trim: #0d7d76; --c-home: #8f5f0c; --c-build: #b85a12; --on-accent: #fbf5e6; --mix-hi: #000;
+  --c-hall: #0b7a35; --c-ench: #7b3fc4; --c-trim: #0d7d76; --c-home: #8f5f0c; --c-build: #b85a12; --c-portal: #b3261e; --on-accent: #fbf5e6; --mix-hi: #000;
   color-scheme: light;
 }
 
 /* ============ per-feature accent ============
-   app.js sets <html data-tool="hall|enchanting|trims|builds|overview">. Only --c-* (per theme, above) differ;
+   app.js sets <html data-tool="hall|enchanting|trims|builds|portal|overview">. Only --c-* (per theme, above) differ;
    the whole accent family is derived here so every primary button, check, switch, selected state, focus ring,
    progress bar and nav marker follows the feature. Gold stays for prices; --tier-* stay data colours. */
 :root[data-tool="hall"] { --tc: var(--c-hall); }
@@ -88,6 +88,7 @@
 :root[data-tool="trims"] { --tc: var(--c-trim); }
 :root[data-tool="overview"] { --tc: var(--c-home); }
 :root[data-tool="builds"] { --tc: var(--c-build); }
+:root[data-tool="portal"] { --tc: var(--c-portal); }
 :root[data-tool] {
   --accent: var(--tc);
   --accent-2: color-mix(in srgb, var(--tc) 72%, var(--mix-hi));
@@ -132,7 +133,8 @@ body {
 button, input, select, textarea { font: inherit; color: inherit; }
 a { color: var(--lapis); text-underline-offset: 3px; }
 h1, h2, h3 { margin: 0; }
-.app { position: relative; z-index: 1; max-width: min(1760px, 100%); margin: 0 auto; padding: 0 clamp(14px, 2vw, 32px) 80px; }
+.app { position: relative; z-index: 1; max-width: min(1760px, 100%); margin: 0 auto; padding: 0 clamp(14px, 2vw, 32px) 0; min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; }
+.app > .view { flex: 1 0 auto; padding-bottom: 40px; }
 .muted { color: var(--muted); }
 .faint { color: var(--faint); }
 .hidden { display: none !important; }
@@ -222,6 +224,9 @@ h1, h2, h3 { margin: 0; }
 .nav-item[data-tool="enchanting"] { --tc: var(--c-ench); }
 .nav-item[data-tool="trims"] { --tc: var(--c-trim); }
 .nav-item[data-tool="builds"] { --tc: var(--c-build); }
+.nav-item[data-tool="portal"] { --tc: var(--c-portal); }
+.nm-short { display: none; }
+@media (max-width: 1599px) { .nav-item .nm-full { display: none; } .nav-item .nm-short { display: inline; } } /* long names (Portal Calculator) shorten when the bar gets tight */
 .nav-item {
   --accent: var(--tc); --accent-deep: color-mix(in srgb, var(--tc) 52%, #000); --accent-ink: var(--on-accent);
   --accent-soft: color-mix(in srgb, var(--tc) 20%, var(--panel));
@@ -581,9 +586,13 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; }
   .nav-item { flex: 1 1 0; min-width: 0; flex-direction: column; gap: 3px; padding: 8px 4px 7px; border-radius: 0; font-size: 11px; }
   .nav-item .nav-name { overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
   .nav-item::after { left: 20%; right: 20%; top: -1px; bottom: auto; height: 3px; border-radius: 0 0 3px 3px; }
-  .nav-badge, .nav-soon { position: absolute; top: 3px; left: calc(50% + 8px); padding: 2px 4px; font-size: 9px; }
+  .nav-badge, .nav-soon { position: absolute; top: 3px; left: auto; right: 2px; padding: 2px 3px; font-size: 8px; letter-spacing: .4px; }
   :root { --bottom-bar: calc(58px + env(safe-area-inset-bottom)); }
-  .app { padding-bottom: calc(84px + env(safe-area-inset-bottom)); }
+  .app { padding-bottom: var(--bottom-bar); }
+  .app > .view { padding-bottom: 24px; }
+  .nav-item { font-size: 10.5px; padding-left: 2px; padding-right: 2px; }
+  .nav-item .nm-full { display: none; }
+  .nav-item .nm-short { display: inline; }
   .toast { bottom: calc(76px + env(safe-area-inset-bottom)); max-width: calc(100vw - 24px); }
 }
 
@@ -596,3 +605,25 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; }
 .save-state.flash { color: var(--accent); }
 .save-state.offline::before { background: var(--gold); box-shadow: 0 0 6px var(--gold); }
 @media (max-width: 640px) { .save-state .save-text { display: none; } .save-state { padding: 0 4px; height: 34px; } }
+
+/* ============ footer + About (index.html .foot, app.js initFooter) ============
+   Sits at the end of .app (pushed to the bottom on short pages); the About panel grows upward out of the bar.
+   On phones .app reserves --bottom-bar, so the footer never sits under the fixed tab bar. */
+.foot { margin-top: 8px; border-top: 1px solid var(--line); color: var(--faint); }
+.foot-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 2px 16px; font-size: 12px; }
+.foot-brand { font: 400 11px/1.3 var(--mono); letter-spacing: .4px; color: var(--faint); }
+.foot-toggle {
+  display: inline-flex; align-items: center; gap: 7px; padding: 5px 10px; border-radius: var(--radius); cursor: pointer;
+  border: 1px solid transparent; background: transparent; color: var(--muted); font: 600 11.5px var(--font); transition: color .15s, background .15s, border-color .15s;
+}
+.foot-toggle:hover, .foot-toggle[aria-expanded="true"] { color: var(--accent); background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 35%, transparent); }
+.foot-chev { width: 6px; height: 6px; border: solid currentColor; border-width: 2px 2px 0 0; transform: translateY(1px) rotate(-45deg); transition: transform .35s cubic-bezier(.2, .8, .2, 1); }
+.foot-toggle[aria-expanded="true"] .foot-chev { transform: translateY(-1px) rotate(135deg); }
+.foot-about { display: grid; grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows .45s cubic-bezier(.2, .8, .2, 1), opacity .3s; }
+.foot-about.open { grid-template-rows: 1fr; opacity: 1; }
+.foot-about-clip { overflow: hidden; min-height: 0; }
+.foot-about-in { max-width: 62ch; margin: 0 auto; padding: 20px 4px 4px; text-align: center; color: var(--muted); font-size: 13.5px; text-wrap: pretty; }
+.foot-about-in p { margin: 0 0 8px; }
+.foot-about-in p:first-child { font: 400 14px/1.5 var(--display); color: var(--text); }
+.foot-dry { font-size: 12px; color: var(--faint); font-style: italic; }
+@media (prefers-reduced-motion: reduce) { .foot-about, .foot-chev { transition: none; } }

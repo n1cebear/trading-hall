@@ -54,7 +54,7 @@ Game terms (enchantments, items, villagers, trims) use Mojang's official transla
 ### Colour
 - **Dark (default), "Obsidian":** near-black violet-obsidian base. **Lapis** is for links; **gold** is for prices and treasure (never themed); the **glint** (`--enchant`) is the masked enchanted-item shimmer. Everything else that is "active" follows the **per-feature accent** below.
 - **Light, "Parchment":** warm paper and sepia ink, using the same hues in deeper shades. It reads like a written ledger, not a white SaaS page.
-- **Per-feature accent.** Every tool owns one colour and it drives *all* highlights inside it: primary buttons, checkboxes and check marks, switches, slider thumbs, selected / active states, focus rings, progress bars and rings, the active nav marker and badges, text selection. `app.js` sets `<html data-tool="hall|enchanting|trims|builds|overview">` on every route; `styles.css` derives the whole family (`--accent`, `--accent-2`, `--accent-deep`, `--accent-ink`, `--accent-soft`, `--select`, `--select-soft`, `--glow-b`) from one value, `--tc`, under `:root[data-tool]`. Only the four palette tokens `--c-hall/--c-ench/--c-trim/--c-build/--c-home` (plus `--on-accent`, `--mix-hi`) differ per theme.
+- **Per-feature accent.** Every tool owns one colour and it drives *all* highlights inside it: primary buttons, checkboxes and check marks, switches, slider thumbs, selected / active states, focus rings, progress bars and rings, the active nav marker and badges, text selection. `app.js` sets `<html data-tool="hall|enchanting|trims|builds|portal|overview">` on every route; `styles.css` derives the whole family (`--accent`, `--accent-2`, `--accent-deep`, `--accent-ink`, `--accent-soft`, `--select`, `--select-soft`, `--glow-b`) from one value, `--tc`, under `:root[data-tool]`. Only the four palette tokens `--c-hall/--c-ench/--c-trim/--c-build/--c-home` (plus `--on-accent`, `--mix-hi`) differ per theme.
 
   | Tool | `data-tool` | Colour | Dark / light | Source |
   |---|---|---|---|---|
@@ -62,6 +62,7 @@ Game terms (enchantments, items, villagers, trims) use Mojang's official transla
   | Enchanting | `enchanting` | **enchant purple** | `#b07cff` / `#7b3fc4` | the enchantment glint |
   | Trims | `trims` | **diamond blue** | `#4aedd9` / `#0d7d76` | the diamond item (`#a1fbe8`, `#4aedd9`, `#2cb5a9`) |
   | Builds | `builds` | **orange** (copper / orange concrete) | `#ff8a3d` / `#b85a12` | terracotta and copper tones; placeholder tab marked "soon" |
+  | Portal Calculator | `portal` | **crimson** (netherrack / nether portal) | `#ff5a4e` / `#b3261e` | distinct from the orange Builds and purple Enchanting; placeholder tab marked "soon", short nav label "Portal" on tight bars |
   | Overview | `overview` | **gold** | `#f5c04a` / `#8f5f0c` | neutral landing colour |
 
 - **Module CSS uses only the tokens** (`var(--accent)`, `var(--select)`, ...) for primary, selected, checked and focus states, so it recolours itself. Do not hard-code greens or violets, and do not use `--lapis` for focus. Gold stays for prices; `--tier-*` and profession / trim colours are data colours and are not themed.
@@ -87,6 +88,8 @@ Faces stop under `prefers-reduced-motion` (not even created).
 - **Top bar:** sticky, `z-index: 60`; its full-bleed blurred band is a `::before` layer so it sits above content and the atmosphere without trapping fixed children.
 - **Logo:** pixel hourglass on ONE 7s timeline: sand rises bottom to top, then the glass flips into the identical start state (all shading is 180-degree symmetric). The glow is a drop-shadow on the sand groups, so lighting follows the sand level and the loop has no seam.
 - **Progress badges:** a module's `badge(state)` returns a string or `{ done, total }`; the object renders as a `.nav-badge.is-progress` pill (fill bar = share done; complete = solid feature accent). Module sub-tabs reuse `.nav-badge`.
+- **Footer + About:** every page ends with a quiet footer (`.foot`, end of `.app`, pushed to the bottom on short pages): "(c) <current year via JS> n1cebear's toolbox" in Monocraft, and an **About** toggle. The toggle expands the footer upward (grid-rows 0fr to 1fr height reveal, rotating chevron, `aria-expanded` + `aria-controls`, the panel is `inert` while collapsed, Esc closes). Copy: short, dry, a little funny, themed on the hourglass whose sand runs upward. The footer follows the feature accent and sits above the phone tab bar because `.app` reserves `--bottom-bar`.
+- **Nav names:** a module may set `short` (e.g. "Portal" for "Portal Calculator"); it replaces the name below 1600px and on phones. With 5 tabs the phone tab bar uses 10.5px labels and 8px badges pinned to the tab's top-right corner (checked at 360 and 390px).
 - **Mobile (<= 640px):** the section nav becomes a fixed bottom tab bar (icon over label), the language picker collapses to its icon, the save indicator shrinks to its dot and the backup button moves into the menu.
 
 ### Motion
@@ -97,7 +100,31 @@ Faces stop under `prefers-reduced-motion` (not even created).
 
 ## Roadmap
 
-- **Builds (TBD):** orange-accented build planner: define a build, get a materials list in blocks / stacks / shulker boxes, tick off what is gathered. Today a "soon" placeholder tab (`js/modules/builds.js`).
+### Builds (page is a "soon" roadmap today, `js/modules/builds.js` + `css/builds.css`)
+Orange accent. Builds are filed by **progression dimension**, shown as filter chips (All / Overworld / Nether / End, animated with `TH.util.reveal`):
+- **Overworld:** buildable without the Nether.
+- **Nether:** needs Nether access (e.g. quartz-reliant builds).
+- **End:** after beating the game (e.g. shulker farm).
+
+Principle: every build is the **easiest design that is still useful**, one line pitch per card, not the max-efficiency megafarm. The data is the `BUILDS` array in builds.js (`[dimension, icon, name, pitch, optional link]`) so it can grow.
+
+Seed list: Easy iron farm; Easy XP farm (spawner / mob based); Easy crop farm; Spawner-to-farm converter; Moss farm; Bone meal farm; Sugar cane farm; Bamboo farm; Cobblestone farm; Lava farm (pointed dripstone + cauldron); Cow crusher / lava cow crusher; Custom villager trading hall (links to the Trading Hall tool); Simple automatic item sorter (all Overworld); Quartz-based builds and farms (Nether); Shulker farm (End).
+
+### Materials list (next up; standalone, also connected to builds)
+- Input: paste a **Litematica material list**, or type a manual list.
+- Output: a checklist separating **raw vs crafted** materials.
+- Amount units: items, stacks, **shulker boxes**, **double chests**.
+- Check off what is gathered; a list can be linked to a build.
+
+### Plan a build (on hold)
+- Shape helper: cubes, spheres, cylinders, domes, arches and more.
+- Layer-by-layer viewer with vertical and horizontal limits.
+- Slice view showing the outline of the current layer.
+
+### Portal Calculator (#5, `js/modules/portal.js`, placeholder "soon" tab, crimson)
+Nether <-> Overworld coordinate converter: Overworld X/Z divided by 8, Nether X/Z times 8, Y unchanged (flag Y the Nether cannot hold), plus tips for linking portals so each pair connects where intended. Only the pitch page exists. The overview shows 5 cards as 3 + 2 centered (6-column grid, 2 + 2 on tablet, 1 on phones).
+
+### Other
 - **Trims = a preview tool**, not a catalogue: a HUD plus a real 3D character wearing the chosen armor and trim; per-pattern mini previews in the chosen armor + trim material; and a final materials list (templates, ingots, armor) for what is selected.
 - **Optional style toggle** (e.g. neumorphism): a token-set switch on a `data-style` attribute on `<html>` (like `data-theme`), overriding surface, shadow and radius tokens only, never component CSS.
 

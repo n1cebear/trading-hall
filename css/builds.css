@@ -1,0 +1,31 @@
+/* ---- Builds roadmap (js/modules/builds.js). Accent tokens only; dimension pills are data colours. ---- */
+.module-builds .section-title { margin: 22px 0 10px; font: 400 17px var(--display); }
+.bd-bar { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 12px; }
+.bd-filter button { min-height: 32px; }
+.bd-count { color: var(--faint); font-size: 12.5px; }
+.bd-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
+.bd-card, .bd-feature { padding: 14px; display: flex; flex-direction: column; gap: 6px; border-top: 3px solid var(--accent); }
+.bd-card h4, .bd-feature h4 { margin: 0; font: 400 15px/1.25 var(--display); }
+.bd-card p, .bd-feature p { margin: 0; font-size: 13px; text-wrap: pretty; }
+.bd-card-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.bd-ico { display: grid; }
+.bd-dim { border: 1px solid currentColor; background: transparent; }
+.dim-overworld { color: #4fae55; }
+.dim-nether { color: #e5594f; }
+.dim-end { color: #b6a3dc; }
+:root[data-theme="light"] .dim-overworld { color: #2f7a35; }
+:root[data-theme="light"] .dim-nether { color: #b3261e; }
+:root[data-theme="light"] .dim-end { color: #6b4fa0; }
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) .dim-overworld { color: #2f7a35; }
+  :root:not([data-theme="dark"]) .dim-nether { color: #b3261e; }
+  :root:not([data-theme="dark"]) .dim-end { color: #6b4fa0; }
+}
+.bd-link { margin-top: auto; padding-top: 4px; font-weight: 700; font-size: 12.5px; color: var(--accent); text-decoration: none; }
+.bd-link:hover { text-decoration: underline; }
+.bd-features { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 10px; }
+.bd-feature ul { margin: 4px 0 0; padding-left: 18px; font-size: 13px; color: var(--muted); display: grid; gap: 3px; }
+.bd-feature .bd-status { background: var(--accent-soft); color: var(--accent); }
+.bd-feature.is-hold { border-top-style: dashed; }
+.bd-feature.is-hold .bd-status { background: var(--panel-2); color: var(--faint); }
+@media (max-width: 640px) { .bd-grid { grid-template-columns: 1fr; } .bd-filter { width: 100%; } .bd-filter button { flex: 1; } }

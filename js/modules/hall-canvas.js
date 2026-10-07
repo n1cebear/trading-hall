@@ -861,11 +861,28 @@ TH.hallCanvas = (function () {
       const c = colors(), { px, py, z } = S.view, { w, h: hh } = S.size;
       const vwr = { x0: -px / z, y0: -py / z, x1: (w - px) / z, y1: (hh - py) / z };
       const bb = bboxOf(keysArr()) || { x0: 0, y0: 0, x1: TILE, y1: TILE };
-      // scale from the tiles only (never the viewport), so panning / zooming can't make the map breathe
-      const x0 = bb.x0 - 40, y0 = bb.y0 - 40, x1 = bb.x1 + 40, y1 = bb.y1 + 40;
-      const s = Math.min(W / (x1 - x0), H / (y1 - y0));
-      const ox = (W - (x1 - x0) * s) / 2 - x0 * s, oy = (H - (y1 - y0) * s) / 2 - y0 * s;
-      S.mm = { s, ox, oy, W, H };
+      /* World area = tile bounds + half the viewport's world size on every side, so the view rectangle stays visible when zoomed far out.
+         It is re-derived only when the zoom, the viewport size, the tiles or the minimap size change — never while panning — and the
+         resulting map transform (s, ox, oy) glides to the new values in ~200ms. */
+      const vw = S.size.w / z, vh = hh / z;
+      const key = [z.toFixed(4), S.size.w, hh, W, H, bb.x0, bb.y0, bb.x1, bb.y1].join('|');
+      const now = performance.now();
+      if (key !== S.mmKey) {
+        S.mmKey = key;
+        const x0 = bb.x0 - vw / 2, y0 = bb.y0 - vh / 2, x1 = bb.x1 + vw / 2, y1 = bb.y1 + vh / 2;
+        const ts = Math.min(W / (x1 - x0), H / (y1 - y0));
+        const tgt = { s: ts, ox: (W - (x1 - x0) * ts) / 2 - x0 * ts, oy: (H - (y1 - y0) * ts) / 2 - y0 * ts };
+        if (!S.mmCur || S.g || !S.mmSized || S.mmSized.W !== W || S.mmSized.H !== H) { S.mmCur = tgt; S.mmFrom = null; }
+        else { S.mmFrom = Object.assign({}, S.mmCur); S.mmAt = now; }
+        S.mmTgt = tgt; S.mmSized = { W, H };
+      }
+      if (S.mmFrom) {
+        const t = Math.min(1, (now - S.mmAt) / 200), e = 1 - Math.pow(1 - t, 3), f = S.mmFrom, g2 = S.mmTgt;
+        S.mmCur = { s: f.s + (g2.s - f.s) * e, ox: f.ox + (g2.ox - f.ox) * e, oy: f.oy + (g2.oy - f.oy) * e };
+        if (t >= 1) S.mmFrom = null; else { S.miniDirty = true; schedule(); }
+      }
+      const { s, ox, oy } = S.mmCur;
+      S.mm = { s, ox, oy, W, H, target: S.mmTgt, animating: !!S.mmFrom };
       for (const k of S.order) {
         const p = S.pos[k], rec = S.items.get(k); if (!p) continue;
         ctx.fillStyle = (rec && rec.color) || c.acc;
@@ -1065,7 +1082,7 @@ TH.hallCanvas = (function () {
     }
 
     return {
-      el: root, update, reveal, swap, minimap: () => (S.mm ? Object.assign({}, S.mm) : null), fit: () => fit(true), busy: () => !!(S.g && S.g.mode !== 'pending') || !!S.pinch,
+      el: root, update, reveal, swap, minimap: () => (S.mm ? Object.assign({}, S.mm, { vw: S.size.w / S.view.z, vh: S.size.h / S.view.z, z: S.view.z }) : null), fit: () => fit(true), busy: () => !!(S.g && S.g.mode !== 'pending') || !!S.pinch,
     };
   }
 

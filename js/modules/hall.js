@@ -13,7 +13,8 @@
  *   setupDone, step, editing, migrated,
  *   books:   { [enchId]: { level, stalls: [{ id, label, done, price }] } },  // one stall = one librarian
  *   archive: { [enchId]: book },             // removed books, restored with their progress if re-added
- *   trades:  [{ id, prof, purpose, target, have, group, note }],
+ *   trades:  [{ id, prof, purpose, target, group, note }],
+ *   tradeLocked: { [tileKey 't:<tradeId>:<n>']: true },   // villagers you have traded with; per tile (replaces the old trade.have count)
  *   layout:  { v: 3, pos: { [villagerKey]: { x, y } }, pinned: [villagerKey] },   // pinned = position fixed (separate from a trade being locked in)
  *     // pos = world px of each tile's top-left (tile 72, grid unit 80)
  *   check:   { open, ench, level, price, query },   // the "Check an offer" dialog
@@ -126,6 +127,7 @@
     setupDone: false, step: 0, editing: false, migrated: false,
     books: {}, archive: {}, trades: [],
     layout: { v: 3, pos: {}, pinned: [] },
+    tradeLocked: {},
     check: { open: false, ench: '', level: null, price: null, query: '' },
     ui: { selected: null, multi: [], nextSort: 'type', search: '', expanded: {}, view: null },
     activePreset: null,
@@ -187,14 +189,23 @@
       book.stalls.forEach((stall, i) => out.push({ key: 'b:' + stall.id, kind: 'book', ench: ENCH[id], book, stall, idx: i }));
     }
     for (const t of hall.trades) {
-      for (let n = 0; n < t.target; n++) out.push({ key: 't:' + t.id + ':' + n, kind: 'trade', trade: t, n, prof: profOf(t) });
+      for (let n = 0; n < t.target; n++) out.push({ key: tradeKey(t.id, n), kind: 'trade', trade: t, n, prof: profOf(t), hall });
     }
     return out;
   }
 
+  const tradeKey = (id, n) => 't:' + id + ':' + n;
+  const tradeIsLocked = (hall, id, n) => !!(hall && hall.tradeLocked && hall.tradeLocked[tradeKey(id, n)]);
+  /** How many tiles of this trade are locked (derived — only tiles below `target` count). */
+  function haveOf(hall, tr) {
+    let n = 0;
+    for (let i = 0; i < tr.target; i++) if (tradeIsLocked(hall, tr.id, i)) n++;
+    return n;
+  }
+
   /** needed | locked | perfect */
   function status(v) {
-    if (v.kind === 'trade') return v.n < v.trade.have ? 'locked' : 'needed';
+    if (v.kind === 'trade') return tradeIsLocked(v.hall, v.trade.id, v.n) ? 'locked' : 'needed';
     const s = v.stall;
     if (s.done) return s.price != null && s.price <= minPrice(v.ench, v.book.level) ? 'perfect' : 'locked';
     return 'needed';
@@ -213,7 +224,7 @@
         if (s.price != null) s.price <= min ? t.perfect++ : (t.over += s.price - min);
       }
     }
-    for (const tr of hall.trades) { t.trades += tr.target; t.have += Math.min(tr.have, tr.target); }
+    for (const tr of hall.trades) { t.trades += tr.target; t.have += haveOf(hall, tr); }
     t.total = t.stalls + t.trades;
     t.done = t.locked + t.have;
     return t;
@@ -228,7 +239,7 @@
     };
     const t = totals(hall);
     if (t.stalls) add('librarian', t.stalls, t.locked);
-    for (const tr of hall.trades) add(tr.prof, tr.target, Math.min(tr.have, tr.target));
+    for (const tr of hall.trades) add(tr.prof, tr.target, haveOf(hall, tr));
     return D.professions
       .filter((p) => m[p.id] && m[p.id].target)
       .sort((a, b) => (b.id === 'librarian') - (a.id === 'librarian'))
@@ -380,7 +391,7 @@
           const prev = old.find((o) => o.prof === r.prof && o.purpose === r.purpose);
           return {
             id: prev ? prev.id : uid('tr'), prof: r.prof, purpose: r.purpose || '', target: r.target || 1,
-            have: prev ? prev.have : 0, group: r.group || 'other', note: r.note || '',
+            group: r.group || 'other', note: r.note || '',
           };
         });
       }
@@ -711,7 +722,7 @@
         h('button.hl-preset' + (on ? '.is-on' : ''), {
           type: 'button', 'aria-pressed': String(on), 'data-focus': 'preset-' + p.id,
           onclick: () => {
-            const has = Object.values(hall.books).some((b) => b.stalls.some(hasProgress)) || hall.trades.some((x) => x.have);
+            const has = Object.values(hall.books).some((b) => b.stalls.some(hasProgress)) || hall.trades.some((x) => haveOf(hall, x));
             if (on || !has || confirm(`Switch to “${opts.title || p.name}”? Logged prices and progress are kept for books that stay.`)) applyPreset(p);
           },
         },
@@ -952,13 +963,13 @@
         type: 'button', 'aria-pressed': String(on), 'data-focus': key, title: c.note,
         onclick: () => upd((x) => {
           if (on) x.trades = x.trades.filter((tr) => tr !== findTrade(x, c.prof, c.purpose));
-          else x.trades.push({ id: uid('tr'), prof: c.prof, purpose: c.purpose, target: 1, have: 0, group: c.group, note: c.note });
+          else x.trades.push({ id: uid('tr'), prof: c.prof, purpose: c.purpose, target: 1, group: c.group, note: c.note });
         }),
       }, inner);
       return h('div.hl-strip.hl-strip-trade' + (on ? '.is-on' : '') + (on && justAdded === t.id + ':' + i ? '.is-new' : ''), { style: '--pc:' + p.color },
         main,
         h('span.hl-strip-acts',
-          on && i < t.have ? h('span.hl-ok.hl-have', 'in hall') : null,
+          on && tradeIsLocked(TH.store.get().hall, t.id, i) ? h('span.hl-ok.hl-have', 'in hall') : null,
           on ? dupControls(i, n, tradeDupOpts(t, i, key + '-' + i, c.purpose, () => findTrade(TH.store.get().hall, c.prof, c.purpose))) : null));
     });
     return h('li.hl-strip-item.hl-dupgroup' + (multi ? '.is-multi' : ''), { 'data-trade': on ? t.id : null }, strips);
@@ -973,7 +984,7 @@
         { added: t.id + ':' + (i + 1), focus: 'dup-' + key.replace(/-\d+$/, '') + '-' + (i + 1) }),
       onDel: () => {
         if (n <= 1) { upd((x) => { x.trades = x.trades.filter((y) => y.id !== t.id); }); return; }
-        softUpdate(() => { const tr = find(); if (tr) tr.target = clamp(tr.target - 1, 1, 64); },
+        softUpdate(() => { const tr = find(); if (tr) { tr.target = clamp(tr.target - 1, 1, 64); const tl = TH.store.get().hall.tradeLocked; if (tl) delete tl[tradeKey(tr.id, tr.target)]; } },
           { focus: 'dup-' + key.replace(/-\d+$/, '') + '-' + Math.min(i, n - 2) });
       },
     };
@@ -1005,7 +1016,7 @@
   function addCustomTrade() {
     const id = uid('tr');
     TH.app.pendingFocus = 'purpose-' + id;
-    upd((x) => { x.trades.push({ id, prof: 'farmer', purpose: '', target: 1, have: 0, group: 'other', note: '' }); });
+    upd((x) => { x.trades.push({ id, prof: 'farmer', purpose: '', target: 1, group: 'other', note: '' }); });
   }
 
   /* ---- step 4: review ---- */
@@ -1141,7 +1152,7 @@
     const book = v.kind === 'book';
     const c = book ? null : catOf(v.prof.id, v.trade.purpose);
     return {
-      name: book ? enchShort(v.ench) : (tradeShort(v.trade) || profShort(v.prof)),
+      name: book ? enchShort(v.ench) : profName(v.prof),
       item: c && c.item ? c.item : null,
       corner: book ? (v.ench.maxLevel > 1 ? lvlText(v.book.level) : null) : (v.trade.target > 1 ? '#' + (v.n + 1) : null),
       tag: book && v.stall.label ? v.stall.label.charAt(0).toUpperCase() : null,
@@ -1190,7 +1201,7 @@
     if (pinned) state.push('pinned');
     const t = v.trade;
     return {
-      title: profName(v.prof) + (t.purpose ? ' — ' + t.purpose : ''),
+      title: profName(v.prof) + (t.purpose ? ' — ' + t.purpose : ''), // e.g. "Farmer — Pumpkins / Melons → Emerald"
       sub: (t.target > 1 ? `#${v.n + 1} of ${t.target} · ` : '') + state.join(' · '),
     };
   }
@@ -1290,7 +1301,7 @@
     toast(n ? `${on ? 'Pinned' : 'Unpinned'} ${plural(n, 'villager')}` : 'Nothing to change');
   }
 
-  /** Bulk lock / unlock: librarians get their lock ticked, other villagers count as "have" (up to / below each one's number). */
+  /** Bulk lock / unlock: librarians get their lock ticked, other villagers get their own tile locked (exactly that tile). */
   function bulkLock(keys, on) {
     let n = 0;
     upd((x) => {
@@ -1302,9 +1313,10 @@
           const m = /^t:(.*):(\d+)$/.exec(k);
           const t = m && x.trades.find((y) => y.id === m[1]);
           if (!t) continue;
-          const i = +m[2], before = t.have;
-          t.have = on ? Math.max(t.have, i + 1) : Math.min(t.have, i);
-          if (t.have !== before) n++;
+          const tl = x.tradeLocked || (x.tradeLocked = {});
+          if (!!tl[k] === on) continue;
+          if (on) tl[k] = true; else delete tl[k];
+          n++;
         }
       }
     });
@@ -1428,9 +1440,6 @@
         [h('span.hl-pos', where), h('span', profName(p) + ' · ' + wsName(p))],
         [
           h('div.hl-detail-grid',
-            h('div.hl-field', h('span.hl-field-label', 'In your hall'),
-              h('div.hl-inline', stepper(t.have, { min: 0, max: t.target, label: 'villagers you have', key: 'have-' + t.id, onChange: (n) => set((tr) => { tr.have = n; }) }),
-                h('span.muted', 'of ' + t.target + ' wanted'))),
             h('label.hl-field.hl-grow', h('span.hl-field-label', 'Note'),
               h('input.field', {
                 value: t.note || '', placeholder: 'Perfect roll, location…', 'data-focus': 'tnote-' + t.id,
@@ -1517,7 +1526,7 @@
     const needed = stalls.filter((v) => !v.stall.done).sort(cmp.book);
     const improve = stalls.filter((v) => v.stall.done && v.stall.price != null && v.stall.price > minPrice(v.ench, v.book.level)).sort(cmp.book);
     const noPrice = stalls.filter((v) => v.stall.done && v.stall.price == null).sort(cmp.book);
-    const toGet = hall.trades.filter((t) => t.have < t.target).slice().sort(cmp.trade);
+    const toGet = hall.trades.filter((t) => haveOf(hall, t) < t.target).slice().sort(cmp.trade);
     const profs = profCounts(hall);
     const selectCell = (key) => {
       upd((x) => { setSel(x.ui, [key]); });
@@ -1556,13 +1565,13 @@
           null, () => selectCell(v.key), 'Open details')).concat(
           noPrice.map((v) => row(v, 'No price logged — tap to add it', null, () => selectCell(v.key), 'Log the price'))),
         '') : null,
-      group('Villagers to get', toGet.reduce((a, t) => a + t.target - t.have, 0), toGet.map((t) => h('li.hl-strip.hl-strip-next', { style: '--pc:' + profOf(t).color },
+      group('Villagers to get', toGet.reduce((a, t) => a + t.target - haveOf(hall, t), 0), toGet.map((t) => h('li.hl-strip.hl-strip-next', { style: '--pc:' + profOf(t).color },
         h('div.hl-strip-main',
           TH.icon.prof(profOf(t).id, { size: 20, cls: 'hl-strip-icon' }),
-          h('span.hl-strip-text', h('b', t.purpose || profName(profOf(t))), h('small', profName(profOf(t)), tradeShort(t) ? ' · ' + tradeShort(t) : '', ' · ', h('b', t.have), ' / ', t.target))),
+          h('span.hl-strip-text', h('b', profName(profOf(t)), tradeShort(t) ? ' · ' + tradeShort(t) : ''), h('small', t.purpose ? t.purpose + ' · ' : '', h('b', haveOf(hall, t)), ' / ', t.target))),
         h('button.btn.small', {
           type: 'button', 'aria-label': `Got one more ${profName(profOf(t))} (${t.purpose})`, 'data-focus': 'plus-' + t.id,
-          onclick: () => upd((x) => { const tr = x.trades.find((y) => y.id === t.id); if (tr) tr.have = Math.min(tr.target, tr.have + 1); }),
+          onclick: () => upd((x) => { const tr = x.trades.find((y) => y.id === t.id); if (!tr) return; const tl = x.tradeLocked || (x.tradeLocked = {}); for (let i = 0; i < tr.target; i++) if (!tl[tradeKey(tr.id, i)]) { tl[tradeKey(tr.id, i)] = true; break; } }),
         }, '+1'))),
         'Every other villager is in'),
       h('section.hl-next-group',
@@ -1803,6 +1812,18 @@
     }
   }
 
+  /** Old model: trade.have = N  ->  the first N tiles of that trade are locked (hall.tradeLocked). */
+  function migrateTradeLocks(hall) {
+    if (!hall.tradeLocked || typeof hall.tradeLocked !== 'object') hall.tradeLocked = {};
+    for (const tr of hall.trades || []) {
+      if (tr.have != null) {
+        const n = Math.min(Math.max(0, tr.have | 0), tr.target || 1);
+        for (let i = 0; i < n; i++) hall.tradeLocked[tradeKey(tr.id, i)] = true;
+        delete tr.have;
+      }
+    }
+  }
+
   /** Layouts: v2 (cols x rows cell grid) → free positions in world px (col * 80, row * 80); anything older starts fresh. */
   function migrateLayout(hall) {
     const L = hall.layout || {};
@@ -1883,6 +1904,7 @@
       hall.archive = hall.archive || {};
       if (!Array.isArray(s.customPresets)) s.customPresets = [];
       migrate(s);
+      migrateTradeLocks(hall);
       if (hall.setupDone) placeNew(hall);
       store.update(() => {}, { silent: true }); // persist migration / defaults
       document.addEventListener('keydown', onKey);

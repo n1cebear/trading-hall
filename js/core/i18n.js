@@ -29,6 +29,7 @@ TH.i18n = (function () {
     return v !== undefined ? v : (TH.langData.en_us || {})[key];
   };
 
+  const ITEM_KEYS = { netherite_upgrade_smithing_template: 'upgrade.minecraft.netherite_upgrade' };
   const titleCase = (id) => id.split('_').map((w) => w[0].toUpperCase() + w.slice(1)).join(' ');
   const enchData = (id) => (TH.data.enchantments || []).find((e) => e.id === id);
   const profData = (id) => (TH.data.professions || []).find((p) => p.id === id);
@@ -44,7 +45,8 @@ TH.i18n = (function () {
       const e = enchData(id);
       return e && e.maxLevel === 1 ? api.ench(id) : api.ench(id) + ' ' + api.level(n);
     },
-    item: (id) => get('item.minecraft.' + id) || get('block.minecraft.' + id) || titleCase(id),
+    // some items are named by a different key than item.minecraft.<id> (e.g. the netherite upgrade template)
+    item: (id) => (ITEM_KEYS[id] && get(ITEM_KEYS[id])) || get('item.minecraft.' + id) || get('block.minecraft.' + id) || titleCase(id),
     block: (id) => get('block.minecraft.' + id) || get('item.minecraft.' + id) || titleCase(id),
     prof: (id) => get('entity.minecraft.villager.' + id) || (profData(id) || {}).name || titleCase(id),
     trimPattern: (id) => get('trim_pattern.minecraft.' + id) || titleCase(id),

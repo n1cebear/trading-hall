@@ -49,9 +49,9 @@ Prefer vertical **strips** (full-width rows of equal height) over uneven card gr
 Game terms (enchantments, items, villagers, trims) use Mojang's official translations through `TH.i18n`. The tool's own UI text stays English.
 
 ### Colour
-- **Dark (default), "Obsidian":** near-black violet-obsidian base, with **emerald** as the one dominant action colour, **lapis** for focus and links, **gold** for prices and treasure, and **glint** violet reserved for enchanted or "perfect" states.
+- **Dark (default), "Obsidian":** near-black violet-obsidian base, with **emerald** as the one dominant action colour, **lapis** for focus and links, **gold** for prices and treasure, **glint** violet reserved for enchanted or "perfect" states, and **select** (`--select` / `--select-soft`, violet-indigo, deeper in light mode) for every shared selected / highlighted / active state (active nav tab, selected segment, text selection). Select is deliberately a different hue from the glint.
 - **Light, "Parchment":** warm paper and sepia ink, using the same accents in deeper shades. It reads like a written ledger, not a white SaaS page.
-- Never use purple gradients as decoration. Violet only ever means *enchanted*.
+- Never use purple gradients as decoration. Glint violet only ever means *enchanted*; select violet only ever means *selected*.
 - Always use tokens (`var(--…)`); never hard-code a colour in module CSS except for data colours like profession or trim colours.
 
 ### Shape and surface
@@ -59,14 +59,27 @@ Game terms (enchantments, items, villagers, trims) use Mojang's official transla
 - Primary buttons have a 3px "block" under-shadow that compresses on `:active`.
 
 ### Background
-A layered, fixed atmosphere (`.atmosphere` in index.html):
+A layered, fixed atmosphere (`#atmosphere` in index.html, mobs built by `initAtmosphere()` in app.js):
 - a faint pixel grid,
 - a lapis glow at the top-left and an emerald glow at the bottom-right,
-- SGA runes drifting slowly upward (the enchanting-table effect).
+- minimal **mob faces** (blaze, creeper, zombie, skeleton, enderman, villager, ghast, spider, wolf, ...) rising slowly: small, low opacity (`--mob-op`), `image-rendering: pixelated`. Each is the 8x8 (or 8x10) front-of-head region cropped from the real entity skin with `background-size/position`; the table is `TH.icon.mobFaces` and the texture source is the same CDN mirror as `TH.icon` (`entity/...`), cached by sw.js and warmed with the icons. Local `file://` mode still uses the CDN for these.
 
-All of it is CSS-only, and the runes stop under `prefers-reduced-motion`.
+Faces stop under `prefers-reduced-motion` (not even created).
+
+### Chrome
+- **Scrollbar:** themed (sunken track, raised block thumb; `scrollbar-color` + `::-webkit-scrollbar`), `scrollbar-gutter: stable` on `html` so layout never shifts.
+- **Width:** `.app` is up to 1760px wide with small side padding so wide screens are used.
+- **Top bar:** sticky, `z-index: 60`; its full-bleed blurred band is a `::before` layer so it sits above content and the atmosphere without trapping fixed children.
+- **Logo:** pixel hourglass on ONE 7s timeline: sand rises bottom to top, then the glass flips into the identical start state (all shading is 180-degree symmetric). The glow is a drop-shadow on the sand groups, so lighting follows the sand level and the loop has no seam.
+- **Progress badges:** a module's `badge(state)` returns a string or `{ done, total }`; the object renders as a `.nav-badge.is-progress` pill (fill bar = share done; complete = solid emerald). Module sub-tabs reuse `.nav-badge`.
+- **Mobile (<= 640px):** the section nav becomes a fixed bottom tab bar (icon over label), the language picker collapses to its icon, the save indicator shrinks to its dot and the backup button moves into the menu.
 
 ### Motion
 - **One orchestrated entrance per tab switch:** direct children of `.module` fade and rise with staggered `animation-delay` (the `.enter` class, added by app.js only when the tab changes, never on re-render).
 - Micro-interactions: button press depth, the enchant glint sweep on perfect or locked items, and checkbox pop.
 - Respect `prefers-reduced-motion` everywhere.
+
+## Roadmap
+
+- **Trims = a preview tool**, not a catalogue: a HUD plus a real 3D character wearing the chosen armor and trim; per-pattern mini previews in the chosen armor + trim material; and a final materials list (templates, ingots, armor) for what is selected.
+- **Optional style toggle** (e.g. neumorphism): a token-set switch on a `data-style` attribute on `<html>` (like `data-theme`), overriding surface, shadow and radius tokens only, never component CSS.

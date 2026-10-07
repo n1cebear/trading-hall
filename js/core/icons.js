@@ -109,6 +109,22 @@ TH.icon = (function () {
     const k = itemName.toLowerCase().replace(/ /g, '_');
     return 'item/' + ({ nether_quartz: 'quartz', redstone_dust: 'redstone' }[k] || k);
   };
+  /**
+   * Mob faces for the background: crop of the front-of-head region of the entity skin.
+   * [texture path, skin w, skin h, face x, face y, face w, face h, px scale]
+   */
+  icon.mobFaces = [
+    ['entity/blaze', 64, 32, 8, 8, 8, 8, 3], ['entity/creeper/creeper', 64, 32, 8, 8, 8, 8, 3],
+    ['entity/zombie/zombie', 64, 64, 8, 8, 8, 8, 3], ['entity/skeleton/skeleton', 64, 32, 8, 8, 8, 8, 3],
+    ['entity/enderman/enderman', 64, 32, 8, 8, 8, 8, 3], ['entity/villager/villager', 64, 64, 8, 8, 8, 10, 3],
+    ['entity/ghast/ghast', 128, 64, 32, 32, 32, 32, 1], ['entity/spider/spider', 64, 32, 40, 12, 8, 8, 3],
+    ['entity/skeleton/wither_skeleton', 64, 32, 8, 8, 8, 8, 3], ['entity/skeleton/stray', 64, 32, 8, 8, 8, 8, 3],
+    ['entity/zombie/husk', 64, 64, 8, 8, 8, 8, 3], ['entity/snow_golem', 64, 64, 8, 8, 8, 8, 3],
+    ['entity/wolf/wolf', 64, 32, 4, 4, 6, 6, 4], ['entity/illager/pillager', 64, 64, 8, 8, 8, 10, 3], ['entity/armadillo', 64, 64, 43, 17, 7, 5, 4],
+  ];
+  /** URL of any texture path (entity/..., item/...). Entity skins always come from the CDN mirror (cached by sw.js). */
+  icon.tex = (p) => BASE + p + '.png';
+
   icon.aliases = ALIAS;
   icon.external = EXTERNAL;
 

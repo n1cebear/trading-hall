@@ -9,7 +9,7 @@ window.TH = window.TH || {};
  *     soon: false,                       // optional "coming soon" tag in nav
  *     init(store) {},                    // optional: define state slice
  *     render(root, state) {},            // required: draw into root
- *     badge(state) { return '3' },       // optional: nav badge text
+ *     badge(state) { return '3' },       // optional: nav badge: string, or { done, total } -> progress pill
  *   });
  * and a <script> tag in index.html.
  */
@@ -26,6 +26,39 @@ TH.app = (function () {
     render();
   }
 
+  /** Module badge: a string, or { done, total } rendered as a progress pill. */
+  function badgeEl(b) {
+    if (b == null || b === '' || b === false) return null;
+    if (typeof b === 'object') {
+      const total = Math.max(0, +b.total || 0), done = Math.min(total, Math.max(0, +b.done || 0));
+      const el = h('span.nav-badge.is-progress' + (total && done >= total ? '.is-done' : ''), { title: done + ' of ' + total + ' done' }, done + '/' + total);
+      el.style.setProperty('--p', (total ? (done / total) * 100 : 0) + '%');
+      return el;
+    }
+    return h('span.nav-badge', String(b));
+  }
+
+  /** Background: small pixelated mob faces (cropped from entity skins) rising slowly. */
+  function initAtmosphere() {
+    const box = document.getElementById('atmosphere');
+    if (!box || !TH.icon.mobFaces || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const faces = TH.icon.mobFaces, N = 18;
+    for (let i = 0; i < N; i++) {
+      const [p, sw, sh, fx, fy, fw, fh, k] = faces[i % faces.length];
+      const el = document.createElement('span');
+      el.className = 'mob';
+      const st = el.style;
+      st.setProperty('--tex', 'url("' + TH.icon.tex(p) + '")');
+      st.setProperty('--w', fw * k); st.setProperty('--h', fh * k);
+      st.setProperty('--bs', sw * k + 'px ' + sh * k + 'px');
+      st.setProperty('--bp', -fx * k + 'px ' + -fy * k + 'px');
+      st.setProperty('--x', Math.round(((i * 37) % 97) + 1));
+      st.setProperty('--d', 70 + ((i * 13) % 50));
+      st.setProperty('--w2', (i * 29) % 110);
+      box.appendChild(el);
+    }
+  }
+
   function render() {
     const state = TH.store.get();
     const nav = document.getElementById('nav');
@@ -34,7 +67,7 @@ TH.app = (function () {
       return h('a.nav-item' + (m === current ? '.active' : ''), { href: '#/' + m.id, 'aria-current': m === current ? 'page' : null },
         h('span.nav-icon', { 'aria-hidden': 'true' }, typeof m.icon === 'string' && m.icon.startsWith('mc:') ? TH.icon(m.icon.slice(3), { size: 18 }) : m.icon),
         h('span.nav-name', m.name),
-        badge ? h('span.nav-badge', badge) : null,
+        badgeEl(badge),
         m.soon ? h('span.nav-soon', 'soon') : null,
       );
     }));
@@ -123,6 +156,7 @@ TH.app = (function () {
     initLang();
     initSaveState();
     initOffline();
+    initAtmosphere();
     TH.store.subscribe(render);
     window.addEventListener('hashchange', route);
     // load the saved language's official game names before the first paint
@@ -166,7 +200,7 @@ TH.app = (function () {
     navigator.serviceWorker.register('sw.js').then((reg) => {
       const warm = () => {
         const sw = navigator.serviceWorker.controller || reg.active;
-        if (sw && TH.iconList) sw.postMessage({ type: 'warm', urls: TH.iconList.map(TH.icon.remote) });
+        if (sw && TH.iconList) sw.postMessage({ type: 'warm', urls: TH.iconList.map(TH.icon.remote).concat((TH.icon.mobFaces || []).map((f) => TH.icon.tex(f[0]))) });
       };
       navigator.serviceWorker.ready.then(() => setTimeout(warm, 1500));
     }).catch(() => { /* offline support is a bonus */ });

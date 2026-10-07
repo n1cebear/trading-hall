@@ -42,6 +42,9 @@ Real Minecraft textures only, via `TH.icon` (js/core/icons.js), loaded at runtim
 ### Controls: "inventory slots"
 Inputs, checkboxes, steppers and slider tracks are **sunken slots** (dark top-left inner edge, light bottom-right). Buttons, stepper keys and slider thumbs are **raised blocks**. The slider copies the Minecraft options-menu slider. Use the shared classes in styles.css (`.field`, `.check`, `.switch`, `.slider`, `.stepper`, `.price`, `.lvl-chips`); never ship browser-default controls.
 
+### Landing page (Overview)
+`js/modules/overview.js` + `css/overview.css`: a hidden module (`hidden: true`, not a nav tab) shown when the URL has no hash and when the logo is clicked (`<a class="brand" href="#/">`). Nothing remembers the last tab: arriving fresh always lands here. One card per tool in its feature colour with a real texture on a glow pedestal, a short pitch, a live progress stat from the module's `badge(state)`, and a block-style CTA. Trims is marked "preview".
+
 ### Layout
 Prefer vertical **strips** (full-width rows of equal height) over uneven card grids for lists.
 
@@ -49,10 +52,21 @@ Prefer vertical **strips** (full-width rows of equal height) over uneven card gr
 Game terms (enchantments, items, villagers, trims) use Mojang's official translations through `TH.i18n`. The tool's own UI text stays English.
 
 ### Colour
-- **Dark (default), "Obsidian":** near-black violet-obsidian base, with **emerald** as the one dominant action colour, **lapis** for focus and links, **gold** for prices and treasure, **glint** violet reserved for enchanted or "perfect" states, and **select** (`--select` / `--select-soft`, violet-indigo, deeper in light mode) for every shared selected / highlighted / active state (active nav tab, selected segment, text selection). Select is deliberately a different hue from the glint.
-- **Light, "Parchment":** warm paper and sepia ink, using the same accents in deeper shades. It reads like a written ledger, not a white SaaS page.
-- Never use purple gradients as decoration. Glint violet only ever means *enchanted*; select violet only ever means *selected*.
-- Always use tokens (`var(--…)`); never hard-code a colour in module CSS except for data colours like profession or trim colours.
+- **Dark (default), "Obsidian":** near-black violet-obsidian base. **Lapis** is for links; **gold** is for prices and treasure (never themed); the **glint** (`--enchant`) is the masked enchanted-item shimmer. Everything else that is "active" follows the **per-feature accent** below.
+- **Light, "Parchment":** warm paper and sepia ink, using the same hues in deeper shades. It reads like a written ledger, not a white SaaS page.
+- **Per-feature accent.** Every tool owns one colour and it drives *all* highlights inside it: primary buttons, checkboxes and check marks, switches, slider thumbs, selected / active states, focus rings, progress bars and rings, the active nav marker and badges, text selection. `app.js` sets `<html data-tool="hall|enchanting|trims|overview">` on every route; `styles.css` derives the whole family (`--accent`, `--accent-2`, `--accent-deep`, `--accent-ink`, `--accent-soft`, `--select`, `--select-soft`, `--glow-b`) from one value, `--tc`, under `:root[data-tool]`. Only the four palette tokens `--c-hall/--c-ench/--c-trim/--c-home` (plus `--on-accent`, `--mix-hi`) differ per theme.
+
+  | Tool | `data-tool` | Colour | Dark / light | Source |
+  |---|---|---|---|---|
+  | Trading Hall | `hall` | **emerald** | `#17dd62` / `#0b7a35` | the emerald item (`#41f384` highlight, `#17dd62` body, `#00aa2c` / `#007b18` shades) |
+  | Enchanting | `enchanting` | **enchant purple** | `#b07cff` / `#7b3fc4` | the enchantment glint |
+  | Trims | `trims` | **diamond blue** | `#4aedd9` / `#0d7d76` | the diamond item (`#a1fbe8`, `#4aedd9`, `#2cb5a9`) |
+  | Overview | `overview` | **gold** | `#f5c04a` / `#8f5f0c` | neutral landing colour |
+
+- **Module CSS uses only the tokens** (`var(--accent)`, `var(--select)`, ...) for primary, selected, checked and focus states, so it recolours itself. Do not hard-code greens or violets, and do not use `--lapis` for focus. Gold stays for prices; `--tier-*` and profession / trim colours are data colours and are not themed.
+- Each nav tab shows its own feature colour (underline, icon glow, badge) via `.nav-item[data-tool]` so the system reads clearly even when another tool is active.
+- Never use purple gradients as decoration; purple appears only as Enchanting's accent and the enchant glint.
+- Always use tokens (`var(--...)`); never hard-code a colour in module CSS except for data colours like profession or trim colours.
 
 ### Shape and surface
 - Small radii (`--radius: 6px`) for a blocky feel. Panels have a 1px top highlight and a darker bottom edge, like an inventory slot.
@@ -71,7 +85,7 @@ Faces stop under `prefers-reduced-motion` (not even created).
 - **Width:** `.app` is up to 1760px wide with small side padding so wide screens are used.
 - **Top bar:** sticky, `z-index: 60`; its full-bleed blurred band is a `::before` layer so it sits above content and the atmosphere without trapping fixed children.
 - **Logo:** pixel hourglass on ONE 7s timeline: sand rises bottom to top, then the glass flips into the identical start state (all shading is 180-degree symmetric). The glow is a drop-shadow on the sand groups, so lighting follows the sand level and the loop has no seam.
-- **Progress badges:** a module's `badge(state)` returns a string or `{ done, total }`; the object renders as a `.nav-badge.is-progress` pill (fill bar = share done; complete = solid emerald). Module sub-tabs reuse `.nav-badge`.
+- **Progress badges:** a module's `badge(state)` returns a string or `{ done, total }`; the object renders as a `.nav-badge.is-progress` pill (fill bar = share done; complete = solid feature accent). Module sub-tabs reuse `.nav-badge`.
 - **Mobile (<= 640px):** the section nav becomes a fixed bottom tab bar (icon over label), the language picker collapses to its icon, the save indicator shrinks to its dot and the backup button moves into the menu.
 
 ### Motion

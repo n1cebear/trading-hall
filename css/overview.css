@@ -1,0 +1,80 @@
+/* ============ Overview landing (js/modules/overview.js) ============
+ * Tokens only. Each card carries its own feature colour via --tc (the same --c-* palette the nav uses). */
+.module-overview { padding-bottom: 24px; }
+.ov-hero { text-align: center; margin: clamp(26px, 6vw, 64px) auto clamp(24px, 4vw, 44px); max-width: 760px; }
+.ov-eyebrow { display: inline-block; font: 600 11px/1 var(--mono); letter-spacing: 2px; text-transform: uppercase; color: var(--accent); padding: 6px 10px; border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent); border-radius: 4px; background: var(--accent-soft); }
+.ov-hero h2 { margin: 18px 0 0; font: 400 clamp(28px, 5.2vw, 52px)/1.1 var(--display); text-shadow: 3px 3px 0 var(--edge-lo); text-wrap: balance; }
+.ov-hero h2 em { font-style: normal; color: var(--accent); }
+.ov-hero p { margin: 16px auto 0; max-width: 56ch; color: var(--muted); font-size: 16px; text-wrap: pretty; }
+
+.ov-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: clamp(14px, 2vw, 24px); max-width: 1240px; margin: 0 auto; }
+.ov-card {
+  --accent: var(--tc); --accent-deep: color-mix(in srgb, var(--tc) 52%, #000); --accent-ink: var(--on-accent);
+  --accent-2: color-mix(in srgb, var(--tc) 72%, var(--mix-hi));
+  --accent-soft: color-mix(in srgb, var(--tc) 20%, var(--panel));
+  position: relative; display: flex; flex-direction: column; overflow: hidden; text-decoration: none; color: var(--text);
+  background: var(--panel); border: 1px solid var(--line-2); border-top: 3px solid var(--tc); border-radius: var(--radius);
+  box-shadow: var(--shadow); transition: transform .25s cubic-bezier(.2, .8, .2, 1), border-color .2s, box-shadow .25s;
+}
+.ov-card[data-tool="hall"] { --tc: var(--c-hall); }
+.ov-card[data-tool="enchanting"] { --tc: var(--c-ench); }
+.ov-card[data-tool="trims"] { --tc: var(--c-trim); }
+.ov-card:hover, .ov-card:focus-visible {
+  transform: translateY(-5px); border-color: var(--tc);
+  box-shadow: var(--shadow), 0 18px 40px -16px color-mix(in srgb, var(--tc) 65%, transparent);
+}
+.ov-card:focus-visible { outline: 2px solid var(--tc); outline-offset: 3px; }
+.ov-card:active { transform: translateY(-1px); }
+
+/* pedestal: pixel grid + coloured glow, the texture floats above it */
+.ov-art {
+  position: relative; display: grid; place-items: center; height: 150px; overflow: hidden;
+  background:
+    radial-gradient(60% 80% at 50% 100%, color-mix(in srgb, var(--tc) 38%, transparent), transparent 75%),
+    linear-gradient(var(--grid-line) 1px, transparent 1px) 0 0 / 16px 16px,
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px) 0 0 / 16px 16px,
+    color-mix(in srgb, var(--tc) 8%, var(--bg-2));
+  border-bottom: 1px solid var(--line);
+}
+.ov-art::after { content: ''; position: absolute; left: 50%; bottom: 20px; width: 84px; height: 12px; margin-left: -42px; border-radius: 50%; background: radial-gradient(closest-side, rgb(0 0 0 / .45), transparent); }
+.ov-icon { position: relative; z-index: 1; display: grid; filter: drop-shadow(0 6px 0 rgb(0 0 0 / .25)) drop-shadow(0 0 18px color-mix(in srgb, var(--tc) 55%, transparent)); animation: ov-float 4.5s ease-in-out infinite; animation-delay: calc(var(--i) * -1.3s); }
+.ov-icon .mc { margin-top: 0; }
+.ov-card:hover .ov-icon { animation-duration: 2.2s; }
+@keyframes ov-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-9px); } }
+
+.ov-body { flex: 1; display: flex; flex-direction: column; gap: 8px; padding: 18px 20px 6px; }
+.ov-kicker { display: flex; align-items: center; gap: 8px; font: 600 10.5px/1 var(--mono); letter-spacing: 1.5px; text-transform: uppercase; color: var(--tc); }
+.ov-soon { padding: 3px 6px; border-radius: 3px; background: var(--accent-soft); border: 1px solid color-mix(in srgb, var(--tc) 45%, transparent); letter-spacing: 1px; font-size: 9.5px; }
+.ov-body h3 { font: 400 22px/1.15 var(--display); }
+.ov-body p { margin: 0; color: var(--muted); text-wrap: pretty; }
+.ov-stat { margin-top: auto; padding-top: 10px; }
+.ov-stat-row { display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px; font-size: 12.5px; color: var(--muted); }
+.ov-stat-row b { font: 600 14px var(--mono); color: var(--tc); }
+.ov-stat .bar { height: 6px; }
+
+.ov-cta {
+  display: flex; align-items: center; justify-content: space-between; margin: 14px 20px 20px; padding: 11px 14px; border-radius: var(--radius);
+  font-weight: 700; background: var(--tc); color: var(--on-accent); border: 1px solid var(--accent-deep);
+  box-shadow: 0 3px 0 var(--accent-deep), 0 0 20px -8px var(--tc); transition: transform .12s, box-shadow .12s;
+}
+.ov-arrow { font: 400 16px var(--mono); transition: transform .25s cubic-bezier(.2, .8, .2, 1); }
+.ov-card:hover .ov-arrow { transform: translateX(5px); }
+.ov-card:active .ov-cta { transform: translateY(3px); box-shadow: 0 0 0 var(--accent-deep); }
+.ov-foot { text-align: center; margin: 28px 0 0; color: var(--faint); font-size: 12.5px; }
+
+/* second-level stagger: cards rise after the hero (only on the tab-change entrance) */
+.module-overview.enter .ov-card { animation: rise .6s cubic-bezier(.2, .8, .2, 1) both; animation-delay: calc(.2s + var(--i) * .11s); }
+.module-overview.enter > .ov-grid { animation: none; }
+
+@media (max-width: 900px) {
+  .ov-grid { grid-template-columns: minmax(0, 1fr); max-width: 520px; }
+  .ov-art { height: 120px; }
+}
+@media (max-width: 640px) {
+  .module-overview { padding-bottom: 70px; }
+  .ov-hero p { font-size: 14.5px; }
+  .ov-body { padding: 16px 16px 4px; }
+  .ov-cta { margin: 12px 16px 16px; }
+  .ov-body h3 { font-size: 19px; }
+}
+@media (prefers-reduced-motion: reduce) { .ov-icon { animation: none; } .ov-card:hover { transform: none; } }

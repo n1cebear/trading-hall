@@ -16,7 +16,10 @@
   --text: #ecebf0;
   --muted: #a4a3ae;
   --faint: #6b6a76;
-  --accent: #3ee08f;          /* emerald — the one dominant action colour */
+  /* per-feature colours (see [data-tool] block below); dark values */
+  --c-hall: #17dd62; --c-ench: #b07cff; --c-trim: #4aedd9; --c-home: #f5c04a;
+  --on-accent: #04140a; --mix-hi: #fff;
+  --accent: #17dd62;          /* default = Trading Hall emerald; [data-tool] swaps the whole family */
   --accent-2: #7af0b3;
   --accent-ink: #062014;      /* text on emerald */
   --accent-soft: #123526;
@@ -26,10 +29,10 @@
   --gold: #f5c04a;
   --enchant: #c48bff;         /* glint: ONLY for enchanted / perfect states */
   --enchant-soft: #2b1d44;
-  --select: #8b7bff;          /* selected / highlight: violet-indigo, distinct from the enchant glint */
-  --select-soft: #231f4a;
+  --select: #17dd62;          /* selected / highlight: follows the feature colour */
+  --select-soft: #123526;
   --danger: #ff6b6b;
-  --tier-perfect: #3ee08f;
+  --tier-perfect: #3ee08f;     /* data colour, never themed */
   --tier-great: #b7e34a;
   --tier-good: #f5c04a;
   --tier-meh: #ff6b6b;
@@ -58,6 +61,7 @@
     --edge-hi: rgb(255 255 255 / .6); --edge-lo: rgb(90 60 20 / .18);
     --shadow: 0 1px 0 var(--edge-hi) inset, 0 -2px 0 var(--edge-lo) inset, 0 8px 22px -14px rgb(70 45 10 / .45);
     --grid-line: rgb(90 60 20 / .045); --glow-a: rgb(38 71 184 / .10); --glow-b: rgb(18 134 79 / .10); --mob-op: .16;
+    --c-hall: #0b7a35; --c-ench: #7b3fc4; --c-trim: #0d7d76; --c-home: #8f5f0c; --on-accent: #fbf5e6; --mix-hi: #000;
     color-scheme: light;
   }
 }
@@ -71,7 +75,27 @@
   --edge-hi: rgb(255 255 255 / .6); --edge-lo: rgb(90 60 20 / .18);
   --shadow: 0 1px 0 var(--edge-hi) inset, 0 -2px 0 var(--edge-lo) inset, 0 8px 22px -14px rgb(70 45 10 / .45);
   --grid-line: rgb(90 60 20 / .045); --glow-a: rgb(38 71 184 / .10); --glow-b: rgb(18 134 79 / .10); --mob-op: .16;
+  --c-hall: #0b7a35; --c-ench: #7b3fc4; --c-trim: #0d7d76; --c-home: #8f5f0c; --on-accent: #fbf5e6; --mix-hi: #000;
   color-scheme: light;
+}
+
+/* ============ per-feature accent ============
+   app.js sets <html data-tool="hall|enchanting|trims|overview">. Only --c-* (per theme, above) differ;
+   the whole accent family is derived here so every primary button, check, switch, selected state, focus ring,
+   progress bar and nav marker follows the feature. Gold stays for prices; --tier-* stay data colours. */
+:root[data-tool="hall"] { --tc: var(--c-hall); }
+:root[data-tool="enchanting"] { --tc: var(--c-ench); }
+:root[data-tool="trims"] { --tc: var(--c-trim); }
+:root[data-tool="overview"] { --tc: var(--c-home); }
+:root[data-tool] {
+  --accent: var(--tc);
+  --accent-2: color-mix(in srgb, var(--tc) 72%, var(--mix-hi));
+  --accent-deep: color-mix(in srgb, var(--tc) 52%, #000);
+  --accent-ink: var(--on-accent);
+  --accent-soft: color-mix(in srgb, var(--tc) 20%, var(--panel));
+  --select: var(--tc);
+  --select-soft: color-mix(in srgb, var(--tc) 18%, var(--panel));
+  --glow-b: color-mix(in srgb, var(--tc) 13%, transparent);
 }
 
 /* ============ base ============ */
@@ -95,7 +119,7 @@ h1, h2, h3 { margin: 0; }
 .muted { color: var(--muted); }
 .faint { color: var(--faint); }
 .hidden { display: none !important; }
-:focus-visible { outline: 2px solid var(--lapis); outline-offset: 2px; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 ::selection { background: color-mix(in srgb, var(--select) 40%, transparent); }
 
 /* ============ atmosphere: grid + glows + rising pixel mob faces (built by app.js) ============ */
@@ -136,7 +160,9 @@ h1, h2, h3 { margin: 0; }
   -webkit-backdrop-filter: blur(12px) saturate(1.2); backdrop-filter: blur(12px) saturate(1.2);
   border-bottom: 1px solid var(--line);
 }
-.brand { display: flex; align-items: center; gap: 13px; flex-shrink: 0; padding-left: 4px; }
+.brand { display: flex; align-items: center; gap: 13px; flex-shrink: 0; padding: 2px 8px 2px 4px; margin-left: -4px; border-radius: var(--radius); color: inherit; text-decoration: none; transition: background .2s; }
+.brand:hover { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.brand:active .brand-glass { transform: translateY(1px); }
 .brand h1 { font: 400 17px/1.15 var(--display); letter-spacing: .5px; white-space: nowrap; }
 .brand h1 span { display: block; }
 .brand-sub { margin: 2px 0 0; font: 500 9.5px/1 var(--mono); color: var(--muted); letter-spacing: 1.5px; text-transform: uppercase; }
@@ -169,11 +195,21 @@ h1, h2, h3 { margin: 0; }
 }
 .nav-item::after {
   content: ''; position: absolute; left: 14px; right: 14px; bottom: -13px; height: 3px; border-radius: 3px 3px 0 0;
-  background: var(--select); transform: scaleX(0); transition: transform .25s cubic-bezier(.2, .8, .2, 1);
-  box-shadow: 0 0 12px var(--select);
+  background: var(--tc, var(--select)); transform: scaleX(0); transition: transform .25s cubic-bezier(.2, .8, .2, 1);
+  box-shadow: 0 0 12px var(--tc, var(--select));
 }
 .nav-item:hover { color: var(--text); background: var(--panel-2); }
-.nav-item.active { color: var(--text); background: color-mix(in srgb, var(--select-soft) 55%, transparent); }
+.nav-item.active { color: var(--text); background: color-mix(in srgb, var(--tc, var(--select)) 14%, transparent); }
+/* each tab wears its own feature colour (icon glow, badge, underline) regardless of the active tool */
+.nav-item[data-tool="hall"] { --tc: var(--c-hall); }
+.nav-item[data-tool="enchanting"] { --tc: var(--c-ench); }
+.nav-item[data-tool="trims"] { --tc: var(--c-trim); }
+.nav-item {
+  --accent: var(--tc); --accent-deep: color-mix(in srgb, var(--tc) 52%, #000); --accent-ink: var(--on-accent);
+  --accent-soft: color-mix(in srgb, var(--tc) 20%, var(--panel));
+}
+.nav-item .nav-icon { filter: drop-shadow(0 0 5px color-mix(in srgb, var(--tc) 0%, transparent)); transition: filter .25s; }
+.nav-item.active .nav-icon, .nav-item:hover .nav-icon { filter: drop-shadow(0 0 5px color-mix(in srgb, var(--tc) 70%, transparent)); }
 .nav-item.active::after { transform: scaleX(1); }
 .nav-icon { font-size: 15px; }
 .nav-badge { font: 600 10.5px/1 var(--mono); padding: 4px 6px; border-radius: 4px; background: var(--accent-soft); color: var(--accent); }
@@ -188,7 +224,7 @@ h1, h2, h3 { margin: 0; }
 }
 .nav-badge.is-progress.is-done { color: var(--accent-ink); border-color: var(--accent-deep); background: var(--accent); }
 .nav-badge.is-progress.is-done::before { display: none; }
-.nav-soon { font: 600 9.5px/1 var(--mono); text-transform: uppercase; letter-spacing: 1px; padding: 4px 6px; border-radius: 4px; background: var(--enchant-soft); color: var(--enchant); }
+.nav-soon { font: 600 9.5px/1 var(--mono); text-transform: uppercase; letter-spacing: 1px; padding: 4px 6px; border-radius: 4px; background: var(--accent-soft); color: var(--accent); }
 .icon-btn {
   width: 36px; height: 36px; border-radius: var(--radius); border: 1px solid var(--line);
   background: var(--panel); cursor: pointer; font-size: 16px; box-shadow: var(--shadow);
@@ -257,8 +293,8 @@ h1, h2, h3 { margin: 0; }
 .field::placeholder, .price input::placeholder { color: var(--faint); }
 .field:hover { border-color: var(--line-2); }
 .field:focus, .stepper:focus-within, .price:focus-within {
-  outline: none; border-color: var(--lapis);
-  box-shadow: var(--slot-shadow), 0 0 0 3px color-mix(in srgb, var(--lapis) 28%, transparent);
+  outline: none; border-color: var(--accent);
+  box-shadow: var(--slot-shadow), 0 0 0 3px color-mix(in srgb, var(--accent) 28%, transparent);
 }
 select.field {
   appearance: none; -webkit-appearance: none; padding-right: 30px; cursor: pointer;
@@ -307,7 +343,7 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; }
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 7 7' shape-rendering='crispEdges'%3E%3Cpath fill='%23062014' d='M6 1h1v1H6zM5 2h1v1H5zM4 3h1v1H4zM3 4h1v1H3zM2 5h1v1H2zM1 4h1v1H1zM0 3h1v1H0z'/%3E%3C/svg%3E");
   animation: pop .18s ease-out;
 }
-.check input:focus-visible + span { outline: 2px solid var(--lapis); outline-offset: 2px; }
+.check input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
 @keyframes pop { 50% { transform: scale(1.15); } }
 
 /* switch = lever: sunken track, raised block knob */
@@ -324,7 +360,7 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; }
 }
 .switch input:checked + span { background: color-mix(in srgb, var(--accent) 22%, var(--slot)); }
 .switch input:checked + span::after { transform: translateX(20px); background: var(--accent); box-shadow: inset 1px 1px 0 rgb(255 255 255 / .4), inset -2px -2px 0 var(--accent-deep), 0 0 10px var(--accent); }
-.switch input:focus-visible + span { outline: 2px solid var(--lapis); outline-offset: 2px; }
+.switch input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* slider = Minecraft options-menu slider */
 .slider { -webkit-appearance: none; appearance: none; width: 100%; height: 22px; background: transparent; cursor: pointer; }
@@ -339,7 +375,7 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; }
   background: var(--accent); box-shadow: inset 2px 2px 0 rgb(255 255 255 / .35), inset -2px -2px 0 var(--accent-deep);
 }
 .slider:focus-visible { outline: none; }
-.slider:focus-visible::-webkit-slider-thumb { outline: 2px solid var(--lapis); outline-offset: 2px; }
+.slider:focus-visible::-webkit-slider-thumb { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* level chips (I II III …) */
 .lvl-chips { display: inline-flex; gap: 3px; }
@@ -348,8 +384,8 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; }
   background: var(--slot); box-shadow: var(--slot-shadow); font: 600 11px var(--mono); color: var(--faint);
 }
 .lvl-chips button.on {
-  color: var(--enchant); border-color: var(--enchant); background: var(--enchant-soft);
-  box-shadow: inset 1px 1px 0 rgb(255 255 255 / .12), 0 0 10px -3px var(--enchant);
+  color: var(--accent); border-color: var(--accent); background: var(--accent-soft);
+  box-shadow: inset 1px 1px 0 rgb(255 255 255 / .12), 0 0 10px -3px var(--accent);
 }
 .x-btn { border: 0; background: transparent; color: var(--faint); cursor: pointer; width: 24px; height: 24px; border-radius: 3px; font-size: 13px; }
 .x-btn:hover { color: var(--danger); background: var(--panel-2); }

@@ -7,11 +7,13 @@ window.TH = window.TH || {};
  *   TH.app.register({
  *     id: 'trims', name: 'Armor Trims', icon: '◆',
  *     soon: false,                       // optional "coming soon" tag in nav
+ *     hidden: true,                      // optional: routable but not a nav tab (the overview landing)
  *     init(store) {},                    // optional: define state slice
  *     render(root, state) {},            // required: draw into root
  *     badge(state) { return '3' },       // optional: nav badge: string, or { done, total } -> progress pill
  *   });
  * and a <script> tag in index.html.
+ * <html data-tool="<module id>"> is set on every route; styles.css maps it to the feature accent colour.
  */
 TH.app = (function () {
   const { h } = TH.util;
@@ -21,8 +23,10 @@ TH.app = (function () {
   function register(mod) { modules.push(mod); }
 
   function route() {
-    const id = (location.hash || '').replace('#/', '') || modules[0].id;
-    current = modules.find((m) => m.id === id) || modules[0];
+    // no hash (fresh visit / logo) = the overview landing page; it is a module but not a nav tab
+    const id = (location.hash || '').replace('#/', '') || 'overview';
+    current = modules.find((m) => m.id === id) || modules.find((m) => m.id === 'overview') || modules[0];
+    window.scrollTo(0, 0);
     render();
   }
 
@@ -62,9 +66,10 @@ TH.app = (function () {
   function render() {
     const state = TH.store.get();
     const nav = document.getElementById('nav');
-    nav.replaceChildren(...modules.map((m) => {
+    document.documentElement.dataset.tool = current.id;
+    nav.replaceChildren(...modules.filter((m) => !m.hidden).map((m) => {
       const badge = m.badge && m.badge(state);
-      return h('a.nav-item' + (m === current ? '.active' : ''), { href: '#/' + m.id, 'aria-current': m === current ? 'page' : null },
+      return h('a.nav-item' + (m === current ? '.active' : ''), { href: '#/' + m.id, 'data-tool': m.id, 'aria-current': m === current ? 'page' : null },
         h('span.nav-icon', { 'aria-hidden': 'true' }, typeof m.icon === 'string' && m.icon.startsWith('mc:') ? TH.icon(m.icon.slice(3), { size: 18 }) : m.icon),
         h('span.nav-name', m.name),
         badgeEl(badge),

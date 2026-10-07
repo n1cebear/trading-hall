@@ -57,13 +57,13 @@ TH.data.trimMaterials = [
  * `pieces` limits which slots exist (turtle = helmet only).
  */
 TH.data.armorMaterials = [
-  { id: 'leather',   name: 'Leather',   tex: 'leather',      color: '#a0653f', dyeable: true },
+  { id: 'netherite', name: 'Netherite', tex: 'netherite',    color: '#4a4246', trimMat: 'netherite' },
+  { id: 'diamond',   name: 'Diamond',   tex: 'diamond',      color: '#4fd8d0', trimMat: 'diamond' },
+  { id: 'golden',    name: 'Golden',    tex: 'gold',         color: '#f5d33c', trimMat: 'gold' },
+  { id: 'iron',      name: 'Iron',      tex: 'iron',         color: '#d8d8d8', trimMat: 'iron' },
   { id: 'copper',    name: 'Copper',    tex: 'copper',       color: '#c06c4c', trimMat: 'copper' },
   { id: 'chainmail', name: 'Chainmail', tex: 'chainmail',    color: '#8c8c8c' },
-  { id: 'iron',      name: 'Iron',      tex: 'iron',         color: '#d8d8d8', trimMat: 'iron' },
-  { id: 'golden',    name: 'Golden',    tex: 'gold',         color: '#f5d33c', trimMat: 'gold' },
-  { id: 'diamond',   name: 'Diamond',   tex: 'diamond',      color: '#4fd8d0', trimMat: 'diamond' },
-  { id: 'netherite', name: 'Netherite', tex: 'netherite',    color: '#4a4246', trimMat: 'netherite' },
+  { id: 'leather',   name: 'Leather',   tex: 'leather',      color: '#a0653f', dyeable: true },
   { id: 'turtle',    name: 'Turtle Shell', tex: 'turtle_scute', color: '#47a03a', pieces: ['helmet'] }
 ];
 

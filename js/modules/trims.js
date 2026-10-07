@@ -111,7 +111,7 @@
     if (typeof sk.name !== 'string') sk.name = '';
     if (typeof sk.data !== 'string') sk.data = null;
     if ((sk.kind === 'file' || sk.kind === 'name') && !sk.data && sk.kind === 'file') sk.kind = 'steve';
-    sk.slim = sk.kind === 'alex' ? true : sk.kind === 'steve' ? false : !!sk.slim;
+    sk.slim = typeof sk.slim === 'boolean' ? sk.slim : sk.kind === 'alex'; // the user may override the arm model for any skin
     if (!Array.isArray(st.saved)) st.saved = [];
     st.saved = st.saved.filter((g) => g && g.outfit && typeof g.name === 'string');
     if (typeof st.saveName !== 'string') st.saveName = '';
@@ -728,14 +728,14 @@
     const o = st.outfit[p];
     const L = [{ t: armorName(p, o.armor), c: '#ffffff' }];
     if (o.pattern && o.material) {
-      const col = TRIMM[o.material].color;
+      const col = TRIMM[o.material].color; // the one place the game colours by trim material
       L.push({ t: 'Upgrade:', c: '#aaaaaa' }, { t: ' ' + patName(o.pattern), c: col }, { t: ' ' + matName(o.material), c: col });
     }
     return L;
   };
   const patternTipLines = (pat) => {
     const L = [{ t: templateTitle(), c: RARITY_COLOR[pat.rarity] || '#fff' }, { t: patName(pat.id), c: '#aaaaaa' }, { t: 'Found in: ' + pat.source, c: '#aaaaaa' },
-      { t: 'Duplicate: ' + D.templateCopyDiamonds + ' ' + itemName('diamond', 'Diamond') + ' + ' + blockName(pat), c: '#ffaa00' }];
+      { t: 'Duplicate: ' + D.templateCopyDiamonds + ' ' + itemName('diamond', 'Diamond') + ' + ' + blockName(pat), c: '#aaaaaa' }];
     return L;
   };
 
@@ -827,11 +827,11 @@
     /* ---- left: the four slots, the focused one reveals its armor choice ---- */
     const validArmor = D.armorMaterials.filter((m) => !m.pieces || m.pieces.includes(focus));
     const chooser = () => {
-      const mats = h('div.tr-armors', { role: 'radiogroup', 'aria-label': 'Armor material for the ' + PIECE_NAME[focus].toLowerCase() },
+      const mats = h('div.tr-armors', { style: '--n:' + validArmor.length, role: 'radiogroup', 'aria-label': 'Armor material for the ' + PIECE_NAME[focus].toLowerCase() },
         validArmor.map((m) => {
           const on = m.id === fo.armor;
           const b = h('button.tr-ico' + (on ? '.on' : ''), { type: 'button', role: 'radio', 'aria-checked': String(on), 'aria-label': armorName(focus, m.id), 'data-focus': 'tr-armor-' + m.id, onclick: () => setField('armor', m.id) },
-            TH.icon.item(focus, m.id, { size: 30 }));
+            TH.icon.item(focus, m.id, { size: 28 }));
           return withTip(b, [{ t: armorName(focus, m.id), c: '#ffffff' }]);
         }));
       const dyes = ARMOR[fo.armor].dyeable ? h('div.tr-dyes', { role: 'radiogroup', 'aria-label': 'Leather dye colour' },
@@ -843,9 +843,7 @@
         h('label.tr-dye.custom' + (fo.dye && !D.dyes.some((d) => d.color === fo.dye) ? '.on' : ''), { title: 'Custom colour' },
           h('span.sr', 'Custom dye colour'),
           h('input', { type: 'color', value: fo.dye || D.leatherDefault, onchange: (e) => setField('dye', e.target.value.toLowerCase()) }))) : null;
-      return h('div.tr-choose', { 'aria-label': 'Armor material' },
-        h('div.tr-choose-head', h('span', 'Armor material'), h('b', armorName(focus, fo.armor)), ARMOR[fo.armor].pieces ? h('em', 'helmet only') : null),
-        mats, dyes);
+      return h('div.tr-choose', { 'aria-label': 'Armor material' }, mats, dyes);
     };
     const stack = PIECES.map((p) => {
       const o = st.outfit[p], on = p === focus;
@@ -857,7 +855,7 @@
       },
       h('span.tr-slot-ico', icoPiece(p, o.armor, 32)),
       h('span.tr-slot-text', h('b', armorName(p, o.armor)), h('span', trimmed ? patShort(o.pattern) + ' · ' + matShort(o.material) : 'No trim')),
-      trimmed ? h('i.tr-sw', { style: { background: TRIMM[o.material].color }, title: matName(o.material) }) : null);
+      trimmed ? h('span.tr-sw', { title: matName(o.material) }, TH.icon.trimMaterial(TRIMM[o.material].item, { size: 16 })) : null);
       withTip(btn, () => pieceTipLines(st, p));
       const eye = h('button.tr-eye' + (o.show ? '.on' : ''), { type: 'button', 'aria-pressed': String(o.show), 'data-focus': 'tr-show-' + p,
         title: (o.show ? 'Hide ' : 'Show ') + PIECE_NAME[p].toLowerCase() + ' in the preview', 'aria-label': 'Show ' + PIECE_NAME[p] + ' in the preview',
@@ -868,6 +866,7 @@
     });
 
     const hud = h('section.panel.tr-card.tr-hud', { 'aria-label': 'Outfit' },
+      savedPanel(st),
       h('div.tr-card-head', h('h3', 'Outfit'), h('span.faint', 'Pick a piece')),
       h('div.tr-stack', stack),
       h('div.tr-applybar',
@@ -896,18 +895,14 @@
     }
     const goBtn = h('button.btn.small', { type: 'button', onclick: lookup }, 'Load');
     const file = h('input', { type: 'file', accept: 'image/png', class: 'sr', 'aria-label': 'Upload a skin PNG', tabindex: -1, onchange: () => { const f = file.files[0]; file.value = ''; if (f) takeFile(f); } });
-    const skinBox = h('section.panel.tr-card.tr-skin', { 'aria-label': 'Skin' },
-      h('div.tr-card-head', h('h3', 'Skin')),
-      h('div.seg.tr-seg', { role: 'radiogroup', 'aria-label': 'Skin' },
-        [['steve', 'Steve'], ['alex', 'Alex']].map(([k, n]) => h('button', { type: 'button', role: 'radio', 'aria-checked': String(sk.kind === k), class: sk.kind === k ? 'on' : '', onclick: () => upd((s) => { s.skin = { kind: k, name: '', data: null, slim: k === 'alex' }; }) }, n)),
-        h('button', { type: 'button', role: 'radio', 'aria-checked': String(sk.kind === 'name' || sk.kind === 'file'), class: sk.kind === 'name' || sk.kind === 'file' ? 'on' : '', onclick: () => nameInput.focus() }, sk.kind === 'file' ? 'Upload' : 'Player')),
+    const skinBtn = (k, n) => h('button', { type: 'button', role: 'radio', 'aria-checked': String(sk.kind === k), class: sk.kind === k ? 'on' : '', onclick: () => upd((s) => { s.skin = { kind: k, name: '', data: null, slim: k === 'alex' }; }) }, n);
+    const skinBox = h('section.panel.tr-skin', { 'aria-label': 'Skin' },
       h('div.tr-skin-row', nameInput, goBtn),
-      h('div.tr-skin-row',
-        h('button.btn.small', { type: 'button', onclick: () => file.click() }, 'Upload skin PNG'), file,
+      h('div.tr-skin-row.tr-skin-row2',
+        h('div.seg.tr-seg.tr-pick', { role: 'radiogroup', 'aria-label': 'Default skin' }, skinBtn('steve', 'Steve'), skinBtn('alex', 'Alex')),
+        h('button.btn.small', { type: 'button', title: sk.kind === 'file' ? 'Uploaded: ' + sk.name : 'Upload a skin PNG', onclick: () => file.click() }, 'Upload skin'), file,
         h('div.seg.tr-seg.tr-arms', { role: 'radiogroup', 'aria-label': 'Arm width' },
-          [[false, 'Classic'], [true, 'Slim']].map(([v, n]) => h('button', { type: 'button', role: 'radio', 'aria-checked': String(sk.slim === v), class: sk.slim === v ? 'on' : '', disabled: sk.kind === 'steve' || sk.kind === 'alex',
-            title: sk.kind === 'steve' || sk.kind === 'alex' ? 'Steve has classic arms, Alex slim arms' : 'Arm width', onclick: () => upd((s) => { s.skin.slim = v; }) }, n)))),
-      h('p.tr-note', sk.kind === 'name' ? 'Skin of ' + sk.name + '.' : sk.kind === 'file' ? 'Your uploaded skin.' : 'Type a username, upload a skin PNG, or drop one on the preview.'));
+          [[false, 'Classic'], [true, 'Slim']].map(([v, n]) => h('button', { type: 'button', role: 'radio', 'aria-checked': String(sk.slim === v), class: sk.slim === v ? 'on' : '', title: v ? 'Slim (3px) arms' : 'Classic (4px) arms', onclick: () => upd((s) => { s.skin.slim = v; }) }, n)))));
 
     /* ---- centre: viewer ---- */
     const autoBtn = h('button.tr-vbtn' + (V.auto ? '.on' : ''), { type: 'button', 'aria-pressed': String(V.auto), title: 'Slowly rotate', onclick: () => V.setAuto(!V.auto) }, h('span.tr-vico.rot'), h('span', 'Rotate'));
@@ -939,16 +934,16 @@
 
     /* ---- right: trim material row + pattern browser + slim materials bar ---- */
     const matOpts = D.trimMaterials.map((m, i) => ({
-      id: m.id, label: matName(m.id), name: mshort[i], focus: 'tr-trimmat-' + m.id, icon: TH.icon.trimMaterial(m.item, { size: 28 }),
-      tip: () => [{ t: matName(m.id), c: m.color }, { t: ingredientName(m), c: '#aaaaaa' }].concat(ARMOR[fo.armor].trimMat === m.id && m.darker ? [{ t: 'Darker shade on ' + ARMOR[fo.armor].name.toLowerCase() + ' armor', c: '#aaaaaa' }] : []),
+      id: m.id, label: matName(m.id), focus: 'tr-trimmat-' + m.id, icon: TH.icon.trimMaterial(m.item, { size: 26 }),
+      tip: () => [{ t: ingredientName(m), c: '#ffffff' }].concat(ARMOR[fo.armor].trimMat === m.id && m.darker ? [{ t: 'Darker shade on ' + ARMOR[fo.armor].name.toLowerCase() + ' armor', c: '#aaaaaa' }] : []),
     }));
     const browser = h('section.panel.tr-card.tr-browser', { 'aria-label': 'Trim browser' },
       h('div.tr-card-head',
         h('h3', 'Trim'),
-        h('span.tr-ctx', icoPiece(focus, fo.armor, 18), h('span', armorName(focus, fo.armor)), h('i.tr-dot.big', { style: { background: TRIMM[gm].color } }), h('span', matShort(gm)))),
+        h('span.tr-ctx', icoPiece(focus, fo.armor, 18), h('span', armorName(focus, fo.armor)), h('span.tr-ctx-mat', TH.icon.trimMaterial(TRIMM[gm].item, { size: 16 }), h('span', matShort(gm))))),
       h('div.tr-sub', 'Trim material'),
       tileRow(matOpts, gm, (id) => { markReveal('gallery'); setField('material', id); }, 'mats'),
-      h('div.tr-sub', 'Pattern', h('span.faint', 'thumbnails use the selected piece and material')),
+      h('div.tr-sub', 'Pattern'),
       h('div.tr-grid', { role: 'radiogroup', 'aria-label': 'Trim pattern for the ' + PIECE_NAME[focus].toLowerCase() },
         [{ id: null, name: 'No trim' }].concat(D.trimPatterns).map((p, i) => {
           const on = (fo.pattern || null) === p.id;
@@ -982,14 +977,12 @@
     sumKids.push(h('button.btn.small.tr-copy', { type: 'button', disabled: none, onclick: () => copyText(materialsText(st, M)) }, 'Copy list'));
     const mats = h('section.panel.tr-mats', { 'aria-label': 'Materials needed' }, sumKids);
 
-    const right = h('div.tr-right', browser, mats);
-    const saved = savedPanel(st);
+    const right = h('div.tr-right', browser);
 
     root.append(
-      h('div.page-head',
-        h('div', h('h2', 'Armor trims'),
-          h('p', 'Pick a piece, choose its armor, then scan every pattern in any trim material. The small bar lists the templates, duplication cost and trim materials you need.'))),
-      h('div.tr-layout', h('div.tr-col.a', hud, h('div.tr-skin-slot', skinBox)), h('div.tr-col.b', viewer, h('div.tr-saved-slot', saved)), right));
+      h('div.page-head.tr-head',
+        h('div.tr-title', h('h2', 'Armor trims'), h('p', 'Preview, compare and cost out armor trims.')), mats),
+      h('div.tr-layout', h('div.tr-col.a', hud), h('div.tr-col.b', viewer, skinBox), right));
 
     // after the new DOM is in the page: attach the persistent 3D canvas, push state into it, run entrances
     V.el.setAttribute('aria-label', '3D preview. ' + PIECES.filter((p) => st.outfit[p].show).map((p) => armorName(p, st.outfit[p].armor) + (st.outfit[p].pattern ? ' with ' + patName(st.outfit[p].pattern) : '')).join(', ') + '. Drag to rotate, scroll to zoom, double-click to reset.');
@@ -1029,7 +1022,7 @@
 
   /* ---- saved outfits ---- */
   function savedPanel(st) {
-    const input = h('input.field', { type: 'text', placeholder: 'Name this outfit', maxlength: 40, value: st.saveName, 'aria-label': 'Name for the saved outfit', 'data-focus': 'tr-save-name',
+    const input = h('input.field', { type: 'text', placeholder: 'Save outfit as…', maxlength: 40, value: st.saveName, 'aria-label': 'Name for the saved outfit', 'data-focus': 'tr-save-name',
       oninput: (e) => upd((s) => { s.saveName = e.target.value; }, { silent: true }),
       onkeydown: (e) => { if (e.key === 'Enter') { e.preventDefault(); save(); } } });
     function save() {
@@ -1049,27 +1042,23 @@
           oninput: (e) => upd((s) => { s.renameText = e.target.value; }, { silent: true }),
           onkeydown: (e) => { if (e.key === 'Enter') commit(); else if (e.key === 'Escape') upd((s) => { s.renaming = null; }); } });
         const commit = () => upd((s) => { const x = s.saved.find((y) => y.id === g.id); if (x) x.name = (s.renameText || '').trim() || x.name; s.renaming = null; });
-        return h('div.panel.tr-saved-card.editing', h('div.tr-rename', rn, h('button.btn.small.primary', { type: 'button', onclick: commit }, 'Save'), h('button.btn.small.ghost', { type: 'button', onclick: () => upd((s) => { s.renaming = null; }) }, 'Cancel')));
+        return h('div.tr-schip.editing', rn, h('button.btn.small.primary', { type: 'button', onclick: commit }, 'OK'), h('button.btn.small.ghost', { type: 'button', onclick: () => upd((s) => { s.renaming = null; }) }, '✕'));
       }
-      const icons = PIECES.map((p) => { const o = g.outfit[p] || {}; return o.show === false || !ARMOR[o.armor] ? h('span.tr-mini.off') : h('span.tr-mini', icoPiece(p, o.armor, 18), o.pattern && TRIMM[o.material] ? h('i.tr-dot', { style: { background: TRIMM[o.material].color } }) : null); });
-      return h('div.panel.tr-saved-card' + (active ? '.active' : ''),
-        h('button.tr-saved-main', { type: 'button', 'aria-pressed': String(active), title: 'Load ' + g.name, 'data-focus': 'tr-saved-' + g.id,
+      const trimmedN = PIECES.filter((p) => g.outfit[p] && g.outfit[p].show !== false && g.outfit[p].pattern).length;
+      return h('div.tr-schip' + (active ? '.active' : ''),
+        h('button.tr-saved-main', { type: 'button', 'aria-pressed': String(active), title: 'Load ' + g.name + ' (' + trimmedN + ' trimmed)', 'data-focus': 'tr-saved-' + g.id,
           onclick: () => { markReveal('gallery'); upd((s) => {
             const x = s.saved.find((y) => y.id === g.id); if (!x) return;
             PIECES.forEach((p) => { if (x.outfit[p]) s.outfit[p] = clonePiece(x.outfit[p]); });
             if (x.skin && x.skin.kind) s.skin = Object.assign({ name: '', data: null, slim: false }, x.skin);
             s.savedId = g.id;
-          }); toast('Loaded “' + g.name + '”'); } },
-        h('span.tr-saved-ico', icons),
-        h('span.tr-saved-text', h('b', g.name), h('span', PIECES.filter((p) => g.outfit[p] && g.outfit[p].show !== false && g.outfit[p].pattern).length + ' trimmed'))),
-        h('div.tr-saved-actions',
-          h('button.x-btn', { type: 'button', title: 'Rename', 'aria-label': 'Rename ' + g.name, onclick: () => upd((s) => { s.renaming = g.id; s.renameText = g.name; }) }, '✎'),
-          h('button.x-btn', { type: 'button', title: 'Delete', 'aria-label': 'Delete ' + g.name, onclick: () => { upd((s) => { s.saved = s.saved.filter((y) => y.id !== g.id); if (s.savedId === g.id) s.savedId = null; }); } }, '✕')));
+          }); toast('Loaded “' + g.name + '”'); } }, g.name),
+        h('button.x-btn', { type: 'button', title: 'Rename', 'aria-label': 'Rename ' + g.name, onclick: () => upd((s) => { s.renaming = g.id; s.renameText = g.name; }) }, '✎'),
+        h('button.x-btn', { type: 'button', title: 'Delete', 'aria-label': 'Delete ' + g.name, onclick: () => { upd((s) => { s.saved = s.saved.filter((y) => y.id !== g.id); if (s.savedId === g.id) s.savedId = null; }); } }, '✕'));
     });
-    return h('section.panel.tr-card.tr-saved', { 'aria-label': 'Saved outfits' },
-      h('div.tr-card-head', h('h3', 'Saved outfits'), h('span.faint', st.saved.length ? 'Click to load' : '')),
-      h('div.tr-save-row', input, h('button.btn.small.primary', { type: 'button', onclick: save }, 'Save')),
-      st.saved.length ? h('div.tr-saved-list', cards) : h('p.tr-note', 'Save the current outfit and skin to bring it back later.'));
+    return h('div.tr-saved', { role: 'group', 'aria-label': 'Saved outfits' },
+      h('div.tr-save-row', input, h('button.btn.small.primary', { type: 'button', title: 'Save the current outfit and skin', onclick: save }, 'Save')),
+      st.saved.length ? h('div.tr-saved-list', cards) : null);
   }
 
   /* ---- skin upload ---- */

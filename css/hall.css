@@ -272,7 +272,7 @@ button.hl-strip-main { cursor: pointer; }
 .hl-col:has(.hl-side.has-detail) .hl-cube { width: 72px; height: 76px; }
 
 /* ---- progress stats (right column, under the cube): square outline traced clockwise from top-left ---- */
-.hl-pstats { list-style: none; margin: 0; padding: 10px 0 0; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 6px; }
+.hl-pstats { list-style: none; margin: 0; padding: 10px 0 0; display: flex; flex-direction: column; gap: 6px; }
 .hl-pstat { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 12.5px; color: var(--muted); }
 .hl-pstat-lbl { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .hl-pstat b { font: 500 13px/1 var(--mono); color: var(--text); font-variant-numeric: tabular-nums; }

@@ -717,3 +717,11 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; }
 .btn:disabled:active, .icon-btn:disabled:active { transform: none; box-shadow: 0 2px 0 var(--edge-lo), 0 1px 0 var(--edge-hi) inset; }
 .btn.primary:disabled:active { box-shadow: 0 3px 0 var(--accent-deep), 0 0 20px -6px var(--accent); }
 .btn.ghost:disabled:active { box-shadow: none; }
+
+/* top nav centred on desktop: brand | nav | actions, side columns equal so the nav sits in the true centre */
+@media (min-width: 641px) {
+  .topbar { display: grid; grid-template-columns: minmax(max-content, 1fr) minmax(0, auto) minmax(max-content, 1fr); }
+  .topbar > .brand { justify-self: start; }
+  .topbar > .nav { justify-self: center; flex: none; max-width: 100%; min-width: 0; }
+  .topbar > .topbar-actions { justify-self: end; }
+}

@@ -254,7 +254,7 @@ TH.anvil = (function () {
   const MAX_USES = 6;
 
   const DEFAULTS = {
-    item: 'sword', material: 'diamond', existing: {}, uses: 0,
+    item: 'sword', material: 'diamond', existing: {}, uses: 0, own: false,
     selected: {}, loadout: null, gearId: null, gear: [], saveName: '', renaming: null, renameText: '',
     mode: 'single', planEditing: null, plan: [], planGot: {}, booksOwned: {}, renameCost: '', anvilName: '',
   };
@@ -548,49 +548,33 @@ TH.anvil = (function () {
     return { uses, text: `Penalty ${pen} → ${uses} anvil use${uses === 1 ? '' : 's'}` };
   }
 
-  function renderUsesHelper(s) {
+  /** Slim inline anvil-uses row (stepper + rename-cost helper); shown in "Already on it" mode or when something is on the item. */
+  function renderUsesRow(s) {
+    const pen = TH.anvil.penalty(s.uses);
     const out = h('span.ec-rc-out');
     const btn = h('button.btn.small', { type: 'button', hidden: true }, 'Use this');
     let cur = null;
     const update = (raw) => {
       cur = renameResult(raw);
-      out.textContent = cur.text;
+      out.textContent = raw ? cur.text : '';
       out.classList.toggle('ok', cur.uses != null);
       btn.hidden = cur.uses == null || cur.uses === st().uses;
     };
     btn.onclick = () => { if (cur && cur.uses != null) set((e) => { e.uses = clamp(cur.uses, 0, MAX_USES + 4); }); };
     update(s.renameCost);
-    return h('div.ec-uses-help',
-      h('p.ec-help', 'Prior work: each anvil job makes the next cost more (penalty 0, 1, 3, 7, 15 … = 2',
-        h('sup', 'uses'), ' − 1). Books carry their own.'),
-      h('div.ec-rc',
-        h('label.ec-rc-label', { for: 'ec-rename-cost' }, 'Unsure? Type any name in an anvil and enter the cost it shows:'),
-        h('div.ec-rc-row',
-          h('input.field', {
-            id: 'ec-rename-cost', type: 'number', min: 1, max: 99, inputmode: 'numeric', placeholder: 'rename cost', value: s.renameCost, 'data-focus': 'ec-rename-cost',
-            'aria-label': 'Rename cost shown in the anvil',
-            oninput: (ev) => { set((e) => { e.renameCost = ev.target.value; }, { silent: true }); update(ev.target.value); },
-          }),
-          h('span.ec-rc-eq', 'cost − 1 = penalty →'),
-          out, btn)));
-  }
-
-  /** Compact, collapsible anvil-uses row: only shown once something is marked "already on item". */
-  let usesOpen = false;
-  function renderUsesRow(s) {
-    const pen = TH.anvil.penalty(s.uses);
-    return h('details.ec-usesrow', { open: usesOpen, ontoggle: (ev) => { usesOpen = ev.target.open; } },
-      h('summary', h('span.ec-label', 'Anvil uses'),
-        h('b.ec-uses-n', s.uses),
-        h('span.faint', pen ? '+' + pen + ' lvl each job' : 'fresh item'),
-        h('span.ec-uses-edit', usesOpen ? 'hide' : 'edit')),
-      h('div.ec-uses-body',
-        h('div.ec-uses',
-          h('p.ec-help', 'Times through an anvil. Enchanting, repairing and renaming each count once.'),
-          h('div.ec-uses-ctl',
-            stepper(s.uses, { min: 0, max: Math.max(MAX_USES, s.uses), label: 'anvil uses', onChange: (v) => set((e) => { e.uses = v; }) }),
-            pen ? h('span.ec-pen' + (pen >= 15 ? '.warn' : ''), '+', h('b', pen), ' lvl each job') : null)),
-        renderUsesHelper(s)));
+    return h('div.ec-usesrow',
+      h('div.ec-ur-main',
+        h('span.ec-label', { title: 'Times through an anvil. Enchanting, repairing and renaming each count once. Penalty = 2^uses − 1.' }, 'Times through anvil'),
+        stepper(s.uses, { min: 0, max: Math.max(MAX_USES, s.uses), label: 'anvil uses', onChange: (v) => set((e) => { e.uses = v; }) }),
+        h('span.ec-pen' + (pen >= 15 ? '.warn' : ''), pen ? '+' + pen + ' lvl each job' : 'fresh item')),
+      h('div.ec-ur-rc',
+        h('label.ec-label', { for: 'ec-rename-cost', title: 'Type any name in an anvil and enter the cost it shows' }, 'Unsure? Rename cost'),
+        h('input.field', {
+          id: 'ec-rename-cost', type: 'number', min: 1, max: 99, inputmode: 'numeric', placeholder: 'cost', value: s.renameCost, 'data-focus': 'ec-rename-cost',
+          'aria-label': 'Rename cost shown in the anvil',
+          oninput: (ev) => { set((e) => { e.renameCost = ev.target.value; }, { silent: true }); update(ev.target.value); },
+        }),
+        out, btn));
   }
 
   /* ---------- 3. enchantments (strips) ---------- */
@@ -605,23 +589,7 @@ TH.anvil = (function () {
     const curses = list.filter((e) => e.category === 'curse');
     const normal = list.filter((e) => e.category !== 'curse');
 
-    /** Secondary "already on item" toggle (+ level select) on each strip. */
-    function ownControl(ench, has, exConf) {
-      const id = ench.id, nm = enchName(id);
-      const toggle = () => setExisting(id, has ? 0 : 1);
-      const swap = !has && exConf.length ? ' (replaces ' + exConf.map(enchName).join(', ') + ')' : '';
-      return h('div.ec-own' + (has ? '.on' : ''), { onclick: (ev) => ev.stopPropagation() },
-        has && ench.maxLevel > 1
-          ? h('select.field.ec-own-sel', {
-            'aria-label': nm + ' level already on item', 'data-focus': 'ec-ex-sel-' + id,
-            onchange: (ev) => setExisting(id, parseInt(ev.target.value, 10)),
-          }, Array.from({ length: ench.maxLevel }, (_, i) => h('option', { value: i + 1, selected: has === i + 1 }, lvl(i + 1))))
-          : null,
-        h('button.ec-own-btn', {
-          type: 'button', 'aria-pressed': String(!!has), 'data-focus': 'ec-ex-' + id,
-          title: has ? 'Not on the item after all' : 'Mark as already on the item' + swap, onclick: toggle,
-        }, has ? '✕ on item' : '+ on item'));
-    }
+    const own = !!s.own;
 
     function row(ench) {
       const id = ench.id;
@@ -631,22 +599,49 @@ TH.anvil = (function () {
       const maxed = has >= ench.maxLevel;
       const exConf = conflictList(id, exIds);
       const selConf = sel ? [] : conflictList(id, selIds);
-      const blocked = maxed || exConf.length > 0;
+      const blocked = !own && (maxed || exConf.length > 0);
       const level = sel || Math.max(ench.maxLevel, 1);
-      const status = !blocked ? hallStatus(offers, id, level) : null;
+      const status = !blocked && !own ? hallStatus(offers, id, level) : null;
       const inputId = 'ec-sel-' + id;
+      const onToggle = () => (own ? setExisting(id, has ? 0 : Math.max(ench.maxLevel, 1)) : toggleSelect(id));
 
       // second line: the reason it can't be picked, the swap it causes, or what it does
       let sub, subCls = '';
-      if (maxed) { sub = 'Already ' + lvlName(id, has) + ' on your item'; subCls = '.ok'; }
+      if (own) {
+        if (!has && exConf.length) { sub = 'Replaces ' + exConf.map(enchName).join(', ') + ' on the item'; subCls = '.warn'; }
+        else sub = ench.desc;
+      } else if (maxed) { sub = 'Already ' + lvlName(id, has) + ' on your item'; subCls = '.ok'; }
       else if (exConf.length) { sub = 'Can’t combine with ' + enchName(exConf[0]) + ' on your item'; subCls = '.bad'; }
       else if (selConf.length) { sub = 'Replaces ' + selConf.map(enchName).join(', '); subCls = '.warn'; }
       else sub = (sel && lo && lo.reasons[id]) || ench.desc;
 
-      return h('div.ec-ench' + (sel ? '.on' : '') + (has ? '.has' : '') + (blocked ? '.blocked' : '') + (selConf.length ? '.conflict' : ''),
+      const showChips = ench.maxLevel > 1 && (own || maxed || !blocked);
+      const chip = (l) => {
+        if (own) {
+          return h('button' + (has === l ? '.on.own' : ''), {
+            type: 'button', 'aria-pressed': String(has === l), 'aria-label': lvlName(id, l) + ' already on item', 'data-focus': `ec-lv-${id}-${l}`,
+            onclick: () => setExisting(id, has === l ? 0 : l),
+          }, lvl(l));
+        }
+        if (l <= has) {
+          return h('button.own' + (l === has ? '.top' : ''), {
+            type: 'button', disabled: true, 'aria-label': lvlName(id, l) + ' (on item)', 'data-focus': `ec-lv-${id}-${l}`,
+          }, lvl(l));
+        }
+        return h('button' + (sel === l ? '.on' : ''), {
+          type: 'button', 'aria-pressed': String(sel === l), 'aria-label': lvlName(id, l), 'data-focus': `ec-lv-${id}-${l}`,
+          onclick: () => (sel === l ? toggleSelect(id) : setSelectedLevel(id, l)),
+        }, lvl(l));
+      };
+      const stat = (has || (!own && sel))
+        ? h('span.ec-stat', has ? h('span.ec-stat-has', 'on item: ', h('b', lvl(has))) : null,
+          !own && sel ? h('span.ec-stat-want', has ? '→ ' : 'want: ', h('b', lvl(sel))) : null)
+        : null;
+
+      return h('div.ec-ench' + (!own && sel ? '.on' : '') + (has ? '.has' : '') + (own && has ? '.owned' : '') + (blocked ? '.blocked' : '') + (selConf.length ? '.conflict' : ''),
         h('label.check', h('input', {
-          type: 'checkbox', id: inputId, checked: !!sel, disabled: blocked, 'data-focus': inputId,
-          'aria-describedby': inputId + '-sub', onchange: () => toggleSelect(id),
+          type: 'checkbox', id: inputId, checked: own ? !!has : !!sel, disabled: blocked, 'data-focus': inputId,
+          'aria-describedby': inputId + '-sub', onchange: onToggle,
         }), h('span')),
         h('label.ec-ench-text', { for: inputId },
           h('span.ec-ench-name', h('span.ec-ench-title', nm),
@@ -654,29 +649,33 @@ TH.anvil = (function () {
             (it.anvilOnly || []).includes(id) ? h('span.pill.tier-good', { title: 'The enchanting table can’t put this on this item, but an anvil can' }, 'anvil only') : null),
           h('span.ec-ench-sub' + subCls, { id: inputId + '-sub', title: sub }, sub)),
         h('div.ec-ench-side',
-          ownControl(ench, has, exConf),
-          ench.maxLevel > 1 && !blocked
-            ? h('div.lvl-chips.ec-lv', { role: 'group', 'aria-label': nm + ' book level' },
-              Array.from({ length: ench.maxLevel }, (_, i) => i + 1).filter((l) => l > has).map((l) => h('button' + (sel === l ? '.on' : ''), {
-                type: 'button', 'aria-pressed': String(sel === l), 'aria-label': lvlName(id, l), 'data-focus': `ec-lv-${id}-${l}`,
-                onclick: () => (sel === l ? toggleSelect(id) : setSelectedLevel(id, l)),
-              }, lvl(l))))
+          h('div.ec-stat-slot', stat),
+          showChips
+            ? h('div.lvl-chips.ec-lv', { role: 'group', 'aria-label': nm + (own ? ' level already on item' : ' book level') },
+              Array.from({ length: ench.maxLevel }, (_, i) => chip(i + 1)))
             : h('div.lvl-chips.ec-lv.is-empty', { 'aria-hidden': 'true' }),
           h('div.ec-hall-slot', hallChip(status))));
     }
 
+    const ownSwitch = h('div.seg.ec-ownseg', { role: 'group', 'aria-label': 'Which enchantments are you setting' },
+      h('button' + (!own ? '.on' : ''), { type: 'button', 'aria-pressed': String(!own), 'data-focus': 'ec-own-want', onclick: () => set((e) => { e.own = false; }) }, 'I want'),
+      h('button' + (own ? '.on' : ''), { type: 'button', 'aria-pressed': String(own), 'data-focus': 'ec-own-has', onclick: () => set((e) => { e.own = true; }) },
+        'Already on it', exIds.length ? h('span.nav-badge.count', { 'aria-label': exIds.length + ' on the item' }, exIds.length) : null));
+
     return h('section.panel.ec-card',
       h('div.ec-card-head', h('h3', 'Enchantments'),
         selIds.length ? h('button.btn.ghost.small.ec-clear', { type: 'button', onclick: () => set((e) => { e.selected = {}; e.loadout = null; }) }, 'Clear') : null),
+      h('div.ec-ownbar', ownSwitch,
+        h('span.ec-ownhint', own ? 'Tap what the item already has' : 'Tap what you want to add')),
       h('div.ec-loadouts',
         h('span.ec-label', 'Presets'),
         h('div.ec-lo-list', it.loadouts.map((l) => h('button.btn.small.ec-lo' + (s.loadout === l.id ? '.on' : ''), {
           type: 'button', title: l.desc, 'aria-pressed': String(s.loadout === l.id), 'data-focus': 'ec-lo-' + l.id, onclick: () => applyLoadout(l),
         }, l.name, l.id === 'best' ? TH.util.reco() : null)))),
       lo ? h('p.ec-lo-desc', lo.desc) : null,
-      exIds.length ? renderUsesRow(s) : null,
-      h('div.ec-ench-list', normal.map(row)),
-      curses.length ? h('details.ec-curses', h('summary', 'Curses (' + curses.length + ')'), h('div.ec-ench-list', curses.map(row))) : null,
+      own || exIds.length ? renderUsesRow(s) : null,
+      h('div.ec-ench-list' + (own ? '.is-own' : ''), normal.map(row)),
+      curses.length ? h('details.ec-curses', h('summary', 'Curses (' + curses.length + ')'), h('div.ec-ench-list' + (own ? '.is-own' : ''), curses.map(row))) : null,
     );
   }
 
@@ -1346,6 +1345,7 @@ TH.anvil = (function () {
   function migrate(s) {
     if (!Array.isArray(s.gear)) s.gear = [];
     s.renaming = null;
+    s.own = !!s.own;
     if (typeof s.renameCost !== 'string') s.renameCost = '';
     if (typeof s.anvilName !== 'string') s.anvilName = '';
     s.uses = clamp(s.uses | 0, 0, MAX_USES + 4);

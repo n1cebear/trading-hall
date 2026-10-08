@@ -132,5 +132,58 @@ TH.util = (function () {
     } catch (e) { /* motion is a bonus */ }
   }
 
-  return { h, append, roman, clamp, uid, debounce, toast, emerald, stepper, ring, download, reveal };
+  /**
+   * App tooltip. TH.util.tooltip(target, content, opts) -> dispose().
+   * content: string | Node | array | () => any (function is re-evaluated on every show, so it can be live).
+   * Nodes can use .th-tooltip-title / .th-tooltip-sub / .th-tooltip-tag. opts: { delay: 250 }.
+   * One shared element; skips touch; hides on leave/blur/scroll/pointerdown. Removes a native title (moved to aria-label).
+   */
+  let tipEl = null, tipTimer = 0, tipOwner = null;
+  function tipHide() {
+    clearTimeout(tipTimer); tipOwner = null;
+    if (tipEl) tipEl.classList.remove('on');
+  }
+  function tipShow(target, content) {
+    let c = typeof content === 'function' ? content() : content;
+    if (c == null || c === '' || (Array.isArray(c) && !c.length)) return tipHide();
+    if (!tipEl) {
+      tipEl = h('div.th-tooltip', { role: 'tooltip' });
+      document.body.appendChild(tipEl);
+      ['scroll', 'resize', 'blur'].forEach((ev) => window.addEventListener(ev, tipHide, true));
+      document.addEventListener('pointerdown', tipHide, true);
+    }
+    tipOwner = target;
+    tipEl.textContent = '';
+    append(tipEl, [c]);
+    tipEl.classList.remove('below');
+    tipEl.style.left = '0px'; tipEl.style.top = '0px';
+    const r = target.getBoundingClientRect(), w = tipEl.offsetWidth, ht = tipEl.offsetHeight, vw = document.documentElement.clientWidth, vh = window.innerHeight, gap = 8;
+    let top = r.top - ht - gap, below = false;
+    if (top < 4 && r.bottom + gap + ht <= vh - 4) { top = r.bottom + gap; below = true; }
+    top = clamp(top, 4, Math.max(4, vh - ht - 4));
+    const left = clamp(r.left + r.width / 2 - w / 2, 4, Math.max(4, vw - w - 4));
+    tipEl.style.left = Math.round(left) + 'px'; tipEl.style.top = Math.round(top) + 'px';
+    tipEl.classList.toggle('below', below);
+    tipEl.classList.add('on');
+  }
+  function tooltip(target, content, opts) {
+    if (!target) return () => {};
+    const delay = (opts && opts.delay != null) ? opts.delay : 250;
+    const t = target.getAttribute('title');
+    if (t != null) { if (content == null) content = t; if (!target.hasAttribute('aria-label') && !target.textContent.trim()) target.setAttribute('aria-label', t); target.removeAttribute('title'); }
+    const enter = (e) => {
+      if (e.pointerType === 'touch') return;
+      clearTimeout(tipTimer);
+      tipTimer = setTimeout(() => tipShow(target, content), delay);
+    };
+    const leave = () => { if (tipOwner === target || !tipOwner) tipHide(); };
+    const focus = (e) => { if (target.matches(':focus-visible')) { clearTimeout(tipTimer); tipTimer = setTimeout(() => tipShow(target, content), delay); } };
+    target.addEventListener('pointerenter', enter);
+    target.addEventListener('pointerleave', leave);
+    target.addEventListener('focus', focus);
+    target.addEventListener('blur', leave);
+    return () => { target.removeEventListener('pointerenter', enter); target.removeEventListener('pointerleave', leave); target.removeEventListener('focus', focus); target.removeEventListener('blur', leave); leave(); };
+  }
+
+  return { h, append, roman, clamp, uid, debounce, toast, emerald, stepper, ring, download, reveal, tooltip };
 })();

@@ -74,10 +74,11 @@
     const count = h('span.bd-count');
     const chips = h('div.seg.bd-filter', { role: 'group', 'aria-label': 'Filter by progression' },
       [{ id: 'all', name: 'All', hint: 'Every planned build' }].concat(DIMS).map((d) => h('button', {
-        type: 'button', 'data-dim': d.id, title: d.hint, 'aria-pressed': d.id === dim,
+        type: 'button', 'data-dim': d.id, 'aria-pressed': d.id === dim,
         class: d.id === dim ? 'on' : null,
         onclick: () => { dim = d.id; apply(true); },
       }, d.name)));
+    chips.querySelectorAll('button').forEach((b, i) => TH.util.tooltip(b, ([{ hint: 'Every planned build' }].concat(DIMS))[i].hint));
 
     function apply(animate) {
       let n = 0;

@@ -44,7 +44,7 @@
       if (t.id === 'trims' && trimsOwned && TH.data && TH.data.trimPatterns) {
         st = stat({ badge: () => ({ done: trimsOwned, total: TH.data.trimPatterns.length }) }, state, t.unit);
       }
-      return h('a.ov-card', { href: '#/' + t.id, 'data-tool': t.id, style: { '--i': i } },
+      const card = h('a.ov-card', { href: '#/' + t.id, 'data-tool': t.id, style: { '--i': i } },
         h('div.ov-art', h('span.ov-icon', t.icon())),
         h('div.ov-body',
           h('div.ov-kicker', t.kicker, t.soon ? h('span.ov-soon', t.soonLabel || 'preview') : null),
@@ -52,6 +52,8 @@
           h('p', t.pitch),
           st),
         h('span.ov-cta', t.cta, h('span.ov-arrow', { 'aria-hidden': 'true' }, '→')));
+      TH.util.tooltip(card, () => h('span', h('span.th-tooltip-title', mod.name, t.soon ? h('span.th-tooltip-tag', t.soonLabel || 'preview') : null), h('span.th-tooltip-sub', t.kicker)));
+      return card;
     });
 
     root.append(

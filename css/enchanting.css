@@ -452,14 +452,6 @@
 
 /* ---------- 5. flow: progress, single enchant list, plan restyle ---------- */
 .ec-card-sub { font-size: 12px; color: var(--faint); min-width: 0; }
-.ec-progress { list-style: none; margin: 0 0 var(--ec-gap); padding: 0; display: flex; gap: 6px; }
-.ec-progress li { flex: 1 1 0; min-width: 0; display: flex; align-items: center; gap: 8px; padding: 7px 12px; border-radius: 4px; background: var(--panel-2); color: var(--faint); font-size: 13px; font-weight: 600; }
-.ec-pg-n { width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; flex-shrink: 0; font: 400 11px/1 var(--mono); background: var(--bg-2); color: var(--muted); }
-.ec-pg-t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ec-progress li.done { color: var(--muted); }
-.ec-progress li.done .ec-pg-n { color: var(--accent); }
-.ec-progress li.cur { color: var(--text); background: var(--ec-on-bg); }
-.ec-progress li.cur .ec-pg-n { background: var(--accent); color: var(--bg); }
 
 .ec-picker .ec-mat-line { margin-bottom: 18px; }
 .ec-group-name { margin-bottom: 8px; }
@@ -497,8 +489,7 @@
 .ec-act-foot { margin-top: 2px; }
 
 @media (max-width: 640px) {
-  .ec-progress li { padding: 6px 8px; gap: 6px; font-size: 12px; }
-  .ec-card-sub { display: none; }
+    .ec-card-sub { display: none; }
   .ec-ench-side .ec-own { width: auto; }
   .ec-step-cost { min-width: 0; }
 }

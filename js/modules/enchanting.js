@@ -1300,18 +1300,6 @@ TH.anvil = (function () {
     });
   }
 
-  /** Slim 1 Pick item · 2 Enchantments · 3 Plan indicator. */
-  function renderProgress(s) {
-    const plan = currentPlan(s);
-    const picked = Object.keys(s.selected).length > 0;
-    const planned = picked && !plan.error && usedBooks(plan).length > 0;
-    const done = [true, picked, planned];
-    const cur = done.indexOf(false) < 0 ? 2 : done.indexOf(false);
-    const steps = ['Pick item', 'Enchantments', 'Plan'];
-    return h('ol.ec-progress', { 'aria-label': 'Steps' }, steps.map((nm, i) => h('li' + (done[i] ? '.done' : '') + (i === cur ? '.cur' : ''), { 'aria-current': i === cur ? 'step' : null },
-      h('span.ec-pg-n', done[i] && i !== cur ? '✓' : i + 1), h('span.ec-pg-t', nm))));
-  }
-
   function render(root, state) {
     const s = state.enchanting;
     if (!itemById[s.item]) s.item = 'sword';
@@ -1328,12 +1316,12 @@ TH.anvil = (function () {
         renderModeSwitch(s)),
       planMode ? renderPlanView(state, s) : [
         renderGear(state),
-        renderProgress(s),
         h('div.ec-layout',
           h('div.ec-main', renderLinked(s), renderPicker(s), renderSelect(state, s)),
           h('div.ec-side', renderPreview(s), renderPlan(state, s))),
       ],
     ]);
+    root.querySelectorAll('[title]').forEach((el) => TH.util.tooltip(el)); // app tooltip instead of native title
     revealChanges(root, s);
   }
 

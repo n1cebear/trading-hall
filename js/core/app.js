@@ -36,7 +36,8 @@ TH.app = (function () {
     if (b == null || b === '' || b === false) return null;
     if (typeof b === 'object') {
       const total = Math.max(0, +b.total || 0), done = Math.min(total, Math.max(0, +b.done || 0));
-      const el = h('span.nav-badge.is-progress' + (total && done >= total ? '.is-done' : ''), { title: done + ' of ' + total + ' done' }, done + '/' + total);
+      const el = h('span.nav-badge.is-progress' + (total && done >= total ? '.is-done' : ''), done + '/' + total);
+      TH.util.tooltip(el, done + ' of ' + total + ' done');
       el.style.setProperty('--p', (total ? (done / total) * 100 : 0) + '%');
       return el;
     }
@@ -172,6 +173,13 @@ TH.app = (function () {
     document.querySelectorAll('#menu .mi').forEach((el) => el.replaceChildren(pixIcon(el.dataset.ico)));
     const tb = document.getElementById('themeBtn');
     tb.replaceChildren(pixIcon('sun'), pixIcon('moon'));
+    // one coherent app tooltip for the toolbar (text lives in data-tip; static titles are moved there)
+    ['brand', 'backupBtn', 'themeBtn', 'menuBtn', 'langBtn', 'lang'].forEach((id) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      if (el.title) { if (!el.dataset.tip) el.dataset.tip = el.title; el.removeAttribute('title'); }
+      if (id !== 'lang') TH.util.tooltip(el, () => el.dataset.tip);
+    });
     matchMedia('(prefers-color-scheme: dark)').addEventListener('change', syncThemeBtn);
   }
   function syncThemeBtn() {
@@ -179,7 +187,7 @@ TH.app = (function () {
     const dark = isDark();
     tb.dataset.mode = dark ? 'dark' : 'light';
     tb.setAttribute('aria-pressed', dark);
-    tb.title = dark ? 'Night mode (click for light)' : 'Day mode (click for dark)';
+    tb.dataset.tip = dark ? 'Night mode (click for light)' : 'Day mode (click for dark)';
   }
 
   function applyTheme() {
@@ -299,7 +307,7 @@ TH.app = (function () {
       const label = state === 'error' ? 'Could not save in this browser · click to back up'
         : state === 'pending' ? 'Saving… · click to back up'
         : 'All changes saved' + (last ? ' (' + last + ')' : '') + ' · click to back up';
-      btn.title = label;
+      btn.dataset.tip = label;
       btn.setAttribute('aria-label', label);
     };
     window.addEventListener('th:saved', () => {
@@ -355,7 +363,7 @@ TH.app = (function () {
     const paint = () => {
       const l = curLang();
       codeEl.textContent = langShort(l);
-      btn.title = 'Game names language: ' + label(l);
+      btn.dataset.tip = 'Game names language: ' + label(l);
       opts.forEach((o) => o.setAttribute('aria-selected', String(o.dataset.code === cur)));
     };
     let active = 0, typed = '', typedT;

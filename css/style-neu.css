@@ -544,7 +544,11 @@
 :root[data-style="soft"] .ec-ench.on { background: var(--ec-on-bg); box-shadow: var(--ec-on-bar); }
 :root[data-style="soft"] .ec-ench.blocked:not(.has):not(.on) { background: transparent; box-shadow: none; }
 :root[data-style="soft"] .ec-toggle .ec-count { border-color: transparent; }
-:root[data-style="soft"] .ec-own-btn { border-radius: var(--neu-r-xs); }
+:root[data-style="soft"] .lvl-chips.ec-lv button.own:disabled { background: var(--neu-flat); box-shadow: none; border-color: transparent; color: var(--muted); opacity: .8; }
+:root[data-style="soft"] .ec-ench-list.is-own .lvl-chips.ec-lv button.on { background: var(--neu-well); box-shadow: var(--neu-inset-xs); border-color: transparent; color: var(--text); }
+:root[data-style="soft"] .ec-ench.owned, :root[data-style="soft"] .ec-ench-list.is-own .ec-ench.has:not(.on) { background: var(--neu-ctl); }
+:root[data-style="soft"] .ec-ench-list.is-own .check input:checked + span { box-shadow: var(--neu-raised-xs); }
+:root[data-style="soft"] .ec-ownseg button { border-radius: 0; }
 :root[data-style="soft"] .ec-hall { border-radius: var(--neu-r-xs); }
 :root[data-style="soft"] .ec-sum { border-radius: var(--neu-r-md); background: var(--neu-flat); box-shadow: none; }
 :root[data-style="soft"] .ec-total { border-color: transparent; border-radius: var(--neu-r-md); background: var(--neu-flat); box-shadow: none; }
@@ -575,38 +579,36 @@
 /* Minecraft item tooltip preview stays Minecraft (in-game artefact) */
 
 /* ============ Trims ============ */
+/* segments: .panel (T1). Wells: .field + the 3D stage. Every clickable thing below is an individual T2 control sitting
+   directly on its segment (no group strips, no card per row): raised + pixel bevel; selected = pressed in, accent light. */
+:root[data-style="soft"] .module-trims { --tr-pad: var(--neu-pad); }
 :root[data-style="soft"] .module-trims .tr-head h2 { text-shadow: none; }
-/* viewer = T1 segment around a T-1 well (the 3D stage) */
-:root[data-style="soft"] .tr-viewer { padding: var(--neu-pad); gap: 12px; }
-:root[data-style="soft"] .tr-stage { border-radius: var(--neu-r-lg); box-shadow: var(--neu-inset-deep); overflow: hidden; }
+:root[data-style="soft"] .tr-stage { border: 0; border-radius: var(--neu-r-lg); box-shadow: var(--neu-inset-deep); }
+:root[data-style="soft"] .tr-stage[data-bg="studio"] { background: radial-gradient(ellipse 60% 40% at 50% 92%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 70%), var(--neu-well); }
 :root[data-style="soft"] .tr-drop { border-radius: var(--neu-r-lg); }
-/* viewer bar = segmented group (same as .toolbar) */
-:root[data-style="soft"] .tr-vbar { padding: 3px; gap: 2px; border-radius: 12px; background: var(--neu-carve); box-shadow: var(--neu-inset-sm); top: 14px; right: 14px; }
-:root[data-style="soft"] .tr-vbtn { border-color: transparent; background: var(--neu-ctl-sq); box-shadow: var(--neu-t2-grp); }
-:root[data-style="soft"] .tr-vbtn:hover { border-color: transparent; color: var(--text); }
-:root[data-style="soft"] .tr-vbtn:active:not(:disabled) { transform: none; box-shadow: var(--neu-inset-xs); }
-:root[data-style="soft"] .tr-vbtn.on { border-color: transparent; background: var(--neu-ctl-sq-on); color: var(--accent); box-shadow: var(--neu-sel-inset-xs); }
-:root[data-style="soft"] .tr-anim { border-color: transparent; border-radius: var(--neu-r-ctl); background: var(--neu-ctl); box-shadow: var(--neu-raised-xs); color: var(--muted); }
-:root[data-style="soft"] .tr-anim:hover { border-color: transparent; color: var(--text); }
-:root[data-style="soft"] .tr-anim.on { border-color: transparent; background: var(--neu-ctl-on); color: var(--accent); box-shadow: var(--neu-sel-inset-xs); }
-:root[data-style="soft"] .tr-slotwrap { border-radius: var(--neu-r-md); background: var(--neu-ctl); box-shadow: var(--neu-raised-xs); }
-:root[data-style="soft"] .tr-slotwrap:hover { background: var(--neu-ctl); box-shadow: var(--neu-raised-sm); }
-:root[data-style="soft"] .tr-slotwrap.on { background: var(--neu-ctl-on); box-shadow: var(--neu-sel-inset-sm); }
-:root[data-style="soft"] .tr-slot-main { border-radius: var(--neu-r-md); }
-:root[data-style="soft"] .tr-eye { border-radius: var(--neu-r-sm); }
-:root[data-style="soft"] .tr-ico, :root[data-style="soft"] .tr-tile { border-radius: var(--neu-r-ctl); background: var(--neu-ctl); box-shadow: var(--neu-raised-xs); }
-:root[data-style="soft"] .tr-ico:hover, :root[data-style="soft"] .tr-tile:hover { background: var(--neu-ctl); }
-:root[data-style="soft"] .tr-ico.on, :root[data-style="soft"] .tr-tile.on { background: var(--neu-ctl-on); box-shadow: var(--neu-sel-inset-xs); }
-:root[data-style="soft"] .tr-pat { border-radius: var(--neu-r-md); background: var(--neu-ctl); box-shadow: var(--neu-raised-xs); }
-:root[data-style="soft"] .tr-pat:hover { background: var(--neu-ctl); box-shadow: var(--neu-raised-sm); }
-:root[data-style="soft"] .tr-pat.on { background: var(--neu-ctl-on); box-shadow: var(--neu-sel-inset-sm); }
-:root[data-style="soft"] .tr-thumb { border-radius: var(--neu-r-sm); background: var(--neu-well); box-shadow: var(--neu-inset-xs); }
-:root[data-style="soft"] .tr-dye { border-color: transparent; border-radius: var(--neu-r-sm); box-shadow: var(--neu-raised-xs), inset 0 0 0 1px rgb(0 0 0 / .12); }
-:root[data-style="soft"] .tr-dot { border-radius: 3px; }
-:root[data-style="soft"] .tr-mrow { border-radius: var(--neu-r-sm); background: var(--neu-flat); }
-:root[data-style="soft"] .tr-schip { border-radius: var(--neu-r-sm); background: var(--neu-ctl); box-shadow: var(--neu-raised-xs); }
-:root[data-style="soft"] .tr-schip.active { background: var(--neu-ctl-on); box-shadow: var(--neu-sel-inset-xs); }
-:root[data-style="soft"] .tr-schip.editing { box-shadow: none; background: transparent; }
+:root[data-style="soft"] :is(.tr-vbtn, .tr-anim, .tr-ico, .tr-tile, .tr-pt, .tr-schip) {
+  border-color: transparent; border-radius: var(--neu-r-ctl); background: var(--neu-ctl); box-shadow: var(--neu-raised-xs); color: var(--muted);
+}
+:root[data-style="soft"] .tr-pt { border-radius: var(--neu-r-tile); box-shadow: var(--neu-t2); }
+:root[data-style="soft"] :is(.tr-vbtn, .tr-anim, .tr-ico, .tr-tile, .tr-pt):hover:not(.on) { border-color: transparent; background: var(--neu-ctl); color: var(--text); box-shadow: var(--neu-t2); }
+:root[data-style="soft"] .tr-pt:hover:not(.on) { box-shadow: var(--neu-t2-hover); }
+:root[data-style="soft"] :is(.tr-vbtn, .tr-anim, .tr-ico, .tr-tile, .tr-pt).on, :root[data-style="soft"] .tr-schip.active {
+  border-color: transparent; background: var(--neu-ctl-on); color: var(--accent); box-shadow: var(--neu-sel-inset-xs); transform: none;
+}
+:root[data-style="soft"] .tr-pt.on { box-shadow: var(--neu-sel-inset-sm); }
+:root[data-style="soft"] .tr-schip.active { color: var(--text); }
+:root[data-style="soft"] .tr-eye { border-radius: var(--neu-r-ctl); }
+:root[data-style="soft"] .tr-eye:hover { background: transparent; box-shadow: var(--neu-raised-xs); }
+:root[data-style="soft"] .tr-pr { border-radius: var(--neu-r-tile); }
+:root[data-style="soft"] .tr-pr:hover { background: var(--neu-flat); }
+:root[data-style="soft"] .tr-dye { border-color: transparent; border-radius: var(--neu-r-xs); box-shadow: var(--neu-raised-xs), inset 0 0 0 1px rgb(0 0 0 / .14); }
+:root[data-style="soft"] .tr-dye.on { box-shadow: inset 2px 2px 4px rgb(0 0 0 / .45), inset -1px -1px 2px rgb(255 255 255 / .3); }
+:root[data-style="soft"] .tr-pop { border-color: var(--neu-edge); border-radius: var(--neu-r-lg); background: var(--neu-grad); box-shadow: 10px 12px 30px var(--neu-lo), -6px -6px 18px var(--neu-hi); }
+:root[data-style="soft"] .tr-pop:focus-visible { outline: none; filter: none; }
+:root[data-style="soft"] .tr-pop button { border-radius: var(--neu-r-sm); }
+:root[data-style="soft"] .tr-pop button:hover, :root[data-style="soft"] .tr-pop button:focus-visible { border-color: transparent; background: var(--neu-bg); box-shadow: var(--neu-inset-xs); }
+:root[data-style="soft"] .tr-bd-studio { border-radius: 3px; box-shadow: var(--neu-inset-xs); }
+:root[data-style="soft"] .tr-grid { scrollbar-color: color-mix(in srgb, var(--muted) 40%, var(--neu-bg)) transparent; }
 
 /* ============ Overview + Builds ============ */
 :root[data-style="soft"] .ov-eyebrow { border-color: transparent; border-radius: 99px; background: var(--neu-bg); box-shadow: var(--neu-inset-sm); }
@@ -628,7 +630,7 @@
 :root[data-style="soft"] .bd-filter button { min-height: 32px; }
 
 /* hover = stronger raised pair (distinct from the tinted inset used for selected) */
-:root[data-style="soft"] .ec-item:not(.on):not(.na):hover, :root[data-style="soft"] .hl-preset:not(.is-on):hover, :root[data-style="soft"] .tr-tile:not(.on):hover, :root[data-style="soft"] .tr-ico:not(.on):hover, :root[data-style="soft"] .hc-tile:not(.is-selected):not(.is-needed):hover { box-shadow: 6px 6px 14px var(--neu-lo), -5px -5px 12px var(--neu-hi); }
+:root[data-style="soft"] .ec-item:not(.on):not(.na):hover, :root[data-style="soft"] .hl-preset:not(.is-on):hover, :root[data-style="soft"] .hc-tile:not(.is-selected):not(.is-needed):hover { box-shadow: 6px 6px 14px var(--neu-lo), -5px -5px 12px var(--neu-hi); }
 :root[data-style="soft"] .hl-strip:not(.is-on):not(.hl-strip-ro):not([style]):hover { box-shadow: var(--neu-raised-sm); }
 
 /* ============ breathing space (soft only: layout is allowed to open up here) ============
@@ -679,8 +681,6 @@
 :root[data-style="soft"] .ov-grid { gap: clamp(20px, 2.2vw, 32px); }
 :root[data-style="soft"] .ov-hero { margin-bottom: clamp(32px, 5vw, 56px); }
 
-:root[data-style="soft"] .tr-slotwrap { border-radius: var(--neu-r-tile); }
-:root[data-style="soft"] .tr-pat, :root[data-style="soft"] .tr-tile { border-radius: var(--neu-r-tile); }
 :root[data-style="soft"] .tr-tiles { gap: 6px; }
 
 @media (max-width: 640px) {
@@ -722,33 +722,33 @@
 :root[data-style="soft"] .seg { padding: 3px; gap: 2px; border-radius: 12px; }
 :root[data-style="soft"] .seg > button { border-radius: 0; }
 :root[data-style="soft"] .seg > button.on, :root[data-style="soft"] .module-hall .seg > button.on, :root[data-style="soft"] .ec-mode > button.on { background: var(--neu-ctl-sq); box-shadow: var(--neu-t2-grp); color: var(--accent); }
-:root[data-style="soft"] :is(.seg, .hc-grp, .tr-vbar) > :first-child { border-radius: var(--neu-r-ctl) 0 0 var(--neu-r-ctl); }
-:root[data-style="soft"] :is(.seg, .hc-grp, .tr-vbar) > :last-child { border-radius: 0 var(--neu-r-ctl) var(--neu-r-ctl) 0; }
-:root[data-style="soft"] :is(.seg, .hc-grp, .tr-vbar) > :only-child { border-radius: var(--neu-r-ctl); }
-:root[data-style="soft"] :is(.hc-grp, .tr-vbar) > button { border-radius: 0; }
-:root[data-style="soft"] :is(.hc-grp, .tr-vbar) > button:first-child { border-radius: var(--neu-r-ctl) 0 0 var(--neu-r-ctl); }
-:root[data-style="soft"] :is(.hc-grp, .tr-vbar) > button:last-child { border-radius: 0 var(--neu-r-ctl) var(--neu-r-ctl) 0; }
-:root[data-style="soft"] :is(.hc-grp, .tr-vbar) > button:only-child { border-radius: var(--neu-r-ctl); }
+:root[data-style="soft"] :is(.seg, .hc-grp) > :first-child { border-radius: var(--neu-r-ctl) 0 0 var(--neu-r-ctl); }
+:root[data-style="soft"] :is(.seg, .hc-grp) > :last-child { border-radius: 0 var(--neu-r-ctl) var(--neu-r-ctl) 0; }
+:root[data-style="soft"] :is(.seg, .hc-grp) > :only-child { border-radius: var(--neu-r-ctl); }
+:root[data-style="soft"] .hc-grp > button { border-radius: 0; }
+:root[data-style="soft"] .hc-grp > button:first-child { border-radius: var(--neu-r-ctl) 0 0 var(--neu-r-ctl); }
+:root[data-style="soft"] .hc-grp > button:last-child { border-radius: 0 var(--neu-r-ctl) var(--neu-r-ctl) 0; }
+:root[data-style="soft"] .hc-grp > button:only-child { border-radius: var(--neu-r-ctl); }
 
 /* ============ TIER 2 radius pass: every control uses --neu-r-ctl, tiles/cards --neu-r-tile ============ */
 :root[data-style="soft"] :is(.lvl-chips button, .hl-quick-chip, .hl-badge, .hl-fchip, .hl-lock, .step, .swatch, .tr-schip, .ec-want, .ec-mat, .ec-lo, .hl-lockrow .btn, .x-btn) { border-radius: var(--neu-r-ctl); }
-:root[data-style="soft"] :is(.ec-tile, .tr-slotwrap, .hl-trade-item) { border-radius: var(--neu-r-tile); }
+:root[data-style="soft"] :is(.ec-tile, .hl-trade-item) { border-radius: var(--neu-r-tile); }
 
 /* ============ pressed state (soft): raised -> inset + 1px sink, for every button-like control ============
    light from the top-left: the pressed control throws its shadow inward from the top-left; selected / accent ones keep their
    colour in that shadow. Disabled and n/a never press. (:not(#_) lifts specificity over the :hover rules above.) */
 :root[data-style="soft"] :is(.btn, .icon-btn, .lang-btn, .tb-btn, .seg button, .step, .hc-btn, .x-btn, .foot-toggle, .brand, .lvl-chips button,
        .ec-item, .ec-tile, .ec-mat, .ec-lo, .ec-gear-main, .ec-own-btn, .ec-want, .hl-preset, .hl-quick-chip, .hl-badge, .hl-lock, .hl-fchip,
-       .tr-tile, .tr-ico, .tr-pat, .tr-schip, .tr-vbtn, .tr-cbtn, .tr-anim, .tr-sync, .tr-eye, .tr-slot-main, .menu button, .lang-opt, .hl-cb-opt, .swatch):active:not(:disabled):not(.na):not([aria-disabled="true"]):not(#_) { transform: translateY(1px); }
+       .tr-tile, .tr-ico, .tr-pt, .tr-schip, .tr-vbtn, .tr-cbtn, .tr-anim, .tr-sync, .tr-eye, .tr-pop button, .menu button, .lang-opt, .hl-cb-opt, .swatch):active:not(:disabled):not(.na):not([aria-disabled="true"]):not(#_) { transform: translateY(1px); }
 :root[data-style="soft"] :is(.btn:not(.primary), .icon-btn, .lang-btn, .tb-btn, .seg button, .step, .hc-btn, .x-btn, .foot-toggle, .lvl-chips button, .ec-mat, .ec-lo,
        .ec-gear-main, .ec-own-btn, .ec-want, .hl-quick-chip, .hl-badge, .hl-lock, .hl-fchip, .tr-tile, .tr-ico, .tr-schip, .tr-vbtn, .tr-cbtn, .tr-anim,
-       .tr-sync, .tr-eye, .tr-slot-main, .menu button, .lang-opt, .swatch):not(.on):not(.is-on):not(.active):not([aria-selected="true"]):active:not(:disabled):not(.na):not(#_) {
+       .tr-sync, .tr-eye, .tr-pop button, .menu button, .lang-opt, .swatch):not(.on):not(.is-on):not(.active):not([aria-selected="true"]):active:not(:disabled):not(.na):not(#_) {
   background: var(--neu-bg); box-shadow: var(--neu-pressed-xs); filter: none;
 }
-:root[data-style="soft"] :is(.ec-item, .tr-pat):not(.on):active:not(:disabled):not(.na):not(#_) { background: var(--neu-bg); box-shadow: var(--neu-pressed-sm); }
+:root[data-style="soft"] :is(.ec-item, .tr-pt):not(.on):active:not(:disabled):not(.na):not(#_) { background: var(--neu-bg); box-shadow: var(--neu-pressed-sm); }
 :root[data-style="soft"] .hl-preset:not(.is-on):active:not(:disabled):not(#_) { background: var(--neu-bg); box-shadow: var(--neu-inset-sm); }
 /* selected controls pressed again: the tinted shadow gets deeper */
-:root[data-style="soft"] :is(.seg button.on, .lvl-chips button.on, .ec-lo.on, .ec-item.on, .tr-ico.on, .tr-tile.on, .tr-pat.on, .tr-schip.active, .tr-vbtn.on, .hc-btn.on, .hl-quick-chip.on, .hl-preset.is-on, .hl-lock.is-on, .ec-mat.on):active:not(:disabled):not(#_) {
+:root[data-style="soft"] :is(.seg button.on, .lvl-chips button.on, .ec-lo.on, .ec-item.on, .tr-ico.on, .tr-tile.on, .tr-pt.on, .tr-anim.on, .tr-schip.active, .tr-vbtn.on, .hc-btn.on, .hl-quick-chip.on, .hl-preset.is-on, .hl-lock.is-on, .ec-mat.on):active:not(:disabled):not(#_) {
   box-shadow: inset 8px 8px 12px -3px var(--neu-sel-lo), inset -2px -2px 6px var(--neu-sel-hi);
 }
 :root[data-style="soft"] .btn.primary:active:not(:disabled):not(#_) { box-shadow: inset 4px 4px 9px color-mix(in srgb, var(--accent-deep) 88%, #000), inset -2px -2px 6px color-mix(in srgb, var(--accent) 60%, #fff); }

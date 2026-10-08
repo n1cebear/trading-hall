@@ -84,9 +84,17 @@
     v: 2, owned: {}, upgradeOwned: false, focus: 'chestplate', lastMaterial: 'quartz', sync: false,
     outfit: Object.fromEntries(PIECES.map((p) => [p, { armor: DEMO.armor, pattern: DEMO.pattern, material: DEMO.material, dye: null, show: true }])),
     skin: { kind: 'steve', name: '', data: null, slim: false },
-    saved: [], savedId: null, saveName: '', renaming: null, renameText: '',
+    saved: [], savedId: null, saveName: '', renaming: null, renameText: '', backdrop: 'studio',
   });
 
+  /* Preview backdrops: a CSS sky on the stage + (except studio) a small patch of real blocks under the player in 3D. */
+  const BACKDROPS = [
+    { id: 'studio', name: 'Studio' },
+    { id: 'plains', name: 'Plains', floor: 'block/grass_block_top', tint: '#91bd59', icon: 'block/grass_block_side' },
+    { id: 'nether', name: 'Nether', floor: 'block/netherrack', icon: 'block/netherrack' },
+    { id: 'end', name: 'The End', floor: 'block/end_stone', icon: 'block/end_stone' },
+    { id: 'deepdark', name: 'Deep Dark', floor: 'block/sculk', icon: 'block/sculk' },
+  ];
   const ANIMS = [['idle', 'Idle'], ['walk', 'Walk'], ['run', 'Run'], ['jump', 'Jump'], ['sneak', 'Sneak'], ['mine', 'Mine'], ['fight', 'Fight'], ['swim', 'Swim'], ['fly', 'Fly']];
 
   /** Fill every field with a valid value (safe to call on anything: old saves, imports, hand-edited backups). */
@@ -113,6 +121,7 @@
     st.elytra = !!st.elytra;
     st.glint = !!st.glint;
     if (!ANIMS.some((a) => a[0] === st.anim)) st.anim = 'idle';
+    if (!BACKDROPS.some((b) => b.id === st.backdrop)) st.backdrop = 'studio';
     const sk = st.skin && typeof st.skin === 'object' ? st.skin : (st.skin = {});
     if (!['steve', 'alex', 'name', 'file'].includes(sk.kind)) sk.kind = 'steve';
     if (typeof sk.name !== 'string') sk.name = '';
@@ -235,22 +244,58 @@
     return c;
   });
 
-  /** Flat front view of a piece (what the pattern gallery shows), cropped to its pixels. */
+  /* Flat front views for the pattern rows. Every piece is drawn into the same 16x32 "player front" space (head 4..12 x
+     0..8, torso 4..12 x 8..20, arms 0..4 / 12..16, legs 4..8 / 8..12 x 20..32), cut out with a FIXED crop box per piece
+     (from the armor layer UVs, wide enough for every material) and centred on one 16x16 square. All four pieces then share
+     one pixel scale, so a helmet is exactly as big next to a chestplate as it is on the player. */
+  const THUMB_UNITS = 16;
+  const CROP = { helmet: [4, 0, 8, 8], chestplate: [0, 8, 16, 12], leggings: [4, 15, 8, 14], boots: [4, 26, 8, 6] };
   function frontView(tex, piece) {
-    const c = mkCanvas(16, 24), x = c.getContext('2d');
+    const c = mkCanvas(16, 32), x = c.getContext('2d');
     const flip = (sx, sy, w, hh, dx, dy) => { x.save(); x.translate(dx + w, dy); x.scale(-1, 1); x.drawImage(tex, sx, sy, w, hh, 0, 0, w, hh); x.restore(); };
-    if (piece === 'helmet') x.drawImage(tex, 8, 8, 8, 8, 0, 0, 8, 8);
-    else if (piece === 'chestplate') { x.drawImage(tex, 44, 20, 4, 12, 0, 0, 4, 12); x.drawImage(tex, 20, 20, 8, 12, 4, 0, 8, 12); flip(44, 20, 4, 12, 12, 0); }
-    else if (piece === 'leggings') { x.drawImage(tex, 20, 20, 8, 12, 0, 0, 8, 12); x.drawImage(tex, 4, 20, 4, 12, 0, 12, 4, 12); flip(4, 20, 4, 12, 4, 12); }
-    else { x.drawImage(tex, 4, 20, 4, 12, 0, 0, 4, 12); flip(4, 20, 4, 12, 4, 0); }
-    const d = x.getImageData(0, 0, 16, 24).data;
-    let x0 = 99, y0 = 99, x1 = -1, y1 = -1;
-    for (let yy = 0; yy < 24; yy++) for (let xx = 0; xx < 16; xx++) if (d[(yy * 16 + xx) * 4 + 3] > 0) { x0 = Math.min(x0, xx); x1 = Math.max(x1, xx); y0 = Math.min(y0, yy); y1 = Math.max(y1, yy); }
-    if (x1 < 0) return c;
-    const out = mkCanvas(x1 - x0 + 1, y1 - y0 + 1);
-    out.getContext('2d').drawImage(c, x0, y0, out.width, out.height, 0, 0, out.width, out.height);
+    if (piece === 'helmet') x.drawImage(tex, 8, 8, 8, 8, 4, 0, 8, 8);
+    else if (piece === 'chestplate') { x.drawImage(tex, 44, 20, 4, 12, 0, 8, 4, 12); x.drawImage(tex, 20, 20, 8, 12, 4, 8, 8, 12); flip(44, 20, 4, 12, 12, 8); }
+    else if (piece === 'leggings') { x.drawImage(tex, 20, 20, 8, 12, 4, 8, 8, 12); x.drawImage(tex, 4, 20, 4, 12, 4, 20, 4, 12); flip(4, 20, 4, 12, 8, 20); }
+    else { x.drawImage(tex, 4, 20, 4, 12, 4, 20, 4, 12); flip(4, 20, 4, 12, 8, 20); }
+    const [cx, cy, cw, ch] = CROP[piece];
+    const out = mkCanvas(THUMB_UNITS, THUMB_UNITS);
+    out.getContext('2d').drawImage(c, cx, cy, cw, ch, (THUMB_UNITS - cw) >> 1, (THUMB_UNITS - ch) >> 1, cw, ch);
     return out;
   }
+  /* Inventory sprite of the worn piece (the big icon in the Armor rows): leather is dyed like the game does, and the
+     item trim overlay (trims/items/<piece>_trim) is palette-swapped in the trim material. */
+  const spriteCache = new Map();
+  const itemSprite = (piece, o) => memo(spriteCache, [piece, o.armor, o.armor === 'leather' ? o.dye || '' : '', o.pattern ? paletteName(o.armor, o.material) : ''].join('|'), async () => {
+    const id = armorItemId(piece, o.armor);
+    const base = await loadTex('item/' + id);
+    const c = mkCanvas(16, 16), x = ctxOf(c);
+    x.imageSmoothingEnabled = false;
+    x.drawImage(base, 0, 0, 16, 16, 0, 0, 16, 16);
+    if (ARMOR[o.armor].dyeable) {
+      const rgb = hex2rgb(o.dye || D.leatherDefault), im = x.getImageData(0, 0, 16, 16), d = im.data;
+      for (let i = 0; i < d.length; i += 4) { d[i] = d[i] * rgb[0] / 255; d[i + 1] = d[i + 1] * rgb[1] / 255; d[i + 2] = d[i + 2] * rgb[2] / 255; }
+      x.putImageData(im, 0, 0);
+      try { x.drawImage(await loadTex('item/' + id + '_overlay'), 0, 0, 16, 16, 0, 0, 16, 16); } catch (e) { /* overlay is a bonus */ }
+    }
+    if (o.pattern && o.material && o.armor !== 'turtle') {
+      try {
+        const [mask, key, colors] = await Promise.all([loadTex('trims/items/' + piece + '_trim'), palette('trim_palette'), palette(paletteName(o.armor, o.material))]);
+        const t = mkCanvas(16, 16), tx = ctxOf(t);
+        tx.drawImage(mask, 0, 0, 16, 16, 0, 0, 16, 16);
+        const im = tx.getImageData(0, 0, 16, 16), d = im.data;
+        for (let i = 0; i < d.length; i += 4) {
+          if (!d[i + 3]) continue;
+          let best = 0, bd = 1e9;
+          key.forEach((kc, n) => { const dd = Math.abs(kc[0] - d[i]); if (dd < bd) { bd = dd; best = n; } });
+          const col = colors[Math.min(best, colors.length - 1)];
+          d[i] = col[0]; d[i + 1] = col[1]; d[i + 2] = col[2];
+        }
+        tx.putImageData(im, 0, 0);
+        x.drawImage(t, 0, 0);
+      } catch (e) { /* the plain sprite is fine */ }
+    }
+    return c;
+  });
   const thumbCache = new Map();
   const thumb = (piece, o) => memo(thumbCache, pieceKey(piece, o), async () => frontView(await pieceTexture(piece, o), piece));
 
@@ -297,51 +342,106 @@
     const t = setTimeout(() => rej(new Error(what + ' timed out')), ms);
     p.then((v) => { clearTimeout(t); res(v); }, (e) => { clearTimeout(t); rej(e); });
   });
-  const getJson = async (url) => {
-    const r = await fetch(url, { mode: 'cors', headers: { Accept: 'application/json' } });
-    if (r.status === 404 || r.status === 204) { const e = new Error('not found'); e.notFound = true; throw e; }
-    if (!r.ok) throw new Error('HTTP ' + r.status);
-    return r.json();
+  /* Successful username lookups are cached in localStorage (name -> { uuid, model, data }) so repeated loads never hit the
+     rate-limited APIs again. Separate from the app state on purpose: it is a disposable cache, a few KB per skin, max 8. */
+  const SKIN_CACHE = 'th.trims.skins.v1', SKIN_TTL = 6 * 3600e3, SKIN_MAX = 8;
+  const skinCacheAll = () => { try { const o = JSON.parse(localStorage.getItem(SKIN_CACHE) || '{}'); return o && typeof o === 'object' ? o : {}; } catch (e) { return {}; } };
+  const skinCacheGet = (name) => { const e = skinCacheAll()[name.toLowerCase()]; return e && e.data && Date.now() - (e.t || 0) < SKIN_TTL ? e : null; };
+  function skinCachePut(name, entry) {
+    try {
+      const all = skinCacheAll();
+      all[name.toLowerCase()] = Object.assign({ t: Date.now() }, entry);
+      Object.keys(all).sort((x, y) => all[y].t - all[x].t).slice(SKIN_MAX).forEach((k) => { delete all[k]; });
+      localStorage.setItem(SKIN_CACHE, JSON.stringify(all));
+    } catch (e) { /* storage full / blocked: the cache is a bonus */ }
+  }
+  const notFoundErr = (name) => { const e = new Error('No Minecraft account named ' + name + '.'); e.notFound = true; return e; };
+  /** JSON from a URL regardless of the status code (playerdb answers unknown names with 400 + a JSON body). */
+  const anyJson = async (url, ms, what) => {
+    const r = await withTimeout(fetch(url, { mode: 'cors', headers: { Accept: 'application/json' } }), ms, what);
+    let j = null;
+    try { j = await r.json(); } catch (e) { /* not JSON */ }
+    return { status: r.status, j };
   };
+  /** The textures property of a Mojang profile (base64 JSON) -> { url, model }. */
+  function decodeTextures(props) {
+    try {
+      const pr = (props || []).find((x) => x && x.name === 'textures') || (props || [])[0];
+      if (!pr || !pr.value) return null;
+      const t = JSON.parse(atob(pr.value)), sk = t && t.textures && t.textures.SKIN;
+      if (!sk) return null;
+      return { url: sk.url || null, model: sk.metadata && sk.metadata.model === 'slim' ? 'slim' : 'classic' };
+    } catch (e) { return null; }
+  }
   /**
-   * Username -> skin, through a chain of CORS-friendly services (the first one that works wins):
-   *  a) ashcon.app    JSON with the skin PNG as base64 (+ the model flag)
-   *  b) playerdb.co   uuid, then crafatar.com/skins/<uuid> (image, CORS *); slim is detected from the pixels
-   *  c) mc-heads.net  and  d) minotar.net: plain skin images
-   * Images load with crossOrigin=anonymous so the canvas / WebGL stay untainted. Returns { canvas, slim, via }.
+   * Username -> skin. 1) playerdb.co: uuid + the profile's textures property (skin URL, `model: slim`).
+   * 2) the skin PNG by uuid from CORS-friendly mirrors: crafthead, crafatar, mc-heads, then textures.minecraft.net itself
+   *    (often no CORS), then minotar by name. 3) Only if all of that fails: ashcon.app (429 = Mojang rate limit, skipped
+   *    quietly), then name-based mirrors. Images load with crossOrigin=anonymous so the canvas / WebGL stay untainted.
+   * The arm model comes from the profile when known, otherwise from the pixels. Returns { canvas, slim, via, uuid }.
    */
   async function fetchNamedSkin(name) {
-    const n = encodeURIComponent(name), T = 8000;
-    const img = (url) => withTimeout(loadImg(url), T, url);
-    const services = [
-      ['ashcon', async () => {
-        const j = await withTimeout(getJson('https://api.ashcon.app/mojang/v2/user/' + n), T, 'ashcon');
-        const sk = j && j.textures && j.textures.skin;
-        if (!sk) throw new Error('no skin');
-        let im;
-        if (sk.data) im = await img('data:image/png;base64,' + sk.data);
-        else im = await img(sk.url);
-        const r = skinFromImage(im);
-        if (j.textures.slim != null) r.slim = !!j.textures.slim;
-        return r;
-      }],
-      ['playerdb', async () => {
-        const j = await withTimeout(getJson('https://playerdb.co/api/player/minecraft/' + n), T, 'playerdb');
-        const id = j && j.data && j.data.player && (j.data.player.raw_id || (j.data.player.id || '').replace(/-/g, ''));
-        if (!id) { const e = new Error('not found'); e.notFound = true; throw e; }
-        return skinFromImage(await img('https://crafatar.com/skins/' + id));
-      }],
-      ['mc-heads', async () => skinFromImage(await img('https://mc-heads.net/skin/' + n))],
-      ['minotar', async () => skinFromImage(await img('https://minotar.net/skin/' + n))],
-    ];
-    const failed = []; let notFound = 0;
-    for (const [id, run] of services) {
-      try { const r = await run(); r.via = id; return r; }
-      catch (e) { failed.push(id); if (e && e.notFound) notFound++; }
+    const cached = skinCacheGet(name);
+    if (cached) {
+      try {
+        const r = skinFromImage(await loadImg(cached.data));
+        if (cached.model) r.slim = cached.model === 'slim';
+        return Object.assign(r, { via: 'cache', uuid: cached.uuid });
+      } catch (e) { /* stale entry: look it up again */ }
     }
-    const err = new Error(notFound >= 2 ? 'No Minecraft account named ' + name + '.' : 'Could not load ' + name + '’s skin: ' + failed.join(', ') + ' all failed or are blocked. You can still upload the PNG.');
-    err.failed = failed;
-    throw err;
+    const n = encodeURIComponent(name), T = 7000;
+    const img = (url) => withTimeout(loadImg(url), T, url);
+    let uuid = null, model = null, texUrl = null;
+    try {
+      const { j } = await anyJson('https://playerdb.co/api/player/minecraft/' + n, T, 'playerdb');
+      const pl = j && j.data && j.data.player;
+      if (j && j.code === 'player.found' && pl) {
+        uuid = pl.raw_id || String(pl.id || '').replace(/-/g, '') || null;
+        texUrl = pl.skin_texture || null;
+        const tx = decodeTextures(pl.properties);
+        if (tx) { texUrl = tx.url || texUrl; model = tx.model; }
+      } else if (j && /invalid_username|not_found|notfound|unknown/i.test(String(j.code || ''))) throw notFoundErr(name);
+    } catch (e) { if (e && e.notFound) throw e; }
+    const https = (u) => String(u).replace(/^http:/, 'https:');
+    const finish = (r, via) => {
+      if (model) r.slim = model === 'slim';
+      r.via = via; r.uuid = uuid;
+      skinCachePut(name, { uuid, model: model || (r.slim ? 'slim' : 'classic'), data: r.canvas.toDataURL('image/png') });
+      return r;
+    };
+    const tryImages = async (list) => {
+      for (const [via, url] of list) {
+        try { return finish(skinFromImage(await img(url)), via); } catch (e) { /* next mirror */ }
+      }
+      return null;
+    };
+    let r = null;
+    if (uuid) {
+      const list = [['crafthead', 'https://crafthead.net/skin/' + uuid], ['crafatar', 'https://crafatar.com/skins/' + uuid], ['mc-heads', 'https://mc-heads.net/skin/' + uuid]];
+      if (texUrl) list.push(['mojang', https(texUrl)]);
+      list.push(['minotar', 'https://minotar.net/skin/' + n]);
+      r = await tryImages(list);
+      if (r) return r;
+    }
+    // late fallback: ashcon (a 429 here only means Mojang rate-limited it)
+    let ashconMissing = false;
+    try {
+      const { status, j } = await anyJson('https://api.ashcon.app/mojang/v2/user/' + n, T, 'ashcon');
+      if (status === 404) ashconMissing = true;
+      const sk = status === 200 && j && j.textures && j.textures.skin;
+      if (sk) {
+        if (!uuid && j.uuid) uuid = String(j.uuid).replace(/-/g, '');
+        if (!model && j.textures.slim != null) model = j.textures.slim ? 'slim' : 'classic';
+        r = await tryImages(sk.data ? [['ashcon', 'data:image/png;base64,' + sk.data]] : sk.url ? [['ashcon', https(sk.url)]] : []);
+        if (r) return r;
+      }
+    } catch (e) { /* quiet */ }
+    if (ashconMissing && !uuid) throw notFoundErr(name);
+    if (!uuid) {
+      r = await tryImages([['mc-heads', 'https://mc-heads.net/skin/' + n], ['minotar', 'https://minotar.net/skin/' + n], ['crafthead', 'https://crafthead.net/skin/' + n]]);
+      if (r) return r;
+    }
+    throw new Error('Could not load ' + name + '’s skin right now (the skin services did not answer). Try again later or upload the PNG.');
   }
 
   /** Cheap fingerprint of a data URL (length + a few sampled chars) so two uploads of the same size still differ. */
@@ -612,7 +712,12 @@
       });
       PIECES.forEach((p) => {
         const m = mat();
-        const meshes = armorParts[p].map((part) => { const mesh = bonedMesh(part, 64, 32, m); mesh.visible = false; return mesh; });
+        const meshes = armorParts[p].map((part) => {
+          const mesh = bonedMesh(part, 64, 32, m), [bx, by, bz, w, hh, d] = part.box, pv = PIV[part.bone];
+          mesh.visible = false;
+          mesh.userData.c = [bx + w / 2 - pv[0], by + hh / 2 - pv[1], bz + d / 2 - pv[2]];   // box centre in bone space (the pop scales around it)
+          return mesh;
+        });
         S.pieces[p] = { meshes, mat: m };
       });
       el.prepend(canvas);
@@ -665,6 +770,7 @@
       if (S.auto && !dragging && !S.goal) { S.yaw += 0.45 * dt; moving = true; }
       if (!(reduced() && S.anim === 'idle' && settled())) { stepAnim(dt); moving = true; }
       if (S.glintOn && S.glint && !reduced()) { tickGlint(); moving = true; }
+      if (tickFx(performance.now())) moving = true;
       if (moving || S.dirty) { resize(); place(); S.renderer.render(S.scene, S.camera); S.dirty = false; }
       if (moving || dragging) S.raf = requestAnimationFrame(frame); // keep S.last: wake() would zero it and freeze dt
     }
@@ -752,10 +858,33 @@
       S.skinMat.needsUpdate = true;
       S.dirty = true; wake();
     };
-    S.setPiece = (piece, canvas) => {
+    /* ---- change feedback: the piece that changed pops (scales ~6% around its own centre and settles) with a short
+       white shimmer, ~260ms. Several pieces at once cascade top to bottom. Skipped under reduced motion. ---- */
+    const FX_MS = 260;
+    S.fx = {};
+    function fxApply(pc, k, e) {
+      const set = (m) => { const c = m.userData.c; m.scale.setScalar(k); m.position.set(c[0] * (1 - k), c[1] * (1 - k), c[2] * (1 - k)); };
+      pc.meshes.forEach(set);
+      if (pc.gl) pc.gl.forEach(set);
+      pc.mat.emissive.setScalar(e);
+    }
+    function tickFx(now) {
+      let any = false;
+      PIECES.forEach((id) => {
+        const f = S.fx[id];
+        if (!f) return;
+        const t = (now - f) / FX_MS, pc = S.pieces[id];
+        if (t >= 1 || t < 0 || reduced()) { fxApply(pc, 1, 0); delete S.fx[id]; return; }
+        fxApply(pc, 1 + 0.075 * Math.sin(Math.PI * t) * (1 - t * 0.35), 0.42 * (1 - t) * (1 - t));
+        any = true;
+      });
+      return any;
+    }
+    S.setPiece = (piece, canvas, fx) => {
       if (!S.ready) return;
       S.appliedAt = performance.now();
       const p = S.pieces[piece];
+      if (fx && canvas && !reduced()) S.fx[piece] = performance.now();
       p.src = canvas || null;
       if (!canvas) { p.meshes.forEach((m) => { m.visible = false; }); }
       else {
@@ -797,7 +926,7 @@
         const pc = S.pieces[id];
         pc.gmats = texs.map((t) => new THREE.MeshBasicMaterial({ map: t, color: 0xb48cf0, transparent: true, blending: 2 /* AdditiveBlending */, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }));
         pc.gl = [];
-        pc.meshes.forEach((m) => pc.gmats.forEach((gm) => { const g = new THREE.Mesh(m.geometry, gm); g.renderOrder = 5; g.visible = false; m.parent.add(g); pc.gl.push(g); }));
+        pc.meshes.forEach((m) => pc.gmats.forEach((gm) => { const g = new THREE.Mesh(m.geometry, gm); g.renderOrder = 5; g.visible = false; g.userData.c = m.userData.c; g.scale.copy(m.scale); g.position.copy(m.position); m.parent.add(g); pc.gl.push(g); }));
       });
       S.glint = { texs };
       PIECES.forEach(applyGlint);
@@ -827,6 +956,40 @@
       S.elytraOn = !!on && !!S.wingMat.map;
       S.wings.l.visible = S.wings.r.visible = S.elytraOn;
       S.onElytra && S.onElytra(!!on);
+      S.dirty = true; wake();
+    };
+    /* ---- backdrop floor: a 5x5 patch of the backdrop's block under the player, faded out in pixel steps ---- */
+    const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5].map((v) => (v + 0.5) / 16);
+    function floorCanvas(img, tint) {
+      const N = 5, c = mkCanvas(16 * N, 16 * N), x = ctxOf(c);
+      for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) x.drawImage(img, 0, 0, 16, 16, i * 16, j * 16, 16, 16);
+      const im = x.getImageData(0, 0, c.width, c.height), d = im.data, rgb = tint ? hex2rgb(tint) : null, R = c.width / 2;
+      for (let yy = 0; yy < c.height; yy++) for (let xx = 0; xx < c.width; xx++) {
+        const i = (yy * c.width + xx) * 4, r = Math.hypot(xx + 0.5 - R, yy + 0.5 - R) / R;
+        if (rgb) { d[i] = d[i] * rgb[0] / 255; d[i + 1] = d[i + 1] * rgb[1] / 255; d[i + 2] = d[i + 2] * rgb[2] / 255; }
+        const keep = Math.min(1, Math.max(0, (0.94 - r) / 0.5));                     // 1 in the middle -> 0 at the rim
+        d[i + 3] = keep > BAYER[(yy & 3) * 4 + (xx & 3)] ? d[i + 3] : 0;              // ordered dither: the edge crumbles in pixels
+      }
+      x.putImageData(im, 0, 0);
+      return c;
+    }
+    S.setBackdrop = (img, tint) => {
+      if (!S.ready) return;
+      if (!img) { if (S.floor) S.floor.visible = false; S.dirty = true; wake(); return; }
+      if (!S.floor) {
+        const g = new THREE.BufferGeometry();   // a flat 80x80 quad at y = 0, facing up (the vendored three has no PlaneGeometry)
+        g.setAttribute('position', new THREE.Float32BufferAttribute([-40, 0, 40, 40, 0, 40, 40, 0, -40, -40, 0, -40], 3));
+        g.setAttribute('normal', new THREE.Float32BufferAttribute([0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0], 3));
+        g.setAttribute('uv', new THREE.Float32BufferAttribute([0, 0, 1, 0, 1, 1, 0, 1], 2));
+        g.setIndex([0, 1, 2, 0, 2, 3]);
+        S.floor = new THREE.Mesh(g, new THREE.MeshLambertMaterial({ alphaTest: 0.5 }));
+        S.floor.renderOrder = -2;
+        S.shadow.renderOrder = -1;
+        S.scene.add(S.floor);
+      }
+      const c = floorCanvas(img, tint), t = canvasTex(c);
+      if (S.floor.material.map && S.floor.material.map !== t) S.floor.material.map.dispose();
+      S.floor.material.map = t; S.floor.material.needsUpdate = true; S.floor.visible = true;
       S.dirty = true; wake();
     };
     S.shot = () => new Promise((res) => {
@@ -862,15 +1025,26 @@
         resolveSkin(st.skin).then((r) => { if (V.skinSig === skSig) V.setSkin(r.canvas, st.skin.slim); })
           .catch(() => { V.skinSig = ''; toast('Could not load that skin — showing Steve'); upd((s) => { s.skin = { kind: 'steve', name: '', data: null, slim: false }; }); });
       }
+      let order = 0;
       PIECES.forEach((p) => {
         const o = st.outfit[p], vis = o.show && !(p === 'chestplate' && st.elytra);   // an elytra replaces the chestplate (the chosen look is kept)
         const sig = vis ? pieceKey(p, o) : 'hidden';
         if (V.sig[p] === sig) return;
+        const first = V.sig[p] === undefined;   // first fill (page load / context restore): no pop
         V.sig[p] = sig;
         if (!vis) { V.setPiece(p, null); return; }
-        pieceTexture(p, o).then((c) => { if (V.sig[p] === sig) V.setPiece(p, c); })
-          .catch(() => { toast('Could not load the ' + armorName(p, o.armor) + ' texture'); });
+        const delay = first || reduced() ? 0 : 45 * order++;   // several pieces at once: a quick top-to-bottom cascade
+        pieceTexture(p, o).then((c) => {
+          const go = () => { if (V.sig[p] === sig) V.setPiece(p, c, !first); };
+          if (delay) setTimeout(go, delay); else go();
+        }).catch(() => { toast('Could not load the ' + armorName(p, o.armor) + ' texture'); });
       });
+      const bd = BACKDROPS.find((x) => x.id === st.backdrop) || BACKDROPS[0];
+      if (V.sig.bd !== bd.id) {
+        V.sig.bd = bd.id;
+        if (!bd.floor) V.setBackdrop(null);
+        else loadTex(bd.floor).then((img) => { if (V.sig.bd === bd.id) V.setBackdrop(img, bd.tint); }).catch(() => { V.setBackdrop(null); });
+      }
       const gl = !!st.glint;
       if (V.glintOn !== gl || (gl && !V.glint)) {
         if (!gl) V.setGlint(false);
@@ -938,34 +1112,15 @@
   }
 
   /* ======================================================================
-   * Minecraft-style tooltip
+   * Tooltips: the shared app tooltip (TH.util.tooltip). lines = [title, ...muted lines]
    * ====================================================================== */
-  let tipEl = null;
-  function tip() {
-    if (!tipEl) { tipEl = h('div.th-tooltip.tr-tip', { role: 'tooltip', 'aria-hidden': 'true' }); document.body.appendChild(tipEl); }
-    return tipEl;
-  }
-  function hideTip() { if (tipEl) tipEl.classList.remove('show'); }
-  /** lines: first = title, the rest = muted lines (strings). */
-  function showTip(lines, x, y) {
-    const t = tip();
-    t.replaceChildren(...lines.map((l, i) => i === 0 ? h('b.th-tooltip-title', l) : h('span.th-tooltip-sub', l)));
-    t.classList.add('show');
-    const r = t.getBoundingClientRect();
-    t.style.left = clamp(x + 14, 6, window.innerWidth - r.width - 6) + 'px';
-    t.style.top = clamp(y + 16, 6, window.innerHeight - r.height - 6) + 'px';
-  }
-  /** Attach a tooltip (lines built lazily) to hover and keyboard focus. */
   function withTip(el, lines) {
     const get = typeof lines === 'function' ? lines : () => lines;
-    el.addEventListener('pointerenter', (e) => { if (e.pointerType !== 'touch') showTip(get(), e.clientX, e.clientY); });
-    el.addEventListener('pointermove', (e) => { if (e.pointerType !== 'touch') showTip(get(), e.clientX, e.clientY); });
-    el.addEventListener('pointerleave', hideTip);
-    el.addEventListener('pointerdown', hideTip);
-    el.addEventListener('focus', () => { if (el.matches(':focus-visible')) { const r = el.getBoundingClientRect(); showTip(get(), r.left, r.bottom - 14); } });
-    el.addEventListener('blur', hideTip);
+    TH.util.tooltip(el, () => (get() || []).map((l, i) => h(i ? 'span.th-tooltip-sub' : 'span.th-tooltip-title', l)));
     return el;
   }
+  /** Native title= becomes the app tooltip (one coherent style). */
+  const tipTitles = (root) => root.querySelectorAll('[title]').forEach((el) => TH.util.tooltip(el));
 
   const pieceTipLines = (st, p) => {
     const o = st.outfit[p];
@@ -975,8 +1130,8 @@
     return L;
   };
   const rarityLabel = (r) => ({ common: 'Common', uncommon: 'Uncommon', rare: 'Rare', epic: 'Epic' })[r] || '';
-  const patternTipLines = (pat) => [patName(pat.id), templateTitle() + (pat.rarity ? ' · ' + rarityLabel(pat.rarity) : ''), 'Found in: ' + pat.source,
-    'Duplicate: ' + D.templateCopyDiamonds + ' ' + itemName('diamond', 'Diamond') + ' + ' + blockName(pat)];
+  const patternTipLines = (pat) => [patName(pat.id), templateTitle() + (pat.rarity ? ' · ' + rarityLabel(pat.rarity) : ''), 'Found in: ' + pat.source];
+  const dupTipLines = (pat) => ['Duplicate the template', '1 template + ' + D.templateCopyDiamonds + ' ' + itemName('diamond', 'Diamond') + ' + 1 ' + blockName(pat), '= 2 templates'];
 
   /* ======================================================================
    * UI
@@ -1004,24 +1159,63 @@
     if (TH.app.refreshBadges) TH.app.refreshBadges();
   }
 
-  const icoPiece = (piece, mat, size) => TH.icon.item(piece, mat, { size: size || 32 });
-  /** Native title= becomes the app tooltip (one coherent style). */
-  const tipTitles = (root) => root.querySelectorAll('[title]').forEach((el) => { const t = el.getAttribute('title'); el.removeAttribute('title'); if (t) withTip(el, [t]); });
   const sel = (b, on) => { b.classList.toggle('on', on); b.setAttribute('aria-checked', String(on)); };
+  const press = (b, on) => { b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); };
+  /** Segment heading: title on the left, at most one quiet action group on the right. */
+  const head = (title, ...right) => h('div.tr-card-head', h('h3', title), right.length ? h('div.tr-card-acts', right) : null);
+  /** 7x7 pixel glyphs (CSS masks, currentColor). */
+  const glyph = (n) => h('span.tr-vico.' + n, { 'aria-hidden': 'true' });
 
-  /** A row of icon picker tiles (trim material). Selection is patched through .sync(). */
-  function tileRow(items, onPick, cls) {
-    const btns = new Map();
-    const el = h('div.tr-tiles' + (cls ? '.' + cls : ''), { role: 'radiogroup', 'aria-label': 'Trim material' }, items.map((it) => {
-      const b = h('button.tr-tile', {
-        type: 'button', role: 'radio', 'aria-checked': 'false', 'aria-label': it.label, 'data-focus': it.focus,
-        onclick: () => onPick(it.id),
-      }, h('span.tr-tile-ico', it.icon));
-      btns.set(it.id, b);
-      return withTip(b, it.tip);
-    }));
-    el.sync = (selected) => btns.forEach((b, id) => sel(b, id === selected));
-    return el;
+  /** Paint a 16x16 sprite canvas into `cv` (sync when cached). */
+  function paintSprite(cv, piece, o) {
+    const key = [piece, o.armor, o.dye, o.pattern, o.material].join('|');
+    if (cv._key === key) return;
+    cv._key = key;
+    itemSprite(piece, o).then((src) => {
+      if (cv._key !== key) return;
+      const x = cv.getContext('2d');
+      x.clearRect(0, 0, cv.width, cv.height); x.imageSmoothingEnabled = false;
+      x.drawImage(src, 0, 0, cv.width, cv.height);
+      cv.classList.remove('err');
+    }).catch(() => { if (cv._key === key) cv.classList.add('err'); });
+  }
+
+  /** Small popover menu under `btn`. getItems() -> { items: [{ id, label, icon?, hint? }], current? }. */
+  function popMenu(btn, getItems, onPick, label) {
+    let pop = null;
+    const wrap = h('div.tr-popwrap', btn);
+    btn.setAttribute('aria-haspopup', 'menu'); btn.setAttribute('aria-expanded', 'false');
+    const outside = (e) => { if (!wrap.contains(e.target)) close(); };
+    function close(focus) {
+      if (!pop) return;
+      pop.remove(); pop = null;
+      btn.setAttribute('aria-expanded', 'false');
+      document.removeEventListener('pointerdown', outside, true);
+      if (focus) btn.focus();
+    }
+    function open(kbd) {
+      const { items, current } = getItems();
+      const radio = current !== undefined;
+      pop = h('div.tr-pop', { role: 'menu', 'aria-label': label, tabindex: -1,
+        onkeydown: (e) => {
+          const bs = [...pop.querySelectorAll('button')], i = bs.indexOf(document.activeElement);
+          if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); bs[(i + (e.key === 'ArrowDown' ? 1 : -1) + bs.length) % bs.length].focus(); }
+          else if (e.key === 'Home' || e.key === 'End') { e.preventDefault(); bs[e.key === 'Home' ? 0 : bs.length - 1].focus(); }
+          else if (e.key === 'Escape') { e.preventDefault(); close(true); }
+          else if (e.key === 'Tab') close();
+        } },
+      items.map((it) => h('button' + (radio && it.id === current ? '.on' : ''), {
+        type: 'button', role: radio ? 'menuitemradio' : 'menuitem', 'aria-checked': radio ? String(it.id === current) : null,
+        onclick: () => { close(true); onPick(it.id); },
+      }, it.icon ? h('span.tr-pop-ico', it.icon) : null, h('span.tr-pop-label', it.label), it.hint ? h('span.tr-pop-hint', it.hint) : null)));
+      wrap.append(pop);
+      btn.setAttribute('aria-expanded', 'true');
+      document.addEventListener('pointerdown', outside, true);
+      (kbd ? pop.querySelector('.on') || pop.querySelector('button') : pop).focus({ preventScroll: true });   // mouse: no focus ring on an item
+    }
+    btn.addEventListener('click', (e) => (pop ? close() : open(e.detail === 0)));   // detail 0 = keyboard (Enter / Space)
+    btn.addEventListener('keydown', (e) => { if (e.key === 'ArrowDown' && !pop) { e.preventDefault(); open(true); } });
+    return wrap;
   }
 
   /* ---- edits (always read the live state, so one set of handlers lives as long as the page) ---- */
@@ -1038,7 +1232,7 @@
     });
     if (c.sync && field === 'armor' && ARMOR[val].pieces) toast(ARMOR[val].name + ' only exists as a helmet — the other pieces kept their armor');
   }
-  /** Trim pattern on the given pieces (a row = all four, a thumbnail = one). */
+  /** Trim pattern on the given pieces (a row = all four, a piece preview = one). */
   function setPattern(id, pieces) {
     upd((s) => { pieces.forEach((p) => { const o = s.outfit[p]; o.pattern = id; if (id && !o.material) o.material = s.lastMaterial; }); });
   }
@@ -1046,18 +1240,51 @@
   function setTrimMat(id) {
     upd((s) => { PIECES.forEach((p) => { s.outfit[p].material = id; }); s.lastMaterial = id; });
   }
-  /** Random trim: `what` = 'pattern' | 'material' | 'both'. Same value on every piece, or (perPiece) an independent one per piece. */
-  const pick = (arr, not) => { const a = arr.length > 1 ? arr.filter((x) => x !== not) : arr; return a[Math.floor(Math.random() * a.length)]; };
-  function randomTrim(what, perPiece) {
-    const pats = D.trimPatterns.map((p) => p.id), mats = D.trimMaterials.map((m) => m.id);
+
+  /* ---- randomisers: every one of them always lands on a value that differs from the current one ---- */
+  /** Random element of arr, avoiding every value in `avoid` (falls back to avoiding fewer when nothing is left). */
+  const pick = (arr, avoid) => {
+    const not = [].concat(avoid == null ? [] : avoid);
+    let a = arr.filter((x) => !not.includes(x));
+    if (!a.length) a = arr.filter((x) => x !== not[0]);
+    if (!a.length) a = arr;
+    return a[Math.floor(Math.random() * a.length)];
+  };
+  const PAT_IDS = () => D.trimPatterns.map((p) => p.id);
+  const MAT_IDS = () => D.trimMaterials.map((m) => m.id);
+  /** Surprise me: armor material, trim pattern and trim material (leather gets a dye). Same look on every piece, or
+      (each = shift-click) an independent roll per piece. */
+  function surprise(each) {
     upd((s) => {
-      const one = { pat: pick(pats, s.outfit[s.focus].pattern), mat: pick(mats, s.outfit[s.focus].material) };
+      const armorsFor = (p) => D.armorMaterials.filter((a) => !a.pieces || a.pieces.includes(p)).map((a) => a.id);
+      const common = D.armorMaterials.filter((a) => !a.pieces).map((a) => a.id);
+      const dyes = D.dyes.map((d) => d.color);
+      const all = (k) => PIECES.map((p) => s.outfit[p][k]);
+      const one = { armor: pick(common, all('armor')), pat: pick(PAT_IDS(), all('pattern')), mat: pick(MAT_IDS(), all('material')) };
+      one.dye = pick(dyes, all('dye'));
       PIECES.forEach((p) => {
-        const o = s.outfit[p], pat = perPiece ? pick(pats, o.pattern) : one.pat, mat = perPiece ? pick(mats, o.material) : one.mat;
-        if (what !== 'material') { o.pattern = pat; if (!o.material) o.material = mat; }
-        if (what !== 'pattern' && o.pattern) o.material = mat;
+        const o = s.outfit[p];
+        o.armor = each ? pick(armorsFor(p), o.armor) : one.armor;
+        o.dye = o.armor === 'leather' ? (each ? pick(dyes, o.dye) : one.dye) : o.dye;
+        o.pattern = each ? pick(PAT_IDS(), o.pattern) : one.pat;
+        o.material = each ? pick(MAT_IDS(), o.material) : one.mat;
       });
-      if (what !== 'pattern') s.lastMaterial = perPiece ? s.outfit[s.focus].material || s.lastMaterial : one.mat;
+      s.lastMaterial = s.outfit[s.focus].material;
+    });
+  }
+  /** Pattern: one new pattern on every piece; the trim material and the armor stay. */
+  function randomPattern() {
+    upd((s) => {
+      const id = pick(PAT_IDS(), PIECES.map((p) => s.outfit[p].pattern));
+      PIECES.forEach((p) => { const o = s.outfit[p]; o.pattern = id; if (!o.material) o.material = s.lastMaterial; });
+    });
+  }
+  /** Material: one new trim material; the pattern(s) and the armor stay. */
+  function randomMaterial() {
+    upd((s) => {
+      const id = pick(MAT_IDS(), PIECES.map((p) => s.outfit[p].pattern ? s.outfit[p].material : null).filter(Boolean).concat(s.lastMaterial));
+      PIECES.forEach((p) => { if (s.outfit[p].pattern) s.outfit[p].material = id; });
+      s.lastMaterial = id;
     });
   }
 
@@ -1071,12 +1298,13 @@
   };
 
   let names = null;
-  const patShort = (id) => names.pat[D.trimPatterns.findIndex((x) => x.id === id)];
-  const matShort = (id) => names.mat[D.trimMaterials.findIndex((x) => x.id === id)];
 
-  /** One plain piece row: label, every armor material (selected one highlighted), eye toggle, dye colours for leather. */
+  /** One piece row: the worn item (big) over its name, every armor material (selected one pressed in), eye toggle, leather dyes. */
   function makeSlot(p) {
     const armorBtns = new Map();
+    const big = h('canvas.tr-big', { width: 16, height: 16 });
+    const id = h('div.tr-slot-id', big, h('b.tr-pname', PIECE_NAME[p]));
+    withTip(id, () => pieceTipLines(cur(), p));
     const mats = h('div.tr-armors', { role: 'radiogroup', 'aria-label': 'Armor material for the ' + PIECE_NAME[p].toLowerCase() },
       D.armorMaterials.filter((m) => !m.pieces || m.pieces.includes(p)).map((m) => {
         const b = h('button.tr-ico', { type: 'button', role: 'radio', 'aria-checked': 'false', 'aria-label': armorName(p, m.id), 'data-focus': 'tr-armor-' + p + '-' + m.id, onclick: () => setField('armor', m.id, p) },
@@ -1086,22 +1314,23 @@
       }));
     const eye = h('button.tr-eye', { type: 'button', 'data-focus': 'tr-show-' + p, 'aria-label': 'Show ' + PIECE_NAME[p] + ' in the preview',
       onclick: () => upd((s) => { s.outfit[p].show = !s.outfit[p].show; }) }, h('span.tr-eyeico'));
-    withTip(eye, () => { const c = cur(); return [p === 'chestplate' && c.elytra ? 'Hidden while the elytra is worn' : (c.outfit[p].show ? 'Hide ' : 'Show ') + PIECE_NAME[p].toLowerCase() + ' in the preview']; });
-    const el = h('div.tr-slotwrap', h('b.tr-pname', PIECE_NAME[p]), mats, eye);
+    withTip(eye, () => { const c = cur(); return [p === 'chestplate' && c.elytra ? 'Hidden while the elytra is worn' : (c.outfit[p].show ? 'Hide the ' : 'Show the ') + PIECE_NAME[p].toLowerCase() + ' in the preview']; });
+    const el = h('div.tr-slot', { 'data-piece': p }, id, mats, eye);
     let dyes = null, last = {};
     function setDyes(n) { if (dyes && n) dyes.replaceWith(n); else if (n) el.append(n); else if (dyes) dyes.remove(); dyes = n; }
     function update(st) {
       const o = st.outfit[p];
       el.classList.toggle('off', !o.show || (p === 'chestplate' && st.elytra));
       eye.classList.toggle('on', o.show); eye.setAttribute('aria-pressed', String(o.show));
-      if (last.armor !== o.armor) armorBtns.forEach((b, id) => sel(b, id === o.armor));
+      if (last.armor !== o.armor) armorBtns.forEach((b, mid) => sel(b, mid === o.armor));
+      paintSprite(big, p, o);
       const dyeKey = ARMOR[o.armor].dyeable ? 'd' + (o.dye || '') : '';
       if (last.dye !== dyeKey) {
         setDyes(ARMOR[o.armor].dyeable ? h('div.tr-dyes', { role: 'radiogroup', 'aria-label': 'Leather dye colour for the ' + PIECE_NAME[p].toLowerCase() },
-          h('button.tr-dye.none' + (!o.dye ? '.on' : ''), { type: 'button', role: 'radio', 'aria-checked': String(!o.dye), 'aria-label': 'Undyed leather', title: 'Undyed', onclick: () => setField('dye', null, p), style: { '--c': D.leatherDefault } }),
+          h('button.tr-dye.none' + (!o.dye ? '.on' : ''), { type: 'button', role: 'radio', 'aria-checked': String(!o.dye), 'aria-label': 'Undyed leather', title: 'Undyed', 'data-focus': 'tr-dye-' + p + '-none', onclick: () => setField('dye', null, p), style: '--c:' + D.leatherDefault }),
           D.dyes.map((d) => {
             const nm = itemName(d.id + '_dye', d.id.replace('_', ' ') + ' dye');
-            return h('button.tr-dye' + (o.dye === d.color ? '.on' : ''), { type: 'button', role: 'radio', 'aria-checked': String(o.dye === d.color), 'aria-label': nm, title: nm, onclick: () => setField('dye', d.color, p), style: { '--c': d.color } });
+            return h('button.tr-dye' + (o.dye === d.color ? '.on' : ''), { type: 'button', role: 'radio', 'aria-checked': String(o.dye === d.color), 'aria-label': nm, title: nm, 'data-focus': 'tr-dye-' + p + '-' + d.id, onclick: () => setField('dye', d.color, p), style: '--c:' + d.color });
           }),
           h('label.tr-dye.custom' + (o.dye && !D.dyes.some((d) => d.color === o.dye) ? '.on' : ''), { title: 'Custom colour' },
             h('span.sr', 'Custom dye colour'),
@@ -1120,7 +1349,7 @@
     async function lookup() {
       const name = nameInput.value.trim();
       if (!/^[A-Za-z0-9_]{1,16}$/.test(name)) { toast('Usernames are 1–16 letters, digits or _'); return; }
-      goBtn.disabled = true; goBtn.textContent = '…';
+      goBtn.disabled = true; goBtn.classList.add('busy'); goBtn.textContent = 'Loading…';
       try {
         const r = await fetchNamedSkin(name);
         upd((s) => { s.skin = { kind: 'name', name, data: r.canvas.toDataURL('image/png'), slim: r.slim }; });
@@ -1128,58 +1357,72 @@
       } catch (e) {
         toast(e && e.message ? e.message : 'Could not load the skin');
       } finally {
-        goBtn.disabled = false; goBtn.textContent = 'Load';   // the panel is only rebuilt when the skin identity changes, so always reset here
+        goBtn.disabled = false; goBtn.classList.remove('busy'); goBtn.textContent = 'Load';   // the panel is only rebuilt when the skin identity changes, so always reset here
       }
     }
-    const goBtn = h('button.btn.small', { type: 'button', onclick: lookup }, 'Load');
+    const goBtn = h('button.btn.small', { type: 'button', 'data-focus': 'tr-user-go', onclick: lookup }, 'Load');
     const file = h('input', { type: 'file', accept: 'image/png', class: 'sr', 'aria-label': 'Upload a skin PNG', tabindex: -1, onchange: () => { const f = file.files[0]; file.value = ''; if (f) takeFile(f); } });
-    const skinBtn = (k, n) => h('button', { type: 'button', role: 'radio', 'aria-checked': String(sk.kind === k), class: sk.kind === k ? 'on' : '', onclick: () => upd((s) => { s.skin = { kind: k, name: '', data: null, slim: k === 'alex' }; }) }, n);
+    const skinBtn = (k, n) => h('button', { type: 'button', role: 'radio', 'aria-checked': String(sk.kind === k), class: sk.kind === k ? 'on' : '', 'data-focus': 'tr-skin-' + k, onclick: () => upd((s) => { s.skin = { kind: k, name: '', data: null, slim: k === 'alex' }; }) }, n);
     const box = h('section.panel.tr-card.tr-skin', { 'aria-label': 'Skin' },
-      h('div.tr-card-head', h('h3', 'Skin')),
+      head('Skin'),
       h('div.tr-skin-row', nameInput, goBtn),
       h('div.tr-skin-row.tr-skin-row2',
         h('div.seg.tr-seg.tr-pick', { role: 'radiogroup', 'aria-label': 'Default skin' }, skinBtn('steve', 'Steve'), skinBtn('alex', 'Alex')),
-        h('button.btn.small', { type: 'button', title: sk.kind === 'file' ? 'Uploaded: ' + sk.name : 'Upload a skin PNG', onclick: () => file.click() }, 'Upload skin'), file,
+        h('button.btn.small', { type: 'button', 'data-focus': 'tr-upload', title: sk.kind === 'file' ? 'Uploaded: ' + sk.name : 'Upload a skin PNG (or drop it on the preview)', onclick: () => file.click() }, 'Upload'), file,
         h('div.seg.tr-seg.tr-arms', { role: 'radiogroup', 'aria-label': 'Arm width' },
-          [[false, 'Classic'], [true, 'Slim']].map(([v, n]) => h('button', { type: 'button', role: 'radio', 'aria-checked': String(sk.slim === v), class: sk.slim === v ? 'on' : '', title: v ? 'Slim (3px) arms' : 'Classic (4px) arms', onclick: () => upd((s) => { s.skin.slim = v; }) }, n)))));
+          [[false, 'Classic'], [true, 'Slim']].map(([v, n]) => h('button', { type: 'button', role: 'radio', 'aria-checked': String(sk.slim === v), class: sk.slim === v ? 'on' : '', 'data-focus': 'tr-arms-' + n, title: v ? 'Slim (3px) arms' : 'Classic (4px) arms', onclick: () => upd((s) => { s.skin.slim = v; }) }, n)))));
     tipTitles(box);
     return box;
   }
 
+  const bdIcon = (b) => (b.icon ? TH.icon(b.icon, { size: 16 }) : h('span.tr-bd-studio'));
   function buildViewer(st) {
-    /* shared control classes only: toggles live in a .seg group (button.on), actions are .btn.small, animations a .seg */
-    const ico = (n, label) => [h('span.tr-vico.' + n), h('span', label)];
-    const autoBtn = h('button' + (V.auto ? '.on' : ''), { type: 'button', 'aria-pressed': String(V.auto), title: 'Slowly rotate', onclick: () => V.setAuto(!V.auto) }, ico('rot', 'Rotate'));
-    V.onAuto = (on) => { autoBtn.classList.toggle('on', on); autoBtn.setAttribute('aria-pressed', String(on)); };
-    const animBtns = ANIMS.map(([id, label]) => h('button' + (V.anim === id ? '.on' : ''), { type: 'button', 'aria-pressed': String(V.anim === id), 'data-anim': id, 'data-focus': 'tr-anim-' + id, onclick: () => V.setAnim(id, { force: true }) }, label));
-    V.onAnim = (id) => animBtns.forEach((b) => { const on = b.dataset.anim === id; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
-    const elyBtn = h('button' + (st.elytra ? '.on' : ''), { type: 'button', 'aria-pressed': String(!!st.elytra), 'data-focus': 'tr-elytra', title: 'Wear an elytra instead of the chestplate', onclick: () => upd((s) => { s.elytra = !s.elytra; }) }, ico('wing', 'Elytra'));
-    V.onElytra = (on) => { elyBtn.classList.toggle('on', on); elyBtn.setAttribute('aria-pressed', String(on)); };
-    const glintBtn = h('button' + (st.glint ? '.on' : ''), { type: 'button', 'aria-pressed': String(!!st.glint), 'data-focus': 'tr-glint', title: 'Enchantment glint on the armor', onclick: () => upd((s) => { s.glint = !s.glint; }) }, ico('glint', 'Glint'));
-    V.onGlint = (on) => { glintBtn.classList.toggle('on', on); glintBtn.setAttribute('aria-pressed', String(on)); };
-    const stage = h('div.tr-stage');
-    const viewer = h('section.panel.tr-viewer', { 'aria-label': '3D preview' },
+    /* one row of individual raised controls aligned to the stage edges: toggles left, view actions right */
+    const vbtn = (icon, label, attrs) => h('button.tr-vbtn' + (label ? '' : '.sq'), Object.assign({ type: 'button' }, attrs), glyph(icon), label ? h('span.tr-vlabel', label) : null);
+    const autoBtn = vbtn('rot', 'Rotate', { 'aria-pressed': String(V.auto), 'data-focus': 'tr-rotate', title: 'Slowly rotate', onclick: () => V.setAuto(!V.auto) });
+    V.onAuto = (on) => press(autoBtn, on);
+    const elyBtn = vbtn('wing', 'Elytra', { 'aria-pressed': String(!!st.elytra), 'data-focus': 'tr-elytra', title: 'Wear an elytra instead of the chestplate', onclick: () => upd((s) => { s.elytra = !s.elytra; }) });
+    V.onElytra = (on) => press(elyBtn, on);
+    const glintBtn = vbtn('glint', 'Glint', { 'aria-pressed': String(!!st.glint), 'data-focus': 'tr-glint', title: 'Enchantment glint on the armor', onclick: () => upd((s) => { s.glint = !s.glint; }) });
+    V.onGlint = (on) => press(glintBtn, on);
+    press(autoBtn, V.auto); press(elyBtn, !!st.elytra); press(glintBtn, !!st.glint);
+    const bdIco = h('span.tr-bd-cur');
+    const bgBtn = h('button.tr-vbtn.tr-bgbtn', { type: 'button', 'data-focus': 'tr-backdrop', 'aria-label': 'Backdrop' }, bdIco, h('span.tr-chev', { 'aria-hidden': 'true' }));
+    withTip(bgBtn, () => ['Backdrop', (BACKDROPS.find((b) => b.id === cur().backdrop) || BACKDROPS[0]).name]);
+    const bgMenu = popMenu(bgBtn, () => ({ current: cur().backdrop, items: BACKDROPS.map((b) => ({ id: b.id, label: b.name, icon: bdIcon(b) })) }), (id) => upd((s) => { s.backdrop = id; }), 'Backdrop');
+    const resetBtn = vbtn('reset', null, { title: 'Reset the view (double-click the preview)', 'aria-label': 'Reset the view', onclick: () => V.reset() });
+    const pngBtn = vbtn('cam', null, { title: 'Save the preview as a PNG', 'aria-label': 'Save the preview as a PNG', onclick: async () => {
+      const b = await V.shot();
+      if (!b) { toast('Nothing to save yet'); return; }
+      const a = h('a', { href: URL.createObjectURL(b), download: 'armor-trim-preview.png' });
+      document.body.appendChild(a); a.click();
+      setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 0);
+    } });
+    const animBtns = ANIMS.map(([id, label]) => h('button.tr-anim', { type: 'button', role: 'radio', 'aria-checked': String(V.anim === id), 'data-anim': id, 'data-focus': 'tr-anim-' + id, onclick: () => V.setAnim(id, { force: true }) }, label));
+    V.onAnim = (id) => animBtns.forEach((b) => sel(b, b.dataset.anim === id));
+    const stage = h('div.tr-stage', { 'data-bg': st.backdrop });
+    const hint = h('div.tr-hint', { 'aria-hidden': 'true' }, 'Drag to rotate · scroll or pinch to zoom');
+    const viewer = h('section.panel.tr-card.tr-viewer', { 'aria-label': '3D preview' },
+      h('div.tr-vbar', h('div.tr-vgrp', { role: 'group', 'aria-label': 'Preview options' }, elyBtn, glintBtn, autoBtn), h('div.tr-vgrp.end', { role: 'group', 'aria-label': 'View' }, bgMenu, resetBtn, pngBtn)),
       stage,
-      h('div.tr-vbar',
-        h('div.seg.tr-vtoggles', { role: 'group', 'aria-label': 'Preview options' }, elyBtn, glintBtn, autoBtn),
-        h('button.btn.small', { type: 'button', title: 'Reset the view (double-click the preview)', onclick: () => V.reset() }, ico('reset', 'Reset')),
-        h('button.btn.small', { type: 'button', title: 'Save the preview as a PNG', onclick: async () => {
-          const b = await V.shot();
-          if (!b) { toast('Nothing to save yet'); return; }
-          const a = h('a', { href: URL.createObjectURL(b), download: 'armor-trim-preview.png' });
-          document.body.appendChild(a); a.click();
-          setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 0);
-        } }, ico('cam', 'PNG'))),
-      h('div.seg.tr-anims', { role: 'group', 'aria-label': 'Animation' }, animBtns),
-      h('div.tr-hint', 'Drag to rotate · scroll or pinch to zoom · drop a skin PNG here'),
+      h('div.tr-anims', { role: 'radiogroup', 'aria-label': 'Animation' }, animBtns),
       h('div.tr-drop', { 'aria-hidden': 'true' }, 'Drop the skin PNG'));
+    viewer.setBd = (id) => {
+      stage.dataset.bg = id;
+      const b = BACKDROPS.find((x) => x.id === id) || BACKDROPS[0];
+      if (bdIco.dataset.id !== b.id) { bdIco.dataset.id = b.id; bdIco.replaceChildren(bdIcon(b)); }
+    };
+    viewer.setBd(st.backdrop);
     if (V.error) stage.append(h('div.tr-error', V.error, h('br'), h('span', 'The flat previews still work.')));
     else {
-      stage.append(V.el);
+      stage.append(V.el, hint);
       if (!V.ready) stage.append(h('div.tr-loadingv', 'Loading the 3D viewer…'));
     }
+    const used = () => stage.classList.add('used');
+    V.el.addEventListener('pointerdown', used, { once: true });
+    V.el.addEventListener('wheel', used, { once: true, passive: true });
     if (!V.animInit) { V.animInit = true; V.persist = (id) => { const need = id === 'fly' && !cur().elytra; upd((s) => { s.anim = id; if (need) s.elytra = true; }, { silent: !need }); }; if (!reduced() && st.anim !== 'idle') V.setAnim(st.anim, { silent: true }); }
-    else V.onAnim(V.anim);
+    V.onAnim(V.anim);
     const dropOn = (on) => viewer.classList.toggle('dropping', on);
     viewer.addEventListener('dragover', (e) => { if (e.dataTransfer && [...e.dataTransfer.types].includes('Files')) { e.preventDefault(); dropOn(true); } });
     viewer.addEventListener('dragleave', (e) => { if (!viewer.contains(e.relatedTarget)) dropOn(false); });
@@ -1189,12 +1432,12 @@
     return viewer;
   }
 
-  /** 🎲 Random trim / pattern / material. Shift-click (or long-press: use the toggle) randomises every piece independently. */
+  /** Three raised actions: Surprise me (everything; shift = per piece), Pattern, Material. */
   function randomBar() {
-    const mk = (what, label, tip) => h('button', { type: 'button', 'data-focus': 'tr-rnd-' + what, title: tip + ' · Shift-click: each piece different', onclick: (e) => randomTrim(what, e.shiftKey) },
-      what === 'both' ? [h('span.tr-vico.dice'), h('span', label)] : label);
-    return h('div.seg.tr-rnd', { role: 'group', 'aria-label': 'Random trim' },
-      mk('both', 'Random', 'Random pattern and material for every piece'), mk('pattern', 'Pattern', 'Random pattern, keeps the material'), mk('material', 'Material', 'Random trim material, keeps the patterns'));
+    return h('div.tr-rnd', { role: 'group', 'aria-label': 'Randomise' },
+      h('button.btn.small.tr-surprise', { type: 'button', 'data-focus': 'tr-rnd-all', title: 'Random armor, pattern and trim material · Shift-click: every piece different', onclick: (e) => surprise(e.shiftKey) }, glyph('dice'), h('span', 'Surprise me')),
+      h('button.btn.small', { type: 'button', 'data-focus': 'tr-rnd-pattern', title: 'Random pattern on every piece (keeps the material and armor)', onclick: randomPattern }, 'Pattern'),
+      h('button.btn.small', { type: 'button', 'data-focus': 'tr-rnd-material', title: 'Random trim material (keeps the patterns and armor)', onclick: randomMaterial }, 'Material'));
   }
 
   function mount(st) {
@@ -1202,76 +1445,79 @@
     const wrap = h('div.tr-page');
     const U = { wrap, sig: {} };
 
-    /* ---- left: the four piece rows + saved outfits ---- */
+    /* ---- left: Armor (four piece rows) + saved outfits ---- */
     const slots = PIECES.map(makeSlot);
-    const savedHost = h('div.tr-saved-host', { style: { display: 'contents' } });
     const syncBox = h('input', { type: 'checkbox', 'data-focus': 'tr-sync', 'aria-label': 'Same material for all pieces',
       onchange: (e) => { const on = e.target.checked; upd((s) => { s.sync = on; if (on) copyToAll(s); }); } });
     const syncLabel = h('label.tr-sync', h('span.switch', syncBox, h('span')), h('span', 'Same material for all'));
-    withTip(syncLabel, ['While on, picking an armor material or dye sets every piece', 'Turning it on copies the last edited piece (the turtle shell stays helmet-only)']);
-    const hud = h('section.panel.tr-card.tr-hud', { 'aria-label': 'Outfit' },
-      h('div.tr-card-head', h('h3', 'Armor')),
-      h('div.tr-stack', slots.map((s) => s.el)),
-      h('div.tr-applybar', syncLabel));
+    withTip(syncLabel, ['Same material for all', 'Picking an armor material or dye sets every piece', 'Turning it on copies the last edited piece (the turtle shell stays helmet-only)']);
+    const hud = h('section.panel.tr-card.tr-hud', { 'aria-label': 'Armor' }, head('Armor', syncLabel), h('div.tr-stack', slots.map((s) => s.el)));
+    const savedBody = h('div.tr-saved-body');
+    const savedEl = h('section.panel.tr-card.tr-saved', { 'aria-label': 'Saved outfits' }, head('Saved outfits'), savedBody);
 
+    /* ---- middle: preview + skin ---- */
     const skinHost = h('div', { style: { display: 'contents' } });
     const viewer = buildViewer(st);
 
-    /* ---- right: trim material row + one row of four pieces per pattern ---- */
-    const matOpts = D.trimMaterials.map((m) => ({
-      id: m.id, label: matName(m.id), focus: 'tr-trimmat-' + m.id, icon: TH.icon.trimMaterial(m.item, { size: 22 }),
-      tip: () => [ingredientName(m)],
+    /* ---- right: trim material row + one row per pattern (template + name, duplication cost, four pieces) ---- */
+    const tiles = new Map();
+    const tileRow = h('div.tr-tiles', { role: 'radiogroup', 'aria-label': 'Trim material' }, D.trimMaterials.map((m) => {
+      const b = h('button.tr-tile', { type: 'button', role: 'radio', 'aria-checked': 'false', 'aria-label': matName(m.id), 'data-focus': 'tr-trimmat-' + m.id, onclick: () => setTrimMat(m.id) },
+        TH.icon.trimMaterial(m.item, { size: 22 }));
+      tiles.set(m.id, b);
+      return withTip(b, [matName(m.id), ingredientName(m)]);
     }));
-    const tiles = tileRow(matOpts, setTrimMat, 'mats');
-    const pats = [{ id: null, name: 'No trim' }].concat(D.trimPatterns).map((p, i) => {
+    const pats = [{ id: null }].concat(D.trimPatterns).map((p, i) => {
+      const title = p.id ? patName(p.id) : 'No trim';
       const pcs = PIECES.map((pc) => {
-        const cv = h('canvas.tr-thumb', { width: 88, height: 88 });
-        const b = h('button.tr-pt', { type: 'button', 'aria-pressed': 'false', 'aria-label': PIECE_NAME[pc] + ': ' + (p.id ? patName(p.id) : 'no trim'), 'data-focus': 'tr-pat-' + (p.id || 'none') + '-' + pc,
+        const cv = h('canvas.tr-thumb', { width: THUMB_UNITS * 6, height: THUMB_UNITS * 6 });
+        const b = h('button.tr-pt', { type: 'button', 'aria-pressed': 'false', 'aria-label': PIECE_NAME[pc] + ': ' + title, 'data-focus': 'tr-pat-' + (p.id || 'none') + '-' + pc,
           onclick: () => setPattern(p.id, [pc]) }, cv);
-        withTip(b, () => [PIECE_NAME[pc], p.id ? patName(p.id) : 'No trim'].concat(p.id ? ['Click: this piece only'] : []));
+        withTip(b, () => [PIECE_NAME[pc] + ' · ' + title, 'Just this piece']);
         return { pc, b, cv };
       });
-      const main = h('button.tr-pr-main', { type: 'button', 'aria-label': (p.id ? patName(p.id) : 'No trim') + ' on all pieces', 'data-focus': 'tr-pat-' + (p.id || 'none') },
-        h('span.tr-pat-name', p.id ? names.pat[i - 1] : 'No trim'),
-        h('span.tr-pat-foot', p.id ? [h('span.tr-pat-ico', TH.icon.trim(p.id, { size: 18 })), h('span.tr-pat-ico', TH.icon(p.blockIcon, { size: 18 }))] : null));
-      const row = h('div.tr-pr' + (p.id ? '.r-' + p.rarity : ''), { onclick: (e) => { if (!e.target.closest('.tr-pt')) setPattern(p.id, PIECES); } }, main, h('div.tr-pr-pcs', pcs.map((x) => x.b)));
-      if (p.id) withTip(main, () => patternTipLines(p).concat(['Click: all pieces'])); else withTip(main, ['No trim', 'Remove the trim from every piece']);
+      const main = h('button.tr-pr-main', { type: 'button', 'aria-label': title + ' on all pieces', 'data-focus': 'tr-pat-' + (p.id || 'none'), onclick: () => setPattern(p.id, PIECES) },
+        p.id ? h('span.tr-pr-tpl', TH.icon.trim(p.id, { size: 32 })) : h('span.tr-pr-tpl.none', TH.icon('item/barrier', { size: 22 })),
+        h('span.tr-pr-name', p.id ? names.pat[i - 1] : 'No trim'));
+      withTip(main, () => (p.id ? patternTipLines(p) : ['No trim', 'Removes the trim']).concat(['Click: all pieces']));
+      const dup = h('span.tr-pr-dup', p.id ? [TH.icon(p.blockIcon, { size: 16 }), h('span.tr-pr-dia', TH.icon('diamond', { size: 14 }), h('b', '×' + D.templateCopyDiamonds))] : null);
+      if (p.id) withTip(dup, dupTipLines(p));
+      const row = h('div.tr-pr', { role: 'group', 'aria-label': title, onclick: (e) => { if (!e.target.closest('button')) setPattern(p.id, PIECES); } }, main, dup, h('div.tr-pr-pcs', pcs.map((x) => x.b)));
       return { p, row, pcs };
     });
-    const grid = h('div.tr-grid', pats.map((x) => x.row));
-    const browser = h('section.panel.tr-card.tr-browser', { 'aria-label': 'Trim browser' },
-      h('div.tr-card-head', h('h3', 'Trim'), randomBar()),
-      h('div.tr-sub', 'Trim material'), tiles,
-      h('div.tr-sub', h('span', 'Pattern'), h('span.faint', 'row = all pieces · piece = just that one')), grid);
+    const browser = h('section.panel.tr-card.tr-browser', { 'aria-label': 'Trim' },
+      head('Trim', randomBar()),
+      h('div.tr-sub', 'Material'), tileRow,
+      h('div.tr-sub', 'Pattern'), h('div.tr-grid', pats.map((x) => x.row)));
 
     /* ---- materials list ---- */
-    const body = h('div.tr-mbody', { style: { display: 'contents' } });
+    const body = h('div.tr-mbody');
     let matsText = '';
-    const copyBtn = h('button.btn.small', { type: 'button', onclick: () => copyText(matsText) }, 'Copy list');
-    const matsEl = h('section.panel.tr-card.tr-mats', { 'aria-label': 'Materials needed' }, h('div.tr-card-head', h('h3', 'Materials'), copyBtn), body);
+    const copyBtn = h('button.btn.small', { type: 'button', 'data-focus': 'tr-copy', onclick: () => copyText(matsText) }, 'Copy list');
+    const matsEl = h('section.panel.tr-card.tr-mats', { 'aria-label': 'Materials needed' }, head('Materials', copyBtn), body);
 
     wrap.append(
       h('div.page-head.tr-head', h('div.tr-title', h('h2', 'Armor trims'), h('p', 'Preview, compare and cost out armor trims.'))),
-      h('div.tr-layout', h('div.tr-col.a', hud, savedHost), h('div.tr-col.b', viewer, skinHost), h('div.tr-right', browser, matsEl)));
+      h('div.tr-layout', h('div.tr-col.a', hud, savedEl), h('div.tr-col.b', viewer, skinHost), h('div.tr-col.c', browser, matsEl)));
     tipTitles(wrap);
 
-    const row = (icon, text, qty, tipLines) => { const r = h('li.tr-mrow', h('span.tr-mico', icon), h('span.tr-mname', text), qty != null ? h('b.tr-mqty', '×' + qty) : null); return tipLines ? withTip(r, tipLines) : r; };
-    const group = (label, rows) => h('div.tr-mgroup', h('div.tr-mlabel', label), h('ul.tr-mlist', rows));
+    const item = (icon, text, qty, tipLines) => { const r = h('li.tr-mi', h('span.tr-mico', icon), h('span.tr-mname', text), h('b.tr-mqty', '×' + qty)); return tipLines ? withTip(r, tipLines) : r; };
+    const group = (label, items) => h('div.tr-mgroup', h('div.tr-mlabel', label), h('ul.tr-mlist', items));
 
     U.update = (st, M, gm) => {
       slots.forEach((s) => s.update(st));
       const ss = JSON.stringify([st.saved.map((g) => [g.id, g.name, g.outfit]), st.renaming, PIECES.map((p) => { const o = st.outfit[p]; return [o.armor, o.pattern, o.material, o.dye, o.show]; })]);
-      if (U.sig.saved !== ss) { U.sig.saved = ss; const sp = savedPanel(st); tipTitles(sp); savedHost.replaceChildren(sp); }
+      if (U.sig.saved !== ss) { U.sig.saved = ss; const sp = savedPanel(st); savedBody.replaceChildren(...sp); savedBody.querySelectorAll('[title]').forEach((el) => TH.util.tooltip(el)); }
       syncBox.checked = st.sync;
       const sk = JSON.stringify([st.skin.kind, st.skin.slim, st.skin.name]);
       if (U.sig.skin !== sk) { U.sig.skin = sk; skinHost.replaceChildren(buildSkin(st)); }
-      tiles.sync(gm);
+      viewer.setBd(st.backdrop);
+      tiles.forEach((b, id) => sel(b, id === gm));
       pats.forEach(({ p, row, pcs }) => {
-        const n = pcs.filter(({ pc, b }) => { const on = (st.outfit[pc].pattern || null) === p.id; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); return on; }).length;
+        const n = pcs.filter(({ pc, b }) => { const on = (st.outfit[pc].pattern || null) === p.id; press(b, on); return on; }).length;
         row.classList.toggle('on', n === PIECES.length);
       });
       U.paint = () => pats.forEach(({ p, pcs }) => pcs.forEach(({ pc, cv }) => paintThumb(cv, pc, Object.assign({}, st.outfit[pc], { pattern: p.id, material: p.id ? gm : null }))));
-      // materials panel text
       const none = !M.trimmed;
       copyBtn.disabled = none;
       matsText = materialsText(st, M);
@@ -1279,12 +1525,13 @@
       if (U.sig.mats !== ms) {
         U.sig.mats = ms;
         const mk = [];
-        if (none) mk.push(h('p.tr-note', M.pcs.length ? 'No trims yet. Pick a pattern to see the templates and materials it needs.' : 'No pieces are shown. Show at least one piece to see what it needs.'));
+        if (none) mk.push(h('p.tr-note', M.pcs.length ? 'No trims yet. Pick a pattern to see what it needs.' : 'No pieces are shown. Show a piece to see what it needs.'));
         else {
-          mk.push(group('Templates', M.templates.map((t) => row(TH.icon(t.icon, { size: 20 }), patName(t.id), t.qty, () => patternTipLines(t.data)))));
-          if (M.copies) mk.push(group('Duplication', [row(TH.icon('diamond', { size: 20 }), itemName('diamond', 'Diamond'), M.diamonds, [M.copies + ' extra cop' + (M.copies === 1 ? 'y' : 'ies'), M.copies + ' × ' + D.templateCopyDiamonds + ' diamonds'])]
-            .concat(M.dupes.map((r) => row(TH.icon(r.icon, { size: 20 }), r.name, r.qty)))));
-          mk.push(group('Trim materials', M.ingredients.map((r) => row(TH.icon(r.icon, { size: 20 }), r.item, r.qty))));
+          mk.push(group('Templates', M.templates.map((t) => item(TH.icon(t.icon, { size: 20 }), names.pat[D.trimPatterns.indexOf(t.data)], t.qty,
+            () => patternTipLines(t.data).concat([t.copies ? '1 original + ' + t.copies + ' cop' + (t.copies === 1 ? 'y' : 'ies') : '1 original'])))));
+          if (M.copies) mk.push(group('Duplication', [item(TH.icon('diamond', { size: 20 }), itemName('diamond', 'Diamond'), M.diamonds, [M.copies + ' extra cop' + (M.copies === 1 ? 'y' : 'ies'), M.copies + ' × ' + D.templateCopyDiamonds + ' diamonds'])]
+            .concat(M.dupes.map((r) => item(TH.icon(r.icon, { size: 20 }), r.name, r.qty)))));
+          mk.push(group('Trim materials', M.ingredients.map((r) => item(TH.icon(r.icon, { size: 20 }), r.item, r.qty))));
         }
         body.replaceChildren(...mk);
       }
@@ -1336,7 +1583,6 @@
   }
 
   function render(root, state) {
-    hideTip();
     if (!cssReady) {
       ensureCss().then(() => { if (TH.app && TH.app.render) TH.app.render(); });
       root.append(h('div.page-head', h('div', h('h2', 'Armor trims'))), h('div.panel.tr-loading', 'Loading the previewer…'));
@@ -1348,7 +1594,7 @@
     patch(st);
   }
 
-  /** Fill a thumbnail canvas with the flat front view of the piece (sync if cached, otherwise when loaded). */
+  /** Fill a piece preview canvas: the 16x16-unit front view at one integer scale (same for every piece). */
   function paintThumb(cv, piece, o) {
     const key = pieceKey(piece, o);
     if (cv._key === key) return;
@@ -1357,9 +1603,8 @@
       const x = cv.getContext('2d');
       x.clearRect(0, 0, cv.width, cv.height);
       x.imageSmoothingEnabled = false;
-      const s = Math.max(1, Math.floor(Math.min((cv.width - 8) / src.width, (cv.height - 8) / src.height)));
-      const w = src.width * s, hh = src.height * s;
-      x.drawImage(src, 0, 0, src.width, src.height, Math.round((cv.width - w) / 2), Math.round((cv.height - hh) / 2), w, hh);
+      const k = Math.floor(cv.width / THUMB_UNITS);
+      x.drawImage(src, 0, 0, THUMB_UNITS, THUMB_UNITS, 0, 0, THUMB_UNITS * k, THUMB_UNITS * k);
     };
     thumb(piece, o).then((src) => { if (cv._key === key) { draw(src); cv.classList.remove('err'); } }).catch(() => { if (cv._key === key) cv.classList.add('err'); });
   }
@@ -1375,9 +1620,9 @@
     if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(ok, fallback); else fallback();
   }
 
-  /* ---- saved outfits ---- */
+  /* ---- saved outfits: [name field + Save] then one chip per outfit (load, rename, delete) ---- */
   function savedPanel(st) {
-    const input = h('input.field', { type: 'text', placeholder: 'Save outfit as…', maxlength: 40, value: st.saveName, 'aria-label': 'Name for the saved outfit', 'data-focus': 'tr-save-name',
+    const input = h('input.field', { type: 'text', placeholder: 'Name this outfit…', maxlength: 40, value: st.saveName, 'aria-label': 'Name for the saved outfit', 'data-focus': 'tr-save-name',
       oninput: (e) => upd((s) => { s.saveName = e.target.value; }, { silent: true }),
       onkeydown: (e) => { if (e.key === 'Enter') { e.preventDefault(); save(); } } });
     function save() {
@@ -1396,11 +1641,10 @@
           onkeydown: (e) => { if (e.key === 'Enter') commit(); else if (e.key === 'Escape') upd((s) => { s.renaming = null; }); } });
         const commit = () => upd((s) => { const x = s.saved.find((y) => y.id === g.id); if (x) x.name = (s.renameText || '').trim() || x.name; s.renaming = null; });
         setTimeout(() => { if (rn.isConnected && document.activeElement !== rn) { rn.focus(); rn.select(); } }, 60);
-        return h('div.tr-schip.editing', rn, h('button.btn.small.primary', { type: 'button', onclick: commit }, 'OK'), h('button.btn.small.ghost', { type: 'button', onclick: () => upd((s) => { s.renaming = null; }) }, '✕'));
+        return h('div.tr-rename', rn, h('button.btn.small.primary', { type: 'button', onclick: commit }, 'OK'), h('button.btn.small.ghost', { type: 'button', 'aria-label': 'Cancel', onclick: () => upd((s) => { s.renaming = null; }) }, '✕'));
       }
       const trimmedN = PIECES.filter((p) => g.outfit[p] && g.outfit[p].show !== false && g.outfit[p].pattern).length;
-      const same = PIECES.every((p) => { const a = g.outfit[p], c = st.outfit[p]; return a && ['armor', 'pattern', 'material', 'dye'].every((k) => (a[k] || null) === (c[k] || null)) && (a.show !== false) === c.show; });
-      const active = same; // accent marker only while the current outfit still equals this saved one
+      const active = PIECES.every((p) => { const a = g.outfit[p], c = st.outfit[p]; return a && ['armor', 'pattern', 'material', 'dye'].every((k) => (a[k] || null) === (c[k] || null)) && (a.show !== false) === c.show; });
       return h('div.tr-schip' + (active ? '.active' : ''),
         h('button.tr-saved-main', { type: 'button', 'aria-pressed': String(active), title: 'Load ' + g.name + ' (' + trimmedN + ' trimmed)', 'data-focus': 'tr-saved-' + g.id,
           onclick: () => { upd((s) => {
@@ -1413,9 +1657,10 @@
           h('button.tr-cbtn.edit', { type: 'button', title: 'Rename', 'aria-label': 'Rename ' + g.name, 'data-focus': 'tr-ren-' + g.id, onclick: () => upd((s) => { s.renaming = g.id; s.renameText = g.name; }) }, h('span.tr-cico')),
           h('button.tr-cbtn.del', { type: 'button', title: 'Delete', 'aria-label': 'Delete ' + g.name, onclick: () => { upd((s) => { s.saved = s.saved.filter((y) => y.id !== g.id); if (s.savedId === g.id) s.savedId = null; }); } }, h('span.tr-cico'))));
     });
-    return h('div.tr-saved', { role: 'group', 'aria-label': 'Saved outfits' },
+    return [
       h('div.tr-save-row', input, h('button.btn.small.primary', { type: 'button', title: 'Save the current outfit and skin', onclick: save }, 'Save')),
-      st.saved.length ? h('div.tr-saved-list', cards) : null);
+      st.saved.length ? h('div.tr-saved-list', { role: 'group', 'aria-label': 'Saved outfits' }, cards) : null,
+    ].filter(Boolean);
   }
 
   /* ---- skin upload ---- */

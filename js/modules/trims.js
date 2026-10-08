@@ -126,7 +126,11 @@
   }
   const cur = () => norm(TH.store.get().trims);
   /** Mutate state.trims through fn(draft). opts.silent skips the re-render. */
-  const upd = (fn, opts) => TH.store.update((s) => { fn(norm(s.trims)); }, opts);
+  const upd = (fn, opts) => {
+    const live = !!(UI && UI.wrap.isConnected) && !(opts && opts.silent);   // mounted: patch the page in place instead of re-rendering it
+    TH.store.update((s) => { fn(norm(s.trims)); }, live ? { silent: true } : opts);
+    if (live) refresh();
+  };
   const clonePiece = (o) => ({ armor: o.armor, pattern: o.pattern, material: o.material, dye: o.dye, show: o.show });
 
   /* ======================================================================
@@ -464,8 +468,12 @@
     const ZMIN = 0.55, ZMAX = 2.4, PMAX = 0.75;
     let initP = null;
 
+    const texOf = new WeakMap();   // one GPU texture per composited canvas: re-selecting a look re-uploads nothing
     const canvasTex = (c) => {
-      const t = new THREE.CanvasTexture(c);
+      let t = texOf.get(c);
+      if (t) return t;
+      t = new THREE.CanvasTexture(c);
+      texOf.set(c, t);
       t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter; t.generateMipmaps = false;
       t.colorSpace = THREE.SRGBColorSpace;
       return t;
@@ -677,10 +685,10 @@
     };
     S.setPiece = (piece, canvas) => {
       if (!S.ready) return;
+      S.appliedAt = performance.now();
       const p = S.pieces[piece];
       if (!canvas) { p.meshes.forEach((m) => { m.visible = false; }); }
       else {
-        if (p.mat.map) p.mat.map.dispose();
         p.mat.map = canvasTex(canvas);
         p.mat.needsUpdate = true;
         p.meshes.forEach((m) => { m.visible = true; });
@@ -836,128 +844,134 @@
     return cssP;
   }
 
-  let pendingReveal = null; // set by handlers, consumed by the next render
-  const markReveal = (...parts) => { pendingReveal = new Set(parts); };
-
-  const icoPiece = (piece, mat, size) => TH.icon.item(piece, mat, { size: size || 32 });
-
-
-  /** A row of icon+name picker tiles (trim material). */
-  function tileRow(items, selected, onPick, cls) {
-    return h('div.tr-tiles' + (cls ? '.' + cls : ''), { role: 'radiogroup' }, items.map((it) => {
-      const on = it.id === selected;
-      const b = h('button.tr-tile' + (on ? '.on' : ''), {
-        type: 'button', role: 'radio', 'aria-checked': String(on), 'aria-label': it.label, 'data-focus': it.focus,
-        onclick: () => onPick(it.id),
-      }, h('span.tr-tile-ico', it.icon), it.name ? h('span.tr-tile-name', it.name) : null);
-      return withTip(b, it.tip);
-    }));
+  /* The page is built once (mount) and then patched in place (patch): no re-render, no entrance animation, the
+     viewer canvas never leaves its node. `upd` applies the change silently and calls refresh() instead of the app render. */
+  let UI = null;
+  function refresh() {
+    if (!UI) return;
+    patch(cur());
+    if (TH.app.refreshBadges) TH.app.refreshBadges();
   }
 
-  function render(root, state) {
-    hideTip();
-    if (!cssReady) {
-      ensureCss().then(() => { if (TH.app && TH.app.render) TH.app.render(); });
-      root.append(h('div.page-head', h('div', h('h2', 'Armor trims'))), h('div.panel.tr-loading', 'Loading the previewer…'));
-      return;
-    }
-    const st = norm(state.trims);
-    const M = computeMaterials(st);
-    const focus = st.focus, fo = st.outfit[focus];
-    const gm = fo.material || st.lastMaterial;           // trim material the browser shows / applies
-    const short = shortNames(D.trimPatterns.map((p) => patName(p.id)));
-    const mshort = shortNames(D.trimMaterials.map((m) => matName(m.id)));
-    const patShort = (id) => short[D.trimPatterns.findIndex((x) => x.id === id)];
-    const matShort = (id) => mshort[D.trimMaterials.findIndex((x) => x.id === id)];
+  const icoPiece = (piece, mat, size) => TH.icon.item(piece, mat, { size: size || 32 });
+  /** Native title= becomes the app tooltip (one coherent style). */
+  const tipTitles = (root) => root.querySelectorAll('[title]').forEach((el) => { const t = el.getAttribute('title'); el.removeAttribute('title'); if (t) withTip(el, [t]); });
+  const sel = (b, on) => { b.classList.toggle('on', on); b.setAttribute('aria-checked', String(on)); };
 
-    /* ---- edits ---- */
-    const setField = (field, val, piece) => {
-      piece = piece || focus;
-      markReveal('gallery');
-      upd((s) => {
-        s.focus = piece;
-        const targets = s.sync ? PIECES : [piece];
-        targets.forEach((p) => {
-          const o = s.outfit[p];
-          if (field === 'armor') { if (!(ARMOR[val].pieces && !ARMOR[val].pieces.includes(p))) o.armor = val; }
-          else if (field === 'pattern') { o.pattern = val; if (val && !o.material) o.material = s.lastMaterial; }
-          else if (field === 'material') o.material = val;
-          else if (field === 'dye') { if (ARMOR[o.armor].dyeable) o.dye = val; }
-        });
-        if (field === 'material') s.lastMaterial = val;
-      });
-      if (st.sync && field === 'armor' && ARMOR[val].pieces) toast(ARMOR[val].name + ' only exists as a helmet — the other pieces kept their armor');
-    };
-    /** Copy the focused piece's armor material, dye, pattern and trim material onto every other piece. */
-    const copyToAll = (s) => {
-      const src = s.outfit[s.focus];
-      PIECES.forEach((p) => {
-        if (p === s.focus) return;
+  /** A row of icon picker tiles (trim material). Selection is patched through .sync(). */
+  function tileRow(items, onPick, cls) {
+    const btns = new Map();
+    const el = h('div.tr-tiles' + (cls ? '.' + cls : ''), { role: 'radiogroup', 'aria-label': 'Trim material' }, items.map((it) => {
+      const b = h('button.tr-tile', {
+        type: 'button', role: 'radio', 'aria-checked': 'false', 'aria-label': it.label, 'data-focus': it.focus,
+        onclick: () => onPick(it.id),
+      }, h('span.tr-tile-ico', it.icon));
+      btns.set(it.id, b);
+      return withTip(b, it.tip);
+    }));
+    el.sync = (selected) => btns.forEach((b, id) => sel(b, id === selected));
+    return el;
+  }
+
+  /* ---- edits (always read the live state, so one set of handlers lives as long as the page) ---- */
+  function setField(field, val, piece) {
+    const c = cur();
+    piece = piece || c.focus;
+    upd((s) => {
+      s.focus = piece;
+      const targets = s.sync ? PIECES : [piece];
+      targets.forEach((p) => {
         const o = s.outfit[p];
-        if (!(ARMOR[src.armor].pieces && !ARMOR[src.armor].pieces.includes(p))) { o.armor = src.armor; o.dye = src.dye; }
-        o.pattern = src.pattern; o.material = src.material;
+        if (field === 'armor') { if (!(ARMOR[val].pieces && !ARMOR[val].pieces.includes(p))) o.armor = val; }
+        else if (field === 'pattern') { o.pattern = val; if (val && !o.material) o.material = s.lastMaterial; }
+        else if (field === 'material') o.material = val;
+        else if (field === 'dye') { if (ARMOR[o.armor].dyeable) o.dye = val; }
       });
-    };
-    const applyAll = () => {
-      markReveal('gallery');
-      upd(copyToAll);
-      toast('Applied the ' + PIECE_NAME[focus].toLowerCase() + ' look to every piece');
-    };
-
-    /* ---- left: the four slots, the focused one reveals its armor choice ---- */
-    /* every slot always shows its armor-material row; the only highlight is the selected material */
-    const stack = PIECES.map((p) => {
-      const o = st.outfit[p], on = p === focus;
-      const trimmed = o.pattern && o.material;
-      const pick = () => { if (!on) { markReveal('gallery'); upd((s) => { s.focus = p; }); } };
-      const mats = h('div.tr-armors', { role: 'radiogroup', 'aria-label': 'Armor material for the ' + PIECE_NAME[p].toLowerCase() },
-        D.armorMaterials.filter((m) => !m.pieces || m.pieces.includes(p)).map((m) => {
-          const sel = m.id === o.armor;
-          const b = h('button.tr-ico' + (sel ? '.on' : ''), { type: 'button', role: 'radio', 'aria-checked': String(sel), 'aria-label': armorName(p, m.id), 'data-focus': 'tr-armor-' + p + '-' + m.id, onclick: () => setField('armor', m.id, p) },
-            TH.icon.item(p, m.id, { size: 24 }));
-          return withTip(b, [armorName(p, m.id)]);
-        }));
-      const dyes = ARMOR[o.armor].dyeable ? h('div.tr-dyes', { role: 'radiogroup', 'aria-label': 'Leather dye colour for the ' + PIECE_NAME[p].toLowerCase() },
-        h('button.tr-dye.none' + (!o.dye ? '.on' : ''), { type: 'button', role: 'radio', 'aria-checked': String(!o.dye), 'aria-label': 'Undyed leather', title: 'Undyed', onclick: () => setField('dye', null, p), style: { '--c': D.leatherDefault } }),
-        D.dyes.map((d) => {
-          const nm = itemName(d.id + '_dye', d.id.replace('_', ' ') + ' dye');
-          return h('button.tr-dye' + (o.dye === d.color ? '.on' : ''), { type: 'button', role: 'radio', 'aria-checked': String(o.dye === d.color), 'aria-label': nm, title: nm, onclick: () => setField('dye', d.color, p), style: { '--c': d.color } });
-        }),
-        h('label.tr-dye.custom' + (o.dye && !D.dyes.some((d) => d.color === o.dye) ? '.on' : ''), { title: 'Custom colour' },
-          h('span.sr', 'Custom dye colour'),
-          h('input', { type: 'color', value: o.dye || D.leatherDefault, onchange: (e) => setField('dye', e.target.value.toLowerCase(), p) }))) : null;
-      // the whole card is the hit target (for the trim browser's focus); the eye and the material icons are their own controls
-      const head = h('div.tr-slot.tr-slot-main', {
-        role: 'button', tabindex: 0, 'aria-pressed': String(on), 'data-focus': 'tr-slot-' + p,
-        'aria-label': PIECE_NAME[p] + ': ' + armorName(p, o.armor) + (trimmed ? ', ' + patName(o.pattern) + ', ' + matName(o.material) : ', no trim') + (on ? '. Selected for the trim browser' : '. Select for the trim browser'),
-        onclick: pick,
-        onkeydown: (e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target === e.currentTarget) { e.preventDefault(); pick(); } },
-      },
-      h('span.tr-slot-ico', icoPiece(p, o.armor, 32)),
-      h('span.tr-slot-text', h('b', PIECE_NAME[p]), h('span', armorName(p, o.armor) + ' · ' + (trimmed ? patShort(o.pattern) + ' · ' + matShort(o.material) : 'no trim'))),
-      trimmed ? h('span.tr-sw', TH.icon.trimMaterial(TRIMM[o.material].item, { size: 16 })) : null);
-      withTip(head, () => pieceTipLines(st, p));
-      const eye = h('button.tr-eye' + (o.show ? '.on' : ''), { type: 'button', 'aria-pressed': String(o.show), 'data-focus': 'tr-show-' + p,
-        'aria-label': 'Show ' + PIECE_NAME[p] + ' in the preview',
-        onclick: (e) => { e.stopPropagation(); upd((s) => { s.outfit[p].show = !s.outfit[p].show; }); },
-        onkeydown: (e) => e.stopPropagation() }, h('span.tr-eyeico'));
-      withTip(eye, [(o.show ? 'Hide ' : 'Show ') + PIECE_NAME[p].toLowerCase() + ' in the preview']);
-      head.append(eye);
-      return h('div.tr-slotwrap' + (on ? '.on' : '') + (o.show ? '' : '.off'), head, h('div.tr-choose', mats, dyes));
+      if (field === 'material') s.lastMaterial = val;
     });
+    if (c.sync && field === 'armor' && ARMOR[val].pieces) toast(ARMOR[val].name + ' only exists as a helmet — the other pieces kept their armor');
+  }
+  /** Copy the focused piece's armor material, dye, pattern and trim material onto every other piece. */
+  const copyToAll = (s) => {
+    const src = s.outfit[s.focus];
+    PIECES.forEach((p) => {
+      if (p === s.focus) return;
+      const o = s.outfit[p];
+      if (!(ARMOR[src.armor].pieces && !ARMOR[src.armor].pieces.includes(p))) { o.armor = src.armor; o.dye = src.dye; }
+      o.pattern = src.pattern; o.material = src.material;
+    });
+  };
+  const applyAll = () => {
+    const f = cur().focus;
+    upd(copyToAll);
+    toast('Applied the ' + PIECE_NAME[f].toLowerCase() + ' look to every piece');
+  };
 
-    const hud = h('section.panel.tr-card.tr-hud', { 'aria-label': 'Outfit' },
-      h('div.tr-card-head', h('h3', 'Outfit')),
-      savedPanel(st),
-      h('div.tr-stack', stack),
-      h('div.tr-applybar',
-        h('button.btn.primary.tr-applyall', { type: 'button', 'data-focus': 'tr-apply-all', title: 'Copy the ' + PIECE_NAME[focus].toLowerCase() + '\'s armor, pattern and trim material onto every piece (the turtle shell stays helmet-only)', onclick: applyAll }, 'Apply to all pieces'),
-        h('label.tr-sync', { title: 'While on, every change goes to all pieces' },
-          h('span.switch', h('input', { type: 'checkbox', checked: st.sync, 'data-focus': 'tr-sync', 'aria-label': 'Same for all pieces',
-            onchange: (e) => { const on = e.target.checked; markReveal('gallery'); upd((s) => { s.sync = on; if (on) copyToAll(s); }); } }), h('span')),
-          h('span', 'Same for all'))));
+  let names = null;
+  const patShort = (id) => names.pat[D.trimPatterns.findIndex((x) => x.id === id)];
+  const matShort = (id) => names.mat[D.trimMaterials.findIndex((x) => x.id === id)];
 
-    /* ---- skin ---- */
+  /** One slot card (armor row + dyes) that updates itself from state. */
+  function makeSlot(p) {
+    const pick = () => { if (cur().focus !== p) upd((s) => { s.focus = p; }); };
+    const armorBtns = new Map();
+    const mats = h('div.tr-armors', { role: 'radiogroup', 'aria-label': 'Armor material for the ' + PIECE_NAME[p].toLowerCase() },
+      D.armorMaterials.filter((m) => !m.pieces || m.pieces.includes(p)).map((m) => {
+        const b = h('button.tr-ico', { type: 'button', role: 'radio', 'aria-checked': 'false', 'aria-label': armorName(p, m.id), 'data-focus': 'tr-armor-' + p + '-' + m.id, onclick: () => setField('armor', m.id, p) },
+          TH.icon.item(p, m.id, { size: 24 }));
+        armorBtns.set(m.id, b);
+        return withTip(b, [armorName(p, m.id)]);
+      }));
+    const choose = h('div.tr-choose', mats);
+    const ico = h('span.tr-slot-ico');
+    const sub = h('span');
+    const sw = h('span.tr-sw');
+    const text = h('span.tr-slot-text', h('b', PIECE_NAME[p]), sub);
+    const head = h('div.tr-slot.tr-slot-main', {
+      role: 'button', tabindex: 0, 'data-focus': 'tr-slot-' + p, onclick: pick,
+      onkeydown: (e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target === e.currentTarget) { e.preventDefault(); pick(); } },
+    }, ico, text);
+    withTip(head, () => pieceTipLines(cur(), p));
+    const eye = h('button.tr-eye', { type: 'button', 'data-focus': 'tr-show-' + p, 'aria-label': 'Show ' + PIECE_NAME[p] + ' in the preview',
+      onclick: (e) => { e.stopPropagation(); upd((s) => { s.outfit[p].show = !s.outfit[p].show; }); },
+      onkeydown: (e) => e.stopPropagation() }, h('span.tr-eyeico'));
+    withTip(eye, () => [(cur().outfit[p].show ? 'Hide ' : 'Show ') + PIECE_NAME[p].toLowerCase() + ' in the preview']);
+    head.append(eye);
+    const el = h('div.tr-slotwrap', head, choose);
+    let dyes = null, last = {};
+    function setDyes(n) { if (dyes && n) dyes.replaceWith(n); else if (n) choose.append(n); else if (dyes) dyes.remove(); dyes = n; }
+    function update(st) {
+      const o = st.outfit[p], on = p === st.focus, trimmed = !!(o.pattern && o.material);
+      el.classList.toggle('on', on); el.classList.toggle('off', !o.show);
+      head.setAttribute('aria-pressed', String(on));
+      head.setAttribute('aria-label', PIECE_NAME[p] + ': ' + armorName(p, o.armor) + (trimmed ? ', ' + patName(o.pattern) + ', ' + matName(o.material) : ', no trim') + (on ? '. Selected for the trim browser' : '. Select for the trim browser'));
+      eye.classList.toggle('on', o.show); eye.setAttribute('aria-pressed', String(o.show));
+      if (last.armor !== o.armor) { ico.replaceChildren(icoPiece(p, o.armor, 32)); armorBtns.forEach((b, id) => sel(b, id === o.armor)); }
+      const subText = armorName(p, o.armor) + ' · ' + (trimmed ? patShort(o.pattern) + ' · ' + matShort(o.material) : 'no trim');
+      if (last.sub !== subText) sub.textContent = subText;
+      const swKey = trimmed ? o.material : '';
+      if (last.sw !== swKey) {
+        if (trimmed) { sw.replaceChildren(TH.icon.trimMaterial(TRIMM[o.material].item, { size: 16 })); if (!sw.isConnected) text.after(sw); } else sw.remove();
+      }
+      const dyeKey = ARMOR[o.armor].dyeable ? 'd' + (o.dye || '') : '';
+      if (last.dye !== dyeKey) {
+        setDyes(ARMOR[o.armor].dyeable ? h('div.tr-dyes', { role: 'radiogroup', 'aria-label': 'Leather dye colour for the ' + PIECE_NAME[p].toLowerCase() },
+          h('button.tr-dye.none' + (!o.dye ? '.on' : ''), { type: 'button', role: 'radio', 'aria-checked': String(!o.dye), 'aria-label': 'Undyed leather', title: 'Undyed', onclick: () => setField('dye', null, p), style: { '--c': D.leatherDefault } }),
+          D.dyes.map((d) => {
+            const nm = itemName(d.id + '_dye', d.id.replace('_', ' ') + ' dye');
+            return h('button.tr-dye' + (o.dye === d.color ? '.on' : ''), { type: 'button', role: 'radio', 'aria-checked': String(o.dye === d.color), 'aria-label': nm, title: nm, onclick: () => setField('dye', d.color, p), style: { '--c': d.color } });
+          }),
+          h('label.tr-dye.custom' + (o.dye && !D.dyes.some((d) => d.color === o.dye) ? '.on' : ''), { title: 'Custom colour' },
+            h('span.sr', 'Custom dye colour'),
+            h('input', { type: 'color', value: o.dye || D.leatherDefault, onchange: (e) => setField('dye', e.target.value.toLowerCase(), p) }))) : null);
+        if (dyes) tipTitles(dyes);
+      }
+      last = { armor: o.armor, sub: subText, sw: swKey, dye: dyeKey };
+    }
+    return { el, update };
+  }
+
+  function buildSkin(st) {
     const sk = st.skin;
     const nameInput = h('input.field', { type: 'text', placeholder: 'Minecraft username', maxlength: 16, value: sk.kind === 'name' ? sk.name : '', 'aria-label': 'Minecraft username', autocomplete: 'off', spellcheck: false, 'data-focus': 'tr-user',
       onkeydown: (e) => { if (e.key === 'Enter') { e.preventDefault(); lookup(); } } });
@@ -977,15 +991,18 @@
     const goBtn = h('button.btn.small', { type: 'button', onclick: lookup }, 'Load');
     const file = h('input', { type: 'file', accept: 'image/png', class: 'sr', 'aria-label': 'Upload a skin PNG', tabindex: -1, onchange: () => { const f = file.files[0]; file.value = ''; if (f) takeFile(f); } });
     const skinBtn = (k, n) => h('button', { type: 'button', role: 'radio', 'aria-checked': String(sk.kind === k), class: sk.kind === k ? 'on' : '', onclick: () => upd((s) => { s.skin = { kind: k, name: '', data: null, slim: k === 'alex' }; }) }, n);
-    const skinBox = h('section.panel.tr-skin', { 'aria-label': 'Skin' },
+    const box = h('section.panel.tr-skin', { 'aria-label': 'Skin' },
       h('div.tr-skin-row', nameInput, goBtn),
       h('div.tr-skin-row.tr-skin-row2',
         h('div.seg.tr-seg.tr-pick', { role: 'radiogroup', 'aria-label': 'Default skin' }, skinBtn('steve', 'Steve'), skinBtn('alex', 'Alex')),
         h('button.btn.small', { type: 'button', title: sk.kind === 'file' ? 'Uploaded: ' + sk.name : 'Upload a skin PNG', onclick: () => file.click() }, 'Upload skin'), file,
         h('div.seg.tr-seg.tr-arms', { role: 'radiogroup', 'aria-label': 'Arm width' },
           [[false, 'Classic'], [true, 'Slim']].map(([v, n]) => h('button', { type: 'button', role: 'radio', 'aria-checked': String(sk.slim === v), class: sk.slim === v ? 'on' : '', title: v ? 'Slim (3px) arms' : 'Classic (4px) arms', onclick: () => upd((s) => { s.skin.slim = v; }) }, n)))));
+    tipTitles(box);
+    return box;
+  }
 
-    /* ---- centre: viewer ---- */
+  function buildViewer(st) {
     const autoBtn = h('button.tr-vbtn' + (V.auto ? '.on' : ''), { type: 'button', 'aria-pressed': String(V.auto), title: 'Slowly rotate', onclick: () => V.setAuto(!V.auto) }, h('span.tr-vico.rot'), h('span', 'Rotate'));
     V.onAuto = (on) => { autoBtn.classList.toggle('on', on); autoBtn.setAttribute('aria-pressed', String(on)); };
     const animBtns = ANIMS.map(([id, label]) => h('button.tr-anim' + (V.anim === id ? '.on' : ''), { type: 'button', 'aria-pressed': String(V.anim === id), 'data-anim': id, 'data-focus': 'tr-anim-' + id, onclick: () => V.setAnim(id, { force: true }) }, label));
@@ -1012,75 +1029,171 @@
       if (!V.ready) stage.append(h('div.tr-loadingv', 'Loading the 3D viewer…'));
     }
     if (!V.animInit) { V.animInit = true; V.persist = (id) => upd((s) => { s.anim = id; }, { silent: true }); if (!reduced() && st.anim !== 'idle') V.setAnim(st.anim, { silent: true }); }
+    else V.onAnim(V.anim);
     const dropOn = (on) => viewer.classList.toggle('dropping', on);
     viewer.addEventListener('dragover', (e) => { if (e.dataTransfer && [...e.dataTransfer.types].includes('Files')) { e.preventDefault(); dropOn(true); } });
     viewer.addEventListener('dragleave', (e) => { if (!viewer.contains(e.relatedTarget)) dropOn(false); });
     viewer.addEventListener('drop', (e) => { dropOn(false); const f = e.dataTransfer && e.dataTransfer.files[0]; if (f) { e.preventDefault(); takeFile(f); } });
+    tipTitles(viewer);
+    V.init().then(() => { const s = stage.querySelector('.tr-loadingv'); if (s) s.remove(); V.wake(); }).catch(() => { stage.replaceChildren(h('div.tr-error', V.error || 'The 3D viewer could not start.', h('br'), h('span', 'The flat previews still work.'))); });
+    return viewer;
+  }
 
-    /* ---- right: trim material row + pattern browser + slim materials bar ---- */
-    const matOpts = D.trimMaterials.map((m, i) => ({
-      id: m.id, label: matName(m.id), focus: 'tr-trimmat-' + m.id, icon: TH.icon.trimMaterial(m.item, { size: 26 }),
-      tip: () => [ingredientName(m)].concat(ARMOR[fo.armor].trimMat === m.id && m.darker ? ['Darker shade on ' + ARMOR[fo.armor].name.toLowerCase() + ' armor'] : []),
+  function mount(st) {
+    names = { pat: shortNames(D.trimPatterns.map((p) => patName(p.id))), mat: shortNames(D.trimMaterials.map((m) => matName(m.id))) };
+    const wrap = h('div.tr-page');
+    const U = { wrap, sig: {} };
+
+    /* ---- left: saved outfits, the four slots, apply bar ---- */
+    const slots = PIECES.map(makeSlot);
+    const savedHost = h('div.tr-saved-host', { style: { display: 'contents' } });
+    const applyBtn = h('button.btn.primary.tr-applyall', { type: 'button', 'data-focus': 'tr-apply-all', onclick: applyAll }, 'Apply to all pieces');
+    withTip(applyBtn, () => ['Copy the ' + PIECE_NAME[cur().focus].toLowerCase() + '\'s armor, pattern and trim material onto every piece (the turtle shell stays helmet-only)']);
+    const syncBox = h('input', { type: 'checkbox', 'data-focus': 'tr-sync', 'aria-label': 'Same for all pieces',
+      onchange: (e) => { const on = e.target.checked; upd((s) => { s.sync = on; if (on) copyToAll(s); }); } });
+    const syncLabel = h('label.tr-sync', h('span.switch', syncBox, h('span')), h('span', 'Same for all'));
+    withTip(syncLabel, ['While on, every change goes to all pieces']);
+    const hud = h('section.panel.tr-card.tr-hud', { 'aria-label': 'Outfit' },
+      h('div.tr-card-head', h('h3', 'Outfit')),
+      savedHost,
+      h('div.tr-stack', slots.map((s) => s.el)),
+      h('div.tr-applybar', applyBtn, syncLabel));
+
+    const skinHost = h('div', { style: { display: 'contents' } });
+    const viewer = buildViewer(st);
+
+    /* ---- right: trim material row + pattern gallery ---- */
+    const matOpts = D.trimMaterials.map((m) => ({
+      id: m.id, label: matName(m.id), focus: 'tr-trimmat-' + m.id, icon: TH.icon.trimMaterial(m.item, { size: 22 }),
+      tip: () => { const c = cur(), fo = c.outfit[c.focus]; return [ingredientName(m)].concat(ARMOR[fo.armor].trimMat === m.id && m.darker ? ['Darker shade on ' + ARMOR[fo.armor].name.toLowerCase() + ' armor'] : []); },
     }));
+    const tiles = tileRow(matOpts, (id) => setField('material', id), 'mats');
+    const pats = [{ id: null, name: 'No trim' }].concat(D.trimPatterns).map((p, i) => {
+      const cv = h('canvas.tr-thumb', { width: 88, height: 88 });
+      const b = h('button.tr-pat' + (p.id ? '.r-' + p.rarity : ''), { type: 'button', role: 'radio', 'aria-checked': 'false', 'aria-label': p.id ? patName(p.id) : 'No trim', 'data-focus': 'tr-pat-' + (p.id || 'none'),
+        onclick: () => setField('pattern', p.id) },
+      h('span.tr-pat-name', p.id ? names.pat[i - 1] : 'No trim'),
+      cv,
+      h('span.tr-pat-foot', p.id ? [h('span.tr-pat-ico', TH.icon.trim(p.id, { size: 18 })), h('span.tr-pat-ico', TH.icon(p.blockIcon, { size: 18 }))] : h('span.tr-pat-ico.none')));
+      if (p.id) withTip(b, () => patternTipLines(p)); else withTip(b, ['No trim', 'Remove the trim from this piece']);
+      return { p, b, cv };
+    });
+    const grid = h('div.tr-grid', { role: 'radiogroup' }, pats.map((x) => x.b));
     const browser = h('section.panel.tr-card.tr-browser', { 'aria-label': 'Trim browser' },
-      h('div.tr-card-head',
-        h('h3', 'Trim')),
-      h('div.tr-sub', 'Trim material'),
-      tileRow(matOpts, gm, (id) => { markReveal('gallery'); setField('material', id); }, 'mats'),
-      h('div.tr-sub', 'Pattern'),
-      h('div.tr-grid', { role: 'radiogroup', 'aria-label': 'Trim pattern for the ' + PIECE_NAME[focus].toLowerCase() },
-        [{ id: null, name: 'No trim' }].concat(D.trimPatterns).map((p, i) => {
-          const on = (fo.pattern || null) === p.id;
-          const cv = h('canvas.tr-thumb', { width: 96, height: 80 });
-          paintThumb(cv, focus, Object.assign({}, fo, { pattern: p.id, material: p.id ? gm : null }));
-          const b = h('button.tr-pat' + (on ? '.on' : '') + (p.id ? '.r-' + p.rarity : ''), { type: 'button', role: 'radio', 'aria-checked': String(on), 'aria-label': p.id ? patName(p.id) : 'No trim', 'data-focus': 'tr-pat-' + (p.id || 'none'),
-            onclick: () => setField('pattern', p.id) },
-          h('span.tr-pat-name', p.id ? short[i - 1] : 'No trim'),
-          cv,
-          h('span.tr-pat-foot', p.id ? [h('span.tr-pat-ico', TH.icon.trim(p.id, { size: 26 })), h('span.tr-pat-ico', TH.icon(p.blockIcon, { size: 26 }))] : h('span.tr-pat-ico.none')));
-          if (p.id) withTip(b, () => patternTipLines(p)); else withTip(b, ['No trim', 'Remove the trim from this piece']);
-          return b;
-        })));
+      h('div.tr-card-head', h('h3', 'Trim')),
+      h('div.tr-sub', 'Trim material'), tiles,
+      h('div.tr-sub', 'Pattern'), grid);
 
-    /* materials list: templates, duplication cost, trim materials (clean rows, no toggles) */
-    const none = !M.trimmed;
+    /* ---- materials list ---- */
+    const body = h('div.tr-mbody', { style: { display: 'contents' } });
+    let matsText = '';
+    const copyBtn = h('button.btn.small', { type: 'button', onclick: () => copyText(matsText) }, 'Copy list');
+    const matsEl = h('section.panel.tr-card.tr-mats', { 'aria-label': 'Materials needed' }, h('div.tr-card-head', h('h3', 'Materials'), copyBtn), body);
+
+    wrap.append(
+      h('div.page-head.tr-head', h('div.tr-title', h('h2', 'Armor trims'), h('p', 'Preview, compare and cost out armor trims.'))),
+      h('div.tr-layout', h('div.tr-col.a', hud, skinHost), h('div.tr-col.b', viewer), h('div.tr-right', browser, matsEl)));
+    tipTitles(wrap);
+
     const row = (icon, text, qty, tipLines) => { const r = h('li.tr-mrow', h('span.tr-mico', icon), h('span.tr-mname', text), qty != null ? h('b.tr-mqty', '×' + qty) : null); return tipLines ? withTip(r, tipLines) : r; };
     const group = (label, rows) => h('div.tr-mgroup', h('div.tr-mlabel', label), h('ul.tr-mlist', rows));
-    const mkids = [];
-    if (none) mkids.push(h('p.tr-note', M.pcs.length ? 'No trims yet. Pick a pattern to see the templates and materials it needs.' : 'No pieces are shown. Show at least one piece to see what it needs.'));
-    else {
-      mkids.push(group('Templates', M.templates.map((t) => row(TH.icon(t.icon, { size: 24 }), patName(t.id), t.qty, () => patternTipLines(t.data)))));
-      if (M.copies) mkids.push(group('Duplication', [row(TH.icon('diamond', { size: 24 }), itemName('diamond', 'Diamond'), M.diamonds, [M.copies + ' extra cop' + (M.copies === 1 ? 'y' : 'ies'), M.copies + ' × ' + D.templateCopyDiamonds + ' diamonds'])]
-        .concat(M.dupes.map((r) => row(TH.icon(r.icon, { size: 24 }), r.name, r.qty)))));
-      mkids.push(group('Trim materials', M.ingredients.map((r) => row(TH.icon(r.icon, { size: 24 }), r.item, r.qty))));
+
+    U.update = (st, M, gm) => {
+      const focus = st.focus, fo = st.outfit[focus];
+      slots.forEach((s) => s.update(st));
+      const ss = JSON.stringify([st.saved.map((g) => [g.id, g.name, g.outfit]), st.renaming, PIECES.map((p) => { const o = st.outfit[p]; return [o.armor, o.pattern, o.material, o.dye, o.show]; })]);
+      if (U.sig.saved !== ss) { U.sig.saved = ss; const sp = savedPanel(st); tipTitles(sp); savedHost.replaceChildren(sp); }
+      syncBox.checked = st.sync;
+      const sk = JSON.stringify([st.skin.kind, st.skin.slim, st.skin.name]);
+      if (U.sig.skin !== sk) { U.sig.skin = sk; skinHost.replaceChildren(buildSkin(st)); }
+      tiles.sync(gm);
+      grid.setAttribute('aria-label', 'Trim pattern for the ' + PIECE_NAME[focus].toLowerCase());
+      pats.forEach(({ p, b }) => sel(b, (fo.pattern || null) === p.id));
+      U.paint = () => pats.forEach(({ p, cv }) => paintThumb(cv, focus, Object.assign({}, fo, { pattern: p.id, material: p.id ? gm : null })));
+      // materials panel text
+      const none = !M.trimmed;
+      copyBtn.disabled = none;
+      matsText = materialsText(st, M);
+      const ms = JSON.stringify([M.pcs, M.templates.map((t) => [t.id, t.qty]), M.copies, M.diamonds, M.dupes.map((r) => [r.name, r.qty]), M.ingredients.map((r) => [r.item, r.qty])]);
+      if (U.sig.mats !== ms) {
+        U.sig.mats = ms;
+        const mk = [];
+        if (none) mk.push(h('p.tr-note', M.pcs.length ? 'No trims yet. Pick a pattern to see the templates and materials it needs.' : 'No pieces are shown. Show at least one piece to see what it needs.'));
+        else {
+          mk.push(group('Templates', M.templates.map((t) => row(TH.icon(t.icon, { size: 20 }), patName(t.id), t.qty, () => patternTipLines(t.data)))));
+          if (M.copies) mk.push(group('Duplication', [row(TH.icon('diamond', { size: 20 }), itemName('diamond', 'Diamond'), M.diamonds, [M.copies + ' extra cop' + (M.copies === 1 ? 'y' : 'ies'), M.copies + ' × ' + D.templateCopyDiamonds + ' diamonds'])]
+            .concat(M.dupes.map((r) => row(TH.icon(r.icon, { size: 20 }), r.name, r.qty)))));
+          mk.push(group('Trim materials', M.ingredients.map((r) => row(TH.icon(r.icon, { size: 20 }), r.item, r.qty))));
+        }
+        body.replaceChildren(...mk);
+      }
+    };
+    return U;
+  }
+
+  let paintT = 0;
+  function patch(st) {
+    const M = computeMaterials(st);
+    const gm = st.outfit[st.focus].material || st.lastMaterial;   // trim material the browser shows / applies
+    const a = document.activeElement;
+    const fk = a && UI.wrap.contains(a) && a.dataset && a.dataset.focus;
+    syncViewer(st);                 // the 3D model first: its cached textures are applied before anything else runs
+    UI.update(st, M, gm);
+    clearTimeout(paintT); paintT = setTimeout(() => UI.paint && UI.paint(), 0);   // thumbnails after (cached -> instant, new -> when composed)
+    if (fk && !a.isConnected) {
+      const el = UI.wrap.querySelector('[data-focus="' + fk + '"]');
+      if (el) el.focus({ preventScroll: true });
     }
-    const mats = h('section.panel.tr-card.tr-mats', { 'aria-label': 'Materials needed' },
-      h('div.tr-card-head', h('h3', 'Materials'), h('button.btn.small', { type: 'button', disabled: none, onclick: () => copyText(materialsText(st, M)) }, 'Copy list')),
-      mkids);
-
-    const right = h('div.tr-right', browser, mats);
-
-    root.append(
-      h('div.page-head.tr-head',
-        h('div.tr-title', h('h2', 'Armor trims'), h('p', 'Preview, compare and cost out armor trims.'))),
-      h('div.tr-layout', h('div.tr-col.a', hud, skinBox), h('div.tr-col.b', viewer), right));
-
-    /* every native title= becomes the app tooltip (one coherent style) */
-    root.querySelectorAll('[title]').forEach((el) => { const t = el.getAttribute('title'); el.removeAttribute('title'); if (t) withTip(el, [t]); });
-
-    // after the new DOM is in the page: attach the persistent 3D canvas, push state into it, run entrances
     V.el.setAttribute('aria-label', '3D preview. ' + PIECES.filter((p) => st.outfit[p].show).map((p) => armorName(p, st.outfit[p].armor) + (st.outfit[p].pattern ? ' with ' + patName(st.outfit[p].pattern) : '')).join(', ') + '. Drag to rotate, scroll to zoom, double-click to reset.');
-    V.init().then(() => { const s = stage.querySelector('.tr-loadingv'); if (s) s.remove(); V.wake(); }).catch(() => { stage.replaceChildren(h('div.tr-error', V.error || 'The 3D viewer could not start.', h('br'), h('span', 'The flat previews still work.'))); });
-    syncViewer(st);
-    const rv = pendingReveal; pendingReveal = null;
-    if (rv && TH.util.reveal) requestAnimationFrame(() => {
-      if (rv.has('gallery')) TH.util.reveal(root.querySelector('.tr-grid'), { step: 0.025, max: 18 });
-      if (rv.has('saved')) TH.util.reveal(root.querySelector('.tr-saved-list'), { step: 0.04 });
-    });
+    warm(st);
+  }
+
+  /* Pre-composite (idle, in small chunks) what the next click will need: every trim material and armor material of the
+     focused piece, and the gallery thumbnails of every trim material, so later clicks hit the cache. */
+  let warmKey = '', warmTimer = 0;
+  function warm(st) {
+    const p = st.focus, o = st.outfit[p];
+    const key = [p, o.pattern, o.dye].join('|');
+    if (key === warmKey) return;
+    warmKey = key;
+    clearTimeout(warmTimer);
+    const jobs = [];
+    const mats = D.trimMaterials.map((m) => m.id);
+    const armors = D.armorMaterials.filter((a) => !a.pieces || a.pieces.includes(p));
+    armors.forEach((a) => jobs.push(() => armorLayer(a.id, p === 'leggings', o.dye)));
+    if (o.pattern) {
+      mats.forEach((m) => jobs.push(() => pieceTexture(p, Object.assign({}, o, { material: m }))));
+      armors.forEach((a) => mats.forEach((m) => jobs.push(() => pieceTexture(p, Object.assign({}, o, { armor: a.id, material: m })))));
+    } else armors.forEach((a) => jobs.push(() => pieceTexture(p, Object.assign({}, o, { armor: a.id }))));
+    mats.forEach((m) => D.trimPatterns.forEach((pt) => jobs.push(() => thumb(p, Object.assign({}, o, { pattern: pt.id, material: m })))));
+    let i = 0;
+    const step = () => {
+      if (warmKey !== key) return;
+      const end = Math.min(jobs.length, i + 6);
+      for (; i < end; i++) { try { const r = jobs[i](); if (r && r.catch) r.catch(() => {}); } catch (e) { /* ignore */ } }
+      if (i < jobs.length) warmTimer = setTimeout(step, 30);
+    };
+    warmTimer = setTimeout(step, 250);
+  }
+
+  function render(root, state) {
+    hideTip();
+    if (!cssReady) {
+      ensureCss().then(() => { if (TH.app && TH.app.render) TH.app.render(); });
+      root.append(h('div.page-head', h('div', h('h2', 'Armor trims'))), h('div.panel.tr-loading', 'Loading the previewer…'));
+      return;
+    }
+    const st = norm(state.trims);
+    if (!UI) UI = mount(st);
+    root.append(UI.wrap);
+    patch(st);
   }
 
   /** Fill a thumbnail canvas with the flat front view of the piece (sync if cached, otherwise when loaded). */
   function paintThumb(cv, piece, o) {
+    const key = pieceKey(piece, o);
+    if (cv._key === key) return;
+    cv._key = key;
     const draw = (src) => {
       const x = cv.getContext('2d');
       x.clearRect(0, 0, cv.width, cv.height);
@@ -1089,7 +1202,7 @@
       const w = src.width * s, hh = src.height * s;
       x.drawImage(src, 0, 0, src.width, src.height, Math.round((cv.width - w) / 2), Math.round((cv.height - hh) / 2), w, hh);
     };
-    thumb(piece, o).then((src) => { if (cv.isConnected !== false) draw(src); }).catch(() => { cv.classList.add('err'); });
+    thumb(piece, o).then((src) => { if (cv._key === key) { draw(src); cv.classList.remove('err'); } }).catch(() => { if (cv._key === key) cv.classList.add('err'); });
   }
 
   function copyText(text) {
@@ -1110,7 +1223,6 @@
       onkeydown: (e) => { if (e.key === 'Enter') { e.preventDefault(); save(); } } });
     function save() {
       const name = input.value.trim() || 'Outfit ' + (st.saved.length + 1);
-      markReveal('saved');
       upd((s) => {
         const id = uid('outfit');
         s.saved.push({ id, name, outfit: Object.fromEntries(PIECES.map((p) => [p, clonePiece(s.outfit[p])])), skin: s.skin.kind === 'file' ? null : { kind: s.skin.kind, name: s.skin.name, slim: s.skin.slim, data: s.skin.data }, updated: Date.now() });
@@ -1132,7 +1244,7 @@
       const active = same; // accent marker only while the current outfit still equals this saved one
       return h('div.tr-schip' + (active ? '.active' : ''),
         h('button.tr-saved-main', { type: 'button', 'aria-pressed': String(active), title: 'Load ' + g.name + ' (' + trimmedN + ' trimmed)', 'data-focus': 'tr-saved-' + g.id,
-          onclick: () => { markReveal('gallery'); upd((s) => {
+          onclick: () => { upd((s) => {
             const x = s.saved.find((y) => y.id === g.id); if (!x) return;
             PIECES.forEach((p) => { if (x.outfit[p]) s.outfit[p] = clonePiece(x.outfit[p]); });
             if (x.skin && x.skin.kind) s.skin = Object.assign({ name: '', data: null, slim: false }, x.skin);

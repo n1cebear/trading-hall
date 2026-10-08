@@ -514,3 +514,29 @@
 .ec-spare { font: 400 11px/1 var(--mono); color: var(--faint); font-style: italic; }
 .ec-buy-row.on .ec-spare { display: inline-block; white-space: nowrap; }
 .ec-buy-name { flex-wrap: wrap; }
+
+/* ---------- v7: material buttons with labels, calmer anvil plan ---------- */
+.ec-mats { margin-bottom: 16px; }
+.ec-mat { flex: 1 1 0; min-width: 52px; height: auto; min-height: 58px; padding: 6px 2px 5px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; }
+.ec-mat-name { display: block; max-width: 100%; font-size: 10.5px; line-height: 1.1; letter-spacing: .1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ec-mat.on .ec-mat-name { color: var(--text); font-weight: 600; }
+
+.ec-sum { padding: 12px 14px; gap: 6px 28px; align-items: flex-end; }
+.ec-sum-main { gap: 8px 28px; flex-wrap: wrap; }
+.ec-sum-item { display: flex; flex-direction: column-reverse; gap: 5px; }
+.ec-sum-item b { font-size: 24px; margin: 0; }
+.ec-sum-lab { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .7px; color: var(--faint); }
+.ec-compare { flex-basis: 100%; padding-top: 4px; font-size: 12px; line-height: 1.4; }
+
+.ec-plan-block { gap: 8px; }
+.ec-sub-head .faint { font: 400 12px var(--mono); color: var(--faint); letter-spacing: 0; margin-left: auto; }
+.ec-steps { gap: 4px; }
+.ec-steps > .ec-step { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 8px 12px 8px 8px; min-height: 52px; }
+.ec-steps .ec-step-num { width: 24px; height: 24px; font-size: 12px; }
+.ec-steps .ec-step-line { grid-template-columns: 16px minmax(0, 1fr); gap: 6px 4px; font-size: 13px; }
+.ec-steps .ec-plus { text-align: center; line-height: 1; }
+.ec-steps .ec-step-cost { display: flex; align-items: baseline; justify-content: flex-end; gap: 4px; min-width: 4.2em; }
+.ec-steps .ec-step-cost b { font-size: 18px; }
+.ec-cost-unit { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .6px; color: var(--faint); }
+.ec-steps .ec-step-cost.bad { font-size: 12px; text-align: right; white-space: normal; }
+@media (max-width: 640px) { .ec-mats { overflow-x: auto; } .ec-mat { flex: 0 0 56px; } }

@@ -517,18 +517,16 @@ TH.anvil = (function () {
   function renderPicker(s) {
     const placed = new Set(HUD_ARMOR.concat(HUD_TOOLS));
     const rest = D.items.filter((i) => !placed.has(i.id)).map((i) => i.id);
-    const hint = materialHint(s.material);
     return h('section.panel.ec-card.ec-picker',
-      h('div.ec-card-head', h('span.ec-num', '1'), h('h3', 'Pick item'), h('span.ec-card-sub', 'material, then item')),
+      h('div.ec-card-head', h('h3', 'Material')),
       h('div.ec-mats', { role: 'radiogroup', 'aria-label': 'Material' }, MATS.map((m) => {
         const on = s.material === m;
         const nm = matName(m);
         return h('button.ec-mat' + (on ? '.on' : ''), {
           type: 'button', role: 'radio', 'aria-checked': String(on), 'aria-label': nm, 'data-focus': 'ec-mat-' + m,
-          title: nm, onclick: () => pickMaterial(m),
-        }, matIcon(m, 26));
+          title: materialHint(m) ? nm + ' — ' + materialHint(m) : nm, onclick: () => pickMaterial(m),
+        }, matIcon(m, 26), h('span.ec-mat-name', nm));
       })),
-      h('div.ec-mat-line', h('b', matName(s.material)), hint ? h('span.ec-mat-hint', hint) : null),
       h('div.ec-segs',
         h('div.ec-seg', h('div.ec-group-name', h('span', 'Armor')),
           h('div.ec-slots.armor', HUD_ARMOR.map((id) => itemButton(id, s)))),
@@ -668,7 +666,7 @@ TH.anvil = (function () {
     }
 
     return h('section.panel.ec-card',
-      h('div.ec-card-head', h('span.ec-num', '2'), h('h3', 'Enchantments'), h('span.ec-card-sub', 'Want, or already on item'),
+      h('div.ec-card-head', h('h3', 'Enchantments'),
         selIds.length ? h('button.btn.ghost.small.ec-clear', { type: 'button', onclick: () => set((e) => { e.selected = {}; e.loadout = null; }) }, 'Clear') : null),
       h('div.ec-loadouts',
         h('span.ec-label', 'Presets'),
@@ -735,7 +733,7 @@ TH.anvil = (function () {
   function renderPlan(state, s) {
     const plan = currentPlan(s);
     const offers = hallOffers(state);
-    const head = h('div.ec-card-head', h('span.ec-num', '3'), h('h3', 'Anvil plan'), h('span.ec-head-icon', TH.icon('anvil', { size: 22 })));
+    const head = h('div.ec-card-head', h('h3', 'Anvil plan'), h('span.ec-head-icon', TH.icon('anvil', { size: 22 })));
 
     if (plan.error) return h('aside.panel.ec-plan', head, h('p.ec-alert', plan.error));
 
@@ -759,8 +757,8 @@ TH.anvil = (function () {
 
     const total = h('div.ec-sum' + (usable ? '' : '.bad'),
       h('div.ec-sum-main', { title: '≈ ' + (plan.totalXP || 0).toLocaleString() + ' XP points' },
-        h('span.ec-sum-item', h('b', usable ? plan.totalLevels : '—'), ' level' + (plan.totalLevels === 1 ? '' : 's') + (plan.partial ? ' (without left-out books)' : '')),
-        h('span.ec-sum-item', h('b', steps.length), ' anvil step' + (steps.length === 1 ? '' : 's'))),
+        h('span.ec-sum-item', h('b', usable ? plan.totalLevels : '—'), h('span.ec-sum-lab', 'level' + (plan.totalLevels === 1 ? '' : 's') + (plan.partial ? ' · without left-out books' : ''))),
+        h('span.ec-sum-item', h('b', steps.length), h('span.ec-sum-lab', 'anvil step' + (steps.length === 1 ? '' : 's')))),
       compare ? h('div.ec-compare', compare) : null);
 
     // one short warning, only when it matters
@@ -778,7 +776,7 @@ TH.anvil = (function () {
         h('span.ec-step-num', { 'aria-label': 'Step ' + x.n }, x.n),
         h('div.ec-step-line', nodeChip(x.target, s), h('span.ec-plus', { 'aria-hidden': 'true' }, '+'), nodeChip(x.sacrifice, s)),
         h('span.ec-step-cost' + (x.cost > 39 ? '.bad' : x.cost >= 30 ? '.warn' : ''),
-          x.cost > 39 ? 'Too Expensive!' : [h('span.ec-arrow', { 'aria-hidden': 'true' }, '→ '), h('b', x.cost), ' lvl']))))
+          x.cost > 39 ? 'Too Expensive!' : [h('b', x.cost), h('span.ec-cost-unit', 'lvl')]))))
       : null;
 
     // result
@@ -808,7 +806,7 @@ TH.anvil = (function () {
 
     return h('aside.panel.ec-plan', { 'aria-live': 'polite' },
       head, total, alert,
-      stepList ? h('div.ec-plan-block', h('div.ec-sub-head', 'Anvil steps', h('span.faint.ec-slot-hint', 'left slot + right slot')), stepList) : null,
+      stepList ? h('div.ec-plan-block', h('div.ec-sub-head', 'Anvil steps', h('span.faint', steps.length)), stepList) : null,
       h('div.ec-plan-block', h('div.ec-sub-head', 'Result'), finalBox, finWarn), shopBox, renderActions(s, plan));
   }
 

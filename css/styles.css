@@ -495,6 +495,8 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; }
   background: transparent; color: var(--text); cursor: pointer; transition: background .12s;
 }
 .toolbar > :first-child, .toolbar > :first-child.tb-btn { border-radius: calc(var(--radius) - 1px) 0 0 calc(var(--radius) - 1px); }
+.toolbar > .save-wrap { height: 100%; }
+.toolbar > .save-wrap .tb-btn { border-radius: calc(var(--radius) - 1px) 0 0 calc(var(--radius) - 1px); }
 .toolbar > :last-child .tb-btn { border-radius: 0 calc(var(--radius) - 1px) calc(var(--radius) - 1px) 0; }
 .tb-btn:hover { background: color-mix(in srgb, var(--text) 9%, transparent); }
 .tb-btn:focus-visible, .lang:focus-within { outline: 2px solid var(--accent); outline-offset: -3px; }
@@ -617,16 +619,40 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; }
   .toast { bottom: calc(76px + env(safe-area-inset-bottom)); max-width: calc(100vw - 24px); }
 }
 
-/* ============ save status on the backup (chest) button ============
-   state dot: saved = small accent dot, pending = neutral pulse, error = red ring (set by app.js initSaveState via data-save). */
-#backupBtn::after {
-  content: ''; position: absolute; top: 5px; right: 5px; width: 6px; height: 6px; border-radius: 50%; pointer-events: none;
-  background: var(--accent); opacity: .85; transition: background .25s, opacity .25s, transform .25s;
+/* ============ save button (floppy; app.js initSaveState) ============
+   data-save: saved (idle) | saving (2-frame write blink after every save) | error (red). "SAVED" / "NOT SAVED" text sits to the LEFT
+   of the button (absolute, so the bar never shifts) and fades out after ~1.5s; errors stay until the next good save. */
+.save-wrap { position: relative; display: flex; }
+.save-msg {
+  position: absolute; right: calc(100% + 6px); top: 50%; translate: 0 -50%; white-space: nowrap; pointer-events: none;
+  font: 400 10px/1 var(--mono); letter-spacing: 1px; color: var(--accent); opacity: 0; transition: opacity .6s ease .1s;
 }
-#backupBtn[data-save="pending"]::after { background: var(--muted); animation: save-pulse .65s ease-out; }
-#backupBtn[data-save="error"]::after { inset: 3px; width: auto; height: auto; border-radius: 3px; background: transparent; opacity: 1; border: 2px solid var(--danger); box-shadow: 0 0 8px -1px var(--danger); }
-@keyframes save-pulse { 0% { transform: scale(1.8); opacity: .3; } 100% { transform: scale(1); opacity: .85; } }
+.save-msg.show { opacity: .9; transition: opacity .08s; }
+.save-msg.show:not(.err) { animation: save-msg-out 1.5s linear forwards; }
+.save-msg.err { color: var(--danger); opacity: 1; }
+@keyframes save-msg-out { 0%, 55% { opacity: .9; } 100% { opacity: 0; } }
+#backupBtn { position: relative; }
+#backupBtn .pix { transition: color .2s; }
+#backupBtn[data-save="saving"] .pix svg { animation: save-blink .7s steps(1, end); }
+@keyframes save-blink { 0% { opacity: .35; } 25% { opacity: 1; } 50% { opacity: .35; } 75%, 100% { opacity: 1; } }
+#backupBtn[data-save="saving"]::after { /* tiny write bar over the label */
+  content: ''; position: absolute; left: 50%; bottom: 8px; width: 8px; height: 2px; margin-left: -4px; pointer-events: none;
+  background: var(--accent); animation: save-bar .7s steps(1, end);
+}
+@keyframes save-bar { 0% { opacity: 1; transform: translateX(-2px); } 50% { opacity: 1; transform: translateX(2px); } 100% { opacity: 0; } }
+#backupBtn[data-save="error"] { color: var(--danger); border-color: var(--danger); box-shadow: 0 0 8px -2px var(--danger); }
 #backupBtn:focus-visible { outline-offset: -1px; }
+@media (prefers-reduced-motion: reduce) { #backupBtn .pix svg, #backupBtn::after { animation: none !important; } }
+
+/* ============ recommended star (TH.util.reco) ============
+   Tiny pixel star badge in the top-right corner of a button/card. Use sparingly: one per group, only on the truly recommended choice. */
+.th-reco {
+  position: absolute; top: -6px; right: -6px; z-index: 2; display: grid; place-items: center; width: 17px; height: 17px;
+  border-radius: 4px; color: #f5c04a; background: var(--panel); border: 1px solid color-mix(in srgb, #f5c04a 55%, var(--line));
+  box-shadow: 0 1px 0 var(--edge-lo), 0 0 8px -2px color-mix(in srgb, #f5c04a 70%, transparent);
+}
+.th-reco svg { width: 11px; height: 11px; display: block; }
+:root[data-theme="light"] .th-reco { color: #d89a12; }
 
 /* ============ footer + About (index.html .foot, app.js initFooter) ============
    Sits at the end of .app (pushed to the bottom on short pages); the About panel grows upward out of the bar.

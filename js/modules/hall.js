@@ -741,6 +741,7 @@
           Object.keys(profAgg).length ? h('span.hl-preset-profs', Object.entries(profAgg).map(([pid, n]) =>
             h('span', { title: PROF[pid] ? profName(PROF[pid]) : pid }, TH.icon.prof(pid, { size: 16 }), '×' + n))) : null,
         ),
+        p.id === 'blueprint' && !opts.custom ? TH.util.reco() : null,
         opts.custom ? h('button.x-btn.hl-preset-del', {
           type: 'button', title: 'Delete preset', 'aria-label': 'Delete preset ' + p.name,
           onclick: () => { if (confirm(`Delete preset “${p.name}”?`)) TH.store.update((s) => { s.customPresets = s.customPresets.filter((x) => x.id !== p.id); }); },

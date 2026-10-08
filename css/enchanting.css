@@ -116,7 +116,8 @@
   background: linear-gradient(160deg, var(--accent-soft), var(--panel-2) 85%);
   box-shadow: 0 0 0 1px var(--accent) inset, 0 0 16px -6px var(--accent);
 }
-.ec-new { position: absolute; top: 3px; right: 3px; font: 400 8.5px/1.5 var(--mono); padding: 0 3px; border-radius: 2px; background: var(--accent-soft); color: var(--accent); }
+.ec-item.has-since { padding-bottom: 17px; min-height: 90px; }
+.ec-new { position: absolute; bottom: 3px; right: 3px; font: 400 8px/1.4 var(--mono); padding: 0 3px; border-radius: 2px; background: var(--accent-soft); color: var(--accent); }
 
 /* ---------- 2. current item ---------- */
 .ec-current { display: flex; flex-direction: column; gap: 12px; }
@@ -153,6 +154,7 @@
 /* ---------- 3. enchantments as strips ---------- */
 .ec-loadouts { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 10px; margin-bottom: 8px; }
 .ec-lo-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.ec-lo { position: relative; }
 .ec-lo.on { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); box-shadow: 0 2px 0 var(--edge-lo), 0 0 12px -4px var(--accent); }
 .ec-lo-desc { margin: 0 0 10px; font-size: 12.5px; color: var(--muted); }
 

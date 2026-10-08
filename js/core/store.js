@@ -8,7 +8,7 @@ window.TH = window.TH || {};
 TH.store = (function () {
   const KEY = 'tradingHall.state';
   const VERSION = 1;
-  const defaults = { version: VERSION, settings: { theme: 'auto' }, customPresets: [] };
+  const defaults = { version: VERSION, settings: { theme: 'auto', style: 'classic' }, customPresets: [] };
   const listeners = new Set();
   let state = load();
 
@@ -20,11 +20,13 @@ TH.store = (function () {
     return structuredClone(defaults);
   }
 
+  /** Write state to localStorage now; returns true on success (also fires th:saved / th:save-error). */
   function save() {
     try {
       localStorage.setItem(KEY, JSON.stringify(state));
       window.dispatchEvent(new Event('th:saved'));
-    } catch (e) { window.dispatchEvent(new Event('th:save-error')); /* storage blocked */ }
+      return true;
+    } catch (e) { window.dispatchEvent(new Event('th:save-error')); /* storage blocked */ return false; }
   }
 
   /** Register a module slice with default values (merged shallowly, never overwrites saved data). */
@@ -66,5 +68,5 @@ TH.store = (function () {
     location.reload();
   }
 
-  return { define, get, update, subscribe, exportJSON, importJSON, reset, VERSION };
+  return { define, get, update, subscribe, exportJSON, importJSON, reset, flush: save, VERSION };
 })();

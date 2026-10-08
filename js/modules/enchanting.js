@@ -504,7 +504,7 @@ TH.anvil = (function () {
     const on = ok && it.id === s.item;
     const name = ok ? itemName(it.id, s.material) : genericName(it.id);
     const tip = ok ? name : 'Not available in ' + matName(s.material);
-    return h('button.ec-item' + (on ? '.on' : '') + (ok ? '' : '.na') + (extraCls || ''), {
+    return h('button.ec-item' + (on ? '.on' : '') + (ok ? '' : '.na') + (it.since ? '.has-since' : '') + (extraCls || ''), {
       type: 'button', 'aria-pressed': String(on), 'data-focus': 'ec-item-' + it.id, title: tip, disabled: !ok,
       onclick: () => pickItem(it.id),
     },
@@ -673,7 +673,7 @@ TH.anvil = (function () {
         h('span.ec-label', 'Presets'),
         h('div.ec-lo-list', it.loadouts.map((l) => h('button.btn.small.ec-lo' + (s.loadout === l.id ? '.on' : ''), {
           type: 'button', title: l.desc, 'aria-pressed': String(s.loadout === l.id), 'data-focus': 'ec-lo-' + l.id, onclick: () => applyLoadout(l),
-        }, TH.icon('enchanted_book', { size: 14 }), l.name)))),
+        }, l.name, l.id === 'best' ? TH.util.reco() : null)))),
       lo ? h('p.ec-lo-desc', lo.desc) : null,
       exIds.length ? renderUsesRow(s) : null,
       h('div.ec-ench-list', normal.map(row)),

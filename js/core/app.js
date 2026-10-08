@@ -126,7 +126,7 @@ TH.app = (function () {
    */
   const PX_PAL = {
     y: '#ffd23c', o: '#f08a1c', w: '#f4f1e6', k: '#2a2a35', c: 'currentColor', d: 'currentColor',
-    m: '#d9e4f2', n: '#9fb3cc', s: '#ffe27a',
+    m: '#b8c4d6', n: '#9fb3cc', s: '#ffe27a',
     b: '#3b6fd6', B: '#86b2ff', g: '#3fb250',
     t: '#b9783a', T: '#8a5424', G: '#f2c33c', L: '#5a3716',
     r: '#d6332a', R: '#9c1f19',
@@ -135,7 +135,8 @@ TH.app = (function () {
     sun: ['...oo...', '.o.yy.o.', '..yyyy..', 'oyyyyyyo', 'oyyyyyyo', '..yyyy..', '.o.yy.o.', '...oo...'],
     moon: ['..mmmm..', '.mmmm...', 'mmmm....', 'mmmm....', 'mmmn....', 'mmmmn...', '.mmmnnn.', '..nnnn..'],
     menu: ['cccccccc', 'dddddddd', '........', 'cccccccc', 'dddddddd', '........', 'cccccccc', 'dddddddd'],
-    chest: ['.LLLLLL.', 'LttttttL', 'LtttttTL', 'LLLLLLLL', 'LTttGttL', 'LttttttL', 'LTTTTTTL', '.LLLLLL.'],
+    floppy: ['ccmmmmc.', 'ccmmkmcc', 'ccmmmmcc', 'cccccccc', 'cwwwwwwc', 'cwwwwwwc', 'cwwwwwwc', 'cwwwwwwc'],
+    style: ['cccccc..', 'c....c..', 'c..ccccc', 'c..c...c', 'cccc...c', '...c...c', '...c...c', '...ccccc'],
     globe: ['..bbbb..', '.bggBbb.', 'bgggbbgb', 'bggbbggb', 'bbbbgggb', 'bbgbbggb', '.bbbbbb.', '..bbbb..'],
     up: ['...cc...', '..cccc..', '.cccccc.', '...cc...', '...cc...', '...cc...', 'cccccccc', '........'],
     down: ['........', 'cccccccc', '...cc...', '...cc...', '...cc...', '.cccccc.', '..cccc..', '...cc...'],
@@ -167,7 +168,7 @@ TH.app = (function () {
 
   /** Fill the toolbar buttons with pixel glyphs (theme glyph shows the current mode: sun by day, moon by night). */
   function initToolbarIcons() {
-    document.getElementById('backupBtn').replaceChildren(pixIcon('chest'));
+    document.getElementById('backupBtn').replaceChildren(pixIcon('floppy'));
     document.getElementById('menuBtn').replaceChildren(pixIcon('menu'));
     document.querySelector('.lang-globe').replaceChildren(pixIcon('globe'));
     document.querySelectorAll('#menu .mi').forEach((el) => el.replaceChildren(pixIcon(el.dataset.ico)));
@@ -197,7 +198,15 @@ TH.app = (function () {
     syncThemeBtn();
   }
 
-  /** Top-right ⋯ menu: backup export/import and reset. */
+  /** Visual style: "classic" (default) or "soft" (neumorphism, css/style-neu.css). Persisted in settings.style. */
+  function applyStyle() {
+    const soft = TH.store.get().settings.style === 'soft';
+    document.documentElement.dataset.style = soft ? 'soft' : 'classic';
+    const l = document.getElementById('styleLabel');
+    if (l) l.textContent = 'Style: ' + (soft ? 'Soft' : 'Classic');
+  }
+
+  /** Top-right ⋯ menu: backup export/import, style toggle and reset. */
   function initMenu() {
     const btn = document.getElementById('menuBtn');
     const menu = document.getElementById('menu');
@@ -213,6 +222,9 @@ TH.app = (function () {
       const act = e.target.closest('[data-act]')?.dataset.act;
       if (act === 'export') {
         TH.util.download(`trading-hall-${new Date().toISOString().slice(0, 10)}.json`, TH.store.exportJSON());
+      } else if (act === 'style') {
+        TH.store.update((st) => { st.settings.style = st.settings.style === 'soft' ? 'classic' : 'soft'; }, { silent: true });
+        applyStyle();
       } else if (act === 'import') {
         file.click();
       } else if (act === 'reset' && confirm('Erase all progress, prices, gear and presets? This cannot be undone.')) {
@@ -237,6 +249,7 @@ TH.app = (function () {
     modules.forEach((m) => m.init && m.init(TH.store));
     initToolbarIcons();
     applyTheme();
+    applyStyle();
     document.getElementById('themeBtn').addEventListener('click', () => {
       const dark = isDark();
       TH.store.update((s) => { s.settings.theme = dark ? 'light' : 'dark'; });
@@ -298,30 +311,35 @@ TH.app = (function () {
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && btn.getAttribute('aria-expanded') === 'true' && box.contains(document.activeElement)) { set(false); btn.focus(); } });
   }
 
-  /** Save status lives on the chest (backup) button as an outline: saved = accent, pending = neutral pulse, error = red. */
+  /**
+   * Save button (floppy). Click = flush state to localStorage now. Every save (manual or auto, `th:saved`) blinks the
+   * floppy (data-save="saving") and shows a brief "SAVED" to its left; failure = red + "NOT SAVED" until the next good save.
+   */
   function initSaveState() {
     const btn = document.getElementById('backupBtn');
-    let t, last = null;
-    const set = (state) => {
-      btn.dataset.save = state;
-      const label = state === 'error' ? 'Could not save in this browser · click to back up'
-        : state === 'pending' ? 'Saving… · click to back up'
-        : 'All changes saved' + (last ? ' (' + last + ')' : '') + ' · click to back up';
-      btn.dataset.tip = label;
-      btn.setAttribute('aria-label', label);
-    };
+    const msg = document.getElementById('saveMsg');
+    let t, m, last = null;
+    const tip = (txt) => { btn.dataset.tip = txt; btn.setAttribute('aria-label', txt); };
+    const OK = 'Save now · auto-saves as you go';
+    tip(OK);
     window.addEventListener('th:saved', () => {
       last = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      set('pending');
-      clearTimeout(t);
-      t = setTimeout(() => set('saved'), 650);
+      btn.dataset.save = 'saving';
+      msg.textContent = 'SAVED';
+      msg.className = 'save-msg show';
+      tip(OK + ' · last saved ' + last);
+      clearTimeout(t); clearTimeout(m);
+      t = setTimeout(() => { btn.dataset.save = 'saved'; }, 700);
+      m = setTimeout(() => { msg.className = 'save-msg'; }, 1500);
     });
-    window.addEventListener('th:save-error', () => { clearTimeout(t); set('error'); });
-    set('saved');
-    btn.addEventListener('click', () => {
-      TH.util.download(`toolbox-backup-${new Date().toISOString().slice(0, 10)}.json`, TH.store.exportJSON());
-      TH.util.toast('Backup file saved — import it via ⋯ on another device');
+    window.addEventListener('th:save-error', () => {
+      clearTimeout(t); clearTimeout(m);
+      btn.dataset.save = 'error';
+      msg.textContent = 'NOT SAVED';
+      msg.className = 'save-msg show err';
+      tip('Could not save in this browser (storage blocked or full) · use ⋯ → Export backup');
     });
+    btn.addEventListener('click', () => TH.store.flush());
   }
 
   /**

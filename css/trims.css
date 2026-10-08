@@ -13,18 +13,21 @@
 .tr-title { min-width: 0; }
 .tr-layout {
   display: grid; gap: var(--tr-gap); align-items: stretch;
-  grid-template-columns: 340px 360px minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 420px) minmax(0, 1fr);
 }
 .tr-col { display: flex; flex-direction: column; gap: var(--tr-gap); min-width: 0; }
-.tr-col.a > .tr-hud { flex: 1; }
-@media (min-width: 1180px) { .tr-col.b .tr-viewer { height: clamp(440px, 64vh, 620px); flex: none; } }
+@media (min-width: 1180px) {
+  .tr-col.b .tr-viewer { flex: 1; min-height: clamp(440px, 64vh, 620px); }
+  .tr-col.a > .tr-hud { flex: 1; display: flex; flex-direction: column; }
+  .tr-hud .tr-stack { flex: 1; }
+  .tr-hud .tr-slotwrap { flex: 1 1 auto; display: flex; flex-direction: column; justify-content: center; }
+}
 .tr-hud, .tr-right, .tr-skin, .tr-viewer { min-width: 0; }
-.tr-right { display: flex; flex-direction: column; gap: var(--tr-gap); align-self: start; }
-@media (min-width: 1600px) { .tr-layout { grid-template-columns: 350px 420px minmax(0, 1fr); } }
+.tr-right { display: flex; flex-direction: column; gap: var(--tr-gap); }
 @media (max-width: 1179px) {
-  .tr-layout { grid-template-columns: 340px minmax(0, 1fr); grid-template-areas: "hud view" "hud skin" "right right"; }
+  .tr-layout { grid-template-columns: minmax(300px, 1fr) minmax(0, 1fr); grid-template-areas: "view hud" "skin hud" "right right"; }
   .tr-col { display: contents; }
-  .tr-hud { grid-area: hud; } .tr-viewer { grid-area: view; align-self: stretch; } .tr-right { grid-area: right; } .tr-skin { grid-area: skin; align-self: start; }
+  .tr-hud { grid-area: hud; } .tr-viewer { grid-area: view; align-self: stretch; } .tr-right { grid-area: right; } .tr-skin { grid-area: skin; }
 }
 @media (max-width: 860px) {
   .tr-layout { grid-template-columns: minmax(0, 1fr); grid-template-areas: "view" "skin" "hud" "right"; }
@@ -91,7 +94,6 @@
 .tr-slot-text b { font-weight: 600; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tr-slot-text span { font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tr-sw { display: inline-grid; place-items: center; width: 18px; height: 18px; flex-shrink: 0; }
-.tr-ctx-mat { display: inline-flex; align-items: center; gap: 4px; }
 .tr-dot { position: absolute; right: 2px; bottom: 2px; width: 9px; height: 9px; border-radius: 1px; box-shadow: 0 0 0 1px rgb(0 0 0 / .65), inset 1px 1px 0 rgb(255 255 255 / .35); }
 .tr-dot.big { position: static; display: inline-block; width: 11px; height: 11px; margin-left: 8px; vertical-align: -1px; }
 .tr-eye { width: 38px; height: 38px; margin-right: 4px; flex-shrink: 0; display: grid; place-items: center; border: 0; border-radius: 4px; background: transparent; color: var(--faint); cursor: pointer; transition: color .15s, background .15s; }
@@ -148,7 +150,6 @@
 .tr-skin-row2 { justify-content: space-between; }
 
 /* ---------- pattern browser ---------- */
-.tr-ctx { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; font-size: 12.5px; color: var(--muted); min-width: 0; flex-wrap: wrap; }
 .tr-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 4px; }
 .tr-pat {
   position: relative; display: flex; flex-direction: column; align-items: stretch; gap: 3px; padding: 4px 3px 5px; min-width: 0; border-radius: 5px; border: 0; background: transparent; cursor: pointer;
@@ -164,22 +165,16 @@
 .tr-pat-ico { display: grid; place-items: center; width: 18px; height: 18px; flex-shrink: 0; }
 .tr-pat-ico.none { opacity: 0; width: 0; }
 .tr-pat-name { font: 500 11px/1.2 var(--font); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tr-owned { position: absolute; top: 3px; right: 3px; font: 400 9px/1.4 var(--mono); font-style: normal; padding: 0 3px; border-radius: 2px; background: var(--accent-soft); color: var(--accent); }
 
-/* ---------- slim materials bar (top right of the page header) ---------- */
-.tr-mats { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: flex-end; gap: 6px 16px; padding: 7px 10px; margin-left: auto; min-width: 0; max-width: 100%; }
-.tr-mats .tr-note { margin: 0; align-self: center; }
-.tr-mgroup { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
-.tr-mlabel { font: 600 10px var(--font); text-transform: uppercase; letter-spacing: .7px; color: var(--muted); }
-.tr-chips { display: flex; flex-wrap: wrap; gap: 3px; }
-.tr-chip { display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 7px 0 4px; border-radius: 4px; background: var(--panel-2); font-size: 12px; color: var(--text); white-space: nowrap; }
-.tr-chip b { font: 400 12px var(--mono); font-variant-numeric: tabular-nums; color: var(--muted); }
-.tr-chip.tpl { cursor: pointer; }
-.tr-chip.tpl.owned { background: var(--accent-soft); }
-.tr-own { display: inline-flex; align-items: center; gap: 4px; margin-left: 2px; }
-.tr-own i { font: 400 10px var(--mono); font-style: normal; text-transform: uppercase; color: var(--muted); }
-.tr-own .check, .tr-own .check span { width: 16px; height: 16px; }
-.tr-copy { align-self: flex-end; }
+/* ---------- materials (below the trim segment) ---------- */
+.tr-mats .tr-card-head h3 { font: 600 12px var(--font); text-transform: uppercase; letter-spacing: .8px; color: var(--muted); }
+.tr-mgroup + .tr-mgroup { margin-top: 12px; }
+.tr-mlabel { font: 600 10.5px var(--font); text-transform: uppercase; letter-spacing: .7px; color: var(--faint); margin-bottom: 4px; }
+.tr-mlist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 3px; }
+.tr-mrow { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; align-items: center; gap: 8px; min-height: 32px; padding: 2px 10px 2px 4px; border-radius: 4px; background: var(--panel-2); font-size: 13px; }
+.tr-mico { display: grid; place-items: center; width: 28px; height: 28px; }
+.tr-mname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tr-mqty { font: 400 13px var(--mono); font-variant-numeric: tabular-nums; color: var(--muted); text-align: right; min-width: 3ch; }
 
 /* ---------- saved outfits (top of the Outfit card) ---------- */
 .tr-saved { margin-bottom: 12px; display: flex; flex-direction: column; gap: 6px; }
@@ -196,15 +191,10 @@
 .tr-schip .x-btn:last-child { margin-right: 2px; }
 .tr-schip .x-btn:hover { opacity: 1; }
 
-/* ---------- Minecraft tooltip (dark in both themes: it is an in-game artefact) ---------- */
-.tr-tip {
-  position: fixed; z-index: 400; left: 0; top: 0; max-width: min(340px, calc(100vw - 12px)); pointer-events: none; opacity: 0; transition: opacity .08s;
-  padding: 6px 8px; font: 400 14px/18px var(--mono); letter-spacing: 0; color: #aaa; text-shadow: 1px 1px 0 #2a2a2a;
-  background: rgb(16 0 16 / .94); border: 2px solid transparent; border-image: linear-gradient(180deg, rgb(80 0 255 / .5), rgb(40 0 127 / .5)) 1;
-  overflow-wrap: anywhere; white-space: pre-wrap;
-}
+/* ---------- tooltip (look comes from the global .th-tooltip classes; only positioning here) ---------- */
+.tr-tip { position: fixed; z-index: 400; left: 0; top: 0; max-width: min(320px, calc(100vw - 12px)); pointer-events: none; opacity: 0; transition: opacity .08s; }
 .tr-tip.show { opacity: 1; }
-.tr-tip .mct-name { color: #fff; /* default; lines pass their own colour */ margin-bottom: 2px; }
+.tr-tip .th-tooltip-title, .tr-tip .th-tooltip-sub { display: block; }
 
 @media (max-width: 640px) {
   .tr-card { padding: 12px; }
@@ -214,9 +204,7 @@
   .tr-vbtn { padding: 0 8px; }
   .tr-hint { font-size: 10.5px; }
   .tr-tile .mc { --mc: 20px !important; }
-  .tr-mats { margin-left: 0; width: 100%; justify-content: flex-start; }
   .module-trims .tr-head p { white-space: normal; }
   .tr-grid { grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); }
-  .tr-ctx { margin-left: 0; }
-}
+  }
 @media (max-width: 860px) and (min-width: 641px) { .tr-viewer, .tr-stage { min-height: 480px; } }

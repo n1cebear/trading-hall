@@ -36,8 +36,7 @@
   const reduced = () => !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
   const RAW = /[?&]assets=raw\b/.test(location.search);
   const TEXBASE = RAW ? 'https://raw.githubusercontent.com/InventivetalentDev/minecraft-assets/1.21.11/assets/minecraft/textures/' : TH.icon.tex('').slice(0, -4);
-  const RARITY_COLOR = { common: '#ffffff', uncommon: '#ffff55', rare: '#55ffff', epic: '#ff55ff' };
-  const hex2rgb = (x) => [parseInt(x.slice(1, 3), 16), parseInt(x.slice(3, 5), 16), parseInt(x.slice(5, 7), 16)];
+    const hex2rgb = (x) => [parseInt(x.slice(1, 3), 16), parseInt(x.slice(3, 5), 16), parseInt(x.slice(5, 7), 16)];
 
   /* ======================================================================
    * Names (Mojang strings via TH.i18n, English data as the fallback)
@@ -697,20 +696,18 @@
    * ====================================================================== */
   let tipEl = null;
   function tip() {
-    if (!tipEl) { tipEl = h('div.mct.tr-tip', { role: 'tooltip', 'aria-hidden': 'true' }); document.body.appendChild(tipEl); }
+    if (!tipEl) { tipEl = h('div.th-tooltip.tr-tip', { role: 'tooltip', 'aria-hidden': 'true' }); document.body.appendChild(tipEl); }
     return tipEl;
   }
   function hideTip() { if (tipEl) tipEl.classList.remove('show'); }
+  /** lines: first = title, the rest = muted lines (strings). */
   function showTip(lines, x, y) {
     const t = tip();
-    t.replaceChildren(...lines.map((l, i) => {
-      const o = typeof l === 'string' ? { t: l } : l;
-      return h('div.mct-line' + (i === 0 ? '.mct-name' : ''), { style: o.c ? { color: o.c } : null }, o.t);
-    }));
+    t.replaceChildren(...lines.map((l, i) => i === 0 ? h('b.th-tooltip-title', l) : h('span.th-tooltip-sub', l)));
     t.classList.add('show');
     const r = t.getBoundingClientRect();
-    t.style.left = clamp(x + 16, 6, window.innerWidth - r.width - 6) + 'px';
-    t.style.top = clamp(y - 8, 6, window.innerHeight - r.height - 6) + 'px';
+    t.style.left = clamp(x + 14, 6, window.innerWidth - r.width - 6) + 'px';
+    t.style.top = clamp(y + 16, 6, window.innerHeight - r.height - 6) + 'px';
   }
   /** Attach a tooltip (lines built lazily) to hover and keyboard focus. */
   function withTip(el, lines) {
@@ -719,25 +716,21 @@
     el.addEventListener('pointermove', (e) => { if (e.pointerType !== 'touch') showTip(get(), e.clientX, e.clientY); });
     el.addEventListener('pointerleave', hideTip);
     el.addEventListener('pointerdown', hideTip);
-    el.addEventListener('focus', () => { if (el.matches(':focus-visible')) { const r = el.getBoundingClientRect(); showTip(get(), r.left, r.top); } });
+    el.addEventListener('focus', () => { if (el.matches(':focus-visible')) { const r = el.getBoundingClientRect(); showTip(get(), r.left, r.bottom - 14); } });
     el.addEventListener('blur', hideTip);
     return el;
   }
 
   const pieceTipLines = (st, p) => {
     const o = st.outfit[p];
-    const L = [{ t: armorName(p, o.armor), c: '#ffffff' }];
-    if (o.pattern && o.material) {
-      const col = TRIMM[o.material].color; // the one place the game colours by trim material
-      L.push({ t: 'Upgrade:', c: '#aaaaaa' }, { t: ' ' + patName(o.pattern), c: col }, { t: ' ' + matName(o.material), c: col });
-    }
+    const L = [armorName(p, o.armor)];
+    L.push(o.pattern && o.material ? patName(o.pattern) + ' · ' + matName(o.material) : 'No trim');
+    if (!o.show) L.push('Hidden in the preview');
     return L;
   };
-  const patternTipLines = (pat) => {
-    const L = [{ t: templateTitle(), c: RARITY_COLOR[pat.rarity] || '#fff' }, { t: patName(pat.id), c: '#aaaaaa' }, { t: 'Found in: ' + pat.source, c: '#aaaaaa' },
-      { t: 'Duplicate: ' + D.templateCopyDiamonds + ' ' + itemName('diamond', 'Diamond') + ' + ' + blockName(pat), c: '#aaaaaa' }];
-    return L;
-  };
+  const rarityLabel = (r) => ({ common: 'Common', uncommon: 'Uncommon', rare: 'Rare', epic: 'Epic' })[r] || '';
+  const patternTipLines = (pat) => [patName(pat.id), templateTitle() + (pat.rarity ? ' · ' + rarityLabel(pat.rarity) : ''), 'Found in: ' + pat.source,
+    'Duplicate: ' + D.templateCopyDiamonds + ' ' + itemName('diamond', 'Diamond') + ' + ' + blockName(pat)];
 
   /* ======================================================================
    * UI
@@ -832,7 +825,7 @@
           const on = m.id === fo.armor;
           const b = h('button.tr-ico' + (on ? '.on' : ''), { type: 'button', role: 'radio', 'aria-checked': String(on), 'aria-label': armorName(focus, m.id), 'data-focus': 'tr-armor-' + m.id, onclick: () => setField('armor', m.id) },
             TH.icon.item(focus, m.id, { size: 28 }));
-          return withTip(b, [{ t: armorName(focus, m.id), c: '#ffffff' }]);
+          return withTip(b, [armorName(focus, m.id)]);
         }));
       const dyes = ARMOR[fo.armor].dyeable ? h('div.tr-dyes', { role: 'radiogroup', 'aria-label': 'Leather dye colour' },
         h('button.tr-dye.none' + (!fo.dye ? '.on' : ''), { type: 'button', role: 'radio', 'aria-checked': String(!fo.dye), 'aria-label': 'Undyed leather', title: 'Undyed', onclick: () => setField('dye', null), style: { '--c': D.leatherDefault } }),
@@ -855,11 +848,12 @@
       },
       h('span.tr-slot-ico', icoPiece(p, o.armor, 32)),
       h('span.tr-slot-text', h('b', armorName(p, o.armor)), h('span', trimmed ? patShort(o.pattern) + ' · ' + matShort(o.material) : 'No trim')),
-      trimmed ? h('span.tr-sw', { title: matName(o.material) }, TH.icon.trimMaterial(TRIMM[o.material].item, { size: 16 })) : null);
+      trimmed ? h('span.tr-sw', TH.icon.trimMaterial(TRIMM[o.material].item, { size: 16 })) : null);
       withTip(btn, () => pieceTipLines(st, p));
       const eye = h('button.tr-eye' + (o.show ? '.on' : ''), { type: 'button', 'aria-pressed': String(o.show), 'data-focus': 'tr-show-' + p,
-        title: (o.show ? 'Hide ' : 'Show ') + PIECE_NAME[p].toLowerCase() + ' in the preview', 'aria-label': 'Show ' + PIECE_NAME[p] + ' in the preview',
+        'aria-label': 'Show ' + PIECE_NAME[p] + ' in the preview',
         onclick: () => upd((s) => { s.outfit[p].show = !s.outfit[p].show; }) }, h('span.tr-eyeico'));
+      withTip(eye, [(o.show ? 'Hide ' : 'Show ') + PIECE_NAME[p].toLowerCase() + ' in the preview']);
       return h('div.tr-slotwrap' + (on ? '.on' : '') + (o.show ? '' : '.off'),
         h('div.tr-slot', btn, eye),
         on && chooserOpen ? chooser() : null);
@@ -935,12 +929,11 @@
     /* ---- right: trim material row + pattern browser + slim materials bar ---- */
     const matOpts = D.trimMaterials.map((m, i) => ({
       id: m.id, label: matName(m.id), focus: 'tr-trimmat-' + m.id, icon: TH.icon.trimMaterial(m.item, { size: 26 }),
-      tip: () => [{ t: ingredientName(m), c: '#ffffff' }].concat(ARMOR[fo.armor].trimMat === m.id && m.darker ? [{ t: 'Darker shade on ' + ARMOR[fo.armor].name.toLowerCase() + ' armor', c: '#aaaaaa' }] : []),
+      tip: () => [ingredientName(m)].concat(ARMOR[fo.armor].trimMat === m.id && m.darker ? ['Darker shade on ' + ARMOR[fo.armor].name.toLowerCase() + ' armor'] : []),
     }));
     const browser = h('section.panel.tr-card.tr-browser', { 'aria-label': 'Trim browser' },
       h('div.tr-card-head',
-        h('h3', 'Trim'),
-        h('span.tr-ctx', icoPiece(focus, fo.armor, 18), h('span', armorName(focus, fo.armor)), h('span.tr-ctx-mat', TH.icon.trimMaterial(TRIMM[gm].item, { size: 16 }), h('span', matShort(gm))))),
+        h('h3', 'Trim')),
       h('div.tr-sub', 'Trim material'),
       tileRow(matOpts, gm, (id) => { markReveal('gallery'); setField('material', id); }, 'mats'),
       h('div.tr-sub', 'Pattern'),
@@ -953,36 +946,36 @@
             onclick: () => setField('pattern', p.id) },
           cv,
           h('span.tr-pat-foot', p.id ? h('span.tr-pat-ico', TH.icon.trim(p.id, { size: 20 })) : h('span.tr-pat-ico.none'), h('span.tr-pat-name', p.id ? short[i - 1] : 'No trim')),
-          p.id && st.owned[p.id] ? h('i.tr-owned', { title: 'You own this template' }, '✓') : null);
-          if (p.id) withTip(b, () => patternTipLines(p)); else withTip(b, [{ t: 'No trim', c: '#fff' }]);
+          null);
+          if (p.id) withTip(b, () => patternTipLines(p)); else withTip(b, ['No trim', 'Remove the trim from this piece']);
           return b;
         })));
 
-    /* slim materials summary: templates (+ own toggle), duplication cost, trim materials */
+    /* materials list: templates, duplication cost, trim materials (clean rows, no toggles) */
     const none = !M.trimmed;
-    const group = (label, kids) => h('div.tr-mgroup', h('span.tr-mlabel', label), h('div.tr-chips', kids));
-    const chip = (icon, text, qty, title) => { const c = h('span.tr-chip', { title: title || null }, icon, h('span', text), qty != null ? h('b', '×' + qty) : null); return c; };
-    const sumKids = [];
-    if (none) sumKids.push(h('p.tr-note', M.pcs.length ? 'No trims yet. Pick a pattern to see the templates and materials it needs.' : 'No pieces are shown. Show at least one piece to see what it needs.'));
+    const row = (icon, text, qty, tipLines) => { const r = h('li.tr-mrow', h('span.tr-mico', icon), h('span.tr-mname', text), qty != null ? h('b.tr-mqty', '×' + qty) : null); return tipLines ? withTip(r, tipLines) : r; };
+    const group = (label, rows) => h('div.tr-mgroup', h('div.tr-mlabel', label), h('ul.tr-mlist', rows));
+    const mkids = [];
+    if (none) mkids.push(h('p.tr-note', M.pcs.length ? 'No trims yet. Pick a pattern to see the templates and materials it needs.' : 'No pieces are shown. Show at least one piece to see what it needs.'));
     else {
-      sumKids.push(group('Templates', M.templates.map((t) => {
-        const c = h('label.tr-chip.tpl' + (t.owned ? '.owned' : ''), { title: t.owned ? 'You have the original' : 'Find the original in ' + t.data.source },
-          TH.icon(t.icon, { size: 24 }), h('span', short[D.trimPatterns.findIndex((x) => x.id === t.id)]), h('b', '×' + t.qty),
-          h('span.tr-own', h('span.check', h('input', { type: 'checkbox', checked: t.owned, 'aria-label': 'I own the ' + t.title + ' template', 'data-focus': 'tr-own-' + t.id, onchange: (e) => upd((s) => { s.owned[t.id] = e.target.checked; }) }), h('span')), h('i', 'own')));
-        return withTip(c, () => patternTipLines(t.data));
-      })));
-      if (M.copies) sumKids.push(group('Duplicating ×' + M.copies, [chip(TH.icon('diamond', { size: 24 }), itemName('diamond', 'Diamond'), M.diamonds, M.copies + ' × ' + D.templateCopyDiamonds + ' diamonds')].concat(M.dupes.map((r) => chip(TH.icon(r.icon, { size: 24 }), r.name, r.qty)))));
-      sumKids.push(group('Trim materials', M.ingredients.map((r) => chip(TH.icon(r.icon, { size: 24 }), matShort(r.id), r.qty, r.item))));
+      mkids.push(group('Templates', M.templates.map((t) => row(TH.icon(t.icon, { size: 24 }), patName(t.id), t.qty, () => patternTipLines(t.data)))));
+      if (M.copies) mkids.push(group('Duplication', [row(TH.icon('diamond', { size: 24 }), itemName('diamond', 'Diamond'), M.diamonds, [M.copies + ' extra cop' + (M.copies === 1 ? 'y' : 'ies'), M.copies + ' × ' + D.templateCopyDiamonds + ' diamonds'])]
+        .concat(M.dupes.map((r) => row(TH.icon(r.icon, { size: 24 }), r.name, r.qty)))));
+      mkids.push(group('Trim materials', M.ingredients.map((r) => row(TH.icon(r.icon, { size: 24 }), r.item, r.qty))));
     }
-    sumKids.push(h('button.btn.small.tr-copy', { type: 'button', disabled: none, onclick: () => copyText(materialsText(st, M)) }, 'Copy list'));
-    const mats = h('section.panel.tr-mats', { 'aria-label': 'Materials needed' }, sumKids);
+    const mats = h('section.panel.tr-card.tr-mats', { 'aria-label': 'Materials needed' },
+      h('div.tr-card-head', h('h3', 'Materials'), h('button.btn.small', { type: 'button', disabled: none, onclick: () => copyText(materialsText(st, M)) }, 'Copy list')),
+      mkids);
 
-    const right = h('div.tr-right', browser);
+    const right = h('div.tr-right', browser, mats);
 
     root.append(
       h('div.page-head.tr-head',
-        h('div.tr-title', h('h2', 'Armor trims'), h('p', 'Preview, compare and cost out armor trims.')), mats),
-      h('div.tr-layout', h('div.tr-col.a', hud), h('div.tr-col.b', viewer, skinBox), right));
+        h('div.tr-title', h('h2', 'Armor trims'), h('p', 'Preview, compare and cost out armor trims.'))),
+      h('div.tr-layout', h('div.tr-col.a', hud, skinBox), h('div.tr-col.b', viewer), right));
+
+    /* every native title= becomes the app tooltip (one coherent style) */
+    root.querySelectorAll('[title]').forEach((el) => { const t = el.getAttribute('title'); el.removeAttribute('title'); if (t) withTip(el, [t]); });
 
     // after the new DOM is in the page: attach the persistent 3D canvas, push state into it, run entrances
     V.el.setAttribute('aria-label', '3D preview. ' + PIECES.filter((p) => st.outfit[p].show).map((p) => armorName(p, st.outfit[p].armor) + (st.outfit[p].pattern ? ' with ' + patName(st.outfit[p].pattern) : '')).join(', ') + '. Drag to rotate, scroll to zoom, double-click to reset.');

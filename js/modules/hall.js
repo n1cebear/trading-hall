@@ -1154,18 +1154,35 @@
           h('h3', `${t.done} / ${t.total} locked in`),
           h('p', line),
           preset ? h('span.chip', 'Based on ', preset.name) : null)),
+      progressStats(t),
       h('div.hl-prog-actions', editBtn,
         t.stalls ? h('button.btn.primary', { type: 'button', 'data-focus': 'hero-check', onclick: () => openCheck(null) }, TH.icon('enchanted_book', { size: 18 }), 'Check an offer') : null));
   }
 
-  /** A compact stat: icon, number, label and an outlined square that fills bottom-up with progress (none when frac is null). */
-  function miniStat(icon, num, label, frac) {
-    const pct = frac == null ? 0 : Math.round(Math.max(0, Math.min(1, frac)) * 100);
-    return h('div.hl-mstat',
-      h('span.hl-mstat-ico', { 'aria-hidden': 'true' }, icon),
-      h('div.hl-mstat-body', h('div.hl-mstat-top', h('b', num), h('span', label))),
-      frac == null ? null
-        : h('span.hl-psq' + (pct >= 100 ? '.is-full' : ''), { role: 'img', 'aria-label': pct + '%', style: '--p:' + pct + '%' }));
+  /** Square outline whose stroke is traced clockwise from the top-left in proportion to frac (a neutral base outline underneath). */
+  function progressSquare(frac) {
+    const NS = 'http://www.w3.org/2000/svg', pct = Math.round(Math.max(0, Math.min(1, frac)) * 100);
+    const el = (n, a) => { const e = document.createElementNS(NS, n); for (const k in a) e.setAttribute(k, a[k]); return e; };
+    const svg = el('svg', { viewBox: '0 0 16 16', class: 'hl-psq', role: 'img', 'aria-label': pct + '%', focusable: 'false', 'shape-rendering': 'crispEdges' });
+    const r = { x: 1, y: 1, width: 14, height: 14, pathLength: 100 };
+    svg.append(el('rect', Object.assign({ class: 'hl-psq-base' }, r)));
+    if (pct > 0) svg.append(el('rect', Object.assign({ class: 'hl-psq-fill', 'stroke-dasharray': pct + ' 100' }, r)));
+    return svg;
+  }
+
+  /** One row of the progress block: indicator (or an icon / spacer), label, value. */
+  function pstat(lead, label, value, frac) {
+    return h('li.hl-pstat', frac == null ? h('span.hl-psq-gap', { 'aria-hidden': 'true' }, lead || null) : progressSquare(frac),
+      h('span.hl-pstat-lbl', label), h('b', value));
+  }
+
+  function progressStats(t) {
+    const f = (a, b) => (b ? a / b : 0);
+    return h('ul.hl-pstats', { 'aria-label': 'Progress details' },
+      pstat(null, 'Librarians', [`${t.locked} `, h('small', `/ ${t.stalls}`)], f(t.locked, t.stalls)),
+      pstat(null, 'Other villagers', [`${t.have} `, h('small', `/ ${t.trades}`)], f(t.have, t.trades)),
+      pstat(TH.icon('star', { size: 14 }), 'Perfect-price books', String(t.perfect), null),
+      pstat(TH.icon('emerald', { size: 14 }), 'Emeralds above perfect', String(t.over), null));
   }
 
   /** Make the dashboard exactly fill the viewport below its own top edge (canvas fully visible, no page scroll). */
@@ -1326,12 +1343,7 @@
     return h('section.panel.hl-map' + (keys.length ? '.has-selection' : ''), { 'aria-label': 'Hall layout' },
       h('div.hl-map-head',
         h('div.hl-map-title', h('h3', 'Your hall'), h('span.hl-map-count', plural(pl.list.length, 'villager')), legend,
-          h('p.hl-hint', { title: HINT }, HINT)),
-        h('div.hl-mstats',
-          miniStat(TH.icon('enchanted_book', { size: 22, glint: true }), `${t.locked}/${t.stalls}`, 'librarians locked', t.stalls ? t.locked / t.stalls : 0),
-          miniStat(TH.icon('villager', { size: 22 }), `${t.have}/${t.trades}`, 'other villagers', t.trades ? t.have / t.trades : 0),
-          miniStat(TH.icon('star', { size: 22 }), t.perfect, 'perfect-price books', t.stalls ? t.perfect / t.stalls : 0),
-          miniStat(TH.icon('emerald', { size: 22 }), t.over, 'emeralds above perfect', null))),
+          h('p.hl-hint', { title: HINT }, HINT))),
       cv.el);
   }
 

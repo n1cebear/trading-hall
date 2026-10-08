@@ -32,7 +32,7 @@
 
 /* ---- the villager tile (72 x 72 world px) ---- */
 .hc-tile {
-  --st: var(--line-2);
+  --st: color-mix(in srgb, var(--text) 10%, transparent);
   position: absolute; left: 0; top: 0; width: 72px; height: 72px; box-sizing: border-box; margin: 0;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
   padding: 11px 3px 4px; border-radius: 5px; cursor: grab; font: inherit; color: var(--text);
@@ -71,7 +71,7 @@
 .hc-star { font: 700 13px/1 var(--mono); color: var(--gold); text-shadow: 0 0 6px color-mix(in srgb, var(--gold) 70%, transparent); }
 
 /* status */
-.hc-tile.is-needed { border-style: dashed; background: color-mix(in srgb, var(--panel-2) 70%, var(--bg-2)); box-shadow: none; }
+.hc-tile.is-needed { background: color-mix(in srgb, var(--panel-2) 70%, var(--bg-2)); box-shadow: none; }
 .hc-tile.is-needed .mc { opacity: .72; }
 .hc-tile.is-locked { background: color-mix(in srgb, var(--accent) 10%, var(--panel-2)); }
 .hc-tile.is-perfect {

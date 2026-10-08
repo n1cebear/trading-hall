@@ -267,21 +267,20 @@ button.hl-strip-main { cursor: pointer; }
 .hl-prog-text .chip { margin-top: 4px; }
 .hl-prog-actions { display: flex; gap: 8px; }
 .hl-prog-actions .btn { flex: 1 1 0; justify-content: center; white-space: nowrap; }
+.hl-col:has(.hl-side.has-detail) .hl-pstats { display: none; }
 .hl-col:has(.hl-side.has-detail) .hl-prog-text p, .hl-col:has(.hl-side.has-detail) .hl-prog-text .chip { display: none; }
 .hl-col:has(.hl-side.has-detail) .hl-cube { width: 72px; height: 76px; }
 
-/* ---- mini stats inside the canvas panel header: tone + spacing, no inner outlines ---- */
-.hl-mstats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; padding: 4px; border-radius: 6px; background: var(--panel-2); }
-.hl-mstat { display: flex; align-items: center; gap: 8px; padding: 6px 8px; min-width: 0; }
-.hl-mstat-ico { display: grid; place-items: center; flex: none; }
-.hl-mstat-body { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 4px; }
-.hl-mstat-top { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
-.hl-mstat-top b { font: 500 15px/1 var(--mono); color: var(--text); font-variant-numeric: tabular-nums; }
-.hl-mstat-top span { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-/* progress square: an outlined square that fills bottom-up with progress */
-.hl-psq { flex: none; width: 18px; height: 18px; border: 1.5px solid color-mix(in srgb, var(--accent) 70%, var(--line-2)); border-radius: 2px; padding: 2px;
-  background: linear-gradient(to top, var(--accent) var(--p, 0%), transparent var(--p, 0%)) content-box; transition: background .4s ease; }
-.hl-psq.is-full { border-color: var(--accent); }
+/* ---- progress stats (right column, under the cube): square outline traced clockwise from top-left ---- */
+.hl-pstats { list-style: none; margin: 0; padding: 10px 0 0; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 6px; }
+.hl-pstat { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 12.5px; color: var(--muted); }
+.hl-pstat-lbl { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hl-pstat b { font: 500 13px/1 var(--mono); color: var(--text); font-variant-numeric: tabular-nums; }
+.hl-pstat b small { font: inherit; color: var(--faint); }
+.hl-psq { flex: none; width: 16px; height: 16px; overflow: visible; }
+.hl-psq-base { fill: none; stroke: color-mix(in srgb, var(--text) 24%, transparent); stroke-width: 2; }
+.hl-psq-fill { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linecap: butt; stroke-linejoin: miter; transition: stroke-dasharray .4s ease; }
+.hl-psq-gap { flex: none; width: 16px; height: 16px; display: grid; place-items: center; line-height: 0; }
 
 /* ---- hall canvas panel (the canvas itself: hall-canvas.css) ---- */
 .hl-map { padding: 12px 14px 14px; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
@@ -296,7 +295,7 @@ button.hl-strip-main { cursor: pointer; }
 .hl-legend { list-style: none; display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 0; padding: 0; font-size: 12px; color: var(--muted); }
 .hl-legend li { display: flex; align-items: center; gap: 6px; }
 .hl-sw { width: 14px; height: 14px; border-radius: 3px; display: inline-block; border: 1px solid var(--line-2); background: var(--panel-2); }
-.hl-sw.is-needed { border-style: dashed; background: transparent; }
+.hl-sw.is-needed { border-color: color-mix(in srgb, var(--text) 14%, transparent); background: var(--panel-2); }
 .hl-sw.is-locked { background: color-mix(in srgb, var(--accent) 14%, var(--panel-2)); position: relative; }
 .hl-sw.is-locked::after { content: ''; position: absolute; left: 3px; bottom: 2px; width: 6px; height: 4px; background: var(--muted); border-radius: 1px; }
 .hl-sw.is-perfect { border-color: var(--gold); background: linear-gradient(160deg, color-mix(in srgb, var(--gold) 45%, var(--panel-2)), color-mix(in srgb, var(--gold) 15%, var(--panel-2))); box-shadow: 0 0 6px -1px var(--gold); }
@@ -468,7 +467,6 @@ button.hl-strip-main { cursor: pointer; }
 /* ============ responsive ============ */
 @media (max-width: 1100px) {
   .hl-dash { grid-template-columns: minmax(0, 1fr) 300px; }
-  .hl-mstats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .hl-map-head .hl-hint { display: none; }
 }
 /* stack: progress, canvas, next up (page scrolls) */
@@ -519,8 +517,6 @@ button.hl-strip-main { cursor: pointer; }
   .hl-custom-main .field.hl-custom-purpose { flex: 1 1 100%; }
   .hl-subrows { padding-left: 8px; }
   .hl-group-head small { display: none; }
-  .hl-mstat { padding: 6px; gap: 6px; }
-  .hl-mstats { margin: 0 -2px; }
   .hl-map .hc-viewport { height: clamp(380px, 62vh, 560px); }
   .hl-map { padding: 12px 0 0; overflow: hidden; }
   .hl-map-head { padding: 0 12px; }

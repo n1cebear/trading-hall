@@ -234,10 +234,11 @@ TH.hallCanvas = (function () {
     }
     function schedule() { if (!raf) raf = requestAnimationFrame(frame); }
 
+    /* dots sit in the 8px gaps at world (80k-4, 80k-4): the centre of the gap at every tile corner; the gradient dot is centred in its cell, hence the sz/2 shift */
     function paintGrid() {
       const sz = G * S.view.z, on = S.prefs.grid && sz >= 10;
       vp.classList.toggle('has-grid', on);
-      if (on) { vp.style.setProperty('--hc-gs', sz + 'px'); vp.style.setProperty('--hc-gx', (Math.round(S.view.px) - sz / 2) + 'px'); vp.style.setProperty('--hc-gy', (Math.round(S.view.py) - sz / 2) + 'px'); }
+      if (on) { vp.style.setProperty('--hc-gs', sz + 'px'); vp.style.setProperty('--hc-gx', (Math.round(S.view.px) - 4 * S.view.z - sz / 2) + 'px'); vp.style.setProperty('--hc-gy', (Math.round(S.view.py) - 4 * S.view.z - sz / 2) + 'px'); }
     }
     function applyView() {
       const { px, py, z } = S.view;

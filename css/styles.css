@@ -706,3 +706,14 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; }
   background: var(--accent-soft); color: var(--accent); font: 600 10.5px/16px var(--font); letter-spacing: .2px;
 }
 @media (prefers-reduced-motion: reduce) { .th-tooltip { transition: opacity .01s; transform: none; } }
+
+/* ============ pressed state (Classic): every button-like control is pushed down while held ============
+   Blocks with an under-shadow compress it as they sink; flat/selected ones just sink. Disabled / n.a. never press.
+   Soft style re-skins the same moment (inset shadow) in style-neu.css. */
+:is(.nav-item, .seg button, .lvl-chips button, .icon-btn, .x-btn, .lang-btn, .foot-toggle, .hc-btn, .step, .tb-btn,
+    .ec-item, .ec-tile, .ec-mat, .ec-lo, .ec-gear-main, .ec-own-btn, .hl-preset, .hl-quick-chip, .hl-badge, .hl-lock,
+    .tr-tile, .tr-ico, .tr-pat, .tr-schip, .tr-vbtn, .tr-cbtn, .tr-anim, .tr-sync, .tr-eye):active:not(:disabled):not(.na):not([aria-disabled="true"]) { transform: translateY(2px); }
+:is(.icon-btn, .hc-btn, .step, .tr-vbtn, .ec-item, .ec-tile, .hl-preset):active:not(:disabled):not(.na):not(.on):not(.is-on) { box-shadow: 0 0 0 var(--edge-lo), inset 1px 1px 0 var(--edge-hi); }
+.btn:disabled:active, .icon-btn:disabled:active { transform: none; box-shadow: 0 2px 0 var(--edge-lo), 0 1px 0 var(--edge-hi) inset; }
+.btn.primary:disabled:active { box-shadow: 0 3px 0 var(--accent-deep), 0 0 20px -6px var(--accent); }
+.btn.ghost:disabled:active { box-shadow: none; }

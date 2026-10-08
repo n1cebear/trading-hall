@@ -656,12 +656,15 @@
     return h('aside.hl-wiz-side.panel', { 'aria-label': 'Total so far' },
       h('div.hl-side-sum', { 'aria-live': 'polite' },
         h('div.hl-side-title', 'TOTAL SO FAR'),
-        row('lib', TH.icon.prof('librarian', { size: 18 }), [t.stalls === 1 ? 'librarian' : 'librarians'], t.stalls, '.is-lib'),
-        row('oth', TH.icon('villager', { size: 18 }), ['other', t.trades === 1 ? ' villager' : ' villagers'], t.trades, '.is-oth'),
-        row('tot', null, [t.total === 1 ? 'villager' : 'villagers', ' in total'], t.total, '.is-total')),
+        row('lib', TH.icon.prof('librarian', { size: 18 }), [t.stalls === 1 ? 'Librarian' : 'Librarians'], t.stalls, '.is-lib'),
+        row('oth', TH.icon('villager', { size: 18 }), ['Other', t.trades === 1 ? ' villager' : ' villagers'], t.trades, '.is-oth'),
+        row('tot', null, [t.total === 1 ? 'Villager' : 'Villagers', ' in total'], t.total, '.is-total')),
       books.length ? h('div.hl-side-sec.hl-side-books',
         h('div.hl-side-h', TH.icon('enchanted_book', { size: 14, glint: true }), 'Books', h('em', String(books.length))),
-        h('div.hl-side-chips', books.map((b) => h('span.hl-fchip', bookChipText(b), b.n > 1 ? h('em', '×' + b.n) : null)))) : null,
+        h('ul.hl-side-ws.hl-side-bk', books.map((b) => h('li', { title: enchLabel(b.e, b.level) },
+          TH.icon('enchanted_book', { size: 18 }),
+          h('span.hl-ws-name', enchShort(b.e), b.e.maxLevel > 1 ? h('small', ' ' + lvlText(b.level)) : null),
+          h('em', '×' + b.n))))) : null,
       profs.length ? h('div.hl-side-sec.hl-side-profs',
         h('div.hl-side-h', 'Workstations'),
         h('ul.hl-side-ws', profs.map((r) => h('li', { style: '--pc:' + r.prof.color, title: wsName(r.prof) + (tradeShorts(hall, r.prof.id) ? ': ' + tradeShorts(hall, r.prof.id) : '') },
@@ -1115,36 +1118,38 @@
 
   /** Pixel isometric cube that fills bottom to top (stepped layers, like stacking blocks). */
   function progressCube(done, total) {
-    const NS = 'http://www.w3.org/2000/svg', STEPS = 8, HH = 40;
+    const pct = total ? Math.round((done / total) * 100) : 0;
+    const NS = 'http://www.w3.org/2000/svg', STEPS = 8, HH = 30; // true isometric: vertical edge = slanted edge length (30)
     const el = (n, a) => { const e = document.createElementNS(NS, n); for (const k in a) e.setAttribute(k, a[k]); return e; };
     const lvl = total ? Math.round((done / total) * STEPS) : 0;
     const d = HH * (1 - lvl / STEPS);
-    const svg = el('svg', { viewBox: '0 0 64 78', class: 'hl-cube', 'shape-rendering': 'crispEdges', 'aria-hidden': 'true', focusable: 'false' });
-    const poly = (cls, pts) => svg.append(el('polygon', { class: cls, points: pts.map((q) => q.join(',')).join(' ') }));
-    poly('hl-cube-l', [[6, 19], [32, 34], [32, 74], [6, 59]]);
-    poly('hl-cube-r', [[32, 34], [58, 19], [58, 59], [32, 74]]);
+    const svg = el('svg', { viewBox: '0 0 64 68', width: 104, height: 110, class: 'hl-cube', preserveAspectRatio: 'xMidYMid meet', role: 'img', 'aria-label': pct + '% locked in', focusable: 'false' });
+    const poly = (cls, pts) => svg.append(el('polygon', { class: cls, points: pts.map((q) => q.join(',')).join(' '), 'shape-rendering': 'crispEdges' }));
+    poly('hl-cube-l', [[6, 19], [32, 34], [32, 64], [6, 49]]);
+    poly('hl-cube-r', [[32, 34], [58, 19], [58, 49], [32, 64]]);
     poly('hl-cube-t', [[32, 4], [58, 19], [32, 34], [6, 19]]);
     if (lvl > 0) {
-      poly('hl-cube-fl', [[6, 19 + d], [32, 34 + d], [32, 74], [6, 59]]);
-      poly('hl-cube-fr', [[32, 34 + d], [58, 19 + d], [58, 59], [32, 74]]);
+      poly('hl-cube-fl', [[6, 19 + d], [32, 34 + d], [32, 64], [6, 49]]);
+      poly('hl-cube-fr', [[32, 34 + d], [58, 19 + d], [58, 49], [32, 64]]);
       poly('hl-cube-ft', [[32, 4 + d], [58, 19 + d], [32, 34 + d], [6, 19 + d]]);
       for (let i = 1; i < lvl; i++) { // layer seams
-        const y = 74 - i * (HH / STEPS);
-        svg.append(el('path', { class: 'hl-cube-seam', d: `M6 ${y - 15}L32 ${y}L58 ${y - 15}` }));
+        const y = 64 - i * (HH / STEPS);
+        svg.append(el('path', { class: 'hl-cube-seam', d: `M6 ${y - 15}L32 ${y}L58 ${y - 15}`, 'shape-rendering': 'crispEdges' }));
       }
     }
-    svg.append(el('path', { class: 'hl-cube-edge', d: 'M32 4L58 19V59L32 74L6 59V19Z M6 19L32 34L58 19 M32 34V74', fill: 'none' }));
+    svg.append(el('path', { class: 'hl-cube-edge', d: 'M32 4L58 19V49L32 64L6 49V19Z M6 19L32 34L58 19 M32 34V64', fill: 'none' }));
+    const txt = el('text', { class: 'hl-cube-pct', x: 32, y: 45, 'text-anchor': 'middle' });
+    txt.textContent = pct + '%';
+    svg.append(txt);
     return svg;
   }
 
   /** Right column, top: overall progress as a cube + the two main actions. */
   function renderProgress(t, line, preset, editBtn) {
-    const pct = t.total ? Math.round((t.done / t.total) * 100) : 0;
     return h('section.panel.hl-prog' + (t.done === t.total ? '.is-done' : ''), { 'aria-label': 'Overall progress' },
       h('div.hl-prog-main',
         progressCube(t.done, t.total),
         h('div.hl-prog-text',
-          h('div.hl-prog-pct', pct + '%'),
           h('h3', `${t.done} / ${t.total} locked in`),
           h('p', line),
           preset ? h('span.chip', 'Based on ', preset.name) : null)),
@@ -1152,16 +1157,14 @@
         t.stalls ? h('button.btn.primary', { type: 'button', 'data-focus': 'hero-check', onclick: () => openCheck(null) }, TH.icon('enchanted_book', { size: 18 }), 'Check an offer') : null));
   }
 
-  /** A compact stat: icon, number, label and a row of tiny block segments (or a flat mini cube). */
-  function miniStat(icon, num, label, frac, cube) {
-    const SEG = 10;
-    const on = frac == null ? 0 : Math.round(frac * SEG);
+  /** A compact stat: icon, number, label and an outlined square that fills bottom-up with progress (none when frac is null). */
+  function miniStat(icon, num, label, frac) {
+    const pct = frac == null ? 0 : Math.round(Math.max(0, Math.min(1, frac)) * 100);
     return h('div.hl-mstat',
       h('span.hl-mstat-ico', { 'aria-hidden': 'true' }, icon),
-      h('div.hl-mstat-body',
-        h('div.hl-mstat-top', h('b', num), h('span', label)),
-        cube ? h('i.hl-mcube' + (cube === 'good' ? '.is-good' : '.is-warn'), { 'aria-hidden': 'true' })
-          : h('div.hl-blocks', { 'aria-hidden': 'true' }, Array.from({ length: SEG }, (_, i) => h('i' + (i < on ? '.on' : ''))))));
+      h('div.hl-mstat-body', h('div.hl-mstat-top', h('b', num), h('span', label))),
+      frac == null ? null
+        : h('span.hl-psq' + (pct >= 100 ? '.is-full' : ''), { role: 'img', 'aria-label': pct + '%', style: '--p:' + pct + '%' }));
   }
 
   /** Make the dashboard exactly fill the viewport below its own top edge (canvas fully visible, no page scroll). */
@@ -1327,7 +1330,7 @@
           miniStat(TH.icon('enchanted_book', { size: 22, glint: true }), `${t.locked}/${t.stalls}`, 'librarians locked', t.stalls ? t.locked / t.stalls : 0),
           miniStat(TH.icon('villager', { size: 22 }), `${t.have}/${t.trades}`, 'other villagers', t.trades ? t.have / t.trades : 0),
           miniStat(TH.icon('star', { size: 22 }), t.perfect, 'perfect-price books', t.stalls ? t.perfect / t.stalls : 0),
-          miniStat(TH.icon('emerald', { size: 22 }), t.over, 'emeralds above perfect', null, t.over ? 'warn' : 'good'))),
+          miniStat(TH.icon('emerald', { size: 22 }), t.over, 'emeralds above perfect', null))),
       cv.el);
   }
 

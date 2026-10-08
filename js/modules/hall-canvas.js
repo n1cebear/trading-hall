@@ -132,7 +132,7 @@ TH.hallCanvas = (function () {
     const ovl = h('div.hc-ovl', { 'aria-hidden': 'true' });
     const marquee = h('div.hc-marquee');
     const guideEls = [];
-    const tip = h('div.hc-tip.hc-ui', { hidden: true, role: 'presentation', 'aria-hidden': 'true' });
+    const tip = h('div.th-tooltip.hc-tip.hc-ui', { hidden: true, role: 'presentation', 'aria-hidden': 'true' });
     const live = h('div.hc-live', { role: 'status', 'aria-live': 'polite' });
     const miniCv = h('canvas.hc-mini-cv', { 'aria-hidden': 'true' });
     const mini = h('div.hc-minimap.hc-ui', miniCv);
@@ -991,7 +991,7 @@ TH.hallCanvas = (function () {
     function showTip(key) {
       const rec = S.items.get(key), p = S.pos[key];
       if (!rec || !p || !rec.tip || S.g || S.pinch || S.anim || (S.tw && S.tw.items[key])) return;
-      tip.replaceChildren(h('b.hc-tip-t', rec.tip.title), rec.tip.sub ? h('span.hc-tip-s', rec.tip.sub) : null);
+      tip.replaceChildren(h('b.th-tooltip-title', rec.tip.title), rec.tip.sub ? h('span.th-tooltip-sub', rec.tip.sub) : null);
       tip.hidden = false; tip.style.visibility = 'hidden';
       const a = toLocal(p.x, p.y), tw = TILE * S.view.z, w = tip.offsetWidth, hh = tip.offsetHeight, gap = 8;
       let x = a.x + tw / 2 - w / 2, y = a.y - hh - gap, below = false;

@@ -9,6 +9,7 @@
  *     armor    = armor material id (TH.data.armorMaterials), pattern = trim pattern id | null,
  *     material = trim material id | null, dye = '#rrggbb' | null (leather only), show = piece visible
  *   focus: 'chestplate',                      // last edited piece (source of "same material for all")
+ *   glint: false,                             // enchantment glint on the armor (3D view only)
  *   elytra: false,                            // wear an elytra instead of the chestplate (3D view only)
  *   lastMaterial: 'quartz',                   // trim material used when a pattern is picked on a bare piece (quartz = default)
  *   sync: false,                              // "same for all": every edit goes to all pieces
@@ -110,6 +111,7 @@
     if (!TRIMM[st.lastMaterial]) st.lastMaterial = 'quartz';
     st.sync = !!st.sync;
     st.elytra = !!st.elytra;
+    st.glint = !!st.glint;
     if (!ANIMS.some((a) => a[0] === st.anim)) st.anim = 'idle';
     const sk = st.skin && typeof st.skin === 'object' ? st.skin : (st.skin = {});
     if (!['steve', 'alex', 'name', 'file'].includes(sk.kind)) sk.kind = 'steve';
@@ -342,11 +344,13 @@
     throw err;
   }
 
+  /** Cheap fingerprint of a data URL (length + a few sampled chars) so two uploads of the same size still differ. */
+  const dataSig = (d) => { d = d || ''; let a = d.length; for (let i = 0; i < d.length; i += 97) a = (a * 31 + d.charCodeAt(i)) | 0; return a; };
   const skinCache = new Map();
   async function resolveSkin(sk) {
     if (sk.kind === 'steve') return { canvas: skinFromImage(await loadTex('entity/player/wide/steve')).canvas, slim: false };
     if (sk.kind === 'alex') return { canvas: skinFromImage(await loadTex('entity/player/slim/alex')).canvas, slim: true };
-    const key = sk.kind + '|' + (sk.data || '').length + '|' + sk.name;
+    const key = sk.kind + '|' + dataSig(sk.data) + '|' + sk.name;
     return memo(skinCache, key, async () => {
       if (!sk.data) throw new Error('no skin data');
       return skinFromImage(await loadImg(sk.data));
@@ -660,6 +664,7 @@
       if (!dragging && Math.abs(S.vel) > 0.01) { S.yaw += S.vel * dt; S.vel *= Math.exp(-3.2 * dt); moving = true; }
       if (S.auto && !dragging && !S.goal) { S.yaw += 0.45 * dt; moving = true; }
       if (!(reduced() && S.anim === 'idle' && settled())) { stepAnim(dt); moving = true; }
+      if (S.glintOn && S.glint && !reduced()) { tickGlint(); moving = true; }
       if (moving || S.dirty) { resize(); place(); S.renderer.render(S.scene, S.camera); S.dirty = false; }
       if (moving || dragging) S.raf = requestAnimationFrame(frame); // keep S.last: wake() would zero it and freeze dt
     }
@@ -751,12 +756,69 @@
       if (!S.ready) return;
       S.appliedAt = performance.now();
       const p = S.pieces[piece];
+      p.src = canvas || null;
       if (!canvas) { p.meshes.forEach((m) => { m.visible = false; }); }
       else {
         p.mat.map = canvasTex(canvas);
         p.mat.needsUpdate = true;
         p.meshes.forEach((m) => { m.visible = true; });
       }
+      applyGlint(piece);
+      S.dirty = true; wake();
+    };
+    /* ---- enchantment glint: two additive layers per armor mesh (vanilla: the glint texture scaled x8, rotated and
+       scrolled; one layer -50deg / 3s, one 10deg / 4.9s the other way), masked by the armor texture's own alpha ---- */
+    const GLINT_LAYERS = [{ rot: -50, per: 3000, dir: 1 }, { rot: 10, per: 4873, dir: -1 }];
+    const maskOf = new WeakMap();   // armor canvas -> alpha mask texture (the alphaMap reads the green channel)
+    const maskTex = (c) => {
+      let t = maskOf.get(c);
+      if (t) return t;
+      const m = mkCanvas(c.width, c.height), x = m.getContext('2d');
+      x.drawImage(c, 0, 0);
+      const im = x.getImageData(0, 0, m.width, m.height), d = im.data;
+      for (let i = 0; i < d.length; i += 4) { d[i] = d[i + 1] = d[i + 2] = d[i + 3]; d[i + 3] = 255; }
+      x.putImageData(im, 0, 0);
+      t = new THREE.CanvasTexture(m);
+      t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter; t.generateMipmaps = false;
+      maskOf.set(c, t);
+      return t;
+    };
+    function makeGlint(img) {
+      const src = mkCanvas(img.width, img.height); src.getContext('2d').drawImage(img, 0, 0);
+      const texs = GLINT_LAYERS.map((L) => {
+        const t = new THREE.CanvasTexture(src);
+        t.wrapS = t.wrapT = 1000;   // RepeatWrapping
+        t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter; t.generateMipmaps = false;
+        t.colorSpace = THREE.SRGBColorSpace;
+        t.repeat.set(8, 8); t.rotation = L.rot * Math.PI / 180;
+        return t;
+      });
+      PIECES.forEach((id) => {
+        const pc = S.pieces[id];
+        pc.gmats = texs.map((t) => new THREE.MeshBasicMaterial({ map: t, color: 0xb48cf0, transparent: true, blending: 2 /* AdditiveBlending */, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }));
+        pc.gl = [];
+        pc.meshes.forEach((m) => pc.gmats.forEach((gm) => { const g = new THREE.Mesh(m.geometry, gm); g.renderOrder = 5; g.visible = false; m.parent.add(g); pc.gl.push(g); }));
+      });
+      S.glint = { texs };
+      PIECES.forEach(applyGlint);
+    }
+    function applyGlint(id) {
+      const pc = S.pieces[id];
+      if (!S.glint || !pc.gl) return;
+      const on = S.glintOn && !!pc.src;
+      if (on) pc.gmats.forEach((m) => { const mk = maskTex(pc.src); if (m.alphaMap !== mk) { m.alphaMap = mk; m.needsUpdate = true; } });
+      pc.gl.forEach((g) => { g.visible = on; });
+    }
+    function tickGlint() {
+      const t = performance.now();
+      S.glint.texs.forEach((tx, i) => { const L = GLINT_LAYERS[i]; tx.offset.set(L.dir * ((t % L.per) / L.per), 0); });
+    }
+    S.setGlint = (on, img) => {
+      if (!S.ready) return;
+      S.glintOn = !!on;
+      if (S.glintOn && !S.glint && img) makeGlint(img);
+      if (S.glint) { PIECES.forEach(applyGlint); tickGlint(); }
+      S.onGlint && S.onGlint(S.glintOn);
       S.dirty = true; wake();
     };
     S.setElytra = (on, canvas) => {
@@ -792,8 +854,9 @@
   /** Push the outfit + skin from state into the 3D scene (only what changed). */
   function syncViewer(st) {
     if (V.onElytra) V.onElytra(!!st.elytra);
+    if (V.onGlint) V.onGlint(!!st.glint);
     V.init().then(() => {
-      const skSig = JSON.stringify([st.skin.kind, st.skin.slim, (st.skin.data || '').length, st.skin.name]);
+      const skSig = JSON.stringify([st.skin.kind, st.skin.slim, dataSig(st.skin.data), st.skin.name]);
       if (skSig !== V.skinSig) {
         V.skinSig = skSig;
         resolveSkin(st.skin).then((r) => { if (V.skinSig === skSig) V.setSkin(r.canvas, st.skin.slim); })
@@ -808,6 +871,11 @@
         pieceTexture(p, o).then((c) => { if (V.sig[p] === sig) V.setPiece(p, c); })
           .catch(() => { toast('Could not load the ' + armorName(p, o.armor) + ' texture'); });
       });
+      const gl = !!st.glint;
+      if (V.glintOn !== gl || (gl && !V.glint)) {
+        if (!gl) V.setGlint(false);
+        else glintImg().then((img) => { if (cur().glint) V.setGlint(true, img); }).catch(() => { toast('Could not load the enchantment glint texture'); });
+      }
       const ey = !!st.elytra, esig = 'e' + ey;
       if (V.sig.elytra !== esig) {
         V.sig.elytra = esig;
@@ -816,6 +884,7 @@
       }
     }).catch(() => { /* error shown in the viewer panel */ });
   }
+  const glintImg = () => loadTex('misc/enchanted_glint_armor');
   const elytraCache = new Map();
   const elytraCanvas = () => memo(elytraCache, 'e', async () => { const img = await loadTex('entity/equipment/wings/elytra'); const c = mkCanvas(64, 32); c.getContext('2d').drawImage(img, 0, 0); return c; });
   V.onRestore = () => syncViewer(cur());
@@ -977,6 +1046,21 @@
   function setTrimMat(id) {
     upd((s) => { PIECES.forEach((p) => { s.outfit[p].material = id; }); s.lastMaterial = id; });
   }
+  /** Random trim: `what` = 'pattern' | 'material' | 'both'. Same value on every piece, or (perPiece) an independent one per piece. */
+  const pick = (arr, not) => { const a = arr.length > 1 ? arr.filter((x) => x !== not) : arr; return a[Math.floor(Math.random() * a.length)]; };
+  function randomTrim(what, perPiece) {
+    const pats = D.trimPatterns.map((p) => p.id), mats = D.trimMaterials.map((m) => m.id);
+    upd((s) => {
+      const one = { pat: pick(pats, s.outfit[s.focus].pattern), mat: pick(mats, s.outfit[s.focus].material) };
+      PIECES.forEach((p) => {
+        const o = s.outfit[p], pat = perPiece ? pick(pats, o.pattern) : one.pat, mat = perPiece ? pick(mats, o.material) : one.mat;
+        if (what !== 'material') { o.pattern = pat; if (!o.material) o.material = mat; }
+        if (what !== 'pattern' && o.pattern) o.material = mat;
+      });
+      if (what !== 'pattern') s.lastMaterial = perPiece ? s.outfit[s.focus].material || s.lastMaterial : one.mat;
+    });
+  }
+
   /** Copy the last edited piece's armor material and dye onto the other pieces. */
   const copyToAll = (s) => {
     const src = s.outfit[s.focus];
@@ -1042,14 +1126,16 @@
         upd((s) => { s.skin = { kind: 'name', name, data: r.canvas.toDataURL('image/png'), slim: r.slim }; });
         toast('Loaded the skin of ' + name + (r.slim ? ' (slim arms)' : ''));
       } catch (e) {
-        goBtn.disabled = false; goBtn.textContent = 'Load';
         toast(e && e.message ? e.message : 'Could not load the skin');
+      } finally {
+        goBtn.disabled = false; goBtn.textContent = 'Load';   // the panel is only rebuilt when the skin identity changes, so always reset here
       }
     }
     const goBtn = h('button.btn.small', { type: 'button', onclick: lookup }, 'Load');
     const file = h('input', { type: 'file', accept: 'image/png', class: 'sr', 'aria-label': 'Upload a skin PNG', tabindex: -1, onchange: () => { const f = file.files[0]; file.value = ''; if (f) takeFile(f); } });
     const skinBtn = (k, n) => h('button', { type: 'button', role: 'radio', 'aria-checked': String(sk.kind === k), class: sk.kind === k ? 'on' : '', onclick: () => upd((s) => { s.skin = { kind: k, name: '', data: null, slim: k === 'alex' }; }) }, n);
-    const box = h('section.panel.tr-skin', { 'aria-label': 'Skin' },
+    const box = h('section.panel.tr-card.tr-skin', { 'aria-label': 'Skin' },
+      h('div.tr-card-head', h('h3', 'Skin')),
       h('div.tr-skin-row', nameInput, goBtn),
       h('div.tr-skin-row.tr-skin-row2',
         h('div.seg.tr-seg.tr-pick', { role: 'radiogroup', 'aria-label': 'Default skin' }, skinBtn('steve', 'Steve'), skinBtn('alex', 'Alex')),
@@ -1061,27 +1147,30 @@
   }
 
   function buildViewer(st) {
-    const autoBtn = h('button.tr-vbtn' + (V.auto ? '.on' : ''), { type: 'button', 'aria-pressed': String(V.auto), title: 'Slowly rotate', onclick: () => V.setAuto(!V.auto) }, h('span.tr-vico.rot'), h('span', 'Rotate'));
+    /* shared control classes only: toggles live in a .seg group (button.on), actions are .btn.small, animations a .seg */
+    const ico = (n, label) => [h('span.tr-vico.' + n), h('span', label)];
+    const autoBtn = h('button' + (V.auto ? '.on' : ''), { type: 'button', 'aria-pressed': String(V.auto), title: 'Slowly rotate', onclick: () => V.setAuto(!V.auto) }, ico('rot', 'Rotate'));
     V.onAuto = (on) => { autoBtn.classList.toggle('on', on); autoBtn.setAttribute('aria-pressed', String(on)); };
-    const animBtns = ANIMS.map(([id, label]) => h('button.tr-anim' + (V.anim === id ? '.on' : ''), { type: 'button', 'aria-pressed': String(V.anim === id), 'data-anim': id, 'data-focus': 'tr-anim-' + id, onclick: () => V.setAnim(id, { force: true }) }, label));
+    const animBtns = ANIMS.map(([id, label]) => h('button' + (V.anim === id ? '.on' : ''), { type: 'button', 'aria-pressed': String(V.anim === id), 'data-anim': id, 'data-focus': 'tr-anim-' + id, onclick: () => V.setAnim(id, { force: true }) }, label));
     V.onAnim = (id) => animBtns.forEach((b) => { const on = b.dataset.anim === id; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
-    const elyBtn = h('button.tr-vbtn' + (st.elytra ? '.on' : ''), { type: 'button', 'aria-pressed': String(!!st.elytra), 'data-focus': 'tr-elytra', title: 'Wear an elytra instead of the chestplate', onclick: () => upd((s) => { s.elytra = !s.elytra; }) }, h('span.tr-vico.wing'), h('span', 'Elytra'));
+    const elyBtn = h('button' + (st.elytra ? '.on' : ''), { type: 'button', 'aria-pressed': String(!!st.elytra), 'data-focus': 'tr-elytra', title: 'Wear an elytra instead of the chestplate', onclick: () => upd((s) => { s.elytra = !s.elytra; }) }, ico('wing', 'Elytra'));
     V.onElytra = (on) => { elyBtn.classList.toggle('on', on); elyBtn.setAttribute('aria-pressed', String(on)); };
+    const glintBtn = h('button' + (st.glint ? '.on' : ''), { type: 'button', 'aria-pressed': String(!!st.glint), 'data-focus': 'tr-glint', title: 'Enchantment glint on the armor', onclick: () => upd((s) => { s.glint = !s.glint; }) }, ico('glint', 'Glint'));
+    V.onGlint = (on) => { glintBtn.classList.toggle('on', on); glintBtn.setAttribute('aria-pressed', String(on)); };
     const stage = h('div.tr-stage');
     const viewer = h('section.panel.tr-viewer', { 'aria-label': '3D preview' },
       stage,
       h('div.tr-vbar',
-        elyBtn,
-        autoBtn,
-        h('button.tr-vbtn', { type: 'button', title: 'Reset the view (double-click the preview)', onclick: () => V.reset() }, h('span.tr-vico.reset'), h('span', 'Reset')),
-        h('button.tr-vbtn', { type: 'button', title: 'Save the preview as a PNG', onclick: async () => {
+        h('div.seg.tr-vtoggles', { role: 'group', 'aria-label': 'Preview options' }, elyBtn, glintBtn, autoBtn),
+        h('button.btn.small', { type: 'button', title: 'Reset the view (double-click the preview)', onclick: () => V.reset() }, ico('reset', 'Reset')),
+        h('button.btn.small', { type: 'button', title: 'Save the preview as a PNG', onclick: async () => {
           const b = await V.shot();
           if (!b) { toast('Nothing to save yet'); return; }
           const a = h('a', { href: URL.createObjectURL(b), download: 'armor-trim-preview.png' });
           document.body.appendChild(a); a.click();
           setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 0);
-        } }, h('span.tr-vico.cam'), h('span', 'PNG'))),
-      h('div.tr-anims', { role: 'group', 'aria-label': 'Animation' }, animBtns),
+        } }, ico('cam', 'PNG'))),
+      h('div.seg.tr-anims', { role: 'group', 'aria-label': 'Animation' }, animBtns),
       h('div.tr-hint', 'Drag to rotate · scroll or pinch to zoom · drop a skin PNG here'),
       h('div.tr-drop', { 'aria-hidden': 'true' }, 'Drop the skin PNG'));
     if (V.error) stage.append(h('div.tr-error', V.error, h('br'), h('span', 'The flat previews still work.')));
@@ -1098,6 +1187,14 @@
     tipTitles(viewer);
     V.init().then(() => { const s = stage.querySelector('.tr-loadingv'); if (s) s.remove(); V.wake(); }).catch(() => { stage.replaceChildren(h('div.tr-error', V.error || 'The 3D viewer could not start.', h('br'), h('span', 'The flat previews still work.'))); });
     return viewer;
+  }
+
+  /** 🎲 Random trim / pattern / material. Shift-click (or long-press: use the toggle) randomises every piece independently. */
+  function randomBar() {
+    const mk = (what, label, tip) => h('button', { type: 'button', 'data-focus': 'tr-rnd-' + what, title: tip + ' · Shift-click: each piece different', onclick: (e) => randomTrim(what, e.shiftKey) },
+      what === 'both' ? [h('span.tr-vico.dice'), h('span', label)] : label);
+    return h('div.seg.tr-rnd', { role: 'group', 'aria-label': 'Random trim' },
+      mk('both', 'Random', 'Random pattern and material for every piece'), mk('pattern', 'Pattern', 'Random pattern, keeps the material'), mk('material', 'Material', 'Random trim material, keeps the patterns'));
   }
 
   function mount(st) {
@@ -1143,7 +1240,7 @@
     });
     const grid = h('div.tr-grid', pats.map((x) => x.row));
     const browser = h('section.panel.tr-card.tr-browser', { 'aria-label': 'Trim browser' },
-      h('div.tr-card-head', h('h3', 'Trim')),
+      h('div.tr-card-head', h('h3', 'Trim'), randomBar()),
       h('div.tr-sub', 'Trim material'), tiles,
       h('div.tr-sub', h('span', 'Pattern'), h('span.faint', 'row = all pieces · piece = just that one')), grid);
 

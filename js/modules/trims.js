@@ -12,6 +12,7 @@
  *   lastMaterial: 'quartz',                   // trim material used when a pattern is picked on a bare piece (quartz = default)
  *   sync: false,                              // "same for all": every edit goes to all pieces
  *   skin: { kind: 'steve'|'alex'|'name'|'file', name, data (dataURL), slim },
+ *   anim: 'idle'|'walk'|'run'|'jump'|'sneak'|'mine'|'fight'|'wave'|'swim',   // viewer animation (never autoplays with reduced motion)
  *   saved: [{ id, name, outfit, skin?, updated }], savedId, saveName, renaming, renameText
  * }
  *
@@ -84,6 +85,8 @@
     saved: [], savedId: null, saveName: '', renaming: null, renameText: '',
   });
 
+  const ANIMS = [['idle', 'Idle'], ['walk', 'Walk'], ['run', 'Run'], ['jump', 'Jump'], ['sneak', 'Sneak'], ['mine', 'Mine'], ['fight', 'Fight'], ['wave', 'Wave'], ['swim', 'Swim']];
+
   /** Fill every field with a valid value (safe to call on anything: old saves, imports, hand-edited backups). */
   function norm(st) {
     const dft = defaults();
@@ -105,6 +108,7 @@
     if (!PIECES.includes(st.focus)) st.focus = 'chestplate';
     if (!TRIMM[st.lastMaterial]) st.lastMaterial = 'quartz';
     st.sync = !!st.sync;
+    if (!ANIMS.some((a) => a[0] === st.anim)) st.anim = 'idle';
     const sk = st.skin && typeof st.skin === 'object' ? st.skin : (st.skin = {});
     if (!['steve', 'alex', 'name', 'file'].includes(sk.kind)) sk.kind = 'steve';
     if (typeof sk.name !== 'string') sk.name = '';
@@ -354,7 +358,8 @@
   // character faces +z), `uv` the skin texture offset, `g` the inflation. Left limbs of armor reuse the right limb UV mirrored.
   const skinParts = (slim) => {
     const aw = slim ? 3 : 4;
-    const P = (id, box, uv, g, mirror) => ({ id, box, uv, g: g || 0, mirror: !!mirror });
+    const BONE = { head: 'head', hat: 'head', body: 'torso', jacket: 'torso', rarm: 'rarm', rsleeve: 'rarm', larm: 'larm', lsleeve: 'larm', rleg: 'rleg', rpants: 'rleg', lleg: 'lleg', lpants: 'lleg' };
+    const P = (id, box, uv, g, mirror) => ({ id, box, uv, g: g || 0, mirror: !!mirror, bone: BONE[id] });
     const rarm = [slim ? -7 : -8, 12, -2, aw, 12, 4], larm = [4, 12, -2, aw, 12, 4];
     return [
       P('head', [-4, 24, -4, 8, 8, 8], [0, 0]), P('hat', [-4, 24, -4, 8, 8, 8], [32, 0], 0.5),
@@ -366,10 +371,48 @@
     ];
   };
   const armorParts = {
-    helmet: [{ box: [-4, 24, -4, 8, 8, 8], uv: [0, 0], g: 1 }],
-    chestplate: [{ box: [-4, 12, -2, 8, 12, 4], uv: [16, 16], g: 1 }, { box: [-8, 12, -2, 4, 12, 4], uv: [40, 16], g: 1 }, { box: [4, 12, -2, 4, 12, 4], uv: [40, 16], g: 1, mirror: true }],
-    leggings: [{ box: [-4, 12, -2, 8, 12, 4], uv: [16, 16], g: 0.5 }, { box: [-3.9, 0, -2, 4, 12, 4], uv: [0, 16], g: 0.5 }, { box: [-0.1, 0, -2, 4, 12, 4], uv: [0, 16], g: 0.5, mirror: true }],
-    boots: [{ box: [-3.9, 0, -2, 4, 12, 4], uv: [0, 16], g: 1 }, { box: [-0.1, 0, -2, 4, 12, 4], uv: [0, 16], g: 1, mirror: true }],
+    helmet: [{ bone: 'head', box: [-4, 24, -4, 8, 8, 8], uv: [0, 0], g: 1 }],
+    chestplate: [{ bone: 'torso', box: [-4, 12, -2, 8, 12, 4], uv: [16, 16], g: 1 }, { bone: 'rarm', box: [-8, 12, -2, 4, 12, 4], uv: [40, 16], g: 1 }, { bone: 'larm', box: [4, 12, -2, 4, 12, 4], uv: [40, 16], g: 1, mirror: true }],
+    leggings: [{ bone: 'torso', box: [-4, 12, -2, 8, 12, 4], uv: [16, 16], g: 0.5 }, { bone: 'rleg', box: [-3.9, 0, -2, 4, 12, 4], uv: [0, 16], g: 0.5 }, { bone: 'lleg', box: [-0.1, 0, -2, 4, 12, 4], uv: [0, 16], g: 0.5, mirror: true }],
+    boots: [{ bone: 'rleg', box: [-3.9, 0, -2, 4, 12, 4], uv: [0, 16], g: 1 }, { bone: 'lleg', box: [-0.1, 0, -2, 4, 12, 4], uv: [0, 16], g: 1, mirror: true }],
+  };
+
+  /* Skeleton: world-space pivots (model units). Arms hang from the shoulders, legs from the hips, the head from the neck;
+     head and arms are children of the torso (so a lean carries them), legs hang off the rig root. */
+  const PIV = { torso: [0, 12, 0], head: [0, 24, 0], rarm: [-5.5, 22, 0], larm: [5.5, 22, 0], rleg: [-1.9, 12, 0], lleg: [1.9, 12, 0] };
+  const BONE_PARENT = { head: 'torso', rarm: 'torso', larm: 'torso' };
+
+  /* Procedural poses (radians; x swings a limb about the shoulder / hip: negative = forward). t = animation seconds. */
+  const POSE0 = { rootY: 0, rootX: 0, torsoX: 0, torsoY: 0, headX: 0, headY: 0, headZ: 0, raX: 0, raZ: 0, laX: 0, laZ: 0, rlX: 0, llX: 0 };
+  const sn = Math.sin, cs = Math.cos, PI = Math.PI;
+  const ease = (u) => u * u * (3 - 2 * u);
+  const planted = (amp, s) => -12 * (1 - cs(amp * Math.abs(s))); // lower the root so the swinging feet keep touching the floor
+  const POSES = {
+    idle: () => ({}),
+    walk: (t) => { const s = sn(t * 6.2); return { rlX: -s * 0.6, llX: s * 0.6, raX: s * 0.7, laX: -s * 0.7, rootY: planted(0.6, s), torsoY: s * 0.05, headY: -s * 0.04, raZ: -0.04, laZ: 0.04 }; },
+    run: (t) => { const w = t * 10, s = sn(w); return { rlX: -s * 1.05, llX: s * 1.05, raX: s * 1.2 - 0.5, laX: -s * 1.2 - 0.5, rootY: planted(1.05, s) + Math.abs(cs(w)) * 0.9, torsoX: 0.28, torsoY: s * 0.12, headX: -0.22, raZ: -0.08, laZ: 0.08 }; },
+    jump: (t) => {
+      const ph = (t / 1.25) % 1, a = (ph - 0.12) / 0.76, air = a > 0 && a < 1, e = air ? sn(PI * a) : 0;
+      const crouch = ph < 0.12 ? ph / 0.12 : ph > 0.88 ? (1 - ph) / 0.12 : 0;
+      return { rootY: 6 * e - 1.2 * crouch, torsoX: 0.2 * crouch + 0.08 * e, headX: -0.1 * crouch, rlX: -0.95 * e - 0.25 * crouch, llX: -0.45 * e - 0.25 * crouch,
+        raX: -0.35 * e + 0.5 * crouch, laX: -0.35 * e + 0.5 * crouch, raZ: -(0.15 + 1.1 * e), laZ: 0.15 + 1.1 * e };
+    },
+    sneak: (t) => { const s = sn(t * 3.4); return { torsoX: 0.52, headX: -0.4, rlX: 0.18 - s * 0.3, llX: 0.18 + s * 0.3, raX: -0.5 + s * 0.22, laX: -0.5 - s * 0.22, rootY: -1.3, torsoY: s * 0.05 }; },
+    mine: (t) => {
+      const s = (t / 0.72) % 1; let x, strike = 0;
+      if (s < 0.55) x = -0.55 - 1.75 * ease(s / 0.55);
+      else { const u = (s - 0.55) / 0.45; x = -2.3 + 1.8 * u * u; strike = u; }
+      return { raX: x, raZ: -0.12, laX: 0.08, torsoX: 0.1 + 0.14 * (s < 0.55 ? 0 : sn(PI * Math.min(1, strike))), torsoY: 0.1 - 0.22 * (s < 0.55 ? ease(s / 0.55) : 1 - strike), headX: 0.12, rlX: -0.12, llX: 0.12 };
+    },
+    fight: (t) => {
+      const s = (t / 0.85) % 1; let x, ty;
+      if (s < 0.45) { const u = ease(s / 0.45); x = -0.5 - 1.95 * u; ty = -0.15 - 0.3 * u; }
+      else if (s < 0.62) { const u = (s - 0.45) / 0.17; x = -2.45 + 1.45 * u * u; ty = -0.45 + 0.95 * u; }
+      else { const u = ease((s - 0.62) / 0.38); x = -1.0 + 0.5 * u; ty = 0.5 - 0.65 * u; }
+      return { raX: x, raZ: -0.1, torsoY: ty, headY: -ty * 0.6, torsoX: 0.1, laX: -0.9, laZ: 0.22, rlX: -0.38, llX: 0.34, rootY: -0.8 + sn(t * 7.4) * 0.15 };
+    },
+    wave: (t) => ({ raZ: -(2.55 + 0.28 * sn(t * 9)), raX: 0, headZ: -0.08, headY: 0.12, laZ: 0.05, torsoY: -0.05 }),
+    swim: (t) => ({ rootX: 1.3, rootY: 4 + sn(t * 2) * 0.8, headX: -1.05, raX: -t * 4.2, laX: -t * 4.2 + PI, raZ: -0.12, laZ: 0.12, rlX: sn(t * 11) * 0.4, llX: -sn(t * 11) * 0.4 }),
   };
 
   /** One cuboid with Minecraft box UV mapping (64x`th` texture), explicit normals, optional mirrored UVs. */
@@ -412,8 +455,8 @@
   const V = (function () {
     const el = h('div.tr-canvas', { tabindex: 0, role: 'img', 'aria-label': '3D preview of the armor outfit. Drag to rotate, scroll to zoom, double-click to reset.' });
     const S = {
-      el, ready: false, error: null, renderer: null, scene: null, camera: null, player: null, skinGroup: null, slim: null,
-      pieces: {}, shadow: null, target: null, key: null,
+      el, ready: false, error: null, renderer: null, scene: null, camera: null, player: null, slim: null,
+      pieces: {}, bones: null, rig: null, rigRoot: null, skinMeshes: null, pose: Object.assign({}, POSE0), from: Object.assign({}, POSE0), blend: 1, anim: 'idle', animT: 0, shadow: null, target: null, key: null,
       yaw: 0.55, pitch: 0.12, zoom: 1, vel: 0, goal: null, auto: false, interacted: false,
       dirty: true, raf: 0, last: 0, inView: true, w: 0, h: 0, sig: {}, skinSig: '',
     };
@@ -428,6 +471,34 @@
       return t;
     };
     const mat = () => new THREE.MeshLambertMaterial({ transparent: false, alphaTest: 0.5, side: THREE.FrontSide });
+
+    /** A cuboid mesh parented to its bone, its geometry re-centred on the bone's pivot. */
+    function bonedMesh(part, tw, th, material) {
+      const geo = boxGeometry(part, tw, th), pv = PIV[part.bone];
+      geo.translate(-pv[0], -pv[1], -pv[2]);
+      const mesh = new THREE.Mesh(geo, material);
+      S.bones[part.bone].add(mesh);
+      return mesh;
+    }
+    function applyPose() {
+      if (!S.bones) return;
+      const q = S.pose, b = S.bones;
+      S.rigRoot.position.y = 12 + q.rootY; S.rigRoot.rotation.x = q.rootX;
+      b.torso.rotation.set(q.torsoX, q.torsoY, 0);
+      b.head.rotation.set(q.headX, q.headY, q.headZ);
+      b.rarm.rotation.set(q.raX, 0, q.raZ); b.larm.rotation.set(q.laX, 0, q.laZ);
+      b.rleg.rotation.x = q.rlX; b.lleg.rotation.x = q.llX;
+      const lift = Math.max(0, q.rootY), sc = Math.max(0.55, 1 - lift * 0.04) * (q.rootX > 0.5 ? 0.9 : 1);
+      S.shadow.scale.set(sc, sc, sc); S.shadow.material.opacity = 1 - Math.min(0.5, lift * 0.05);
+    }
+    function stepAnim(dt) {
+      const slow = reduced();
+      S.animT += dt * (slow ? 0.3 : 1);
+      S.blend = slow ? 1 : Math.min(1, S.blend + dt / 0.25);
+      const e = S.blend < 1 ? ease(S.blend) : 1, tg = POSES[S.anim](S.animT);
+      for (const k in POSE0) S.pose[k] = S.from[k] + ((tg[k] || 0) - S.from[k]) * e;
+      applyPose();
+    }
 
     function build() {
       const canvas = document.createElement('canvas');
@@ -454,12 +525,20 @@
       S.scene.add(S.shadow);
       S.player = new THREE.Group();
       S.scene.add(S.player);
+      S.rigRoot = new THREE.Group(); S.rigRoot.position.set(0, 12, 0);   // whole-body pivot (hips): swim tilt, jump height
+      S.rig = new THREE.Group(); S.rig.position.set(0, -12, 0);
+      S.rigRoot.add(S.rig); S.player.add(S.rigRoot);
+      S.bones = {};
+      ['torso', 'head', 'rarm', 'larm', 'rleg', 'lleg'].forEach((id) => {
+        const g = new THREE.Group(), par = BONE_PARENT[id], pp = par ? PIV[par] : [0, 0, 0];
+        g.position.set(PIV[id][0] - pp[0], PIV[id][1] - pp[1], PIV[id][2] - pp[2]);
+        (par ? S.bones[par] : S.rig).add(g);
+        S.bones[id] = g;
+      });
       PIECES.forEach((p) => {
-        const g = new THREE.Group(), m = mat();
-        armorParts[p].forEach((part) => { const mesh = new THREE.Mesh(boxGeometry(part, 64, 32), m); g.add(mesh); });
-        g.visible = false;
-        S.pieces[p] = { group: g, mat: m };
-        S.player.add(g);
+        const m = mat();
+        const meshes = armorParts[p].map((part) => { const mesh = bonedMesh(part, 64, 32, m); mesh.visible = false; return mesh; });
+        S.pieces[p] = { meshes, mat: m };
       });
       el.prepend(canvas);
       S.canvas = canvas;
@@ -508,8 +587,9 @@
       }
       if (!dragging && Math.abs(S.vel) > 0.01) { S.yaw += S.vel * dt; S.vel *= Math.exp(-3.2 * dt); moving = true; }
       if (S.auto && !dragging && !S.goal) { S.yaw += 0.45 * dt; moving = true; }
+      if (S.anim !== 'idle' || S.blend < 1) { stepAnim(dt); moving = true; }
       if (moving || S.dirty) { resize(); place(); S.renderer.render(S.scene, S.camera); S.dirty = false; }
-      if (moving || dragging) wake();
+      if (moving || dragging) S.raf = requestAnimationFrame(frame); // keep S.last: wake() would zero it and freeze dt
     }
     function wake() { if (!S.raf && visible()) { S.last = 0; S.raf = requestAnimationFrame(frame); } }
     S.wake = () => { S.dirty = true; wake(); };
@@ -556,8 +636,17 @@
       S.zoom = clamp(S.zoom * Math.exp(-e.deltaY * (e.deltaMode ? 0.05 : 0.0013)), ZMIN, ZMAX);
       S.dirty = true; wake();
     }, { passive: false });
+    /** Switch the animation (blends from the current pose). opts.silent: do not persist / notify (restoring state). */
+    S.setAnim = (id, opts) => {
+      if (!POSES[id]) id = 'idle';
+      if (id === S.anim && !(opts && opts.force)) return;
+      S.from = Object.assign({}, S.pose); S.blend = reduced() ? 1 : 0; S.animT = 0; S.anim = id;
+      S.onAnim && S.onAnim(id);
+      if (!(opts && opts.silent) && S.persist) S.persist(id);
+      S.dirty = true; wake();
+    };
     S.reset = () => {
-      stopAuto(); S.vel = 0;
+      stopAuto(); S.vel = 0; S.setAnim('idle');
       if (reduced()) { Object.assign(S, HOME); S.goal = null; } else S.goal = Object.assign({}, HOME, { yaw: Math.round((S.yaw - HOME.yaw) / (Math.PI * 2)) * Math.PI * 2 + HOME.yaw });
       S.dirty = true; wake();
     };
@@ -575,13 +664,11 @@
     /* ---- content ---- */
     S.setSkin = (canvas, slim) => {
       if (!S.ready) return;
-      if (S.slim !== slim || !S.skinGroup) {
-        if (S.skinGroup) { S.player.remove(S.skinGroup); S.skinGroup.children.forEach((m) => m.geometry.dispose()); }
-        const g = new THREE.Group();
+      if (S.slim !== slim || !S.skinMeshes) {
+        if (S.skinMeshes) S.skinMeshes.forEach((m) => { if (m.parent) m.parent.remove(m); m.geometry.dispose(); });
         const m = S.skinMat || (S.skinMat = mat());
-        skinParts(slim).forEach((p) => { const mesh = new THREE.Mesh(boxGeometry(p, 64, 64), m); mesh.renderOrder = p.g ? 1 : 0; g.add(mesh); });
-        S.skinGroup = g; S.slim = slim;
-        S.player.add(g);
+        S.skinMeshes = skinParts(slim).map((p) => { const mesh = bonedMesh(p, 64, 64, m); mesh.renderOrder = p.g ? 1 : 0; return mesh; });
+        S.slim = slim;
       }
       if (S.skinMat.map) S.skinMat.map.dispose();
       S.skinMat.map = canvasTex(canvas);
@@ -591,12 +678,12 @@
     S.setPiece = (piece, canvas) => {
       if (!S.ready) return;
       const p = S.pieces[piece];
-      if (!canvas) { p.group.visible = false; }
+      if (!canvas) { p.meshes.forEach((m) => { m.visible = false; }); }
       else {
         if (p.mat.map) p.mat.map.dispose();
         p.mat.map = canvasTex(canvas);
         p.mat.needsUpdate = true;
-        p.group.visible = true;
+        p.meshes.forEach((m) => { m.visible = true; });
       }
       S.dirty = true; wake();
     };
@@ -754,8 +841,6 @@
 
   const icoPiece = (piece, mat, size) => TH.icon.item(piece, mat, { size: size || 32 });
 
-  /** Whether the focused slot's armor-material choice is revealed (UI only, not saved). */
-  let chooserOpen = true;
 
   /** A row of icon+name picker tiles (trim material). */
   function tileRow(items, selected, onPick, cls) {
@@ -786,10 +871,12 @@
     const matShort = (id) => mshort[D.trimMaterials.findIndex((x) => x.id === id)];
 
     /* ---- edits ---- */
-    const setField = (field, val) => {
+    const setField = (field, val, piece) => {
+      piece = piece || focus;
       markReveal('gallery');
       upd((s) => {
-        const targets = s.sync ? PIECES : [focus];
+        s.focus = piece;
+        const targets = s.sync ? PIECES : [piece];
         targets.forEach((p) => {
           const o = s.outfit[p];
           if (field === 'armor') { if (!(ARMOR[val].pieces && !ARMOR[val].pieces.includes(p))) o.armor = val; }
@@ -818,50 +905,50 @@
     };
 
     /* ---- left: the four slots, the focused one reveals its armor choice ---- */
-    const validArmor = D.armorMaterials.filter((m) => !m.pieces || m.pieces.includes(focus));
-    const chooser = () => {
-      const mats = h('div.tr-armors', { style: '--n:' + validArmor.length, role: 'radiogroup', 'aria-label': 'Armor material for the ' + PIECE_NAME[focus].toLowerCase() },
-        validArmor.map((m) => {
-          const on = m.id === fo.armor;
-          const b = h('button.tr-ico' + (on ? '.on' : ''), { type: 'button', role: 'radio', 'aria-checked': String(on), 'aria-label': armorName(focus, m.id), 'data-focus': 'tr-armor-' + m.id, onclick: () => setField('armor', m.id) },
-            TH.icon.item(focus, m.id, { size: 28 }));
-          return withTip(b, [armorName(focus, m.id)]);
-        }));
-      const dyes = ARMOR[fo.armor].dyeable ? h('div.tr-dyes', { role: 'radiogroup', 'aria-label': 'Leather dye colour' },
-        h('button.tr-dye.none' + (!fo.dye ? '.on' : ''), { type: 'button', role: 'radio', 'aria-checked': String(!fo.dye), 'aria-label': 'Undyed leather', title: 'Undyed', onclick: () => setField('dye', null), style: { '--c': D.leatherDefault } }),
-        D.dyes.map((d) => {
-          const nm = itemName(d.id + '_dye', d.id.replace('_', ' ') + ' dye');
-          return h('button.tr-dye' + (fo.dye === d.color ? '.on' : ''), { type: 'button', role: 'radio', 'aria-checked': String(fo.dye === d.color), 'aria-label': nm, title: nm, onclick: () => setField('dye', d.color), style: { '--c': d.color } });
-        }),
-        h('label.tr-dye.custom' + (fo.dye && !D.dyes.some((d) => d.color === fo.dye) ? '.on' : ''), { title: 'Custom colour' },
-          h('span.sr', 'Custom dye colour'),
-          h('input', { type: 'color', value: fo.dye || D.leatherDefault, onchange: (e) => setField('dye', e.target.value.toLowerCase()) }))) : null;
-      return h('div.tr-choose', { 'aria-label': 'Armor material' }, mats, dyes);
-    };
+    /* every slot always shows its armor-material row; the only highlight is the selected material */
     const stack = PIECES.map((p) => {
       const o = st.outfit[p], on = p === focus;
       const trimmed = o.pattern && o.material;
-      const btn = h('button.tr-slot-main', {
-        type: 'button', 'aria-pressed': String(on), 'aria-expanded': on ? String(chooserOpen) : null, 'data-focus': 'tr-slot-' + p,
-        'aria-label': PIECE_NAME[p] + ': ' + armorName(p, o.armor) + (trimmed ? ', ' + patName(o.pattern) + ', ' + matName(o.material) : ', no trim') + (on ? '. Choose the armor material' : ''),
-        onclick: () => { if (on) chooserOpen = !chooserOpen; else chooserOpen = true; markReveal(on ? 'chooser' : 'gallery', 'chooser'); upd((s) => { s.focus = p; }); },
+      const pick = () => { if (!on) { markReveal('gallery'); upd((s) => { s.focus = p; }); } };
+      const mats = h('div.tr-armors', { role: 'radiogroup', 'aria-label': 'Armor material for the ' + PIECE_NAME[p].toLowerCase() },
+        D.armorMaterials.filter((m) => !m.pieces || m.pieces.includes(p)).map((m) => {
+          const sel = m.id === o.armor;
+          const b = h('button.tr-ico' + (sel ? '.on' : ''), { type: 'button', role: 'radio', 'aria-checked': String(sel), 'aria-label': armorName(p, m.id), 'data-focus': 'tr-armor-' + p + '-' + m.id, onclick: () => setField('armor', m.id, p) },
+            TH.icon.item(p, m.id, { size: 24 }));
+          return withTip(b, [armorName(p, m.id)]);
+        }));
+      const dyes = ARMOR[o.armor].dyeable ? h('div.tr-dyes', { role: 'radiogroup', 'aria-label': 'Leather dye colour for the ' + PIECE_NAME[p].toLowerCase() },
+        h('button.tr-dye.none' + (!o.dye ? '.on' : ''), { type: 'button', role: 'radio', 'aria-checked': String(!o.dye), 'aria-label': 'Undyed leather', title: 'Undyed', onclick: () => setField('dye', null, p), style: { '--c': D.leatherDefault } }),
+        D.dyes.map((d) => {
+          const nm = itemName(d.id + '_dye', d.id.replace('_', ' ') + ' dye');
+          return h('button.tr-dye' + (o.dye === d.color ? '.on' : ''), { type: 'button', role: 'radio', 'aria-checked': String(o.dye === d.color), 'aria-label': nm, title: nm, onclick: () => setField('dye', d.color, p), style: { '--c': d.color } });
+        }),
+        h('label.tr-dye.custom' + (o.dye && !D.dyes.some((d) => d.color === o.dye) ? '.on' : ''), { title: 'Custom colour' },
+          h('span.sr', 'Custom dye colour'),
+          h('input', { type: 'color', value: o.dye || D.leatherDefault, onchange: (e) => setField('dye', e.target.value.toLowerCase(), p) }))) : null;
+      // the whole card is the hit target (for the trim browser's focus); the eye and the material icons are their own controls
+      const head = h('div.tr-slot.tr-slot-main', {
+        role: 'button', tabindex: 0, 'aria-pressed': String(on), 'data-focus': 'tr-slot-' + p,
+        'aria-label': PIECE_NAME[p] + ': ' + armorName(p, o.armor) + (trimmed ? ', ' + patName(o.pattern) + ', ' + matName(o.material) : ', no trim') + (on ? '. Selected for the trim browser' : '. Select for the trim browser'),
+        onclick: pick,
+        onkeydown: (e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target === e.currentTarget) { e.preventDefault(); pick(); } },
       },
       h('span.tr-slot-ico', icoPiece(p, o.armor, 32)),
-      h('span.tr-slot-text', h('b', armorName(p, o.armor)), h('span', trimmed ? patShort(o.pattern) + ' · ' + matShort(o.material) : 'No trim')),
+      h('span.tr-slot-text', h('b', PIECE_NAME[p]), h('span', armorName(p, o.armor) + ' · ' + (trimmed ? patShort(o.pattern) + ' · ' + matShort(o.material) : 'no trim'))),
       trimmed ? h('span.tr-sw', TH.icon.trimMaterial(TRIMM[o.material].item, { size: 16 })) : null);
-      withTip(btn, () => pieceTipLines(st, p));
+      withTip(head, () => pieceTipLines(st, p));
       const eye = h('button.tr-eye' + (o.show ? '.on' : ''), { type: 'button', 'aria-pressed': String(o.show), 'data-focus': 'tr-show-' + p,
         'aria-label': 'Show ' + PIECE_NAME[p] + ' in the preview',
-        onclick: () => upd((s) => { s.outfit[p].show = !s.outfit[p].show; }) }, h('span.tr-eyeico'));
+        onclick: (e) => { e.stopPropagation(); upd((s) => { s.outfit[p].show = !s.outfit[p].show; }); },
+        onkeydown: (e) => e.stopPropagation() }, h('span.tr-eyeico'));
       withTip(eye, [(o.show ? 'Hide ' : 'Show ') + PIECE_NAME[p].toLowerCase() + ' in the preview']);
-      return h('div.tr-slotwrap' + (on ? '.on' : '') + (o.show ? '' : '.off'),
-        h('div.tr-slot', btn, eye),
-        on && chooserOpen ? chooser() : null);
+      head.append(eye);
+      return h('div.tr-slotwrap' + (on ? '.on' : '') + (o.show ? '' : '.off'), head, h('div.tr-choose', mats, dyes));
     });
 
     const hud = h('section.panel.tr-card.tr-hud', { 'aria-label': 'Outfit' },
+      h('div.tr-card-head', h('h3', 'Outfit')),
       savedPanel(st),
-      h('div.tr-card-head', h('h3', 'Outfit'), h('span.faint', 'Pick a piece')),
       h('div.tr-stack', stack),
       h('div.tr-applybar',
         h('button.btn.primary.tr-applyall', { type: 'button', 'data-focus': 'tr-apply-all', title: 'Copy the ' + PIECE_NAME[focus].toLowerCase() + '\'s armor, pattern and trim material onto every piece (the turtle shell stays helmet-only)', onclick: applyAll }, 'Apply to all pieces'),
@@ -901,6 +988,8 @@
     /* ---- centre: viewer ---- */
     const autoBtn = h('button.tr-vbtn' + (V.auto ? '.on' : ''), { type: 'button', 'aria-pressed': String(V.auto), title: 'Slowly rotate', onclick: () => V.setAuto(!V.auto) }, h('span.tr-vico.rot'), h('span', 'Rotate'));
     V.onAuto = (on) => { autoBtn.classList.toggle('on', on); autoBtn.setAttribute('aria-pressed', String(on)); };
+    const animBtns = ANIMS.map(([id, label]) => h('button.tr-anim' + (V.anim === id ? '.on' : ''), { type: 'button', 'aria-pressed': String(V.anim === id), 'data-anim': id, 'data-focus': 'tr-anim-' + id, onclick: () => V.setAnim(id, { force: true }) }, label));
+    V.onAnim = (id) => animBtns.forEach((b) => { const on = b.dataset.anim === id; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
     const stage = h('div.tr-stage');
     const viewer = h('section.panel.tr-viewer', { 'aria-label': '3D preview' },
       stage,
@@ -914,6 +1003,7 @@
           document.body.appendChild(a); a.click();
           setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 0);
         } }, h('span.tr-vico.cam'), h('span', 'PNG'))),
+      h('div.tr-anims', { role: 'group', 'aria-label': 'Animation' }, animBtns),
       h('div.tr-hint', 'Drag to rotate · scroll or pinch to zoom · drop a skin PNG here'),
       h('div.tr-drop', { 'aria-hidden': 'true' }, 'Drop the skin PNG'));
     if (V.error) stage.append(h('div.tr-error', V.error, h('br'), h('span', 'The flat previews still work.')));
@@ -921,6 +1011,7 @@
       stage.append(V.el);
       if (!V.ready) stage.append(h('div.tr-loadingv', 'Loading the 3D viewer…'));
     }
+    if (!V.animInit) { V.animInit = true; V.persist = (id) => upd((s) => { s.anim = id; }, { silent: true }); if (!reduced() && st.anim !== 'idle') V.setAnim(st.anim, { silent: true }); }
     const dropOn = (on) => viewer.classList.toggle('dropping', on);
     viewer.addEventListener('dragover', (e) => { if (e.dataTransfer && [...e.dataTransfer.types].includes('Files')) { e.preventDefault(); dropOn(true); } });
     viewer.addEventListener('dragleave', (e) => { if (!viewer.contains(e.relatedTarget)) dropOn(false); });
@@ -944,9 +1035,9 @@
           paintThumb(cv, focus, Object.assign({}, fo, { pattern: p.id, material: p.id ? gm : null }));
           const b = h('button.tr-pat' + (on ? '.on' : '') + (p.id ? '.r-' + p.rarity : ''), { type: 'button', role: 'radio', 'aria-checked': String(on), 'aria-label': p.id ? patName(p.id) : 'No trim', 'data-focus': 'tr-pat-' + (p.id || 'none'),
             onclick: () => setField('pattern', p.id) },
+          h('span.tr-pat-name', p.id ? short[i - 1] : 'No trim'),
           cv,
-          h('span.tr-pat-foot', p.id ? h('span.tr-pat-ico', TH.icon.trim(p.id, { size: 20 })) : h('span.tr-pat-ico.none'), h('span.tr-pat-name', p.id ? short[i - 1] : 'No trim')),
-          null);
+          h('span.tr-pat-foot', p.id ? [h('span.tr-pat-ico', TH.icon.trim(p.id, { size: 26 })), h('span.tr-pat-ico', TH.icon(p.blockIcon, { size: 26 }))] : h('span.tr-pat-ico.none')));
           if (p.id) withTip(b, () => patternTipLines(p)); else withTip(b, ['No trim', 'Remove the trim from this piece']);
           return b;
         })));
@@ -984,7 +1075,6 @@
     const rv = pendingReveal; pendingReveal = null;
     if (rv && TH.util.reveal) requestAnimationFrame(() => {
       if (rv.has('gallery')) TH.util.reveal(root.querySelector('.tr-grid'), { step: 0.025, max: 18 });
-      if (rv.has('chooser') && root.querySelector('.tr-choose')) TH.util.reveal(root.querySelector('.tr-choose'), { step: 0.04 });
       if (rv.has('saved')) TH.util.reveal(root.querySelector('.tr-saved-list'), { step: 0.04 });
     });
   }
@@ -1029,15 +1119,17 @@
       toast('Saved “' + name + '”');
     }
     const cards = st.saved.map((g) => {
-      const active = st.savedId === g.id;
       if (st.renaming === g.id) {
         const rn = h('input.field', { type: 'text', maxlength: 40, value: st.renameText, 'aria-label': 'New name', 'data-focus': 'tr-rename',
           oninput: (e) => upd((s) => { s.renameText = e.target.value; }, { silent: true }),
           onkeydown: (e) => { if (e.key === 'Enter') commit(); else if (e.key === 'Escape') upd((s) => { s.renaming = null; }); } });
         const commit = () => upd((s) => { const x = s.saved.find((y) => y.id === g.id); if (x) x.name = (s.renameText || '').trim() || x.name; s.renaming = null; });
+        setTimeout(() => { if (rn.isConnected && document.activeElement !== rn) { rn.focus(); rn.select(); } }, 60);
         return h('div.tr-schip.editing', rn, h('button.btn.small.primary', { type: 'button', onclick: commit }, 'OK'), h('button.btn.small.ghost', { type: 'button', onclick: () => upd((s) => { s.renaming = null; }) }, '✕'));
       }
       const trimmedN = PIECES.filter((p) => g.outfit[p] && g.outfit[p].show !== false && g.outfit[p].pattern).length;
+      const same = PIECES.every((p) => { const a = g.outfit[p], c = st.outfit[p]; return a && ['armor', 'pattern', 'material', 'dye'].every((k) => (a[k] || null) === (c[k] || null)) && (a.show !== false) === c.show; });
+      const active = same; // accent marker only while the current outfit still equals this saved one
       return h('div.tr-schip' + (active ? '.active' : ''),
         h('button.tr-saved-main', { type: 'button', 'aria-pressed': String(active), title: 'Load ' + g.name + ' (' + trimmedN + ' trimmed)', 'data-focus': 'tr-saved-' + g.id,
           onclick: () => { markReveal('gallery'); upd((s) => {
@@ -1046,8 +1138,9 @@
             if (x.skin && x.skin.kind) s.skin = Object.assign({ name: '', data: null, slim: false }, x.skin);
             s.savedId = g.id;
           }); toast('Loaded “' + g.name + '”'); } }, g.name),
-        h('button.x-btn', { type: 'button', title: 'Rename', 'aria-label': 'Rename ' + g.name, onclick: () => upd((s) => { s.renaming = g.id; s.renameText = g.name; }) }, '✎'),
-        h('button.x-btn', { type: 'button', title: 'Delete', 'aria-label': 'Delete ' + g.name, onclick: () => { upd((s) => { s.saved = s.saved.filter((y) => y.id !== g.id); if (s.savedId === g.id) s.savedId = null; }); } }, '✕'));
+        h('span.tr-chip-acts',
+          h('button.tr-cbtn.edit', { type: 'button', title: 'Rename', 'aria-label': 'Rename ' + g.name, 'data-focus': 'tr-ren-' + g.id, onclick: () => upd((s) => { s.renaming = g.id; s.renameText = g.name; }) }, h('span.tr-cico')),
+          h('button.tr-cbtn.del', { type: 'button', title: 'Delete', 'aria-label': 'Delete ' + g.name, onclick: () => { upd((s) => { s.saved = s.saved.filter((y) => y.id !== g.id); if (s.savedId === g.id) s.savedId = null; }); } }, h('span.tr-cico'))));
     });
     return h('div.tr-saved', { role: 'group', 'aria-label': 'Saved outfits' },
       h('div.tr-save-row', input, h('button.btn.small.primary', { type: 'button', title: 'Save the current outfit and skin', onclick: save }, 'Save')),

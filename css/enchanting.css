@@ -502,3 +502,15 @@
 .ec-step-line > .ec-node:last-child { grid-column: 2; }
 .ec-uses-text { display: none; }
 .ec-uses { flex-wrap: nowrap; }
+
+/* books-in-hand stepper */
+.ec-step { display: inline-flex; align-items: center; gap: 2px; flex: none; }
+.ec-step-btn { width: 28px; height: 28px; border: 1px solid var(--line); border-radius: 4px; background: var(--panel); color: var(--text); font: 600 15px/1 var(--mono); cursor: pointer; padding: 0; }
+.ec-step-btn:hover:not(:disabled) { border-color: var(--accent); }
+.ec-step-btn:disabled { opacity: .35; cursor: default; }
+.ec-step-n { min-width: 38px; text-align: center; font: 400 12px/1 var(--mono); color: var(--muted); }
+.ec-step-n b { color: var(--text); font-weight: 700; }
+.ec-buy-row.on .ec-step-n b { color: var(--accent); }
+.ec-spare { font: 400 11px/1 var(--mono); color: var(--faint); font-style: italic; }
+.ec-buy-row.on .ec-spare { display: inline-block; white-space: nowrap; }
+.ec-buy-name { flex-wrap: wrap; }

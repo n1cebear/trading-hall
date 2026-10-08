@@ -22,7 +22,8 @@
  *     ticks: ['s', 'n1', 'n2', …],      // ticked to-do rows: 's' = smithing upgrade, 'n<step>' = anvil step
  *     done: false, added: timestamp,
  *   }],
- *   planGot: { 'protection:4': 3, 'mat:netherite_ingot': 1 }, // obtained ticks = count needed when ticked
+ *   planGot: { 'mat:netherite_ingot': 1 }, // obtained ticks for base materials = count needed when ticked
+ *   booksOwned: { 'mending:1': 1 },    // books in hand per enchant:level (spare ones are kept, never deleted)
  * }
  */
 
@@ -255,7 +256,7 @@ TH.anvil = (function () {
   const DEFAULTS = {
     item: 'sword', material: 'diamond', existing: {}, uses: 0,
     selected: {}, loadout: null, gearId: null, gear: [], saveName: '', renaming: null, renameText: '',
-    mode: 'single', planEditing: null, plan: [], planGot: {}, renameCost: '', anvilName: '',
+    mode: 'single', planEditing: null, plan: [], planGot: {}, booksOwned: {}, renameCost: '', anvilName: '',
   };
 
   const st = () => TH.store.get().enchanting;
@@ -977,7 +978,17 @@ TH.anvil = (function () {
           gearName = gg.name;
         }
         x.done = true;
+        // the applied books leave your inventory: consume owned copies (floor 0), remembered for undo
+        const used = {};
+        usedBooks(entryPlan(x)).forEach((b) => {
+          const k = b.id + ':' + b.level;
+          if ((e.booksOwned[k] || 0) - (used[k] || 0) > 0) used[k] = (used[k] || 0) + 1;
+        });
+        Object.keys(used).forEach((k) => { e.booksOwned[k] -= used[k]; if (e.booksOwned[k] <= 0) delete e.booksOwned[k]; });
+        if (Object.keys(used).length) x.booksUsed = used; else delete x.booksUsed;
       } else {
+        Object.keys(x.booksUsed || {}).forEach((k) => { e.booksOwned[k] = (e.booksOwned[k] || 0) + x.booksUsed[k]; });
+        delete x.booksUsed;
         if (gg && x.gearBefore) { Object.assign(gg, x.gearBefore, { updated: Date.now() }); }
         delete x.gearBefore;
         x.done = false;
@@ -1012,6 +1023,12 @@ TH.anvil = (function () {
   /** Obtained ticks remember how many were needed, so they untick when the plan needs more. */
   const isGot = (s, key, need) => (s.planGot[key] || 0) >= need;
   const setGot = (key, need, on) => set((e) => { if (on) e.planGot[key] = need; else delete e.planGot[key]; });
+  /** Books in hand per enchant:level; changes by delta, never below 0. */
+  const owned = (s, key) => s.booksOwned[key] || 0;
+  const bumpOwned = (key, delta) => set((e) => {
+    const n = Math.max(0, (e.booksOwned[key] || 0) + delta);
+    if (n) e.booksOwned[key] = n; else delete e.booksOwned[key];
+  });
 
   /* ---------- planner: view ---------- */
 
@@ -1180,7 +1197,7 @@ TH.anvil = (function () {
     }));
     const books = [...need.values()].sort((a, b) => b.count - a.count || enchName(a.id).localeCompare(enchName(b.id)));
     const bookTotal = books.reduce((n, b) => n + b.count, 0);
-    const gotBooks = books.reduce((n, b) => n + (isGot(s, b.key, b.count) ? b.count : 0), 0);
+    const gotBooks = books.reduce((n, b) => n + Math.min(owned(s, b.key), b.count), 0);
 
     // ---- b) costs ----
     let levels = 0, points = 0, left = 0, emeralds = 0, hallBooks = 0, unpriced = 0, bad = 0;
@@ -1207,7 +1224,7 @@ TH.anvil = (function () {
       h('button.btn.small.ghost.danger', {
         type: 'button', onclick: () => {
           if (!confirm('Remove every item from your plan?')) return;
-          set((e) => { e.plan = []; e.planGot = {}; e.planEditing = null; });
+          set((e) => { e.plan = []; e.planGot = {}; e.booksOwned = {}; e.planEditing = null; });
         },
       }, 'Clear plan'));
 
@@ -1228,13 +1245,16 @@ TH.anvil = (function () {
       bookTotal ? progressBar(gotBooks, bookTotal, 'Books obtained') : null,
       books.length
         ? h('ul.ec-buy', books.map((b) => {
-          const got = isGot(s, b.key, b.count);
-          const inputId = 'ec-got-' + b.key.replace(':', '-');
-          return h('li.ec-buy-row' + (got ? '.on' : ''),
-            h('label.check', h('input', { type: 'checkbox', id: inputId, checked: got, 'data-focus': inputId, onchange: (ev) => setGot(b.key, b.count, ev.target.checked) }), h('span')),
+          const have = owned(s, b.key), full = have >= b.count, spare = Math.max(0, have - b.count);
+          const nm = lvlName(b.id, b.level);
+          return h('li.ec-buy-row' + (full ? '.on' : ''), { 'data-book': b.key },
+            h('div.ec-step', { role: 'group', 'aria-label': nm + ' books obtained' },
+              h('button.ec-step-btn', { type: 'button', 'aria-label': 'One fewer ' + nm, disabled: !have, 'data-focus': 'ec-got-dec-' + b.key, onclick: () => bumpOwned(b.key, -1) }, '−'),
+              h('span.ec-step-n', { 'aria-live': 'polite' }, h('b', have), '/' + b.count),
+              h('button.ec-step-btn', { type: 'button', 'aria-label': 'One more ' + nm, 'data-focus': 'ec-got-inc-' + b.key, onclick: () => bumpOwned(b.key, 1) }, '+')),
             bookIcon(20),
-            h('label.ec-buy-text', { for: inputId },
-              h('span.ec-buy-name', lvlName(b.id, b.level), b.count > 1 ? h('span.ec-x', '×' + b.count) : null),
+            h('div.ec-buy-text',
+              h('span.ec-buy-name', nm, b.count > 1 ? h('span.ec-x', '×' + b.count) : null, spare ? h('span.ec-spare', spare + ' spare') : null),
               h('span.ec-buy-for', b.items.join(', '))),
             sourceChip(offers, b.id, b.level, b.count));
         }))
@@ -1334,6 +1354,15 @@ TH.anvil = (function () {
     if (!MATS.includes(s.material)) s.material = 'diamond';
     if (s.mode !== 'plan') s.mode = 'single';
     if (!s.planGot || typeof s.planGot !== 'object' || Array.isArray(s.planGot)) s.planGot = {};
+    if (!s.booksOwned || typeof s.booksOwned !== 'object' || Array.isArray(s.booksOwned)) s.booksOwned = {};
+    Object.keys(s.booksOwned).forEach((k) => { const n = Math.floor(Number(s.booksOwned[k])); if (n > 0) s.booksOwned[k] = n; else delete s.booksOwned[k]; });
+    // old shape: planGot['ench:level'] = count needed when ticked (true) -> books owned
+    Object.keys(s.planGot).forEach((k) => {
+      if (k.indexOf('mat:') === 0) return;
+      const n = s.planGot[k] === true ? 1 : Math.floor(Number(s.planGot[k]));
+      if (n > 0) s.booksOwned[k] = Math.max(s.booksOwned[k] || 0, n);
+      delete s.planGot[k];
+    });
     if (!Array.isArray(s.plan)) s.plan = [];
     s.plan = s.plan.filter((en) => en && itemById[en.item]).map((en) => {
       const it = itemById[en.item];
@@ -1345,6 +1374,7 @@ TH.anvil = (function () {
         upgrade: !!en.upgrade && material === 'netherite', gearId: en.gearId || null,
         ticks: Array.isArray(en.ticks) ? en.ticks.filter((k) => typeof k === 'string') : [],
         done: !!en.done, added: en.added || Date.now(),
+        booksUsed: en.booksUsed && typeof en.booksUsed === 'object' ? en.booksUsed : undefined,
         gearBefore: en.gearBefore && typeof en.gearBefore === 'object' ? en.gearBefore : undefined,
       };
     });

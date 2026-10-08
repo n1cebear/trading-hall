@@ -532,6 +532,20 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; }
 .menu hr { border: 0; border-top: 1px solid var(--line); margin: 4px 2px; width: auto; }
 .module-error { padding: 16px; color: var(--danger); }
 
+/* ============ icons inside controls: one rule ============
+   Icon + label sit in one inline-flex row, vertically centred, inside the padding box.
+   Size follows the control (small 14, default 16, large 18); integer px keeps pixel art crisp. */
+:where(.btn, .seg button, .chip, .nav-item, .tab, .pill, .lang-opt) { display: inline-flex; align-items: center; gap: 6px; }
+.seg button { justify-content: center; line-height: 1.2; }
+:where(.btn, .seg button, .chip, .nav-item, .tab, .pill, .lang-opt, .ov-cta, .th-reco) > .mc,
+:where(.btn, .seg button, .chip, .nav-item, .tab) > .nav-icon > .mc { --mc: 16px !important; margin: 0 !important; flex: 0 0 auto; align-self: center; }
+:where(.btn.small, .chip, .pill, .hl-row-sub) > .mc { --mc: 14px !important; }
+:where(.btn.lg, .nav-item) > .mc, .nav-item > .nav-icon > .mc { --mc: 18px !important; }
+.nav-icon { display: inline-flex; align-items: center; line-height: 1; }
+.mc img { image-rendering: pixelated; }
+/* missing texture: a small neutral dot centred in the icon box, never a big glyph or square */
+.mc-missing { font-size: 0 !important; background: radial-gradient(circle, color-mix(in srgb, var(--muted) 50%, transparent) 0 min(3px, 20%), transparent calc(min(3px, 20%) + .5px)); }
+
 /* ============ Minecraft icons (js/core/icons.js) ============ */
 .mc {
   position: relative; display: inline-grid; place-items: center; flex-shrink: 0;

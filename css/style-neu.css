@@ -14,8 +14,8 @@
   --neu-r-xs: 6px; --neu-r-sm: 8px; --neu-r-md: 10px; --neu-r-lg: 14px; --neu-r-xl: 18px;
   --radius: var(--neu-r-md);
   --neu-raised:    8px 8px 18px var(--neu-lo), -6px -6px 16px var(--neu-hi);
-  --neu-raised-sm: 4px 4px 9px var(--neu-lo), -3px -3px 8px var(--neu-hi);
-  --neu-raised-xs: 2px 2px 5px var(--neu-lo), -2px -2px 5px var(--neu-hi);
+  --neu-raised-sm: 3px 3px 7px var(--neu-lo), -2px -2px 6px var(--neu-hi);   /* Tier 2 (crisp) */
+  --neu-raised-xs: 2px 2px 4px var(--neu-lo), -1px -1px 4px var(--neu-hi);   /* Tier 2, compact controls */
   --neu-inset:     inset 5px 5px 11px var(--neu-lo), inset -4px -4px 10px var(--neu-hi);
   --neu-inset-sm:  inset 3px 3px 7px var(--neu-lo), inset -2px -2px 6px var(--neu-hi);
   --neu-inset-xs:  inset 2px 2px 4px var(--neu-lo), inset -1px -1px 3px var(--neu-hi);
@@ -43,6 +43,43 @@
   --neu-pressed-sm: inset 4px 4px 9px var(--neu-lo), inset -2px -2px 6px var(--neu-hi);
   --neu-pressed-xs: inset 3px 3px 5px var(--neu-lo), inset -1px -1px 4px var(--neu-hi);
   --neu-focus: 0 0 0 3px color-mix(in srgb, var(--accent) 38%, transparent), 0 0 14px 1px color-mix(in srgb, var(--accent) 50%, transparent);
+  /* ===== SURFACE TIERS (see DESIGN.md "Surface tiers") =====
+     T0 page  | T1 segment: raised, soft, no bevel | T2 control: raised, crisp + 2px pixel bevel | T-1 well: inset */
+  --neu-r-seg: 18px;                       /* T1 radius, every segment */
+  --neu-r-ctl: 8px;                        /* T2 radius (buttons, chips, toolbar buttons) */
+  --neu-r-tile: 12px;                      /* T2 radius for bigger tiles / cards */
+  --neu-r-grp: 10px;                       /* outer corners of a segmented group */
+  --neu-pad: 20px;                         /* T1 inner padding, every segment */
+  --neu-t1: 7px 7px 16px var(--neu-lo), -5px -5px 14px var(--neu-hi);
+  --neu-t2: var(--neu-raised-sm);
+  --neu-t2-hover: 4px 4px 9px var(--neu-lo), -3px -3px 8px var(--neu-hi);
+  --neu-t2-grp: 2px 2px 3px var(--neu-lo), -1px -1px 2px var(--neu-hi);   /* buttons joined in a segmented group */
+  /* pixel bevel: stepped 2px edge, light top-left / dark bottom-right (the top-nav look, fainter). -in = pressed / selected (flipped) */
+  --neu-bevel:
+    linear-gradient(var(--neu-px-hi), var(--neu-px-hi)) 4px 0 / calc(100% - 8px) 2px no-repeat,
+    linear-gradient(var(--neu-px-hi), var(--neu-px-hi)) 2px 2px / 2px 2px no-repeat,
+    linear-gradient(var(--neu-px-hi), var(--neu-px-hi)) 0 4px / 2px calc(100% - 8px) no-repeat,
+    linear-gradient(var(--neu-px-lo), var(--neu-px-lo)) right 4px bottom 0 / calc(100% - 8px) 2px no-repeat,
+    linear-gradient(var(--neu-px-lo), var(--neu-px-lo)) right 2px bottom 2px / 2px 2px no-repeat,
+    linear-gradient(var(--neu-px-lo), var(--neu-px-lo)) right 0 bottom 4px / 2px calc(100% - 8px) no-repeat;
+  --neu-bevel-in:
+    linear-gradient(var(--neu-px-lo), var(--neu-px-lo)) 4px 0 / calc(100% - 8px) 2px no-repeat,
+    linear-gradient(var(--neu-px-lo), var(--neu-px-lo)) 2px 2px / 2px 2px no-repeat,
+    linear-gradient(var(--neu-px-lo), var(--neu-px-lo)) 0 4px / 2px calc(100% - 8px) no-repeat,
+    linear-gradient(var(--neu-px-hi), var(--neu-px-hi)) right 4px bottom 0 / calc(100% - 8px) 2px no-repeat,
+    linear-gradient(var(--neu-px-hi), var(--neu-px-hi)) right 2px bottom 2px / 2px 2px no-repeat,
+    linear-gradient(var(--neu-px-hi), var(--neu-px-hi)) right 0 bottom 4px / 2px calc(100% - 8px) no-repeat;
+  /* square variant for buttons inside a segmented group (inner joins are straight) */
+  --neu-bevel-sq:
+    linear-gradient(var(--neu-px-hi), var(--neu-px-hi)) 0 0 / 100% 2px no-repeat,
+    linear-gradient(var(--neu-px-lo), var(--neu-px-lo)) 0 100% / 100% 2px no-repeat;
+  --neu-bevel-sq-in:
+    linear-gradient(var(--neu-px-lo), var(--neu-px-lo)) 0 0 / 100% 2px no-repeat,
+    linear-gradient(var(--neu-px-hi), var(--neu-px-hi)) 0 100% / 100% 2px no-repeat;
+  --neu-ctl: var(--neu-bevel), var(--neu-grad);
+  --neu-ctl-on: var(--neu-bevel-in), var(--neu-sel-bg);
+  --neu-ctl-sq: var(--neu-bevel-sq), var(--neu-grad);
+  --neu-ctl-sq-on: var(--neu-bevel-sq-in), var(--neu-sel-bg);
   /* re-point the classic tokens so shared + module CSS recolours itself */
   --bg: var(--neu-bg); --bg-2: var(--neu-well); --panel: var(--neu-bg); --panel-2: var(--neu-row);
   --slot: var(--neu-bg);
@@ -55,7 +92,7 @@
 :root[data-style="soft"] {
   --neu-bg: #22232d; --neu-well: #1a1b22; --neu-row: #292a36;
   --neu-hi: rgb(255 255 255 / .07); --neu-lo: rgb(2 2 8 / .72);
-  --neu-edge: rgb(255 255 255 / .045);
+  --neu-edge: rgb(255 255 255 / .045); --neu-px-hi: rgb(255 255 255 / .11); --neu-px-lo: rgb(0 0 0 / .26);
   --line: rgb(255 255 255 / .06); --line-2: rgb(255 255 255 / .11);
   --muted: #b0afba; --faint: #9796a3;
   --glow-a: rgb(91 140 255 / .05); --glow-b: color-mix(in srgb, var(--tc, #17dd62) 5%, transparent); --mob-op: .07;
@@ -65,7 +102,7 @@
   :root[data-style="soft"]:not([data-theme="light"]) {
     --neu-bg: #22232d; --neu-well: #1a1b22; --neu-row: #292a36;
     --neu-hi: rgb(255 255 255 / .07); --neu-lo: rgb(2 2 8 / .72);
-    --neu-edge: rgb(255 255 255 / .045);
+    --neu-edge: rgb(255 255 255 / .045); --neu-px-hi: rgb(255 255 255 / .11); --neu-px-lo: rgb(0 0 0 / .26);
     --line: rgb(255 255 255 / .06); --line-2: rgb(255 255 255 / .11);
     --muted: #b0afba; --faint: #9796a3;
     --glow-a: rgb(91 140 255 / .05); --glow-b: color-mix(in srgb, var(--tc, #17dd62) 5%, transparent); --mob-op: .07;
@@ -75,7 +112,7 @@
 :root[data-style="soft"][data-theme="dark"] {
   --neu-bg: #22232d; --neu-well: #1a1b22; --neu-row: #292a36;
   --neu-hi: rgb(255 255 255 / .07); --neu-lo: rgb(2 2 8 / .72);
-  --neu-edge: rgb(255 255 255 / .045);
+  --neu-edge: rgb(255 255 255 / .045); --neu-px-hi: rgb(255 255 255 / .11); --neu-px-lo: rgb(0 0 0 / .26);
   --line: rgb(255 255 255 / .06); --line-2: rgb(255 255 255 / .11);
   --muted: #b0afba; --faint: #9796a3;
   --glow-a: rgb(91 140 255 / .05); --glow-b: color-mix(in srgb, var(--tc, #17dd62) 5%, transparent); --mob-op: .07;
@@ -86,7 +123,7 @@
   :root[data-style="soft"]:not([data-theme="dark"]) {
     --neu-bg: #eadfc7; --neu-well: #dfd3b6; --neu-row: #e2d6bb;
     --neu-hi: rgb(255 252 238 / .9); --neu-lo: rgb(135 95 40 / .38);
-    --neu-edge: rgb(255 252 238 / .45);
+    --neu-edge: rgb(255 252 238 / .45); --neu-px-hi: rgb(255 253 242 / .85); --neu-px-lo: rgb(120 80 20 / .17);
     --line: rgb(110 80 30 / .13); --line-2: rgb(110 80 30 / .22);
     --muted: #5f4a2c; --faint: #644f33;
     --c-hall: #096629; --c-ench: #6f35b8; --c-trim: #095f5a; --c-build: #8e420a; --c-portal: #a52019; --c-home: #74490a; --danger: #a52019;
@@ -97,7 +134,7 @@
 :root[data-style="soft"][data-theme="light"] {
   --neu-bg: #eadfc7; --neu-well: #dfd3b6; --neu-row: #e2d6bb;
   --neu-hi: rgb(255 252 238 / .9); --neu-lo: rgb(135 95 40 / .38);
-  --neu-edge: rgb(255 252 238 / .45);
+  --neu-edge: rgb(255 252 238 / .45); --neu-px-hi: rgb(255 253 242 / .85); --neu-px-lo: rgb(120 80 20 / .17);
   --line: rgb(110 80 30 / .13); --line-2: rgb(110 80 30 / .22);
   --muted: #5f4a2c; --faint: #644f33;
   --c-hall: #096629; --c-ench: #6f35b8; --c-trim: #095f5a; --c-build: #8e420a; --c-portal: #a52019; --c-home: #74490a; --danger: #a52019;
@@ -186,30 +223,35 @@
 :root[data-style="soft"] .nav-item:active:not(.active) { transform: translateY(1px); box-shadow: inset 6px 6px 9px -3px var(--nv-sh), inset -2px -2px 6px var(--nv-li); background: color-mix(in srgb, var(--tc, var(--accent)) 4%, var(--neu-bg)); }
 :root[data-style="soft"] .nav-item.active:active { transform: translateY(1px); }
 @media (min-width: 641px) {
-  /* carved strip, raised tabs; the padding/negative margin gives the tab shadows room inside the scroll box */
-  :root[data-style="soft"] .nav { padding: 6px 7px 8px; margin: -6px -7px -8px; border-radius: var(--neu-r-xl); background: var(--neu-carve); box-shadow: var(--neu-inset-sm); gap: 8px; }
-  :root[data-style="soft"] .nav-item { background: var(--neu-grad); box-shadow: 4px 4px 9px var(--neu-lo), -3px -3px 7px var(--neu-hi); }
-  :root[data-style="soft"] .nav-item:hover:not(.active) { background: var(--neu-grad); transform: translateY(-1px); box-shadow: 6px 7px 13px var(--neu-lo), -4px -4px 9px var(--neu-hi); color: var(--text); }
+  /* sunken strip = the nav's own layout box (no negative margins, nothing sticks out): 44px tall like the toolbar strip,
+     tabs 34px centred inside. It hugs its tabs; the toolbar group is pushed to the right edge of the page grid. */
+  :root[data-style="soft"] .nav { flex: 0 1 auto; min-width: 0; height: 44px; align-items: center; padding: 0 5px; margin: 0; gap: 6px; border-radius: 12px; background: var(--neu-carve); box-shadow: var(--neu-inset-sm); }
+  :root[data-style="soft"] .topbar-actions { margin-left: auto; }
+  :root[data-style="soft"] .nav-item { height: 34px; padding: 0 14px; background: var(--neu-grad); box-shadow: 3px 3px 6px var(--neu-lo), -2px -2px 5px var(--neu-hi); }
+  :root[data-style="soft"] .nav-item:hover:not(.active) { background: var(--neu-grad); transform: translateY(-1px); box-shadow: 4px 5px 9px var(--neu-lo), -3px -3px 7px var(--neu-hi); color: var(--text); }
   :root[data-style="soft"] .nav-item.active { background: radial-gradient(110% 130% at 92% 100%, color-mix(in srgb, var(--tc, var(--accent)) 26%, transparent), transparent 66%), color-mix(in srgb, var(--tc, var(--accent)) 5%, var(--neu-bg)); box-shadow: inset 7px 7px 11px -4px var(--nv-sh), inset -3px -3px 7px var(--nv-li); }
   :root[data-style="soft"] .nav-item:active:not(.active) { transform: translateY(1px); background: color-mix(in srgb, var(--tc, var(--accent)) 4%, var(--neu-bg)); box-shadow: inset 6px 6px 9px -3px var(--nv-sh), inset -2px -2px 6px var(--nv-li); }
 }
 :root[data-style="soft"] .nav-badge, :root[data-style="soft"] .nav-soon { border-radius: var(--neu-r-xs); }
 :root[data-style="soft"] .nav-badge.is-progress { box-shadow: var(--neu-inset-xs); border-color: transparent; }
 :root[data-style="soft"] .nav-badge.is-progress.is-done { border-color: transparent; background: var(--accent); box-shadow: 0 0 10px -3px var(--accent); }
-:root[data-style="soft"] .icon-btn { border-color: transparent; border-radius: var(--neu-r-md); background: var(--neu-grad); box-shadow: var(--neu-raised-sm); }
+:root[data-style="soft"] .icon-btn { border-color: transparent; border-radius: var(--neu-r-md); background: var(--neu-ctl); box-shadow: var(--neu-raised-sm); }
 :root[data-style="soft"] .icon-btn:hover { border-color: transparent; }
 
-:root[data-style="soft"] .toolbar { border-color: transparent; border-radius: var(--neu-r-lg); background: var(--neu-carve); box-shadow: var(--neu-inset-sm); padding: 3px; gap: 3px; margin-bottom: 0; }
-:root[data-style="soft"] .toolbar > * + * { border-left-color: transparent; box-shadow: none; }
-:root[data-style="soft"] .toolbar > :first-child, :root[data-style="soft"] .toolbar > :first-child.tb-btn, :root[data-style="soft"] .toolbar > .save-wrap .tb-btn, :root[data-style="soft"] .toolbar > :last-child .tb-btn { border-radius: var(--neu-r-md); }
-:root[data-style="soft"] .tb-btn { width: 34px; border-radius: var(--neu-r-md); background: var(--neu-grad); box-shadow: var(--neu-raised-xs); transition: background .12s, box-shadow .12s; }
-:root[data-style="soft"] .tb-btn:hover { background: var(--neu-grad); box-shadow: var(--neu-raised-sm); }
-:root[data-style="soft"] .tb-btn:active, :root[data-style="soft"] .tb-btn[aria-expanded="true"] { background: var(--neu-bg); box-shadow: var(--neu-inset-sm); }
+/* TOOLBAR GROUP = segmented group: one sunken strip, raised keys joined side by side. Only the outer corners of the
+   group are rounded (first key left, last key right); inner joins are square, a 2px sliver of the well is the divider. */
+:root[data-style="soft"] .toolbar { border-color: transparent; border-radius: 12px; background: var(--neu-carve); box-shadow: var(--neu-inset-sm); padding: 4px; gap: 2px; margin-bottom: 0; height: 44px; align-items: stretch; }
+:root[data-style="soft"] .toolbar > * + * { border-left: 0; box-shadow: none; }
+:root[data-style="soft"] .toolbar .tb-btn, :root[data-style="soft"] .toolbar .lang-btn { border-radius: 0; background: var(--neu-ctl-sq); box-shadow: var(--neu-t2-grp); }
+:root[data-style="soft"] .toolbar > :first-child .tb-btn, :root[data-style="soft"] .toolbar > :first-child .lang-btn { border-radius: var(--neu-r-ctl) 0 0 var(--neu-r-ctl); }
+:root[data-style="soft"] .toolbar > :last-child .tb-btn, :root[data-style="soft"] .toolbar > :last-child .lang-btn { border-radius: 0 var(--neu-r-ctl) var(--neu-r-ctl) 0; }
+:root[data-style="soft"] .tb-btn { width: 36px; transition: background .12s, box-shadow .12s; }
+:root[data-style="soft"] .toolbar .tb-btn:hover, :root[data-style="soft"] .toolbar .lang-btn:hover { background: var(--neu-ctl-sq); box-shadow: 3px 3px 5px var(--neu-lo), -2px -2px 4px var(--neu-hi); }
+:root[data-style="soft"] .toolbar .tb-btn:active, :root[data-style="soft"] .toolbar .tb-btn[aria-expanded="true"], :root[data-style="soft"] .toolbar .lang-btn[aria-expanded="true"] { background: var(--neu-bg); box-shadow: var(--neu-inset-sm); }
 :root[data-style="soft"] .tb-btn:active .pix { transform: translateY(1px); }
 :root[data-style="soft"] .lang { background: transparent; box-shadow: none; }
-:root[data-style="soft"] .lang-btn { border-radius: var(--neu-r-md); background: var(--neu-grad); box-shadow: var(--neu-raised-xs); }
-:root[data-style="soft"] .lang-btn:hover { background: var(--neu-grad); box-shadow: var(--neu-raised-sm); }
-:root[data-style="soft"] .lang-btn[aria-expanded="true"] { background: var(--neu-bg); box-shadow: var(--neu-inset-sm); }
+:root[data-style="soft"] .icon-btn { border-color: transparent; border-radius: var(--neu-r-ctl); background: var(--neu-ctl); box-shadow: var(--neu-t2); }
+:root[data-style="soft"] .icon-btn:hover { border-color: transparent; }
 
 /* menus / dialogs / popovers: big raised sheets, no hard border */
 :root[data-style="soft"] .menu, :root[data-style="soft"] .lang-list {
@@ -236,7 +278,7 @@
 @media (max-width: 640px) {
   :root[data-style="soft"] { --bottom-bar: calc(72px + env(safe-area-inset-bottom)); }
   :root[data-style="soft"] .nav { gap: 6px; padding: 8px 10px calc(8px + env(safe-area-inset-bottom)); background: color-mix(in srgb, var(--neu-bg) 96%, transparent); border-top: 0; box-shadow: 0 -12px 26px -12px var(--neu-lo), 0 -1px 0 var(--neu-edge); border-radius: 20px 20px 0 0; }
-  :root[data-style="soft"] .nav-item { border-radius: 9px; padding: 8px 2px 7px; background: var(--neu-grad); box-shadow: 3px 3px 7px var(--neu-lo), -2px -2px 6px var(--neu-hi); }
+  :root[data-style="soft"] .nav-item { border-radius: 9px; padding: 8px 2px 7px; background: var(--neu-ctl); box-shadow: 3px 3px 7px var(--neu-lo), -2px -2px 6px var(--neu-hi); }
   :root[data-style="soft"] .nav-item::after { top: 4px; bottom: auto; left: 50%; right: auto; width: 2px; height: 2px; border-radius: 0; }
   :root[data-style="soft"] .nav-item:hover:not(.active) { transform: none; box-shadow: 3px 3px 7px var(--neu-lo), -2px -2px 6px var(--neu-hi); }
   :root[data-style="soft"] .nav-item.active { box-shadow: inset 6px 6px 9px -3px var(--nv-sh), inset -2px -2px 6px var(--nv-li); }
@@ -244,31 +286,36 @@
   :root[data-style="soft"] .toast { bottom: calc(88px + env(safe-area-inset-bottom)); }
 }
 
-/* ============ surfaces ============ */
-/* segments are CARVED into the page; anything clickable on them sticks out again */
-:root[data-style="soft"] .panel { border: 1px solid transparent; border-radius: var(--neu-r-lg); background: var(--neu-carve); box-shadow: var(--neu-inset); }
-/* a container nested in a carved segment stays flat on the well (no second carved layer) */
-:root[data-style="soft"] .panel .panel { background: transparent; box-shadow: none; border-color: var(--line); }
+/* ============ surfaces ============
+   TIER 1 - SEGMENT: every container that groups content. One recipe: soft raised, same radius, same padding, no bevel.
+   New features only need class `.panel` (or one of the listed hooks) - never style a container surface in module CSS. */
+:root[data-style="soft"] :is(.panel, .ov-card, .tr-saved, .hl-steps) {
+  border: 1px solid var(--neu-edge); border-radius: var(--neu-r-seg); background: var(--neu-grad); box-shadow: var(--neu-t1);
+}
+:root[data-style="soft"] :is(.panel, .tr-saved) { padding: var(--neu-pad); }
+:root[data-style="soft"] .hl-steps { padding: calc(var(--neu-pad) - 12px) calc(var(--neu-pad) - 12px); margin-bottom: var(--neu-gap); }
+:root[data-style="soft"] .hl-steps ol { gap: 6px; }
+/* never nest a segment in a segment: a container inside one is flat (a faint tint), not raised */
+:root[data-style="soft"] .panel .panel { background: var(--neu-flat); box-shadow: none; border-color: transparent; border-radius: var(--neu-r-tile); }
 :root[data-style="soft"] .hl-check.panel { background: var(--neu-grad); border-color: var(--neu-edge); }
 :root[data-style="soft"] .page-head h2 { text-shadow: none; }
 :root[data-style="soft"] .toast { border-color: var(--neu-edge); border-radius: var(--neu-r-md); background: var(--neu-grad); box-shadow: var(--neu-raised-sm), 0 0 22px -8px var(--accent); }
 :root[data-style="soft"] .empty-icon { filter: none; }
-:root[data-style="soft"] .swatch { border-color: transparent; border-radius: var(--neu-r-sm); background: var(--neu-grad); box-shadow: var(--neu-raised-xs); }
-:root[data-style="soft"] .soon-banner { border-radius: var(--neu-r-lg); }
+:root[data-style="soft"] .swatch { border-color: transparent; border-radius: var(--neu-r-sm); background: var(--neu-ctl); box-shadow: var(--neu-raised-xs); }
 
 /* ============ buttons ============ */
 :root[data-style="soft"] .btn {
-  border-color: transparent; border-radius: var(--neu-r-md); background: var(--neu-grad); box-shadow: var(--neu-raised-sm);
+  border-color: transparent; border-radius: var(--neu-r-ctl); background: var(--neu-ctl); box-shadow: var(--neu-raised-sm);
   transition: box-shadow .12s, background .15s, color .15s, filter .15s;
 }
 :root[data-style="soft"] .btn:hover { border-color: transparent; color: var(--text); filter: brightness(1.05); }
 :root[data-style="soft"] .btn:active:not(:disabled) { transform: none; box-shadow: var(--neu-inset-sm); filter: none; background: var(--neu-bg); }
 :root[data-style="soft"] .btn.primary {
   color: var(--accent-ink); border-color: transparent;
-  background: linear-gradient(145deg, color-mix(in srgb, var(--accent) 88%, #fff), var(--accent) 55%, color-mix(in srgb, var(--accent) 86%, #000));
+  background: var(--neu-bevel), linear-gradient(145deg, color-mix(in srgb, var(--accent) 88%, #fff), var(--accent) 55%, color-mix(in srgb, var(--accent) 86%, #000));
   box-shadow: var(--neu-acc-raised-sm);
 }
-:root[data-style="soft"] .btn.primary:hover { box-shadow: 5px 5px 13px var(--neu-acc-lo), -4px -4px 10px var(--neu-acc-hi); background: linear-gradient(145deg, color-mix(in srgb, var(--accent) 80%, #fff), color-mix(in srgb, var(--accent) 92%, #fff) 55%, var(--accent)); border-color: transparent; filter: none; }
+:root[data-style="soft"] .btn.primary:hover { box-shadow: 5px 5px 13px var(--neu-acc-lo), -4px -4px 10px var(--neu-acc-hi); background: var(--neu-bevel), linear-gradient(145deg, color-mix(in srgb, var(--accent) 80%, #fff), color-mix(in srgb, var(--accent) 92%, #fff) 55%, var(--accent)); border-color: transparent; filter: none; }
 :root[data-style="soft"] .btn.primary:active:not(:disabled) {
   transform: none; filter: none;
   background: linear-gradient(145deg, color-mix(in srgb, var(--accent) 88%, #000), var(--accent));
@@ -281,7 +328,7 @@
 :root[data-style="soft"] .btn:disabled { filter: none; box-shadow: var(--neu-raised-xs); }
 :root[data-style="soft"] .btn.ec-undone { color: var(--muted); }
 :root[data-style="soft"] .ec-add { border-color: transparent; color: var(--accent); }
-:root[data-style="soft"] .ec-add:hover:not(:disabled) { background: var(--neu-grad); border-color: transparent; }
+:root[data-style="soft"] .ec-add:hover:not(:disabled) { background: var(--neu-ctl); border-color: transparent; }
 :root[data-style="soft"] .ec-inplan:disabled { border-color: transparent; }
 :root[data-style="soft"] .hl-add-row .btn { border-style: solid; }
 :root[data-style="soft"] .x-btn { border-radius: var(--neu-r-sm); }
@@ -293,7 +340,7 @@
 :root[data-style="soft"] .seg button { border-radius: var(--neu-r-md); border: 1px solid transparent; transition: color .15s, background .15s, box-shadow .15s; }
 :root[data-style="soft"] .seg button:hover:not(.on) { color: var(--text); }
 :root[data-style="soft"] .seg button.on, :root[data-style="soft"] .module-hall .seg button.on, :root[data-style="soft"] .ec-mode button.on {
-  background: var(--neu-grad); border-color: transparent; color: var(--accent);
+  background: var(--neu-ctl); border-color: transparent; color: var(--accent);
   box-shadow: var(--neu-raised-xs);
 }
 :root[data-style="soft"] .seg button.on .count { opacity: .9; }
@@ -306,7 +353,7 @@
   box-shadow: var(--neu-sel-inset-sm), 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent), 0 0 14px color-mix(in srgb, var(--accent) 30%, transparent);
 }
 :root[data-style="soft"] .search::before { border-radius: 50%; }
-:root[data-style="soft"] .step { border-color: transparent; border-radius: var(--neu-r-sm); background: var(--neu-grad); box-shadow: var(--neu-raised-xs); transition: box-shadow .08s; }
+:root[data-style="soft"] .step { border-color: transparent; border-radius: var(--neu-r-sm); background: var(--neu-ctl); box-shadow: var(--neu-raised-xs); transition: box-shadow .08s; }
 :root[data-style="soft"] .step:hover { border-color: transparent; color: var(--accent); }
 :root[data-style="soft"] .step:active:not(:disabled) { transform: none; box-shadow: var(--neu-inset-xs); }
 
@@ -332,7 +379,7 @@
 :root[data-style="soft"] .slider::-moz-range-thumb { width: 18px; height: 18px; border-radius: 50%; border: 0; background: var(--accent); box-shadow: var(--neu-raised-xs), 0 0 10px -2px var(--accent); }
 
 /* level chips: raised keys, chosen = pressed + accent */
-:root[data-style="soft"] .lvl-chips button { border-color: transparent; border-radius: var(--neu-r-sm); background: var(--neu-grad); box-shadow: var(--neu-raised-xs); color: var(--faint); transition: box-shadow .1s, color .12s; }
+:root[data-style="soft"] .lvl-chips button { border-color: transparent; border-radius: var(--neu-r-sm); background: var(--neu-ctl); box-shadow: var(--neu-raised-xs); color: var(--faint); transition: box-shadow .1s, color .12s; }
 :root[data-style="soft"] .lvl-chips button:hover { color: var(--text); }
 :root[data-style="soft"] .lvl-chips button.on, :root[data-style="soft"] .module-hall .lvl-chips button.on, :root[data-style="soft"] .lvl-chips.ec-lv button.on {
   color: var(--accent); border-color: transparent; background: var(--neu-bg);
@@ -351,15 +398,15 @@
 :root[data-style="soft"] .bar > span { border-radius: 99px; background: linear-gradient(180deg, var(--accent-2), var(--accent)); box-shadow: 0 0 8px -1px color-mix(in srgb, var(--accent) 70%, transparent); }
 
 /* ============ Trading Hall: wizard ============ */
-:root[data-style="soft"] .hl-steps button { border-radius: var(--neu-r-md); }
+:root[data-style="soft"] .hl-steps button { border-radius: var(--neu-r-ctl); }
 :root[data-style="soft"] .hl-steps button:hover { background: color-mix(in srgb, var(--text) 4%, transparent); }
 :root[data-style="soft"] .hl-step-dot { border-color: transparent; border-radius: var(--neu-r-sm); background: var(--neu-bg); box-shadow: var(--neu-inset-xs); }
 :root[data-style="soft"] .hl-steps li.is-current .hl-step-dot { background: var(--accent); box-shadow: var(--neu-raised-xs), 0 0 14px -3px var(--accent); }
 :root[data-style="soft"] .hl-steps li.is-done .hl-step-dot { border-color: transparent; background: color-mix(in srgb, var(--accent) 14%, var(--neu-bg)); box-shadow: var(--neu-inset-xs); }
 
-:root[data-style="soft"] .hl-preset { border-color: var(--neu-edge); border-radius: var(--neu-r-lg); background: var(--neu-grad); box-shadow: var(--neu-raised); }
+:root[data-style="soft"] .hl-preset { border-color: transparent; border-radius: 14px; background: var(--neu-ctl); box-shadow: 5px 5px 12px var(--neu-lo), -4px -4px 10px var(--neu-hi); }
 :root[data-style="soft"] .hl-preset:hover { border-color: var(--neu-edge); }
-:root[data-style="soft"] .hl-preset.is-on { border-color: transparent; background: var(--neu-sel-bg); box-shadow: var(--neu-sel-inset); }
+:root[data-style="soft"] .hl-preset.is-on { border-color: transparent; background: var(--neu-ctl-on); box-shadow: var(--neu-sel-inset); }
 :root[data-style="soft"] .hl-preset-icon { border-color: transparent; border-radius: var(--neu-r-md); background: var(--neu-bg); box-shadow: var(--neu-inset-sm); }
 :root[data-style="soft"] .hl-detail-icon, :root[data-style="soft"] .hl-trade-ico, :root[data-style="soft"] .hl-rev-stat-ico, :root[data-style="soft"] .hl-verdict-icon, :root[data-style="soft"] .ec-pi-icon { border-color: transparent; border-radius: var(--neu-r-md); background: var(--neu-flat); box-shadow: none; }
 :root[data-style="soft"] .hl-preset-check, :root[data-style="soft"] .hl-tick { border-color: transparent; border-radius: var(--neu-r-sm); background-color: var(--neu-well); box-shadow: var(--neu-inset-xs); }
@@ -370,10 +417,10 @@
 :root[data-style="soft"] .hl-preset-tags span { border-color: transparent; border-radius: var(--neu-r-xs); box-shadow: var(--neu-inset-xs); }
 
 /* strips: flat rows on the surface; selected = pressed in with an accent ring */
-:root[data-style="soft"] .hl-strip { border-color: transparent; border-radius: var(--neu-r-md); background: var(--neu-grad); box-shadow: var(--neu-raised-xs); }
-:root[data-style="soft"] .hl-strip:hover { border-color: transparent; background: var(--neu-grad); }
+:root[data-style="soft"] .hl-strip { border-color: transparent; border-radius: var(--neu-r-tile); background: var(--neu-ctl); box-shadow: var(--neu-raised-xs); }
+:root[data-style="soft"] .hl-strip:hover { border-color: transparent; background: var(--neu-ctl); }
 :root[data-style="soft"] .hl-strip.is-on, :root[data-style="soft"] .hl-strip.hl-strip-trade.is-on {
-  border-color: transparent; background: var(--neu-sel-bg);
+  border-color: transparent; background: var(--neu-ctl-on);
   box-shadow: var(--neu-sel-inset-sm);
 }
 :root[data-style="soft"] .hl-strip.is-disabled { background: transparent; border: 1px dashed var(--line-2); box-shadow: none; }
@@ -383,13 +430,13 @@
 :root[data-style="soft"] .hl-strip-next button.hl-strip-main:hover { background: transparent; }
 :root[data-style="soft"] .hl-subrows { border-color: transparent; background: var(--neu-flat); box-shadow: none; border-radius: 0 0 var(--neu-r-md) var(--neu-r-md); }
 :root[data-style="soft"] .hl-trade-item { border-color: transparent; border-radius: var(--neu-r-xs); background: var(--neu-bg); box-shadow: var(--neu-raised-xs); }
-:root[data-style="soft"] .hl-badge { border-color: transparent; border-radius: var(--neu-r-sm); background: var(--neu-grad); box-shadow: var(--neu-raised-xs); }
+:root[data-style="soft"] .hl-badge { border-color: transparent; border-radius: var(--neu-r-sm); background: var(--neu-ctl); box-shadow: var(--neu-raised-xs); }
 :root[data-style="soft"] .hl-badge.is-static { background: var(--neu-flat); box-shadow: none; border-color: transparent; }
 :root[data-style="soft"] .hl-badge[aria-expanded="true"] { border-color: transparent; background: var(--neu-bg); color: var(--sel); box-shadow: var(--neu-inset-xs); }
 :root[data-style="soft"] .hl-group-count, :root[data-style="soft"] .hl-idx, :root[data-style="soft"] .hl-rev-n { border-radius: var(--neu-r-xs); }
 :root[data-style="soft"] .hl-pos { border-color: transparent; border-radius: var(--neu-r-xs); box-shadow: var(--neu-inset-xs); }
 :root[data-style="soft"] .hl-note { border-color: transparent; border-radius: var(--neu-r-md); background: var(--neu-flat); }
-:root[data-style="soft"] .module-hall kbd { border-color: transparent; border-radius: var(--neu-r-xs); background: var(--neu-grad); box-shadow: var(--neu-raised-xs); }
+:root[data-style="soft"] .module-hall kbd { border-color: transparent; border-radius: var(--neu-r-xs); background: var(--neu-ctl); box-shadow: var(--neu-raised-xs); }
 :root[data-style="soft"] .hl-slot { border-bottom-color: var(--line-2); }
 
 /* duplicate group */
@@ -403,23 +450,21 @@
 :root[data-style="soft"] .hl-side-row.is-total { border-color: transparent; border-radius: var(--neu-r-md); background: color-mix(in srgb, var(--accent) 12%, transparent); box-shadow: none; }
 :root[data-style="soft"] .hl-side-ws li { border-radius: 4px; }
 :root[data-style="soft"] .hl-rev-book, :root[data-style="soft"] .hl-ov-row, :root[data-style="soft"] .hl-ov-prices { border-color: transparent; border-radius: var(--neu-r-sm); background: var(--neu-flat); }
-:root[data-style="soft"] .hl-fchip { border-color: transparent; border-radius: var(--neu-r-sm); background: var(--neu-grad); box-shadow: var(--neu-raised-xs); }
+:root[data-style="soft"] .hl-fchip { border-color: transparent; border-radius: var(--neu-r-sm); background: var(--neu-ctl); box-shadow: var(--neu-raised-xs); }
 :root[data-style="soft"] .hl-fchip.is-more { border: 1px dashed var(--line-2); box-shadow: none; background: transparent; }
 :root[data-style="soft"] .hl-rev-prof { border-color: transparent; border-radius: var(--neu-r-md); background: var(--neu-flat); box-shadow: inset 3px 0 0 var(--pc); }
 :root[data-style="soft"] .hl-ov-stat { border-color: transparent; border-radius: var(--neu-r-md); background: var(--neu-flat); box-shadow: none; }
-:root[data-style="soft"] .hl-lock { border-color: transparent; border-radius: var(--neu-r-md); background: var(--neu-grad); box-shadow: var(--neu-raised-xs); }
-:root[data-style="soft"] .hl-lock.is-on { border-color: transparent; background: var(--neu-sel-bg); box-shadow: var(--neu-sel-inset-xs); }
-:root[data-style="soft"] .hl-lockrow .btn.on { border-color: transparent; background: var(--neu-sel-bg); box-shadow: var(--neu-sel-inset-xs); }
+:root[data-style="soft"] .hl-lock { border-color: transparent; border-radius: var(--neu-r-md); background: var(--neu-ctl); box-shadow: var(--neu-raised-xs); }
+:root[data-style="soft"] .hl-lock.is-on { border-color: transparent; background: var(--neu-ctl-on); box-shadow: var(--neu-sel-inset-xs); }
+:root[data-style="soft"] .hl-lockrow .btn.on { border-color: transparent; background: var(--neu-ctl-on); box-shadow: var(--neu-sel-inset-xs); }
 :root[data-style="soft"] .hl-detail-hint { border-top-color: var(--line); }
 :root[data-style="soft"] .hl-detail { border-radius: var(--neu-r-lg); }
 :root[data-style="soft"] .hl-sw { border-color: var(--line-2); border-radius: var(--neu-r-xs); }
-:root[data-style="soft"] .hl-sw.is-selected { border-color: transparent; background: var(--neu-sel-bg); box-shadow: var(--neu-sel-inset-xs); }
+:root[data-style="soft"] .hl-sw.is-selected { border-color: transparent; background: var(--neu-ctl-on); box-shadow: var(--neu-sel-inset-xs); }
 
 /* dashboard */
 :root[data-style="soft"] .hl-mstats { border-radius: var(--neu-r-lg); background: var(--neu-flat); box-shadow: none; }
 :root[data-style="soft"] .hl-psq { border-radius: var(--neu-r-xs); }
-:root[data-style="soft"] .hl-prog { background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 13%, var(--neu-bg)), var(--neu-bg) 62%); }
-:root[data-style="soft"] .hl-review-actions, :root[data-style="soft"] .hl-rev-head { background: linear-gradient(120deg, color-mix(in srgb, var(--accent) 12%, var(--neu-bg)), var(--neu-bg) 62%); }
 
 /* check-an-offer dialog + combobox */
 :root[data-style="soft"] .hl-check { border-radius: var(--neu-r-xl); box-shadow: 14px 16px 44px var(--neu-lo), -8px -8px 24px var(--neu-hi); }
@@ -429,9 +474,9 @@
 :root[data-style="soft"] .hl-cb-opt:hover { background: var(--neu-row); }
 :root[data-style="soft"] .hl-cb-opt.is-hi { border-color: transparent; background: var(--neu-sel-bg); box-shadow: var(--neu-sel-inset-xs); }
 :root[data-style="soft"] .hl-cb-opt.is-cur { background: color-mix(in srgb, var(--sel) 9%, transparent); }
-:root[data-style="soft"] .hl-quick-chip { border-color: transparent; border-radius: var(--neu-r-sm); background: var(--neu-grad); box-shadow: var(--neu-raised-xs); }
+:root[data-style="soft"] .hl-quick-chip { border-color: transparent; border-radius: var(--neu-r-sm); background: var(--neu-ctl); box-shadow: var(--neu-raised-xs); }
 :root[data-style="soft"] .hl-quick-chip:hover { border-color: transparent; }
-:root[data-style="soft"] .hl-quick-chip.on { border-color: transparent; background: var(--neu-sel-bg); color: var(--sel); box-shadow: var(--neu-sel-inset-xs); }
+:root[data-style="soft"] .hl-quick-chip.on { border-color: transparent; background: var(--neu-ctl-on); color: var(--sel); box-shadow: var(--neu-sel-inset-xs); }
 :root[data-style="soft"] .hl-verdict { border-radius: var(--neu-r-md); }
 :root[data-style="soft"] .hl-verdict.is-idle { border-color: transparent; background: var(--neu-flat); }
 :root[data-style="soft"] .hl-verdict.is-lock, :root[data-style="soft"] .hl-verdict.is-skip, :root[data-style="soft"] .hl-verdict.is-warn { box-shadow: none; }
@@ -439,10 +484,11 @@
 @media (max-width: 899.98px) { :root[data-style="soft"] .hl-detail { border-radius: var(--neu-r-xl) var(--neu-r-xl) 0 0; background: var(--neu-grad); box-shadow: 0 -10px 30px var(--neu-lo), 0 -4px 14px var(--neu-hi); } }
 
 /* ============ hall canvas: inset well + soft raised tiles ============ */
-:root[data-style="soft"] .hc-viewport { border-color: transparent; border-radius: var(--neu-r-md); background-color: var(--neu-well); box-shadow: inset 0 0 0 1px var(--line); }
+/* T-1 well: the canvas viewport is cut INTO the segment */
+:root[data-style="soft"] .hc-viewport { border-color: transparent; border-radius: var(--neu-r-lg); background-color: var(--neu-well); box-shadow: var(--neu-inset-deep); }
 :root[data-style="soft"] .hc-viewport:focus-visible { border-color: transparent; outline: 0; filter: none; box-shadow: var(--neu-sel-inset-sm), 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent), 0 0 14px color-mix(in srgb, var(--accent) 40%, transparent); }
 :root[data-style="soft"] .hc-tile {
-  border-color: transparent; border-radius: 12px; background: var(--neu-grad); box-shadow: var(--neu-raised-sm);
+  border-color: transparent; border-radius: var(--neu-r-tile); background: var(--neu-ctl); box-shadow: var(--neu-raised-sm);
 }
 :root[data-style="soft"] .hc-tile.is-needed { border: 1px dashed color-mix(in srgb, var(--muted) 50%, transparent); background: transparent; box-shadow: none; }
 :root[data-style="soft"] .hc-tile.is-locked { background: linear-gradient(145deg, color-mix(in srgb, var(--accent) 14%, var(--neu-bg)), color-mix(in srgb, var(--accent) 8%, var(--neu-bg))); }
@@ -451,46 +497,49 @@
   background: linear-gradient(145deg, color-mix(in srgb, var(--gold) 24%, var(--neu-bg)), color-mix(in srgb, var(--gold) 9%, var(--neu-bg)));
   box-shadow: var(--neu-raised-sm), 0 0 14px -3px color-mix(in srgb, var(--gold) 60%, transparent);
 }
-:root[data-style="soft"] .hc-tile.is-selected { border-color: transparent; outline: 0; background: var(--neu-sel-bg); box-shadow: var(--neu-sel-inset-sm); }
+:root[data-style="soft"] .hc-tile.is-selected { border-color: transparent; outline: 0; background: var(--neu-ctl-on); box-shadow: var(--neu-sel-inset-sm); }
 :root[data-style="soft"] .hc-tile.is-selected .hc-name { color: var(--accent); }
 :root[data-style="soft"] .hc-tile.is-dragging { box-shadow: 10px 18px 28px -8px var(--neu-lo), 8px 8px 20px color-mix(in srgb, var(--accent) 30%, transparent); }
 :root[data-style="soft"] .hc-tile.is-clash { border-color: transparent; }
 :root[data-style="soft"] .hc-tile.is-swap-target { border-color: transparent; }
 :root[data-style="soft"] .hc-item { border-color: transparent; border-radius: var(--neu-r-xs); background: var(--neu-bg); box-shadow: var(--neu-raised-xs); }
 :root[data-style="soft"] .hc-tag { border-radius: var(--neu-r-xs); background: var(--neu-carve); }
-:root[data-style="soft"] .hc-bar { border-color: transparent; border-radius: var(--neu-r-lg); background: color-mix(in srgb, var(--neu-bg) 96%, transparent); box-shadow: var(--neu-inset-sm); }
-:root[data-style="soft"] .hc-grp + .hc-grp { border-left-color: var(--line); }
-:root[data-style="soft"] .hc-btn { border-color: transparent; border-radius: var(--neu-r-sm); background: var(--neu-grad); box-shadow: 2px 2px 4px var(--neu-lo), -1px -1px 3px var(--neu-hi); }
+/* canvas toolbar: the bar is just a lane; each .hc-grp is a segmented group (sunken strip, joined raised keys) */
+:root[data-style="soft"] .hc-bar { border-color: transparent; background: none; box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; padding: 2px 2px 3px; gap: 8px; }
+:root[data-style="soft"] .hc-grp { padding: 3px; gap: 2px; border-radius: 12px; background: var(--neu-carve); box-shadow: var(--neu-inset-sm); }
+:root[data-style="soft"] .hc-grp + .hc-grp { padding-left: 3px; border-left: 0; }
+:root[data-style="soft"] .hc-btn { border-color: transparent; background: var(--neu-ctl-sq); box-shadow: var(--neu-t2-grp); }
 :root[data-style="soft"] .hc-btn:hover { border-color: transparent; color: var(--accent); }
 :root[data-style="soft"] .hc-btn:active:not(:disabled) { transform: none; box-shadow: var(--neu-inset-xs); }
-:root[data-style="soft"] .hc-btn.on { border-color: transparent; background: var(--neu-sel-bg); color: var(--accent); box-shadow: var(--neu-sel-inset-xs); }
-:root[data-style="soft"] .hc-minimap { border-color: transparent; border-radius: var(--neu-r-md); background: color-mix(in srgb, var(--neu-well) 92%, transparent); box-shadow: var(--neu-inset-sm); }
+:root[data-style="soft"] .hc-btn.on { border-color: transparent; background: var(--neu-ctl-sq-on); color: var(--accent); box-shadow: var(--neu-sel-inset-xs); }
+:root[data-style="soft"] .hc-minimap { border-color: transparent; border-radius: var(--neu-r-tile); background: color-mix(in srgb, var(--neu-bg) 92%, transparent); box-shadow: var(--neu-t2); }
 :root[data-style="soft"] .hc-help { border-color: var(--neu-edge); border-radius: var(--neu-r-lg); background: var(--neu-grad); box-shadow: 10px 12px 30px var(--neu-lo), -6px -6px 18px var(--neu-hi); }
 :root[data-style="soft"] .hc-marquee { border-radius: var(--neu-r-xs); }
 @media (max-width: 640px) { :root[data-style="soft"] .hc-viewport { border-radius: var(--neu-r-md); } }
 
 /* ============ Enchanting ============ */
-:root[data-style="soft"] .module-enchanting { --ec-on-bg: var(--neu-sel-bg); --ec-on-bar: var(--neu-sel-inset-sm); }
+:root[data-style="soft"] .module-enchanting { --ec-on-bg: var(--neu-ctl-on); --ec-on-bar: var(--neu-sel-inset-sm); }
 :root[data-style="soft"] .ec-side { padding: 10px; margin: -10px; }
 :root[data-style="soft"] .ec-num { border-radius: var(--neu-r-sm); background: var(--neu-flat); box-shadow: none; }
-:root[data-style="soft"] .ec-gear-card.panel { border-color: transparent; background: var(--neu-grad); box-shadow: var(--neu-raised-sm); }
-:root[data-style="soft"] .ec-gear-card.panel.editing { background: var(--neu-carve); box-shadow: var(--neu-inset-sm); }
-:root[data-style="soft"] .ec-gear-card.active { border-color: transparent; background: var(--neu-sel-bg); box-shadow: var(--neu-sel-inset-sm); }
+/* saved-gear cards are compact T2 cards (selectable), not segments */
+:root[data-style="soft"] .ec-gear-card.panel { border-color: transparent; border-radius: var(--neu-r-tile); padding: 6px 8px 6px 6px; background: var(--neu-ctl); box-shadow: var(--neu-t2); }
+:root[data-style="soft"] .ec-gear-card.panel.editing { background: var(--neu-well); box-shadow: var(--neu-inset-sm); }
+:root[data-style="soft"] .ec-gear-card.active { border-color: transparent; background: var(--neu-ctl-on); box-shadow: var(--neu-sel-inset-sm); }
 :root[data-style="soft"] .ec-gear-main { border-radius: var(--neu-r-md); }
 :root[data-style="soft"] .ec-gear-main:hover { background: transparent; box-shadow: var(--neu-raised-xs); }
 :root[data-style="soft"] .ec-mats { border-radius: var(--neu-r-lg); background: var(--neu-well); box-shadow: var(--neu-inset-sm); padding: 5px; }
 :root[data-style="soft"] .ec-mat { border-radius: var(--neu-r-md); }
 :root[data-style="soft"] .ec-mat:hover { background: color-mix(in srgb, var(--text) 5%, transparent); }
-:root[data-style="soft"] .ec-mat.on { border-color: transparent; background: var(--neu-grad); box-shadow: var(--neu-acc-raised-xs); color: var(--accent); }
-:root[data-style="soft"] .ec-item { border-color: transparent; border-radius: var(--neu-r-lg); background: var(--neu-grad); box-shadow: var(--neu-raised-sm); }
+:root[data-style="soft"] .ec-mat.on { border-color: transparent; background: var(--neu-ctl); box-shadow: var(--neu-acc-raised-xs); color: var(--accent); }
+:root[data-style="soft"] .ec-item { border-color: transparent; border-radius: var(--neu-r-tile); background: var(--neu-ctl); box-shadow: var(--neu-raised-sm); }
 :root[data-style="soft"] .ec-item:hover { border-color: transparent; }
-:root[data-style="soft"] .ec-item.on { border-color: transparent; background: var(--neu-sel-bg); box-shadow: var(--neu-sel-inset-sm); }
+:root[data-style="soft"] .ec-item.on { border-color: transparent; background: var(--neu-ctl-on); box-shadow: var(--neu-sel-inset-sm); }
 :root[data-style="soft"] .ec-item.na { background: transparent; border: 1px dashed var(--line-2); box-shadow: none; }
 :root[data-style="soft"] .ec-item.na:hover { border-color: var(--line-2); }
 :root[data-style="soft"] .ec-new { border-radius: var(--neu-r-xs); }
-:root[data-style="soft"] .ec-lo.on { border-color: transparent; background: var(--neu-sel-bg); color: var(--accent); box-shadow: var(--neu-sel-inset-xs); }
-:root[data-style="soft"] .ec-ench { border-radius: var(--neu-r-md); background: var(--neu-grad); box-shadow: var(--neu-raised-xs); }
-:root[data-style="soft"] .ec-ench:hover:not(.on):not(.blocked) { background: var(--neu-grad); box-shadow: var(--neu-raised-sm); }
+:root[data-style="soft"] .ec-lo.on { border-color: transparent; background: var(--neu-ctl-on); color: var(--accent); box-shadow: var(--neu-sel-inset-xs); }
+:root[data-style="soft"] .ec-ench { border-radius: var(--neu-r-tile); background: var(--neu-ctl); box-shadow: var(--neu-raised-xs); }
+:root[data-style="soft"] .ec-ench:hover:not(.on):not(.blocked) { background: var(--neu-ctl); box-shadow: var(--neu-raised-sm); }
 :root[data-style="soft"] .ec-ench.has:not(.on) { background: color-mix(in srgb, var(--accent) 7%, var(--neu-bg)); }
 :root[data-style="soft"] .ec-ench.on { background: var(--ec-on-bg); box-shadow: var(--ec-on-bar); }
 :root[data-style="soft"] .ec-ench.blocked:not(.has):not(.on) { background: transparent; box-shadow: none; }
@@ -509,13 +558,13 @@
 :root[data-style="soft"] .ec-linked { border-color: transparent; border-radius: var(--neu-r-md); }
 :root[data-style="soft"] .ec-planbox-n { border-radius: var(--neu-r-xs); }
 :root[data-style="soft"] .ec-usesrow { border-radius: var(--neu-r-md); box-shadow: none; }
-:root[data-style="soft"] .ec-tile { border-color: transparent; border-radius: var(--neu-r-md); background: var(--neu-grad); box-shadow: var(--neu-raised-xs); }
+:root[data-style="soft"] .ec-tile { border-color: transparent; border-radius: var(--neu-r-md); background: var(--neu-ctl); box-shadow: var(--neu-raised-xs); }
 :root[data-style="soft"] .ec-tile.on { border-color: transparent; background: var(--ec-on-bg); box-shadow: var(--ec-on-bar); }
 :root[data-style="soft"] .ec-cost { border-radius: var(--neu-r-sm); }
-:root[data-style="soft"] .ec-want { border-color: transparent; border-radius: var(--neu-r-sm); box-shadow: var(--neu-raised-xs); background: var(--neu-grad); }
+:root[data-style="soft"] .ec-want { border-color: transparent; border-radius: var(--neu-r-sm); box-shadow: var(--neu-raised-xs); background: var(--neu-ctl); }
 :root[data-style="soft"] .ec-done-pill { border-radius: var(--neu-r-xs); }
 :root[data-style="soft"] .ec-todo-tag { border-color: transparent; border-radius: var(--neu-r-xs); background: var(--neu-well); box-shadow: none; }
-:root[data-style="soft"] .ec-pi.complete { border-color: transparent; box-shadow: var(--neu-inset), 0 0 24px -10px var(--accent); }
+:root[data-style="soft"] .ec-pi.complete { border-color: transparent; box-shadow: var(--neu-t1), 0 0 24px -10px var(--accent); }
 /* shopping + to-do lists: one inset well, flat rows, accent bar when done */
 :root[data-style="soft"] .ec-buy, :root[data-style="soft"] .ec-todos { border-color: transparent; border-radius: var(--neu-r-lg); background: var(--neu-flat); box-shadow: none; overflow: hidden; }
 :root[data-style="soft"] .ec-buy-row, :root[data-style="soft"] .ec-todo { background: transparent; }
@@ -527,43 +576,49 @@
 
 /* ============ Trims ============ */
 :root[data-style="soft"] .module-trims .tr-head h2 { text-shadow: none; }
-:root[data-style="soft"] .tr-viewer { background: var(--neu-carve); }
-:root[data-style="soft"] .tr-stage { border-radius: inherit; box-shadow: none; }
+/* viewer = T1 segment around a T-1 well (the 3D stage) */
+:root[data-style="soft"] .tr-viewer { padding: var(--neu-pad); gap: 12px; }
+:root[data-style="soft"] .tr-stage { border-radius: var(--neu-r-lg); box-shadow: var(--neu-inset-deep); overflow: hidden; }
 :root[data-style="soft"] .tr-drop { border-radius: var(--neu-r-lg); }
-:root[data-style="soft"] .tr-vbtn { border-color: transparent; border-radius: var(--neu-r-sm); background: color-mix(in srgb, var(--neu-bg) 90%, transparent); box-shadow: var(--neu-raised-xs); }
+/* viewer bar = segmented group (same as .toolbar) */
+:root[data-style="soft"] .tr-vbar { padding: 3px; gap: 2px; border-radius: 12px; background: var(--neu-carve); box-shadow: var(--neu-inset-sm); top: 14px; right: 14px; }
+:root[data-style="soft"] .tr-vbtn { border-color: transparent; background: var(--neu-ctl-sq); box-shadow: var(--neu-t2-grp); }
 :root[data-style="soft"] .tr-vbtn:hover { border-color: transparent; color: var(--text); }
 :root[data-style="soft"] .tr-vbtn:active:not(:disabled) { transform: none; box-shadow: var(--neu-inset-xs); }
-:root[data-style="soft"] .tr-vbtn.on { border-color: transparent; background: var(--neu-sel-bg); color: var(--accent); box-shadow: var(--neu-sel-inset-xs); }
-:root[data-style="soft"] .tr-slotwrap { border-radius: var(--neu-r-md); background: var(--neu-grad); box-shadow: var(--neu-raised-xs); }
-:root[data-style="soft"] .tr-slotwrap:hover { background: var(--neu-grad); box-shadow: var(--neu-raised-sm); }
-:root[data-style="soft"] .tr-slotwrap.on { background: var(--neu-sel-bg); box-shadow: var(--neu-sel-inset-sm); }
+:root[data-style="soft"] .tr-vbtn.on { border-color: transparent; background: var(--neu-ctl-sq-on); color: var(--accent); box-shadow: var(--neu-sel-inset-xs); }
+:root[data-style="soft"] .tr-anim { border-color: transparent; border-radius: var(--neu-r-ctl); background: var(--neu-ctl); box-shadow: var(--neu-raised-xs); color: var(--muted); }
+:root[data-style="soft"] .tr-anim:hover { border-color: transparent; color: var(--text); }
+:root[data-style="soft"] .tr-anim.on { border-color: transparent; background: var(--neu-ctl-on); color: var(--accent); box-shadow: var(--neu-sel-inset-xs); }
+:root[data-style="soft"] .tr-slotwrap { border-radius: var(--neu-r-md); background: var(--neu-ctl); box-shadow: var(--neu-raised-xs); }
+:root[data-style="soft"] .tr-slotwrap:hover { background: var(--neu-ctl); box-shadow: var(--neu-raised-sm); }
+:root[data-style="soft"] .tr-slotwrap.on { background: var(--neu-ctl-on); box-shadow: var(--neu-sel-inset-sm); }
 :root[data-style="soft"] .tr-slot-main { border-radius: var(--neu-r-md); }
 :root[data-style="soft"] .tr-eye { border-radius: var(--neu-r-sm); }
-:root[data-style="soft"] .tr-ico, :root[data-style="soft"] .tr-tile { border-radius: var(--neu-r-md); background: var(--neu-grad); box-shadow: 2px 2px 5px var(--neu-lo), -2px -2px 4px var(--neu-hi); }
-:root[data-style="soft"] .tr-ico:hover, :root[data-style="soft"] .tr-tile:hover { background: var(--neu-grad); }
-:root[data-style="soft"] .tr-ico.on, :root[data-style="soft"] .tr-tile.on { background: var(--neu-sel-bg); box-shadow: var(--neu-sel-inset-xs); }
-:root[data-style="soft"] .tr-pat { border-radius: var(--neu-r-md); background: var(--neu-grad); box-shadow: var(--neu-raised-xs); }
-:root[data-style="soft"] .tr-pat:hover { background: var(--neu-grad); box-shadow: var(--neu-raised-sm); }
-:root[data-style="soft"] .tr-pat.on { background: var(--neu-sel-bg); box-shadow: var(--neu-sel-inset-sm); }
+:root[data-style="soft"] .tr-ico, :root[data-style="soft"] .tr-tile { border-radius: var(--neu-r-ctl); background: var(--neu-ctl); box-shadow: var(--neu-raised-xs); }
+:root[data-style="soft"] .tr-ico:hover, :root[data-style="soft"] .tr-tile:hover { background: var(--neu-ctl); }
+:root[data-style="soft"] .tr-ico.on, :root[data-style="soft"] .tr-tile.on { background: var(--neu-ctl-on); box-shadow: var(--neu-sel-inset-xs); }
+:root[data-style="soft"] .tr-pat { border-radius: var(--neu-r-md); background: var(--neu-ctl); box-shadow: var(--neu-raised-xs); }
+:root[data-style="soft"] .tr-pat:hover { background: var(--neu-ctl); box-shadow: var(--neu-raised-sm); }
+:root[data-style="soft"] .tr-pat.on { background: var(--neu-ctl-on); box-shadow: var(--neu-sel-inset-sm); }
 :root[data-style="soft"] .tr-thumb { border-radius: var(--neu-r-sm); background: var(--neu-well); box-shadow: var(--neu-inset-xs); }
 :root[data-style="soft"] .tr-dye { border-color: transparent; border-radius: var(--neu-r-sm); box-shadow: var(--neu-raised-xs), inset 0 0 0 1px rgb(0 0 0 / .12); }
 :root[data-style="soft"] .tr-dot { border-radius: 3px; }
 :root[data-style="soft"] .tr-mrow { border-radius: var(--neu-r-sm); background: var(--neu-flat); }
-:root[data-style="soft"] .tr-schip { border-radius: var(--neu-r-sm); background: var(--neu-grad); box-shadow: var(--neu-raised-xs); }
-:root[data-style="soft"] .tr-schip.active { background: var(--neu-sel-bg); box-shadow: var(--neu-sel-inset-xs); }
+:root[data-style="soft"] .tr-schip { border-radius: var(--neu-r-sm); background: var(--neu-ctl); box-shadow: var(--neu-raised-xs); }
+:root[data-style="soft"] .tr-schip.active { background: var(--neu-ctl-on); box-shadow: var(--neu-sel-inset-xs); }
 :root[data-style="soft"] .tr-schip.editing { box-shadow: none; background: transparent; }
 
 /* ============ Overview + Builds ============ */
 :root[data-style="soft"] .ov-eyebrow { border-color: transparent; border-radius: 99px; background: var(--neu-bg); box-shadow: var(--neu-inset-sm); }
 :root[data-style="soft"] .ov-hero h2 { text-shadow: none; }
-:root[data-style="soft"] .ov-card { border-color: var(--neu-edge); border-top-color: var(--tc); border-radius: var(--neu-r-xl); background: var(--neu-grad); box-shadow: var(--neu-raised); }
-:root[data-style="soft"] .ov-card:hover, :root[data-style="soft"] .ov-card:focus-visible { border-color: var(--neu-edge); border-top-color: var(--tc); box-shadow: var(--neu-raised), 0 20px 40px -18px color-mix(in srgb, var(--tc) 55%, transparent); }
+:root[data-style="soft"] .ov-card { border-top-color: var(--tc); }
+:root[data-style="soft"] .ov-card:hover, :root[data-style="soft"] .ov-card:focus-visible { border-color: var(--neu-edge); border-top-color: var(--tc); box-shadow: var(--neu-t1), 0 20px 40px -18px color-mix(in srgb, var(--tc) 55%, transparent); }
 :root[data-style="soft"] .ov-art { border-bottom: 0; background: radial-gradient(60% 80% at 50% 100%, color-mix(in srgb, var(--tc) 26%, transparent), transparent 75%), var(--neu-well); box-shadow: inset 0 -10px 18px -12px var(--neu-lo), inset 0 8px 14px -10px var(--neu-lo); }
 :root[data-style="soft"] .ov-art::after { background: radial-gradient(closest-side, var(--neu-lo), transparent); }
 :root[data-style="soft"] .ov-soon { border-color: transparent; border-radius: var(--neu-r-xs); background: var(--neu-bg); box-shadow: var(--neu-inset-xs); }
 :root[data-style="soft"] .ov-cta {
-  border-color: transparent; border-radius: var(--neu-r-md); color: var(--on-accent);
-  background: linear-gradient(145deg, color-mix(in srgb, var(--tc) 88%, #fff), var(--tc) 55%, color-mix(in srgb, var(--tc) 86%, #000));
+  border-color: transparent; border-radius: var(--neu-r-ctl); color: var(--on-accent);
+  background: var(--neu-bevel), linear-gradient(145deg, color-mix(in srgb, var(--tc) 88%, #fff), var(--tc) 55%, color-mix(in srgb, var(--tc) 86%, #000));
   box-shadow: var(--neu-raised-sm), 0 8px 18px -8px color-mix(in srgb, var(--tc) 70%, transparent);
 }
 :root[data-style="soft"] .ov-card:active .ov-cta { transform: none; box-shadow: inset 3px 3px 7px color-mix(in srgb, var(--tc) 55%, #000), inset -2px -2px 6px color-mix(in srgb, var(--tc) 70%, #fff); }
@@ -578,25 +633,22 @@
 
 /* ============ breathing space (soft only: layout is allowed to open up here) ============
    generous rhythm: panels 22-24px inside, 18-20px between cards, +6px rows, bigger radii. Phones keep it tighter. */
-:root[data-style="soft"] { --neu-gap: 18px; --neu-pad: 22px; }
+:root[data-style="soft"] { --neu-gap: 18px; }
 :root[data-style="soft"] .module-enchanting { --ec-gap: 20px; --ec-strip: 62px; }
 :root[data-style="soft"] .module-trims { --tr-gap: 20px; }
 :root[data-style="soft"] .topbar { padding-top: 14px; padding-bottom: 14px; margin-bottom: 14px; }
 :root[data-style="soft"] .page-head, :root[data-style="soft"] .module-trims .tr-head { margin: 18px 0 20px; }
-:root[data-style="soft"] .panel { border-radius: var(--neu-r-xl); }
-:root[data-style="soft"] .ec-card, :root[data-style="soft"] .tr-card { padding: 22px 24px 24px; }
 :root[data-style="soft"] .ec-card-head, :root[data-style="soft"] .tr-card-head { margin-bottom: 18px; gap: 12px; }
-:root[data-style="soft"] .ec-pv-box, :root[data-style="soft"] .ec-pi { padding: 18px 20px; gap: 14px; }
-:root[data-style="soft"] .ec-pi.done { padding: 14px 20px; }
+:root[data-style="soft"] .ec-pv-box, :root[data-style="soft"] .ec-pi { gap: 14px; }
+:root[data-style="soft"] .ec-pi.done { padding-block: 14px; }
 :root[data-style="soft"] .ec-gear-list { gap: 14px; }
-:root[data-style="soft"] .ec-gear-card { padding: 6px 8px 6px 6px; }
 :root[data-style="soft"] .ec-items { gap: 12px; grid-template-columns: repeat(auto-fill, minmax(98px, 1fr)); }
-:root[data-style="soft"] .ec-item { min-height: 92px; padding: 12px 6px 10px; border-radius: var(--neu-r-lg); }
+:root[data-style="soft"] .ec-item { min-height: 92px; padding: 12px 6px 10px; border-radius: var(--neu-r-tile); }
 :root[data-style="soft"] .ec-slots { gap: 12px; }
 :root[data-style="soft"] .ec-segs { gap: 26px; }
 :root[data-style="soft"] .ec-mats { padding: 7px; gap: 4px; }
 :root[data-style="soft"] .ec-ench-list { gap: 10px; }
-:root[data-style="soft"] .ec-ench { padding: 10px 16px 10px 16px; border-radius: var(--neu-r-lg); }
+:root[data-style="soft"] .ec-ench { padding: 10px 16px 10px 16px; border-radius: var(--neu-r-tile); }
 :root[data-style="soft"] .ec-lo-list { gap: 10px; }
 :root[data-style="soft"] .ec-group-name { margin-bottom: 12px; }
 :root[data-style="soft"] .ec-indep { margin-top: 24px; padding-top: 18px; }
@@ -605,40 +657,36 @@
 :root[data-style="soft"] .ec-pv-bar { gap: 10px; margin-bottom: 16px; }
 
 :root[data-style="soft"] .hl-preset-grid { gap: 20px; }
-:root[data-style="soft"] .hl-preset { padding: 20px 20px 18px; gap: 12px; border-radius: var(--neu-r-xl); }
+:root[data-style="soft"] .hl-preset { padding: 20px 20px 18px; gap: 12px; border-radius: 14px; }
 :root[data-style="soft"] .hl-steps ol { gap: 12px; }
 :root[data-style="soft"] .hl-steps button { padding: 12px 14px; gap: 12px; }
 :root[data-style="soft"] .hl-strips { gap: 10px; }
-:root[data-style="soft"] .hl-strip { min-height: 58px; padding-right: 12px; border-radius: var(--neu-r-lg); }
+:root[data-style="soft"] .hl-strip { min-height: 58px; padding-right: 12px; border-radius: var(--neu-r-tile); }
 :root[data-style="soft"] .hl-strip-ro, :root[data-style="soft"] .hl-strip-next { min-height: 48px; }
 :root[data-style="soft"] .hl-subrows { padding: 8px 12px 12px 42px; gap: 8px; }
 :root[data-style="soft"] .hl-group-head { margin-bottom: 8px; min-height: 40px; }
-:root[data-style="soft"] .hl-review-card, :root[data-style="soft"] .hl-prog { padding: 22px; gap: 16px; }
-:root[data-style="soft"] .hl-map { padding: 20px 22px 22px; gap: 14px; }
-:root[data-style="soft"] .hl-detail { padding: 22px 22px 18px; gap: 16px; }
+:root[data-style="soft"] .hl-review-card, :root[data-style="soft"] .hl-prog { gap: 16px; }
+:root[data-style="soft"] .hl-map { gap: 14px; }
+:root[data-style="soft"] .hl-detail { gap: 16px; }
 :root[data-style="soft"] .hl-check { padding: 24px 26px 20px; gap: 18px; }
 :root[data-style="soft"] .hl-quick { gap: 10px; }
-:root[data-style="soft"] .hl-next-panel { padding: 20px 18px 10px; }
 :root[data-style="soft"] .hl-lock { padding: 11px 14px; }
 :root[data-style="soft"] .hl-note { padding: 12px 16px; }
 
 :root[data-style="soft"] .bd-grid, :root[data-style="soft"] .bd-features { gap: 20px; }
-:root[data-style="soft"] .bd-card, :root[data-style="soft"] .bd-feature { padding: 22px; gap: 10px; }
+:root[data-style="soft"] .bd-card, :root[data-style="soft"] .bd-feature { gap: 10px; }
 :root[data-style="soft"] .bd-bar { margin-bottom: 18px; gap: 16px; }
 :root[data-style="soft"] .ov-grid { gap: clamp(20px, 2.2vw, 32px); }
 :root[data-style="soft"] .ov-hero { margin-bottom: clamp(32px, 5vw, 56px); }
 
-:root[data-style="soft"] .tr-slotwrap { border-radius: var(--neu-r-lg); }
-:root[data-style="soft"] .tr-pat, :root[data-style="soft"] .tr-tile { border-radius: var(--neu-r-lg); }
+:root[data-style="soft"] .tr-slotwrap { border-radius: var(--neu-r-tile); }
+:root[data-style="soft"] .tr-pat, :root[data-style="soft"] .tr-tile { border-radius: var(--neu-r-tile); }
 :root[data-style="soft"] .tr-tiles { gap: 6px; }
 
 @media (max-width: 640px) {
-  :root[data-style="soft"] .ec-card, :root[data-style="soft"] .tr-card { padding: 16px 16px 18px; }
-  :root[data-style="soft"] .ec-pv-box, :root[data-style="soft"] .ec-pi { padding: 14px 14px; }
-  :root[data-style="soft"] .hl-review-card, :root[data-style="soft"] .hl-prog { padding: 16px; }
-  :root[data-style="soft"] .hl-map { padding: 16px 0 0; }
+  :root[data-style="soft"] { --neu-pad: 14px; }
+  :root[data-style="soft"] .hl-map { padding: var(--neu-pad) 0 0; }
   :root[data-style="soft"] .hl-check { padding: 16px; }
-  :root[data-style="soft"] .bd-card, :root[data-style="soft"] .bd-feature { padding: 16px; }
   :root[data-style="soft"] .module-enchanting { --ec-gap: 16px; --ec-strip: 58px; }
   :root[data-style="soft"] .module-trims { --tr-gap: 16px; }
   :root[data-style="soft"] .ec-items { grid-template-columns: repeat(auto-fill, minmax(88px, 1fr)); gap: 10px; }
@@ -667,6 +715,24 @@
   box-shadow: 9px 11px 22px -4px var(--neu-lo), -5px -5px 12px var(--neu-hi), inset 1px 1px 0 rgb(255 255 255 / .06);
   transform: translateY(-3px);
 }
+
+/* ============ SEGMENTED GROUPS (toolbar, .seg, canvas groups, trims viewer bar) ============
+   One rule for every group of joined controls: a sunken strip, keys 2px apart (the well shows through as the divider),
+   NO radius on the inner joins - only the first key's left corners and the last key's right corners follow the strip. */
+:root[data-style="soft"] .seg { padding: 3px; gap: 2px; border-radius: 12px; }
+:root[data-style="soft"] .seg > button { border-radius: 0; }
+:root[data-style="soft"] .seg > button.on, :root[data-style="soft"] .module-hall .seg > button.on, :root[data-style="soft"] .ec-mode > button.on { background: var(--neu-ctl-sq); box-shadow: var(--neu-t2-grp); color: var(--accent); }
+:root[data-style="soft"] :is(.seg, .hc-grp, .tr-vbar) > :first-child { border-radius: var(--neu-r-ctl) 0 0 var(--neu-r-ctl); }
+:root[data-style="soft"] :is(.seg, .hc-grp, .tr-vbar) > :last-child { border-radius: 0 var(--neu-r-ctl) var(--neu-r-ctl) 0; }
+:root[data-style="soft"] :is(.seg, .hc-grp, .tr-vbar) > :only-child { border-radius: var(--neu-r-ctl); }
+:root[data-style="soft"] :is(.hc-grp, .tr-vbar) > button { border-radius: 0; }
+:root[data-style="soft"] :is(.hc-grp, .tr-vbar) > button:first-child { border-radius: var(--neu-r-ctl) 0 0 var(--neu-r-ctl); }
+:root[data-style="soft"] :is(.hc-grp, .tr-vbar) > button:last-child { border-radius: 0 var(--neu-r-ctl) var(--neu-r-ctl) 0; }
+:root[data-style="soft"] :is(.hc-grp, .tr-vbar) > button:only-child { border-radius: var(--neu-r-ctl); }
+
+/* ============ TIER 2 radius pass: every control uses --neu-r-ctl, tiles/cards --neu-r-tile ============ */
+:root[data-style="soft"] :is(.lvl-chips button, .hl-quick-chip, .hl-badge, .hl-fchip, .hl-lock, .step, .swatch, .tr-schip, .ec-want, .ec-mat, .ec-lo, .hl-lockrow .btn, .x-btn) { border-radius: var(--neu-r-ctl); }
+:root[data-style="soft"] :is(.ec-tile, .tr-slotwrap, .hl-trade-item) { border-radius: var(--neu-r-tile); }
 
 /* ============ pressed state (soft): raised -> inset + 1px sink, for every button-like control ============
    light from the top-left: the pressed control throws its shadow inward from the top-left; selected / accent ones keep their

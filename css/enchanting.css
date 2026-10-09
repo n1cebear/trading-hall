@@ -838,3 +838,7 @@
   .ec-pick-other { grid-column: 2; grid-row: 2; }
   :root:root:root .ec-slots.other { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 }
+
+/* the action row is a solid band at the foot of the plan box: nothing shows through or casts a ghost shadow */
+:root:root:root .ec-plan > .th-act-row { background: var(--neu-bg, var(--panel)); filter: none; box-shadow: none; padding-top: 12px; }
+:root:root:root .ec-plan > .th-act-row .btn { filter: none; }

@@ -47,6 +47,7 @@
       const card = h('a.ov-card', { href: '#/' + t.id, 'data-tool': t.id, style: { '--i': i }, 'aria-label': mod.name },
         h('div.ov-art', h('span.ov-icon', t.icon())),
         h('span.ov-cta', mod.name, t.soon ? h('span.ov-soon', t.soonLabel || 'soon') : null),
+        h('span.ov-kick', t.kicker),
         st ? h('div.ov-mini', st) : null);
       TH.util.tooltip(card, () => h('span', h('span.th-tooltip-title', mod.name, t.soon ? h('span.th-tooltip-tag', t.soonLabel || 'preview') : null), h('span.th-tooltip-sub', t.kicker)));
       return card;

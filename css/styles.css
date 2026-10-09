@@ -917,3 +917,6 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; }
 
 /* main titles in caps */
 .page-head h2 { text-transform: uppercase; letter-spacing: 1.6px; }
+
+/* icons inside buttons / tiles / rows are centred by their container, not nudged up (the optical -0.18em made every icon+label button sit high) */
+:is(button, a, summary, label, [role="radio"], [role="tab"], .ec-item-ico, .tr-sw, .ec-item, .ec-matkey) .mc { margin-top: 0; }

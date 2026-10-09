@@ -410,7 +410,7 @@ TH.app = (function () {
     document.getElementById('themeBtn').addEventListener('click', () => {
       const dark = isDark();
       TH.store.update((s) => { s.settings.theme = dark ? 'light' : 'dark'; });
-      morph(applyTheme);
+      morph(() => { applyTheme(); fitNav(); });
     });
     initMenu();
     initStyleSeg();

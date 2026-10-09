@@ -185,15 +185,9 @@ TH.util = (function () {
     return () => { target.removeEventListener('pointerenter', enter); target.removeEventListener('pointerleave', leave); target.removeEventListener('focus', focus); target.removeEventListener('blur', leave); leave(); };
   }
 
-  /** "Recommended" star badge (`.th-reco`): put it inside a position:relative button/card. Max one per group. */
-  const RECO_ART = ['...y...', '..yyy..', 'yyyyyyy', '.yyyyy.', '..yyy..', '.yy.yy.', '.y...y.'];
+  /** "Recommended!" in the accent colour (`.th-reco`): inline text, max one per group. */
   function reco(label) {
-    let r = '';
-    RECO_ART.forEach((row, y) => { for (let x = 0; x < 7; x++) if (row[x] === 'y') r += `<rect x="${x}" y="${y}" width="1" height="1" fill="${(x + y) % 4 === 0 && y < 3 ? '#ffe9a0' : 'currentColor'}"/>`; });
-    const el = h('span.th-reco', { role: 'img', 'aria-label': label || 'Recommended' });
-    el.innerHTML = `<svg viewBox="0 0 7 7" shape-rendering="crispEdges" aria-hidden="true">${r}</svg>`;
-    tooltip(el, label || 'Recommended');
-    return el;
+    return h('span.th-reco', label || 'Recommended!');
   }
   /**
    * Scroll edge shadows (CSS: styles.css "scroll edge shadows"). Keep SCROLL_Y / SCROLL_X in sync with the CSS lists.

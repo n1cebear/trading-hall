@@ -118,3 +118,5 @@
   .pt-calc, .pt-mapbox { padding: 14px; }
   .pt-map { height: 360px; }
 }
+
+.pt-page { max-width: none; }

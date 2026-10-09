@@ -371,7 +371,7 @@
             h('div.pt-listhead', h('h4', 'Your portals'),
               h('button.btn.small', { type: 'button', onclick: () => addPortal(current(), DIMS[st.dir] + ' portal ' + (st.portals.length + 1)) }, '+ Add')),
             listEl))),
-      h('div.pt-tips', tips.map(([t, x]) => h('div.panel.bd-idea', h('h4', t), h('div.muted', x))))));
+    ));
 
     buildList();
     update();

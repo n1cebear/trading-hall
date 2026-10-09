@@ -905,3 +905,14 @@ button.hl-strip-main { cursor: pointer; }
 .hl-card.hl-cols .hl-card-toggle { padding-left: 16px; }
 .hl-copychips .hl-strip-main { padding-left: 92px; }
 .hl-card .hl-tag { height: 24px; min-height: 24px; }
+
+/* presets: equal tiles; the recommended one is marked with accent text and an accent top edge */
+.hl-preset-grid { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
+.hl-preset-grid .is-reco { grid-column: auto; }
+.hl-preset-grid .hl-preset-name { display: flex; align-items: baseline; flex-wrap: wrap; font-size: 15px; }
+.hl-preset-grid .is-reco .hl-preset-name { font-size: 15px; }
+.hl-preset-grid .hl-preset { align-content: start; }
+.hl-preset-grid .hl-preset-name { display: block; }
+.hl-preset-grid .hl-preset-name .th-reco { display: block; margin: 0 0 4px; }
+.hl-preset-grid > .hl-preset-item, .hl-preset-grid > .hl-own { align-items: stretch; }
+.hl-own-btn { height: 100%; align-items: center; }

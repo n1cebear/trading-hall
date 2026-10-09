@@ -1483,16 +1483,25 @@
   /** Pattern: one new pattern on every piece; the trim material and the armor stay. */
   function randomPattern() {
     upd((s) => {
-      const id = pick(PAT_IDS(), PIECES.map((p) => s.outfit[p].pattern));
-      PIECES.forEach((p) => { const o = s.outfit[p]; o.pattern = id; if (!o.material) o.material = s.lastMaterial; });
+      const ids = PAT_IDS();                                   // every piece rolls its own pattern from all of them
+      PIECES.forEach((p) => {
+        const o = s.outfit[p], opts = ids.filter((x) => x !== o.pattern);
+        o.pattern = opts[Math.floor(Math.random() * opts.length)];
+        if (!o.material) o.material = s.lastMaterial;
+      });
     });
   }
   /** Material: one new trim material; the pattern(s) and the armor stay. */
   function randomMaterial() {
     upd((s) => {
-      const id = pick(MAT_IDS(), PIECES.map((p) => s.outfit[p].pattern ? s.outfit[p].material : null).filter(Boolean).concat(s.lastMaterial));
-      PIECES.forEach((p) => { if (s.outfit[p].pattern) s.outfit[p].material = id; });
-      s.lastMaterial = id;
+      const ids = MAT_IDS();                                   // every trimmed piece rolls its own trim material
+      PIECES.forEach((p) => {
+        const o = s.outfit[p];
+        if (!o.pattern) return;
+        const opts = ids.filter((x) => x !== o.material);
+        o.material = opts[Math.floor(Math.random() * opts.length)];
+        s.lastMaterial = o.material;
+      });
     });
   }
 
@@ -1511,12 +1520,16 @@
   function makeSlot(p) {
     const armorBtns = new Map();
     const big = h('canvas.tr-big', { width: 16, height: 16 });
-    const id = h('div.tr-slot-id', big, h('b.tr-pname', PIECE_NAME[p]));
+    const elyIco = p === 'chestplate' ? TH.icon('item/elytra', { size: 40, cls: 'tr-big-ely' }) : null;
+    const pname = p === 'chestplate'
+      ? h('b.tr-pname', h('span.tr-pn-main', PIECE_NAME[p]), h('span.tr-pn-ely', 'Elytra'), h('span.tr-pn-x', '\u2715'))
+      : h('b.tr-pname', PIECE_NAME[p]);
+    const id = h('div.tr-slot-id', big, elyIco, pname);
     withTip(id, () => pieceTipLines(cur(), p));
     const mats = h('div.tr-armors', { role: 'radiogroup', 'aria-label': 'Armor material for the ' + PIECE_NAME[p].toLowerCase() },
       D.armorMaterials.filter((m) => !m.pieces || m.pieces.includes(p)).map((m) => {
         const b = h('button.btn.tr-ico', { type: 'button', role: 'radio', 'aria-checked': 'false', 'aria-label': armorName(p, m.id), 'data-focus': 'tr-armor-' + p + '-' + m.id, onclick: () => setField('armor', m.id, p) },
-          TH.icon.item(p, m.id, { size: 24 }));
+          TH.icon.item(p, m.id, { size: 32 }));
         armorBtns.set(m.id, b);
         return withTip(b, () => [armorName(p, m.id)].concat(p === 'chestplate' && cur().elytra ? ['Click to wear it (takes the elytra off)'] : []));
       }));
@@ -1526,11 +1539,7 @@
     const el = h('div.tr-slot', { 'data-piece': p }, id, mats, eye);
     // chestplate under an elytra: a notice tag over the greyed row; any click in the row (except the eye) takes the elytra off
     // and the click still applies, so the kept chestplate look comes back. Hover / focus swaps the tag text (CSS), touch shows both.
-    let ely = null;
     if (p === 'chestplate') {
-      ely = h('button.pill.tr-ely', { type: 'button', hidden: true, 'data-focus': 'tr-ely-off', 'aria-label': 'Elytra active. Wear the chestplate instead' },
-        TH.icon('item/elytra', { size: 20 }), h('span.tr-ely-on', 'Elytra active'), h('span.tr-ely-go', 'Click to wear chestplate'), h('span.tr-ely-tap', '· tap to wear chestplate'));
-      el.prepend(ely);
       el.addEventListener('click', (e) => { if (cur().elytra && !e.target.closest('.tr-eye')) upd((s) => { s.elytra = false; }); });
     }
     let dyes = null, last = {};
@@ -1538,7 +1547,7 @@
     function update(st) {
       const o = st.outfit[p];
       el.classList.toggle('off', !o.show || (p === 'chestplate' && st.elytra));
-      if (ely) { el.classList.toggle('ely', !!st.elytra); ely.hidden = !st.elytra; }
+      if (p === 'chestplate') el.classList.toggle('ely', !!st.elytra);
       eye.classList.toggle('on', o.show); eye.setAttribute('aria-pressed', String(o.show));
       if (last.armor !== o.armor) armorBtns.forEach((b, mid) => sel(b, mid === o.armor));
       paintSprite(big, p, o);

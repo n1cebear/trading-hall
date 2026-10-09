@@ -14,7 +14,7 @@
 .tr-page { max-width: none; margin: 0 auto; }
 .tr-layout {
   display: grid; gap: calc(var(--tr-gap) + 4px); align-items: start;
-  grid-template-columns: minmax(300px, 0.9fr) minmax(440px, 1.5fr) minmax(420px, 1.1fr);
+  grid-template-columns: minmax(380px, 1.05fr) minmax(360px, 1.15fr) minmax(420px, 1.1fr);
 }
 .tr-col { display: flex; flex-direction: column; gap: calc(var(--tr-gap) + 4px); min-width: 0; }
 /* the preview has its column to itself: the stage fills the viewport height left after the header + viewer bars (sticky on wide screens) */
@@ -343,3 +343,24 @@
 .tr-eye { width: 38px; height: 38px; }
 .tr-eyeico { width: 24px; height: 15px; -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 11 7' shape-rendering='crispEdges'%3E%3Cpath d='M3 0h5v1h-5zM2 1h2v1h-2zM7 1h2v1h-2zM1 2h1v1h-1zM4 2h3v1h-3zM9 2h1v1h-1zM0 3h2v1h-2zM4 3h3v1h-3zM9 3h2v1h-2zM1 4h1v1h-1zM4 4h3v1h-3zM9 4h1v1h-1zM2 5h2v1h-2zM7 5h2v1h-2zM3 6h5v1h-5z'/%3E%3C/svg%3E") center / 100% 100% no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 11 7' shape-rendering='crispEdges'%3E%3Cpath d='M3 0h5v1h-5zM2 1h2v1h-2zM7 1h2v1h-2zM1 2h1v1h-1zM4 2h3v1h-3zM9 2h1v1h-1zM0 3h2v1h-2zM4 3h3v1h-3zM9 3h2v1h-2zM1 4h1v1h-1zM4 4h3v1h-3zM9 4h1v1h-1zM2 5h2v1h-2zM7 5h2v1h-2zM3 6h5v1h-5z'/%3E%3C/svg%3E") center / 100% 100% no-repeat; }
 .tr-eye:not(.on) .tr-eyeico { -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 11 7' shape-rendering='crispEdges'%3E%3Cpath d='M0 2h2v1h-2zM9 2h2v1h-2zM1 3h2v1h-2zM8 3h2v1h-2zM2 4h7v1h-7zM1 5h1v1h-1zM4 5h1v1h-1zM6 5h1v1h-1zM9 5h1v1h-1z'/%3E%3C/svg%3E"); mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 11 7' shape-rendering='crispEdges'%3E%3Cpath d='M0 2h2v1h-2zM9 2h2v1h-2zM1 3h2v1h-2zM8 3h2v1h-2zM2 4h7v1h-7zM1 5h1v1h-1zM4 5h1v1h-1zM6 5h1v1h-1zM9 5h1v1h-1z'/%3E%3C/svg%3E"); }
+
+/* armor keys: bigger icons (the preview gives up the space) */
+.tr-armors { grid-template-columns: repeat(4, 56px); gap: 8px; }
+.tr-ico { width: 56px; height: 50px; }
+.tr-ico > .mc { --mc: 32px !important; }
+/* elytra worn: the chestplate row shows an elytra; hover offers the chestplate again */
+.tr-big-ely { display: none; }
+.tr-slot.ely .tr-big { display: none; }
+.tr-slot.ely .tr-big-ely { display: block; align-self: center; filter: drop-shadow(0 0 5px color-mix(in srgb, var(--accent) 55%, transparent)); }
+.tr-pn-ely, .tr-pn-x { display: none; }
+.tr-slot.ely .tr-pn-main { display: none; }
+.tr-slot.ely .tr-pn-ely { display: inline; color: var(--accent); }
+@media (hover: hover) {
+  .tr-slot.ely:hover .tr-pn-ely { display: none; }
+  .tr-slot.ely:hover .tr-pn-main { display: inline; color: var(--text); }
+  .tr-slot.ely:hover .tr-pn-x { display: inline; color: var(--accent); margin-right: 4px; }
+  .tr-slot.ely:hover .tr-big-ely { opacity: .5; }
+}
+.tr-ely { display: none !important; }
+/* studio colour in every style (set live from the colour key) */
+:root .tr-stage[data-bg="studio"][style*="--tr-studio"] { background: radial-gradient(ellipse 60% 40% at 50% 92%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 70%), var(--tr-studio); }

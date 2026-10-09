@@ -809,9 +809,11 @@ TH.anvil = (function () {
         : null);
 
     return h('aside.panel.ec-plan', { 'aria-live': 'polite' },
-      head, total, alert,
-      stepList ? h('div.ec-plan-block', h('div.ec-sub-head', 'Anvil steps', h('span.faint', steps.length)), stepList) : null,
-      finWarn, shopBox, renderActions(s), renderActionBar(s, plan));
+      h('div.ec-plan-body',
+        head, total, alert,
+        stepList ? h('div.ec-plan-block', h('div.ec-sub-head', 'Anvil steps', h('span.faint', steps.length)), stepList) : null,
+        finWarn, shopBox, renderActions(s)),
+      renderActionBar(s, plan));
   }
 
   /** "Add to plan" / "Done": last row of the Anvil plan panel, sticky so it stays reachable while the plan scrolls. */

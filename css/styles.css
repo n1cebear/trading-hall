@@ -164,17 +164,17 @@ html { -webkit-text-size-adjust: 100%; scrollbar-gutter: stable; }
   --sc-g0: color-mix(in srgb, var(--edge-lo) 42%, transparent), color-mix(in srgb, var(--edge-lo) 14%, transparent) 45%, transparent;
   --sc-g1: color-mix(in srgb, var(--edge-lo) 30%, transparent), color-mix(in srgb, var(--edge-lo) 10%, transparent) 45%, transparent;
 }
-:where(.th-scroll, .tr-grid, .hl-next-panel, .hl-wiz-side, .hl-cb-list, .hc-help, .lang-list, .ec-side, .hl-detail) { scroll-timeline: --th-sc block; }
+:where(.th-scroll, .tr-grid, .hl-next-panel, .hl-wiz-side, .hl-cb-list, .hc-help, .lang-list, .ec-plan-body, .hl-detail) { scroll-timeline: --th-sc block; }
 :where(.th-scroll-x, .hl-quick, .hc-bar, .ec-mats) { scroll-timeline: --th-scx inline; }
-:where(.th-scroll, .tr-grid, .hl-next-panel, .hl-wiz-side, .hl-cb-list, .hc-help, .lang-list, .ec-side, .hl-detail)::before,
-:where(.th-scroll, .tr-grid, .hl-next-panel, .hl-wiz-side, .hl-cb-list, .hc-help, .lang-list, .ec-side, .hl-detail)::after {
+:where(.th-scroll, .tr-grid, .hl-next-panel, .hl-wiz-side, .hl-cb-list, .hc-help, .lang-list, .ec-plan-body, .hl-detail)::before,
+:where(.th-scroll, .tr-grid, .hl-next-panel, .hl-wiz-side, .hl-cb-list, .hc-help, .lang-list, .ec-plan-body, .hl-detail)::after {
   content: ''; display: block; position: sticky; z-index: 4; flex: none; align-self: stretch; height: var(--sc-h);
   margin-inline: calc(-1 * var(--sc-pl, 0px)) calc(-1 * var(--sc-pr, 0px)); pointer-events: none; opacity: 0; transition: opacity .15s;
 }
-:where(.th-scroll, .tr-grid, .hl-next-panel, .hl-wiz-side, .hl-cb-list, .hc-help, .lang-list, .ec-side, .hl-detail)::before {
+:where(.th-scroll, .tr-grid, .hl-next-panel, .hl-wiz-side, .hl-cb-list, .hc-help, .lang-list, .ec-plan-body, .hl-detail)::before {
   top: calc(-1 * var(--sc-pt, 0px)); margin-bottom: calc(-1 * (var(--sc-h) + var(--sc-gap, 0px))); background: linear-gradient(180deg, var(--sc-g0));
 }
-:where(.th-scroll, .tr-grid, .hl-next-panel, .hl-wiz-side, .hl-cb-list, .hc-help, .lang-list, .ec-side, .hl-detail)::after {
+:where(.th-scroll, .tr-grid, .hl-next-panel, .hl-wiz-side, .hl-cb-list, .hc-help, .lang-list, .ec-plan-body, .hl-detail)::after {
   bottom: calc(-1 * var(--sc-pb, 0px)); margin-top: calc(-1 * (var(--sc-h) + var(--sc-gap, 0px))); background: linear-gradient(0deg, var(--sc-g1));
 }
 :where(.th-scroll-x, .hl-quick, .hc-bar, .ec-mats)::before, :where(.th-scroll-x, .hl-quick, .hc-bar, .ec-mats)::after {
@@ -189,10 +189,10 @@ html { -webkit-text-size-adjust: 100%; scrollbar-gutter: stable; }
 }
 /* timeline path (only where supported, so a browser that ignores animation-timeline never runs it as a 0s animation) */
 @supports (animation-timeline: scroll()) {
-  :root:not([data-sc-js]) :where(.th-scroll, .tr-grid, .hl-next-panel, .hl-wiz-side, .hl-cb-list, .hc-help, .lang-list, .ec-side, .hl-detail)::before {
+  :root:not([data-sc-js]) :where(.th-scroll, .tr-grid, .hl-next-panel, .hl-wiz-side, .hl-cb-list, .hc-help, .lang-list, .ec-plan-body, .hl-detail)::before {
     animation: th-sc-in linear both; animation-timeline: --th-sc; animation-range: 0 var(--sc-ramp);
   }
-  :root:not([data-sc-js]) :where(.th-scroll, .tr-grid, .hl-next-panel, .hl-wiz-side, .hl-cb-list, .hc-help, .lang-list, .ec-side, .hl-detail)::after {
+  :root:not([data-sc-js]) :where(.th-scroll, .tr-grid, .hl-next-panel, .hl-wiz-side, .hl-cb-list, .hc-help, .lang-list, .ec-plan-body, .hl-detail)::after {
     animation: th-sc-out linear both; animation-timeline: --th-sc; animation-range: calc(100% - var(--sc-ramp)) 100%;
   }
   :root:not([data-sc-js]) :where(.th-scroll-x, .hl-quick, .hc-bar, .ec-mats)::before {

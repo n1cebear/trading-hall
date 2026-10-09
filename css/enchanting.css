@@ -822,3 +822,19 @@
 :root:root .ec-picker.has-sel { background: color-mix(in srgb, var(--accent) 7%, var(--neu-bg, var(--panel))); }
 :root:root .ec-picker.has-sel .ec-pick-label { color: var(--accent); }
 @media (max-width: 1100px) { .ec-pickrow { grid-template-columns: minmax(0, 1fr); } .ec-slots.tools { grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); } .ec-slots.armor { grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); } }
+
+/* ===== Anvil plan: the panel is the box (never taller than the viewport); its content scrolls INSIDE it, the action row rests at the bottom (as the Trims list) ===== */
+:root:root:root .ec-side { overflow: visible; padding: 0; margin: 0; }
+.ec-side > .ec-plan { flex: 1 1 auto; min-height: 0; padding: 0; gap: 0; overflow: hidden; }
+.ec-plan-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; padding: 14px 16px 18px; }
+.ec-plan-body > .ec-actions { margin-top: auto; }
+.ec-plan > .th-act-row { position: static; flex: none; filter: none; padding: 6px var(--act-pp, 16px) var(--act-pp, 16px); }
+@media (max-width: 1099px) { .ec-plan { overflow: visible; } .ec-plan-body { overflow: visible; } .ec-plan > .th-act-row { position: sticky; bottom: calc(var(--bottom-bar, 0px) + 12px); } }
+
+/* Other sits under Tools & weapons, its bottom lining up with Armor */
+@media (min-width: 1101px) {
+  .ec-pickrow { grid-template-rows: auto 1fr; }
+  .ec-pick-armor { grid-row: 1 / span 2; }
+  .ec-pick-other { grid-column: 2; grid-row: 2; }
+  :root:root:root .ec-slots.other { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+}

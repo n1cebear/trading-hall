@@ -1019,3 +1019,12 @@ button.hl-strip-main { cursor: pointer; }
 .hl-ov-st.is-needed { color: var(--muted); }
 .hl-ov-st.is-locked, .hl-ov-st.is-perfect { color: var(--accent); }
 .hl-side-save { margin: 6px 0 4px; }
+
+/* the three book groups read as real sections */
+.hl-groups-stack { gap: 10px; }
+.hl-group { margin-top: 26px; }
+.hl-group:first-child { margin-top: 8px; }
+.hl-group-head { min-height: 52px; padding: 8px 14px; margin-bottom: 10px; border-radius: var(--radius, 8px); background: color-mix(in srgb, var(--accent) 8%, var(--panel, transparent)); }
+.hl-group-head h3 { font-size: 15px; letter-spacing: 1.4px; color: var(--accent); }
+.hl-group-head small { color: var(--muted); }
+.hl-group-items { gap: 4px; }

@@ -912,6 +912,12 @@
 
   /** The items an enchant category is for, shown once in the group head instead of a book icon on every strip. */
   const PART_ICON = { helmet: 'diamond_helmet', chestplate: 'diamond_chestplate', leggings: 'diamond_leggings', boots: 'diamond_boots' };
+  /** The same three groups as the Enchanting item picker. */
+  const BOOK_GROUPS = [
+    { id: 'armor', name: 'Armor', hint: 'Helmet, chestplate, leggings, boots', cats: ['armor'], items: ['diamond_helmet', 'diamond_chestplate', 'diamond_leggings', 'diamond_boots', 'elytra'] },
+    { id: 'tools', name: 'Tools & weapons', hint: 'Pickaxe, axe, shovel, hoe, sword, spear, bow, crossbow, trident, mace', cats: ['melee', 'mace', 'tools', 'bow', 'crossbow', 'trident'], items: ['diamond_pickaxe', 'diamond_sword', 'bow', 'crossbow_standby', 'trident', 'mace'] },
+    { id: 'other', name: 'Other', hint: 'Fishing rod, any item, curses', cats: ['fishing', 'universal', 'curse'], items: ['fishing_rod', 'anvil', 'item/barrier'] },
+  ];
   const CAT_ITEMS = {
     armor: ['diamond_helmet', 'diamond_chestplate', 'diamond_leggings', 'diamond_boots'], boots: ['diamond_boots'], helmet: ['diamond_helmet'],
     melee: ['diamond_sword', 'diamond_axe', 'diamond_spear'], mace: ['mace'], tools: ['diamond_pickaxe', 'diamond_shovel', 'diamond_axe', 'diamond_hoe'],
@@ -940,8 +946,8 @@
 
     let shown = 0;
     const groups = [];
-    for (const cat of D.enchantCategories) {
-      const items = SORTED.filter((e) => e.category === cat.id && enchMatches(e, q));
+    for (const cat of BOOK_GROUPS) {
+      const items = SORTED.filter((e) => cat.cats.includes(e.category) && enchMatches(e, q));
       if (!items.length) continue;
       shown += items.length;
       const selectable = items.filter((e) => e.librarian);
@@ -949,7 +955,7 @@
       const onCount = items.filter((e) => hall.books[e.id]).length;
       groups.push(groupEntry(items.length, h('section.hl-group', { 'aria-label': cat.name },
         h('div.hl-group-head',
-          h('span.hl-group-items', { 'aria-hidden': 'true' }, (CAT_ITEMS[cat.id] || []).map((i) => TH.icon(i, { size: 32 }))),
+          h('span.hl-group-items', { 'aria-hidden': 'true' }, cat.items.map((i) => TH.icon(i, { size: 32 }))),
           h('span.hl-group-title', h('h3', cat.name), h('small', cat.hint)),
           onCount ? h('span.hl-group-count', onCount + ' on') : null,
           h('span.spacer'),

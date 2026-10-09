@@ -900,3 +900,5 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; }
 
 .th-reco { position: static !important; display: inline-block; width: auto; height: auto; margin-left: 8px; padding: 0; background: none; border: 0; box-shadow: none; font: 700 11px/1 var(--font); letter-spacing: .3px; color: var(--accent); vertical-align: middle; white-space: nowrap; }
 :root[data-theme="light"] .th-reco { color: var(--accent); }
+/* top nav in the Minecraft font (the page's headings font) */
+.nav-item .nav-name { font-family: var(--display); font-weight: 400; font-size: 12px; letter-spacing: .2px; }

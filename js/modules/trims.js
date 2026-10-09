@@ -82,7 +82,7 @@
    * ====================================================================== */
   const DEMO = { armor: 'diamond', pattern: 'sentry', material: 'quartz' };
   const defaults = () => ({
-    v: 2, owned: {}, upgradeOwned: false, focus: 'chestplate', lastMaterial: 'quartz', sync: false,
+    v: 2, owned: {}, upgradeOwned: false, focus: 'chestplate', lastMaterial: 'quartz', sync: false, target: 'all',
     outfit: Object.fromEntries(PIECES.map((p) => [p, { armor: DEMO.armor, pattern: DEMO.pattern, material: DEMO.material, dye: null, show: true }])),
     skin: { kind: 'steve', name: '', data: null, slim: false }, player: null,
     saved: [], savedId: null, saveName: '', renaming: null, renameText: '', backdrop: 'studio', studioColor: '',
@@ -129,6 +129,7 @@
     if (!PIECES.includes(st.focus)) st.focus = 'chestplate';
     if (!TRIMM[st.lastMaterial]) st.lastMaterial = 'quartz';
     st.sync = !!st.sync;
+    if (st.target !== 'all' && !PIECES.includes(st.target)) st.target = 'all';
     st.elytra = !!st.elytra;
     st.glint = !!st.glint;
     if (!ANIMS.some((a) => a[0] === st.anim)) st.anim = 'idle';
@@ -1432,6 +1433,7 @@
     const c = cur();
     upd((s) => {
       s.focus = piece;
+      if (s.target !== 'all') s.target = piece;   // a single-piece trim target follows the piece being edited
       (s.sync ? PIECES : [piece]).forEach((p) => {
         const o = s.outfit[p];
         if (field === 'armor') { if (!(ARMOR[val].pieces && !ARMOR[val].pieces.includes(p))) o.armor = val; }
@@ -1444,9 +1446,13 @@
   function setPattern(id, pieces) {
     upd((s) => { pieces.forEach((p) => { const o = s.outfit[p]; o.pattern = id; if (id && !o.material) o.material = s.lastMaterial; }); });
   }
-  /** Trim material for every piece. */
+  /** Trim material for the target: every piece ('all') or one piece. */
   function setTrimMat(id) {
-    upd((s) => { PIECES.forEach((p) => { s.outfit[p].material = id; }); s.lastMaterial = id; });
+    upd((s) => { (s.target === 'all' ? PIECES : [s.target]).forEach((p) => { s.outfit[p].material = id; }); s.lastMaterial = id; });
+  }
+  /** Which pieces the trim material row edits ('all' or a piece). */
+  function setTarget(t) {
+    upd((s) => { s.target = t; if (t !== 'all') s.focus = t; });
   }
 
   /* ---- randomisers: every one of them always lands on a value that differs from the current one ---- */
@@ -1738,14 +1744,22 @@
       tiles.set(m.id, b);
       return withTip(b, [matName(m.id), ingredientName(m)]);
     }));
+    const TGT = [['all', 'All', 'All pieces'], ['helmet', 'Helmet', 'Helmet only'], ['chestplate', 'Chest', 'Chestplate only'], ['leggings', 'Legs', 'Leggings only'], ['boots', 'Boots', 'Boots only']];
+    const tgtBtns = new Map();
+    const tgtSeg = radioKeys(h('div.seg.tr-seg.tr-tgt', { role: 'radiogroup', 'aria-label': 'Trim material applies to' }, TGT.map(([id, n, tip]) => {
+      const b = h('button', { type: 'button', role: 'radio', 'aria-checked': 'false', 'data-focus': 'tr-tgt-' + id, onclick: () => setTarget(id) }, n);
+      tgtBtns.set(id, b);
+      return withTip(b, [tip, id === 'all' ? 'A material pick sets every piece' : 'A material pick sets only this piece']);
+    })));
     const pats = [{ id: null }].concat(D.trimPatterns).map((p, i) => {
       const title = p.id ? patName(p.id) : 'No trim';
       const pcs = PIECES.map((pc) => {
         const cv = h('canvas.tr-thumb', { width: THUMB_UNITS * 6, height: THUMB_UNITS * 6 });
+        const sw = h('i.tr-sw', { 'aria-hidden': 'true' });
         const b = h('button.btn.tr-pt', { type: 'button', 'aria-pressed': 'false', 'aria-label': PIECE_NAME[pc] + ': ' + title, 'data-focus': 'tr-pat-' + (p.id || 'none') + '-' + pc,
-          onclick: () => setPattern(p.id, [pc]) }, cv);
-        withTip(b, () => [PIECE_NAME[pc] + ' · ' + title, 'Just this piece']);
-        return { pc, b, cv };
+          onclick: () => setPattern(p.id, [pc]) }, cv, p.id ? sw : null);
+        withTip(b, () => { const o = cur().outfit[pc]; return [PIECE_NAME[pc] + ' · ' + title, p.id && o.pattern === p.id ? matName(o.material) + ' trim' : 'Just this piece']; });
+        return { pc, b, cv, sw };
       });
       const main = h('button.tr-pr-main', { type: 'button', 'aria-label': title + ' on all pieces', 'data-focus': 'tr-pat-' + (p.id || 'none'), onclick: () => setPattern(p.id, PIECES) },
         p.id ? h('span.tr-pr-tpl', TH.icon.trim(p.id, { size: 32 })) : h('span.tr-pr-tpl.none', TH.icon('item/barrier', { size: 22 })),
@@ -1753,12 +1767,13 @@
       withTip(main, () => (p.id ? patternTipLines(p) : ['No trim', 'Removes the trim']).concat(['Click: all pieces']));
       const dup = h('span.tr-pr-dup', p.id ? [TH.icon(p.blockIcon, { size: 16 })] : null);
       if (p.id) withTip(dup, dupTipLines(p));
-      const row = h('div.tr-pr', { role: 'group', 'aria-label': title, onclick: (e) => { if (!e.target.closest('button')) setPattern(p.id, PIECES); } }, main, dup, h('div.tr-pr-pcs', pcs.map((x) => x.b)));
-      return { p, row, pcs };
+      const allMark = h('span.tr-pr-all', p.id ? 'All' : '');
+      const row = h('div.tr-pr', { role: 'group', 'aria-label': title, onclick: (e) => { if (!e.target.closest('button')) setPattern(p.id, PIECES); } }, main, dup, p.id ? allMark : null, h('div.tr-pr-pcs', pcs.map((x) => x.b)));
+      return { p, row, pcs, allMark };
     });
     const browser = h('section.panel.tr-card.tr-browser', { 'aria-label': 'Trim' },
       head('Trim', randomBar()),
-      h('div.tr-sub', 'Material'), tileRow,
+      h('div.tr-sub.tr-sub-mat', h('span', 'Material'), tgtSeg), tileRow,
       h('div.tr-sub', 'Pattern'), h('div.tr-grid', pats.map((x) => x.row)));
 
     /* ---- materials list ---- */
@@ -1796,12 +1811,26 @@
         }
       }
       viewer.setBd(st.backdrop);
-      tiles.forEach((b, id) => sel(b, id === gm));
-      pats.forEach(({ p, row, pcs }) => {
-        const n = pcs.filter(({ pc, b }) => { const on = (st.outfit[pc].pattern || null) === p.id; press(b, on); return on; }).length;
+      const tg = st.target;
+      tgtBtns.forEach((b, id) => { sel(b, id === tg); b.tabIndex = id === tg ? 0 : -1; });
+      // material the tile row shows: the targeted piece's, or the shared one of all trimmed pieces (none highlighted when they differ)
+      const trimmed = PIECES.filter((pc) => st.outfit[pc].pattern);
+      const shown = tg === 'all' ? (trimmed.length ? (trimmed.every((pc) => st.outfit[pc].material === st.outfit[trimmed[0]].material) ? st.outfit[trimmed[0]].material : null) : gm)
+        : (st.outfit[tg].pattern ? st.outfit[tg].material : gm);
+      tiles.forEach((b, id) => sel(b, id === shown));
+      // a not-yet-applied pattern previews with the piece's own material, else the one the tile row is set to
+      const matFor = (pc) => st.outfit[pc].material || shown || gm;
+      pats.forEach(({ p, row, pcs, allMark }) => {
+        const n = pcs.filter(({ pc, b, sw }) => {
+          const on = (st.outfit[pc].pattern || null) === p.id; press(b, on);
+          if (sw) { sw.style.setProperty('--c', (TRIMM[st.outfit[pc].material] || {}).color || 'transparent'); sw.classList.toggle('on', on); }
+          return on;
+        }).length;
+        row.classList.toggle('part', n > 0);
         row.classList.toggle('on', n === PIECES.length);
+        if (p.id) allMark.classList.toggle('show', n === PIECES.length);
       });
-      U.paint = () => pats.forEach(({ p, pcs }) => pcs.forEach(({ pc, cv }) => paintThumb(cv, pc, Object.assign({}, st.outfit[pc], { pattern: p.id, material: p.id ? gm : null }))));
+      U.paint = () => pats.forEach(({ p, pcs }) => pcs.forEach(({ pc, cv }) => paintThumb(cv, pc, Object.assign({}, st.outfit[pc], { pattern: p.id, material: p.id ? (st.outfit[pc].pattern === p.id ? st.outfit[pc].material : matFor(pc)) : null }))));
       const none = !M.trimmed;
       copyBtn.disabled = none;
       matsText = materialsText(st, M);

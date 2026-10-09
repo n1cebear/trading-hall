@@ -769,3 +769,12 @@
 .ec-slots.armor .ec-item { min-width: 0; }
 .ec-slots.tools, .ec-slots.other { grid-auto-columns: minmax(0, 1fr); gap: 12px; }
 @media (max-width: 1100px) { .ec-pickrow { grid-template-columns: minmax(0, 1fr); } }
+
+/* Oct 2026 (5): the picker keys get the roomy spacing of the material row: smaller keys, much wider gaps */
+:root:root:root .ec-slots.armor, :root:root:root .ec-slots.tools, :root:root:root .ec-slots.other { gap: 30px 30px; }
+:root:root:root .ec-slots.tools, :root:root:root .ec-slots.other { grid-auto-columns: minmax(0, 1fr); justify-items: center; }
+:root:root:root .ec-slots.armor { justify-items: center; }
+:root:root:root .ec-picker .ec-item { width: min(100%, 124px); min-height: 76px; padding: 8px 4px; justify-self: center; }
+:root:root:root .ec-picker .ec-item .ec-item-ico { width: 32px; height: 32px; }
+:root:root:root .ec-picker .ec-item .ec-item-ico .mc { --mc: 32px !important; }
+:root:root:root .ec-picker .ec-item .ec-item-name > span { font-size: 9.5px; }

@@ -199,6 +199,8 @@
 /* ---------- trim: randomise actions, material row ---------- */
 .tr-rnd { display: flex; align-items: center; gap: 6px; }
 .tr-rnd .btn { gap: 6px; }
+.tr-sub-mat { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+.tr-tgt button { padding: 4px 8px; font-size: 11.5px; text-transform: none; letter-spacing: 0; }
 .tr-tiles { display: grid; grid-template-columns: repeat(11, minmax(0, 1fr)); gap: 5px; }
 .tr-tile { display: grid; place-items: center; aspect-ratio: 1; max-height: 40px; min-width: 0; padding: 0; }
 
@@ -218,7 +220,18 @@
 .tr-pr:hover .tr-pr-tpl.none, .tr-pr.on .tr-pr-tpl.none { filter: none; opacity: .85; }
 .tr-pr-name { font: 600 13px/1.15 var(--font); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tr-pr:hover .tr-pr-main, .tr-pr-main:focus-visible { color: var(--text); }
-.tr-pr.on .tr-pr-name { color: var(--accent); }
+.tr-pr.part .tr-pr-name { color: var(--accent); }
+.tr-pr.part { background: color-mix(in srgb, var(--accent) 6%, transparent); }
+.tr-pr.on { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.tr-pr.part:hover { background: color-mix(in srgb, var(--accent) 9%, transparent); }
+.tr-pr.on:hover { background: color-mix(in srgb, var(--accent) 15%, transparent); }
+.tr-pr-all { margin-left: auto; width: 26px; flex: none; text-align: center; font: 600 10.5px/1 var(--font); text-transform: uppercase; letter-spacing: .6px; color: var(--accent); opacity: 0; transition: opacity .12s; }
+.tr-pr-all.show { opacity: 1; }
+.tr-pr-all + .tr-pr-pcs, .tr-pr-dup + .tr-pr-pcs { margin-left: auto; }
+.tr-pr-all ~ .tr-pr-pcs { margin-left: 0; }
+.tr-pt { position: relative; }
+.tr-sw { position: absolute; right: 5px; bottom: 5px; width: 9px; height: 9px; border-radius: 2px; background: var(--c, transparent); box-shadow: 0 0 0 1.5px var(--panel, var(--bg)); opacity: 0; transition: opacity .12s; pointer-events: none; }
+.tr-sw.on { opacity: 1; }
 .tr-pr-dup { display: flex; flex-direction: column; align-items: center; gap: 4px; width: 30px; flex: none; opacity: .8; }
 .tr-pr-dia { display: inline-flex; align-items: center; gap: 1px; }
 .tr-pr-dia b { font: 400 9.5px/1 var(--mono); color: var(--muted); }

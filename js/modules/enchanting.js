@@ -531,10 +531,11 @@ TH.anvil = (function () {
             title: materialHint(m) ? nm + ' — ' + materialHint(m) : nm, onclick: () => pickMaterial(m),
           }, matIcon(m, 32), h('span.ec-mat-name', nm));
         }))),
-      box('armor', 'Armor',
-        h('div.ec-slots.armor', { role: 'group', 'aria-labelledby': 'ec-lbl-armor' }, HUD_ARMOR.map((id) => itemButton(id, s)))),
-      box('tools', 'Tools & weapons',
-        h('div.ec-slots.tools', { role: 'group', 'aria-labelledby': 'ec-lbl-tools' }, HUD_TOOLS.concat(rest).map((id) => itemButton(id, s)))),
+      h('div.ec-pickrow',
+        box('armor', 'Armor',
+          h('div.ec-slots.armor', { role: 'group', 'aria-labelledby': 'ec-lbl-armor' }, HUD_ARMOR.map((id) => itemButton(id, s)))),
+        box('tools', 'Tools & weapons',
+          h('div.ec-slots.tools', { role: 'group', 'aria-labelledby': 'ec-lbl-tools' }, HUD_TOOLS.concat(rest).map((id) => itemButton(id, s))))),
     ];
   }
 
@@ -676,6 +677,7 @@ TH.anvil = (function () {
           type: 'button', title: l.desc, 'aria-pressed': String(s.loadout === l.id), 'data-focus': 'ec-lo-' + l.id, onclick: () => applyLoadout(l),
         }, l.name, l.id === 'best' ? TH.util.reco() : null)))),
       own || exIds.length ? renderUsesRow(s) : null,
+      h('div.ec-for', itemIcon(s.item, s.material, 28), h('span', itemName(s.item, s.material))),
       h('div.ec-ench-list' + (own ? '.is-own' : ''), normal.map(row)),
       curses.length ? h('details.ec-curses', h('summary', 'Curses (' + curses.length + ')'), h('div.ec-ench-list' + (own ? '.is-own' : ''), curses.map(row))) : null,
     );
@@ -686,14 +688,13 @@ TH.anvil = (function () {
   function nodeChip(node, s) {
     const names = node.enchants.map((e) => lvlName(e.id, e.level));
     if (node.kind === 'item') {
-      return h('span.ec-node.item', { title: names.join(', ') || 'No enchantments' },
-        itemIcon(s.item, s.material, 20), h('span', itemName(s.item, s.material)));
+      return h('span.ec-node.item', { title: names.join(', ') || 'No enchantments' }, h('span', itemName(s.item, s.material)));
     }
     if (node.fromStep != null) {
-      return h('span.ec-node.book', { title: names.join(', ') },
-        bookIcon(20), h('span', 'Book from step ', h('b.ec-ref', node.fromStep)));
+      return h('span.ec-node.book', { title: 'Book from step ' + node.fromStep },
+        h('span', names.join(' + ') || 'Book'), h('small.ec-ref', 'step ' + node.fromStep));
     }
-    return h('span.ec-node.book', bookIcon(20), h('span', names[0]));
+    return h('span.ec-node.book', h('span', names.join(' + ')));
   }
 
   /** The gear's own name (the name field below the plan, or the loaded saved gear). */
@@ -736,14 +737,13 @@ TH.anvil = (function () {
 
   function renderPlan(state, s, plan) {
     const offers = hallOffers(state);
-    const head = [h('div.ec-card-head', h('h3', 'Anvil plan'), h('span.ec-head-icon', TH.icon('anvil', { size: 22 }))), renderPreview(s)];
+    const head = [h('div.ec-card-head', h('h3', 'Anvil plan')), renderPreview(s)];
 
     if (plan.error) return h('aside.panel.ec-plan', head, h('p.ec-alert', plan.error));
 
     if (!plan.books.length) {
       return h('aside.panel.ec-plan', { 'aria-live': 'polite' }, head,
         h('div.empty.ec-empty',
-          h('div.empty-icon', { 'aria-hidden': 'true' }, bookIcon(40)),
           plan.skipped.length ? 'Your item already has everything you picked.' : 'Pick enchantments and the cheapest anvil order shows up here.'),
         renderActions(s));
     }
@@ -767,7 +767,7 @@ TH.anvil = (function () {
     // one short warning, only when it matters
     let alert = null;
     if (!plan.ok) {
-      alert = h('p.ec-alert', TH.icon('item/barrier', { size: 14 }),
+      alert = h('p.ec-alert',
         h('span', plan.reason === 'penalty'
           ? 'Too Expensive! — this item has been through the anvil too often.'
           : 'Too Expensive! — no order keeps every step under 40 levels.',
@@ -792,7 +792,7 @@ TH.anvil = (function () {
     const shop = plan.books.slice().sort((a, b) => byUse(a.id, b.id)).map((b) => {
       const status = hallStatus(offers, b.id, b.level);
       if (status && status.cls === 'have') { emeraldTotal += status.price || 0; fromHall++; }
-      return h('li', bookIcon(16), h('span.ec-shop-name', lvlName(b.id, b.level)), hallChip(status));
+      return h('li', h('span.ec-shop-name', lvlName(b.id, b.level)), hallChip(status));
     });
     const shopBox = h('div.ec-shop',
       h('div.ec-sub-head', 'Books needed', h('span.faint', plan.books.length)),
@@ -818,7 +818,7 @@ TH.anvil = (function () {
 
     const left = !en
       ? h('button.btn.ec-add', { type: 'button', disabled: !hasBooks, 'data-focus': 'ec-plan-add', onclick: addToPlan,
-        title: hasBooks ? 'Add this item to your plan' : 'Pick enchantments first' }, TH.icon('item/writable_book', { size: 16 }), 'Add to plan')
+        title: hasBooks ? 'Add this item to your plan' : 'Pick enchantments first' }, 'Add to plan')
       : entryDirty
         ? h('button.btn.primary', { type: 'button', disabled: !hasBooks, 'data-focus': 'ec-plan-update', onclick: updateEntry }, 'Update plan item')
         : h('button.btn.ec-inplan', { type: 'button', disabled: true }, '✓ In your plan');

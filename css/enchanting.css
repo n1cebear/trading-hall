@@ -636,3 +636,54 @@
   .ec-plan { --act-pp: 12px; }
   .ec-plan .th-act-row { grid-auto-flow: row; }
 }
+
+
+/* ================= Oct 2026 (2): picker, plan type rule, enchantment columns ================= */
+/* Type rule (DESIGN.md "Type"): names of things from the game (items, materials, enchantments, steps, books) and every
+   panel heading are Monocraft (--display); sentences, hints and the numbers inside fields stay body sans. */
+.ec-plan .ec-card-head h3, .ec-plan .ec-sub-head, .ec-plan .ec-node, .ec-plan .ec-shop-name, .ec-plan .ec-sum-lab,
+.ec-plan .ec-step-cost, .ec-plan .ec-ref, .ec-plan .ec-compare b, .ec-plan .ec-hall-chip, .ec-plan .ec-shop-total {
+  font-family: var(--display); font-weight: 400; letter-spacing: .2px;
+}
+.ec-plan .ec-node { font-size: 12.5px; }
+.ec-plan .ec-shop-name { font-size: 12px; }
+.ec-plan .ec-sub-head { font-size: 11px; letter-spacing: 1px; }
+
+/* anvil steps: square badges only (no round elements anywhere else) */
+.ec-step-num, .ec-ref { border-radius: 3px; }
+.ec-ref { font-size: 10px; margin-left: 4px; padding: 0 5px; height: 16px; }
+.ec-node.book { flex-wrap: wrap; }
+
+/* picker: Armor column next to a 4 x 4 Tools & weapons grid */
+.ec-pickrow { display: grid; grid-template-columns: minmax(210px, 252px) minmax(0, 1fr); gap: var(--ec-gap); align-items: stretch; }
+.ec-pickrow > .panel { min-width: 0; }
+.ec-slots.armor { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+.ec-slots.tools { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+@container (max-width: 559px) { .ec-slots.tools { grid-template-columns: repeat(4, minmax(0, 1fr)); } .ec-slots.armor { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 760px) { .ec-pickrow { grid-template-columns: minmax(0, 1fr); } .ec-slots.armor { grid-template-columns: repeat(2, minmax(0, 1fr)); } .ec-slots.tools { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+
+/* item tile: a recessed inventory slot with the icon dead centre, the name under it; no tile box around the slot */
+.ec-picker .ec-item { grid-template-rows: auto auto; align-content: center; row-gap: 6px; min-height: 0; padding: 8px 4px; background: transparent; border: 0; box-shadow: none; border-radius: var(--radius); }
+.ec-picker .ec-item .ec-item-ico { width: 52px; height: 52px; border-radius: 4px; background: var(--slot); box-shadow: var(--slot-shadow); transition: box-shadow .15s, background .15s; }
+.ec-picker .ec-item .ec-item-name { height: auto; min-height: 2.4em; }
+.ec-picker .ec-item .ec-item-name > span { font: 400 10.5px/1.25 var(--display); }
+.ec-picker .ec-item:hover { background: color-mix(in srgb, var(--text) 5%, transparent); border: 0; }
+.ec-picker .ec-item.on { background: transparent; box-shadow: none; }
+.ec-picker .ec-item.on .ec-item-ico { background: color-mix(in srgb, var(--accent) 16%, var(--slot)); box-shadow: var(--slot-shadow), inset 0 0 0 2px var(--accent), 0 0 12px color-mix(in srgb, var(--accent) 35%, transparent); }
+.ec-picker .ec-item.on .ec-item-name > span { color: var(--accent); }
+.ec-picker .ec-item.has-since { padding: 8px 4px; min-height: 0; }
+.ec-picker .ec-item.na { background: transparent; border: 0; }
+.ec-picker .ec-item.na .ec-item-ico { box-shadow: none; background: transparent; opacity: .6; }
+.ec-slots.armor .ec-item { grid-template-columns: 52px minmax(0, 1fr); grid-template-rows: auto; justify-items: start; text-align: left; column-gap: 12px; padding: 4px 6px; }
+.ec-slots.armor .ec-item .ec-item-name { justify-content: flex-start; min-height: 0; }
+.ec-slots.armor .ec-item .ec-item-name > span { font-size: 11.5px; -webkit-line-clamp: 2; }
+.ec-picker .ec-item .ec-new { top: 4px; right: 4px; bottom: auto; }
+
+/* enchantment rows: item header, then two columns of shorter strips */
+.ec-for { display: flex; align-items: center; gap: 10px; margin: 2px 0 8px; font: 400 15px var(--display); color: var(--text); }
+.ec-ench-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px 12px; align-items: start; }
+@container (min-width: 700px) { .ec-ench-list { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.ec-ench-list .ec-ench { grid-template-columns: 22px minmax(0, 1fr); align-items: start; }
+.ec-ench-list .ec-ench .ec-ench-side { grid-column: 2; justify-content: flex-start; flex-wrap: wrap; }
+.ec-ench-list .ec-ench .ec-ench-side .lvl-chips.ec-lv { width: auto; }
+.ec-ench-title { font-family: var(--display); font-weight: 400; font-size: 13px; }

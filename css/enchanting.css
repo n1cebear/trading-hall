@@ -755,3 +755,17 @@
 .ec-slots.armor .ec-item { grid-template-columns: none; grid-template-rows: auto auto; justify-items: center; text-align: center; min-height: 84px; padding: 10px 4px; }
 .ec-slots.armor .ec-item .ec-item-name { justify-content: center; align-self: auto; width: 100%; }
 .ec-slots.armor .ec-item .ec-item-name > span { font-size: 10px; }
+
+/* three pickers: Armor (5 in a column), Tools & weapons (2 columns of 5), Other (the rest) */
+.ec-pickrow { grid-template-columns: auto auto minmax(0, 1fr); }
+.ec-slots.armor { grid-template-columns: minmax(0, 1fr); }
+.ec-slots.tools { grid-auto-flow: column; grid-template-rows: repeat(5, auto); grid-template-columns: none; grid-auto-columns: minmax(104px, 1fr); }
+.ec-slots.other { display: grid; grid-auto-flow: column; grid-template-rows: repeat(4, auto); grid-auto-columns: minmax(104px, 1fr); gap: 14px; }
+.ec-slots.armor .ec-item { min-width: 112px; }
+@media (max-width: 1100px) { .ec-pickrow { grid-template-columns: minmax(0, 1fr); } .ec-slots.tools, .ec-slots.other { grid-auto-flow: row; grid-template-rows: none; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); } .ec-slots.armor { grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); } }
+/* wooden / stone: a smaller block icon in the same slot, the name stays on the shared baseline */
+.ec-matkey > .mc.ec-mat-block { --mc: 24px !important; margin: 4px; }
+.ec-pickrow { grid-template-columns: minmax(130px, .75fr) minmax(250px, 1.5fr) minmax(230px, 1.25fr); }
+.ec-slots.armor .ec-item { min-width: 0; }
+.ec-slots.tools, .ec-slots.other { grid-auto-columns: minmax(0, 1fr); gap: 12px; }
+@media (max-width: 1100px) { .ec-pickrow { grid-template-columns: minmax(0, 1fr); } }

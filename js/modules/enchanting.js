@@ -495,7 +495,7 @@ TH.anvil = (function () {
 
   /** Two segments side by side: armor (helmet to boots, then shield/elytra) and tools & weapons. */
   const HUD_ARMOR = ['helmet', 'chestplate', 'leggings', 'boots', 'elytra'];
-  const HUD_TOOLS = ['sword', 'axe', 'pickaxe', 'shovel', 'hoe', 'spear', 'bow', 'crossbow', 'trident', 'mace', 'fishing_rod', 'shield'];
+  const HUD_TOOLS = ['pickaxe', 'axe', 'shovel', 'hoe', 'sword', 'spear', 'bow', 'crossbow', 'trident', 'mace'];
 
   /** Material-less name for greyed-out tiles ("Sword", "Fishing Rod"). */
   const genericName = (id) => id.split('_').map((w) => w[0].toUpperCase() + w.slice(1)).join(' ');
@@ -537,7 +537,9 @@ TH.anvil = (function () {
         box('armor', 'Armor',
           h('div.ec-slots.armor', { role: 'group', 'aria-labelledby': 'ec-lbl-armor' }, HUD_ARMOR.map((id) => itemButton(id, s)))),
         box('tools', 'Tools & weapons',
-          h('div.ec-slots.tools', { role: 'group', 'aria-labelledby': 'ec-lbl-tools' }, HUD_TOOLS.concat(rest).map((id) => itemButton(id, s))))),
+          h('div.ec-slots.tools', { role: 'group', 'aria-labelledby': 'ec-lbl-tools' }, HUD_TOOLS.map((id) => itemButton(id, s)))),
+        box('other', 'Other',
+          h('div.ec-slots.other', { role: 'group', 'aria-labelledby': 'ec-lbl-other' }, rest.map((id) => itemButton(id, s))))),
     ];
   }
 
@@ -641,7 +643,7 @@ TH.anvil = (function () {
       };
       const stat = (has || (!own && sel))
         ? h('span.ec-stat', has ? h('span.ec-stat-has', 'on item: ', h('b', lvl(has))) : null,
-          !own && sel ? h('span.ec-stat-want', has ? '→ ' : 'want: ', h('b', lvl(sel))) : null)
+          null)
         : null;
 
       return h('div.ec-ench' + (!own && sel ? '.on' : '') + (has ? '.has' : '') + (own && has ? '.owned' : '') + (blocked ? '.blocked' : '') + (selConf.length ? '.conflict' : ''),

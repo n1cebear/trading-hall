@@ -960,3 +960,18 @@ button.hl-strip-main { cursor: pointer; }
 .hl-preset-grid .hl-preset-icon .mc { --mc: 64px !important; }
 .hl-preset-grid .hl-preset-meta { flex-direction: column; align-items: flex-start; gap: 8px; }
 .hl-preset-profs { flex-wrap: wrap; row-gap: 4px; }
+
+/* pixel cube */
+.hl-cube { width: 108px; height: 114px; image-rendering: pixelated; filter: none; }
+.hl-cube-wrap { width: 108px; height: 114px; }
+.hl-cube-pct { top: 62%; }
+.hl-col:has(.hl-side.has-detail) .hl-cube-wrap, .hl-col:has(.hl-side.has-detail) .hl-cube { width: 72px; height: 76px; }
+/* Check an offer: centred, larger, calmer inputs, aligned columns */
+.hl-check-backdrop { align-items: center; padding: 4vh 16px; }
+.hl-check { max-width: 680px; padding: 24px 28px 18px; gap: 18px; }
+.hl-check-head h2 { font-size: 22px; }
+.hl-cb-list { max-height: 360px; }
+.hl-cb-cols, .hl-cb-opt { grid-template-columns: 18px minmax(0, 1fr) 84px 80px; column-gap: 12px; }
+.hl-cb-cols span:nth-child(3), .hl-cb-cols span:nth-child(4) { text-align: left; }
+.hl-cb-st, .hl-cb-price { justify-content: flex-start; }
+:root:root .field:focus, :root:root .field:focus-visible, :root:root .hl-cb-filter.field:focus { outline: none; filter: none; border-color: color-mix(in srgb, var(--accent) 70%, transparent); box-shadow: var(--slot-shadow, none), 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent); }

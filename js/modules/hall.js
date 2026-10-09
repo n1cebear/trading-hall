@@ -1409,60 +1409,63 @@
 
   /** Pixel isometric cube that fills bottom to top (stepped layers, like stacking blocks). */
   /**
-   * Progress block: a pixel-textured emerald-style block drawn isometrically on a canvas (texture generated in code, no
-   * network). The empty part is a dark ghost of the block, the filled part is the textured block rising from the bottom.
+   * Progress block: a hand-pixelled isometric cube (36 x 38 "pixels", drawn per pixel, scaled up crisp). Flat shades per
+   * face with a little 2-shade speckle and a dark outline, like a Minecraft block icon; no texture, no mesh lines. The
+   * empty part is a grey ghost, the filled part rises from the bottom in the tool colour.
    */
-  const BLOCK_TEX = {};
-  function blockTexture(accent) {
-    if (BLOCK_TEX[accent]) return BLOCK_TEX[accent];
-    const c = document.createElement('canvas'); c.width = c.height = 16;
-    const x = c.getContext('2d');
-    const pal = ['#0b6e30', '#12913f', '#17b24d', '#26d062', '#5ff08f'];
-    let seed = 11; const rnd = () => { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; };
-    for (let j = 0; j < 16; j++) for (let i = 0; i < 16; i++) {
-      let k = 2 + Math.floor(rnd() * 2);
-      const diag = (i + j) % 8;
-      if (diag === 3 || diag === 4) k = Math.min(4, k + 1);          // soft diagonal sheen like the real block
-      if (i === 0 || j === 0) k = 4;                                   // lit rim (top-left)
-      if (i === 15 || j === 15) k = 0;                                 // shadow rim (bottom-right)
-      x.fillStyle = pal[k]; x.fillRect(i, j, 1, 1);
-    }
-    return (BLOCK_TEX[accent] = c);
-  }
-
   function progressCube(done, total) {
     const pct = total ? Math.round((done / total) * 100) : 0;
-    const STEPS = 8, lvl = total ? Math.round((done / total) * STEPS) : 0;
-    const W = 112, H = 124, k = 3.5;                                   // k = screen px per texture px
-    const dpr = 2;
-    const cv = document.createElement('canvas');
-    cv.width = W * dpr; cv.height = H * dpr; cv.className = 'hl-cube'; cv.setAttribute('role', 'img'); cv.setAttribute('aria-label', pct + '% locked in');
-    const ctx = cv.getContext('2d');
-    ctx.imageSmoothingEnabled = false;
-    const tex = blockTexture('emerald');
-    const ox = W / 2, oy = 8, hh = 16 * k;                              // top corner, vertical edge length
-    const top = (dy) => ctx.setTransform(dpr * k, dpr * k * 0.5, -dpr * k, dpr * k * 0.5, dpr * ox, dpr * (oy + dy));
-    const left = (dy) => ctx.setTransform(dpr * k, dpr * k * 0.5, 0, dpr * k, dpr * (ox - 16 * k), dpr * (oy + 8 * k + dy));
-    const right = (dy) => ctx.setTransform(dpr * k, -dpr * k * 0.5, 0, dpr * k, dpr * ox, dpr * (oy + 16 * k + dy));
-    const face = (set, dy, shade, alpha, clipPts) => {
-      ctx.save();
-      if (clipPts) { ctx.beginPath(); clipPts.forEach(([px, py], i) => (i ? ctx.lineTo(px * dpr, py * dpr) : ctx.moveTo(px * dpr, py * dpr))); ctx.closePath(); ctx.clip(); }
-      set(dy); ctx.globalAlpha = alpha; ctx.drawImage(tex, 0, 0);
-      if (shade) { ctx.fillStyle = 'rgba(0,0,0,' + shade + ')'; ctx.fillRect(0, 0, 16, 16); }
-      ctx.restore();
+    const LV = total ? done / total : 0;
+    const W = 36, H = 38, cx = 18, cvs = document.createElement('canvas');
+    cvs.width = W; cvs.height = H; cvs.className = 'hl-cube'; cvs.setAttribute('role', 'img'); cvs.setAttribute('aria-label', pct + '% locked in');
+    const g = cvs.getContext('2d');
+    const hex = (getComputedStyle(document.documentElement).getPropertyValue('--accent') || '#17dd62').trim();
+    const rgb = /^#([0-9a-f]{6})$/i.test(hex) ? [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)) : [23, 221, 98];
+    const mix = (c, t, k) => c.map((v, i) => Math.round(v + (t[i] - v) * k));
+    const css = (c) => 'rgb(' + c.join(',') + ')';
+    const dark = document.documentElement.dataset.theme === 'dark' || (document.documentElement.dataset.theme !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches);
+    const PAL = {
+      fill: { top: mix(rgb, [255, 255, 255], .32), left: rgb, right: mix(rgb, [0, 0, 0], .32), line: mix(rgb, [0, 0, 0], .62) },
+      ghost: dark ? { top: [58, 60, 74], left: [44, 46, 58], right: [34, 36, 46], line: [20, 21, 28] } : { top: [214, 202, 174], left: [196, 183, 152], right: [176, 163, 133], line: [140, 124, 92] },
     };
-    // ghost block (empty part): the same texture, flat and dark
-    ctx.save(); ctx.filter = 'grayscale(1) brightness(.35)';
-    face(left, 0, 0.12, 0.55); face(right, 0, 0.3, 0.55); face(top, 0, 0, 0.7);
-    ctx.restore();
-    if (lvl > 0) {
-      const d = hh * (1 - lvl / STEPS);                                 // how far the surface sits below the top
-      const L = [[ox - 16 * k, oy + 8 * k + d], [ox, oy + 16 * k + d], [ox, oy + 32 * k], [ox - 16 * k, oy + 24 * k]];
-      const R = [[ox, oy + 16 * k + d], [ox + 16 * k, oy + 8 * k + d], [ox + 16 * k, oy + 24 * k], [ox, oy + 32 * k]];
-      face(left, 0, 0.12, 1, L); face(right, 0, 0.3, 1, R); face(top, d, 0, 1);
+    const hash = (x, y) => ((x * 73856093) ^ (y * 19349663)) & 7;
+    const topY = 2, cy = topY + 8;                       // top vertex / centre of the top diamond
+    /** which face a pixel belongs to: 'T' | 'L' | 'R' | null, plus v (0 top .. 1 bottom) for the sides */
+    function faceAt(x, y, lift) {
+      const dx = x + 0.5 - cx, dy = y + 0.5 - (cy + lift);
+      if (Math.abs(dx) / 16 + Math.abs(dy) / 8 <= 1) return { f: 'T' };
+      const yTop = (cy + 8) + (dx < 0 ? dx / 2 : -dx / 2) + 0;   // top edge of the side faces
+      if (Math.abs(dx) <= 16 && y + 0.5 >= yTop && y + 0.5 <= yTop + 16) return { f: dx < 0 ? 'L' : 'R', v: (y + 0.5 - yTop) / 16 };
+      return null;
     }
-    const txt = h('span.hl-cube-pct', pct + '%');
-    return h('span.hl-cube-wrap', cv, txt);
+    const lift = (1 - LV) * 16;
+    const img = g.createImageData(W, H), set = (x, y, c) => { const i = (y * W + x) * 4; img.data[i] = c[0]; img.data[i + 1] = c[1]; img.data[i + 2] = c[2]; img.data[i + 3] = 255; };
+    const full = faceAt;
+    const kind = new Array(W * H).fill(null);
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const base = full(x, y, 0);
+      if (!base) continue;
+      let pal = PAL.ghost, f = base.f;
+      if (LV > 0) {
+        if (f === 'T') { if (LV >= 1) pal = PAL.fill; }
+        else if (base.v >= 1 - LV) pal = PAL.fill;
+        const surf = faceAt(x, y, lift);                 // the liquid surface diamond sits lower inside the cube
+        if (LV < 1 && surf && surf.f === 'T' && (base.f !== 'T' || true)) { pal = PAL.fill; f = 'T'; }
+      }
+      kind[y * W + x] = { f, pal };
+    }
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const k = kind[y * W + x];
+      if (!k) continue;
+      const nb = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => { const q = kind[(y + dy) * W + (x + dx)]; return !q || (x + dx < 0 || x + dx >= W || y + dy < 0 || y + dy >= H); });
+      const edge = [[1, 0], [0, 1]].some(([dx, dy]) => { const q = kind[(y + dy) * W + (x + dx)]; return q && (q.f !== k.f || q.pal !== k.pal); });
+      const base = k.pal[k.f === 'T' ? 'top' : k.f === 'L' ? 'left' : 'right'];
+      const sp = hash(x, y);
+      const c = nb || edge ? k.pal.line : sp === 0 ? mix(base, [255, 255, 255], .14) : sp === 5 ? mix(base, [0, 0, 0], .12) : base;
+      set(x, y, c);
+    }
+    g.putImageData(img, 0, 0);
+    return h('span.hl-cube-wrap', cvs, h('span.hl-cube-pct', pct + '%'));
   }
 
   /** Right column, top: overall progress as a cube + the two main actions. */
@@ -1827,7 +1830,7 @@
       const set = (fn, opts) => upd((x) => { const tr = x.trades.find((y) => y.id === t.id); if (tr) fn(tr); }, opts);
       return wrap(p.color, 'Villager details', TH.icon.prof(p.id, { size: 32 }),
         [t.purpose || profName(p), t.target > 1 ? h('span.chip', '#' + (v.n + 1)) : null],
-        [h('span.hl-pos', where), h('span', profName(p) + ' · ' + wsName(p))],
+        [h('span', profName(p) + ' · ' + wsName(p))],
         [
           h('div.hl-detail-grid',
             h('label.hl-field.hl-grow', h('span.hl-field-label', 'Note'),
@@ -1846,7 +1849,7 @@
     const pill = tierPill(e, lv, s.price);
     return wrap(null, 'Librarian details', TH.icon('enchanted_book', { size: 32, glint: status(v) === 'perfect' }),
       [enchLabel(e, lv), s.label ? h('span.chip', s.label) : null],
-      [h('span.hl-pos', where), h('span', profName(PROF.librarian) + ' · perfect'), cost(range.min), h('span', `· max ${range.max}`)],
+      [h('span', profName(PROF.librarian) + ' · perfect'), cost(range.min), h('span', `· max ${range.max}`)],
       [
         h('div.hl-detail-grid',
           h('div.hl-field', h('span.hl-field-label', 'Price'),
@@ -1997,7 +2000,7 @@
       filter.focus();
     };
     const filter = h('input.field.hl-cb-filter', {
-      type: 'search', autocomplete: 'off', spellcheck: 'false', placeholder: 'Filter enchantments…', 'aria-label': 'Filter enchantments',
+      type: 'search', autocomplete: 'off', spellcheck: 'false', placeholder: 'Search enchantments…', 'aria-label': 'Search enchantments',
       'aria-controls': 'hl-cb-list', 'data-focus': 'chk-filter',
       oninput: (ev) => { ta.q = ev.target.value; ta.hi = 0; paintList(); },
       onblur: () => setTimeout(() => { if (ta.open && document.activeElement !== filter) closeList(false); }, 140),
@@ -2071,7 +2074,7 @@
       abox.replaceChildren(...[
         h('button.btn.primary.hl-big', {
           type: 'button', disabled: v.kind !== 'lock', 'data-focus': 'chk-add', onclick: () => doAdd(false),
-        }, TH.icon('emerald', { size: 18 }), 'Add to my hall', v.kind === 'lock' ? h('kbd', 'Enter') : null),
+        }, TH.icon('emerald', { size: 18 }), 'Add to my hall'),
         v.canAdd ? h('button.btn.hl-big', { type: 'button', onclick: () => doAdd(true) }, '+ Add to my list anyway') : null,
         v.e ? h('button.btn.ghost', { type: 'button', onclick: clearCheck, title: 'Clear the fields for the next offer' }, 'Clear') : null,
       ].filter(Boolean));

@@ -157,7 +157,9 @@ TH.util = (function () {
     append(tipEl, [c]);
     tipEl.classList.remove('below');
     tipEl.style.left = '0px'; tipEl.style.top = '0px';
-    const r = target.getBoundingClientRect(), w = tipEl.offsetWidth, ht = tipEl.offsetHeight, vw = document.documentElement.clientWidth, vh = window.innerHeight, gap = 8;
+    const zf = parseFloat(document.documentElement.style.zoom) || 1, r0 = target.getBoundingClientRect();
+    const r = { left: r0.left / zf, top: r0.top / zf, right: r0.right / zf, bottom: r0.bottom / zf, width: r0.width / zf, height: r0.height / zf };
+    const w = tipEl.offsetWidth, ht = tipEl.offsetHeight, vw = document.documentElement.clientWidth, vh = window.innerHeight, gap = 8;
     let top = r.top - ht - gap, below = false;
     if (top < 4 && r.bottom + gap + ht <= vh - 4) { top = r.bottom + gap; below = true; }
     top = clamp(top, 4, Math.max(4, vh - ht - 4));

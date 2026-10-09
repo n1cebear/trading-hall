@@ -16,6 +16,9 @@
 window.TH = window.TH || {};
 
 TH.hallCanvas = (function () {
+  /** The page runs under CSS zoom: pointer and rect values are in screen px, the canvas maths in CSS px. */
+  const ZF = () => parseFloat(document.documentElement.style.zoom) || 1;
+  const scaledRect = (el) => { const r = el.getBoundingClientRect(), z = ZF(); return { left: r.left / z, top: r.top / z, right: r.right / z, bottom: r.bottom / z, width: r.width / z, height: r.height / z }; };
   const { h, clamp, debounce } = TH.util;
 
   const TILE = 72, G = 80;
@@ -215,7 +218,7 @@ TH.hallCanvas = (function () {
     /* ---------- coordinates ---------- */
     const toWorld = (lx, ly) => ({ x: (lx - S.view.px) / S.view.z, y: (ly - S.view.py) / S.view.z });
     const toLocal = (wx, wy) => ({ x: wx * S.view.z + S.view.px, y: wy * S.view.z + S.view.py });
-    const rectOf = () => vp.getBoundingClientRect();
+    const rectOf = () => scaledRect(vp);
     const keysArr = () => Array.from(S.items.keys());
 
     function bboxOf(keys) {
@@ -622,12 +625,12 @@ TH.hallCanvas = (function () {
       }
       if (!help.hidden) toggleHelp(false);
       vp.focus({ preventScroll: true });
-      S.ptrs.set(ev.pointerId, { x: ev.clientX, y: ev.clientY, touch });
+      S.ptrs.set(ev.pointerId, { x: (ev.clientX / ZF()), y: (ev.clientY / ZF()), touch });
       try { vp.setPointerCapture(ev.pointerId); } catch (e) { /* synthetic pointer */ }
       if (S.ptrs.size === 2 && touch) { startPinch(); return; }
       if (S.ptrs.size > 1 || S.g || S.pinch) return;
       cancelAnim();
-      const r = rectOf(), lx = ev.clientX - r.left, ly = ev.clientY - r.top;
+      const r = rectOf(), lx = (ev.clientX / ZF()) - r.left, ly = (ev.clientY / ZF()) - r.top;
       const wp = toWorld(lx, ly);
       const g = {
         id: ev.pointerId, mode: 'pending', x0: lx, y0: ly, x: lx, y: ly, r, touch, held: false, t0: performance.now(),
@@ -652,10 +655,10 @@ TH.hallCanvas = (function () {
 
     function onMove(ev) {
       const p = S.ptrs.get(ev.pointerId); if (!p) return;
-      p.x = ev.clientX; p.y = ev.clientY;
+      p.x = (ev.clientX / ZF()); p.y = (ev.clientY / ZF());
       if (S.pinch) { pinchMove(); return; }
       const g = S.g; if (!g || g.id !== ev.pointerId) return;
-      g.x = ev.clientX - g.r.left; g.y = ev.clientY - g.r.top; g.mods.alt = ev.altKey;
+      g.x = (ev.clientX / ZF()) - g.r.left; g.y = (ev.clientY / ZF()) - g.r.top; g.mods.alt = ev.altKey;
       if (g.mode === 'pending') {
         if (Math.hypot(g.x - g.x0, g.y - g.y0) < SLOP) return;
         if (g.touch) { if (!g.held) { clearTimeout(g.timer); startPan(g); g.lx = g.x0; g.ly = g.y0; } } else if (g.key) startMove(g); else startMarquee(g);
@@ -670,7 +673,7 @@ TH.hallCanvas = (function () {
       const had = S.ptrs.delete(ev.pointerId);
       if (S.pinch) { if (S.ptrs.size < 2) endPinch(); return; }
       const g = S.g; if (!g || g.id !== ev.pointerId || !had) return;
-      g.x = ev.clientX - g.r.left; g.y = ev.clientY - g.r.top;
+      g.x = (ev.clientX / ZF()) - g.r.left; g.y = (ev.clientY / ZF()) - g.r.top;
       if (g.mode === 'marquee') runMarquee(g); else if (g.mode === 'move') runMove(g); // the release may come before the next frame
       S.g = null;
       clearTimeout(g.timer);
@@ -866,7 +869,7 @@ TH.hallCanvas = (function () {
       hideTip();
       ev.preventDefault();
       cancelAnim();
-      const r = rectOf(), lx = ev.clientX - r.left, ly = ev.clientY - r.top;
+      const r = rectOf(), lx = (ev.clientX / ZF()) - r.left, ly = (ev.clientY / ZF()) - r.top;
       let dx = ev.deltaX, dy = ev.deltaY;
       if (ev.deltaMode === 1) { dx *= 16; dy *= 16; } else if (ev.deltaMode === 2) { dx *= r.width; dy *= r.height; }
       if (ev.ctrlKey || ev.metaKey) zoomAt(lx, ly, S.view.z * Math.exp(-clamp(dy, -40, 40) * 0.0075));
@@ -951,8 +954,8 @@ TH.hallCanvas = (function () {
     }
     function miniPan(ev) {
       if (!S.mm) return;
-      const r = miniCv.getBoundingClientRect();
-      const wx = (ev.clientX - r.left - S.mm.ox) / S.mm.s, wy = (ev.clientY - r.top - S.mm.oy) / S.mm.s;
+      const r = scaledRect(miniCv);
+      const wx = ((ev.clientX / ZF()) - r.left - S.mm.ox) / S.mm.s, wy = ((ev.clientY / ZF()) - r.top - S.mm.oy) / S.mm.s;
       cancelAnim();
       setView({ z: S.view.z, px: S.size.w / 2 - wx * S.view.z, py: S.size.h / 2 - wy * S.view.z });
     }

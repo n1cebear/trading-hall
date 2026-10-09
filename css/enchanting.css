@@ -662,19 +662,15 @@
 @container (max-width: 559px) { .ec-slots.tools { grid-template-columns: repeat(4, minmax(0, 1fr)); } .ec-slots.armor { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 760px) { .ec-pickrow { grid-template-columns: minmax(0, 1fr); } .ec-slots.armor { grid-template-columns: repeat(2, minmax(0, 1fr)); } .ec-slots.tools { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 
-/* item tile: a recessed inventory slot with the icon dead centre, the name under it; no tile box around the slot */
-.ec-picker .ec-item { grid-template-rows: auto auto; align-content: center; row-gap: 6px; min-height: 0; padding: 8px 4px; background: transparent; border: 0; box-shadow: none; border-radius: var(--radius); }
-.ec-picker .ec-item .ec-item-ico { width: 52px; height: 52px; border-radius: 4px; background: var(--slot); box-shadow: var(--slot-shadow); transition: box-shadow .15s, background .15s; }
+/* item tile: one raised key, the icon dead centre (no sunken plate inside it), the name under it */
+.ec-picker .ec-item { grid-template-rows: auto auto; align-content: center; row-gap: 6px; min-height: 84px; padding: 10px 4px; border-radius: var(--radius); }
+.ec-picker .ec-item .ec-item-ico { width: 48px; height: 48px; }
+.ec-picker .ec-item .ec-item-ico .mc { --mc: 48px !important; }
 .ec-picker .ec-item .ec-item-name { height: auto; min-height: 2.4em; }
 .ec-picker .ec-item .ec-item-name > span { font: 400 10.5px/1.25 var(--display); }
-.ec-picker .ec-item:hover { background: color-mix(in srgb, var(--text) 5%, transparent); border: 0; }
-.ec-picker .ec-item.on { background: transparent; box-shadow: none; }
-.ec-picker .ec-item.on .ec-item-ico { background: color-mix(in srgb, var(--accent) 16%, var(--slot)); box-shadow: var(--slot-shadow), inset 0 0 0 2px var(--accent), 0 0 12px color-mix(in srgb, var(--accent) 35%, transparent); }
+.ec-picker .ec-item.on .mc { filter: drop-shadow(0 0 6px color-mix(in srgb, var(--accent) 60%, transparent)); }
 .ec-picker .ec-item.on .ec-item-name > span { color: var(--accent); }
-.ec-picker .ec-item.has-since { padding: 8px 4px; min-height: 0; }
-.ec-picker .ec-item.na { background: transparent; border: 0; }
-.ec-picker .ec-item.na .ec-item-ico { box-shadow: none; background: transparent; opacity: .6; }
-.ec-slots.armor .ec-item { grid-template-columns: 52px minmax(0, 1fr); grid-template-rows: auto; justify-items: start; text-align: left; column-gap: 12px; padding: 4px 6px; }
+.ec-slots.armor .ec-item { grid-template-columns: 48px minmax(0, 1fr); min-height: 60px; grid-template-rows: auto; justify-items: start; text-align: left; column-gap: 12px; padding: 4px 6px; }
 .ec-slots.armor .ec-item .ec-item-name { justify-content: flex-start; min-height: 0; }
 .ec-slots.armor .ec-item .ec-item-name > span { font-size: 11.5px; -webkit-line-clamp: 2; }
 .ec-picker .ec-item .ec-new { top: 4px; right: 4px; bottom: auto; }
@@ -687,3 +683,19 @@
 .ec-ench-list .ec-ench .ec-ench-side { grid-column: 2; justify-content: flex-start; flex-wrap: wrap; }
 .ec-ench-list .ec-ench .ec-ench-side .lvl-chips.ec-lv { width: auto; }
 .ec-ench-title { font-family: var(--display); font-weight: 400; font-size: 13px; }
+
+
+/* Oct 2026 (3): mode switch stacked left of Material; material keys are plain keys (no well, no dividers) */
+.ec-layout-single { grid-template-rows: 1fr; grid-template-areas: "main side"; }
+.ec-toprow { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--ec-gap); align-items: stretch; }
+.ec-toprow > .ec-mode { align-self: stretch; flex-direction: column; justify-content: center; height: auto; width: 150px; }
+.ec-toprow > .ec-mode button { justify-content: flex-start; flex: 1; }
+.ec-matkeys { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 6px; }
+.ec-matkey { flex-direction: column; justify-content: center; align-items: center; gap: 4px; min-height: 76px; padding: 8px 2px; min-width: 0; }
+.ec-matkey .mc { opacity: .85; }
+.ec-matkey.on .mc { opacity: 1; filter: drop-shadow(0 0 5px color-mix(in srgb, var(--accent) 55%, transparent)); }
+.ec-matkey .ec-mat-name { font: 400 10.5px/1.1 var(--display); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ec-matkey.on .ec-mat-name { color: var(--accent); }
+@container (max-width: 640px) { .ec-matkeys { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
+@media (max-width: 760px) { .ec-toprow { grid-template-columns: minmax(0, 1fr); } .ec-toprow > .ec-mode { flex-direction: row; width: auto; } }
+.ec-matkey > .mc { --mc: 32px !important; }

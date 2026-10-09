@@ -488,7 +488,8 @@ TH.anvil = (function () {
   }
 
   /** Material icon overrides (the data file's chain texture isn't what players recognise). */
-  const MAT_ICON = { chainmail: 'item/chainmail_chestplate' };
+  const MAT_ICON = { netherite: 'item/netherite_pickaxe', diamond: 'item/diamond_pickaxe', iron: 'item/iron_pickaxe', golden: 'item/golden_pickaxe', copper: 'item/copper_pickaxe',
+    stone: 'item/stone_pickaxe', wooden: 'item/wooden_pickaxe', chainmail: 'item/chainmail_chestplate', leather: 'item/leather_chestplate', turtle: 'item/turtle_helmet' };
   const matIcon = (m, size) => TH.icon(MAT_ICON[m] || D.materials[m].icon, { size });
 
   /** Two segments side by side: armor (helmet to boots, then shield/elytra) and tools & weapons. */
@@ -522,15 +523,15 @@ TH.anvil = (function () {
     const box = (key, label, body) => h('section.panel.ec-card.ec-picker.ec-pick-' + key, { 'aria-labelledby': 'ec-lbl-' + key },
       h('h3.ec-pick-label', { id: 'ec-lbl-' + key }, label), body);
     return [
-      box('mat', 'Material',
-        h('div.ec-mats', { role: 'radiogroup', 'aria-labelledby': 'ec-lbl-mat' }, MATS.map((m) => {
+      h('div.ec-toprow', renderModeSwitch(s, true), box('mat', 'Material',
+        h('div.ec-matkeys', { role: 'radiogroup', 'aria-labelledby': 'ec-lbl-mat' }, MATS.map((m) => {
           const on = s.material === m;
           const nm = matName(m);
-          return h('button.ec-mat' + (on ? '.on' : ''), {
+          return h('button.btn.ec-matkey' + (on ? '.on' : ''), {
             type: 'button', role: 'radio', 'aria-checked': String(on), 'aria-label': nm, 'data-focus': 'ec-mat-' + m,
             title: materialHint(m) ? nm + ' — ' + materialHint(m) : nm, onclick: () => pickMaterial(m),
           }, matIcon(m, 32), h('span.ec-mat-name', nm));
-        }))),
+        })))),
       h('div.ec-pickrow',
         box('armor', 'Armor',
           h('div.ec-slots.armor', { role: 'group', 'aria-labelledby': 'ec-lbl-armor' }, HUD_ARMOR.map((id) => itemButton(id, s)))),
@@ -1029,14 +1030,14 @@ TH.anvil = (function () {
 
   /* ---------- planner: view ---------- */
 
-  function renderModeSwitch(s) {
+  function renderModeSwitch(s, vertical) {
     const n = s.plan.filter((x) => !x.done).length;
     const total = s.plan.length;
     const btn = (mode, label, icon, extra) => h('button' + (s.mode === mode ? '.on' : ''), {
       type: 'button', 'aria-pressed': String(s.mode === mode), 'data-focus': 'ec-mode-' + mode,
       onclick: () => set((e) => { e.mode = mode; }),
     }, TH.icon(icon, { size: 16 }), h('span', label), extra);
-    return h('div.seg.ec-mode', { role: 'group', 'aria-label': 'Enchanting view' },
+    return h('div.seg.ec-mode' + (vertical ? '.is-vertical' : ''), { role: 'group', 'aria-label': 'Enchanting view' },
       btn('single', 'Single item', 'enchanted_book'),
       btn('plan', 'My plan', 'item/writable_book', total ? h('span.nav-badge.count', { 'aria-label': (total - n) + ' of ' + total + ' items done' }, (total - n) + '/' + total) : null));
   }
@@ -1300,8 +1301,7 @@ TH.anvil = (function () {
       // the Single item / My plan switch sits centred on top of the right column (grid area "mode", enchanting.css)
       planMode ? renderPlanView(state, s) : [
         renderGear(state),
-        h('div.ec-layout',
-          h('div.ec-mode-row', renderModeSwitch(s)),
+        h('div.ec-layout.ec-layout-single',
           h('div.ec-main', renderLinked(s), renderPicker(s), renderSelect(state, s)),
           h('div.ec-side', renderPlan(state, s, plan))),
       ],

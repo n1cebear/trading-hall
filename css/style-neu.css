@@ -1068,3 +1068,110 @@
 /* one accent for every strip (no per-profession colour bars) */
 :root[data-neu] .hl-strip-trade, :root[data-neu] .hl-strip-next, :root[data-neu] .hl-strip-ro, :root[data-neu] .hl-card.hl-strip-trade.is-ro { --pc: transparent; }
 :root[data-neu] .hl-trade-ico { background: transparent; box-shadow: none; border: 0; }
+
+/* =====================================================================
+   SOFT v2 (Oct 2026): the user's neumorphism values.
+   dark:  bg #1f1f29, shadows #1a1a23 (dark side) / #24242f (light side)
+   light: bg #e4d8be, shadows #c2b8a2 / #fff8db
+   normal = flat bg + outer pair; pressed in = bg gradient(145deg, dark -> light) + the same outer pair; sticking out =
+   gradient(145deg, light -> dark); sunken = flat bg + inset pair. Segments use the values as given (20px / 60px); controls
+   and wells use the same 1 : 3 offset-to-blur ratio at their own size. Radii stay rounded rectangles (no pills).
+   ===================================================================== */
+:root[data-style="soft"][data-neu] {
+  --neu-bg: #1f1f29; --neu-well: #1f1f29; --neu-row: #232330;
+  --neu-lo: #1a1a23; --neu-hi: #24242f; --neu-lo-in: transparent; --neu-hi-in: transparent;
+  --neu-press: linear-gradient(145deg, #1c1c25, #21212c); --neu-out: linear-gradient(145deg, #21212c, #1c1c25);
+}
+@media (prefers-color-scheme: light) {
+  :root[data-style="soft"][data-neu]:not([data-theme="dark"]) {
+    --neu-bg: #e4d8be; --neu-well: #e4d8be; --neu-row: #e8dcc2;
+    --neu-lo: #c2b8a2; --neu-hi: #fff8db;
+    --neu-press: linear-gradient(145deg, #cdc2ab, #f4e7cb); --neu-out: linear-gradient(145deg, #f4e7cb, #cdc2ab);
+  }
+}
+:root[data-style="soft"][data-neu][data-theme="light"] {
+  --neu-bg: #e4d8be; --neu-well: #e4d8be; --neu-row: #e8dcc2;
+  --neu-lo: #c2b8a2; --neu-hi: #fff8db; --neu-lo-in: transparent; --neu-hi-in: transparent;
+  --neu-press: linear-gradient(145deg, #cdc2ab, #f4e7cb); --neu-out: linear-gradient(145deg, #f4e7cb, #cdc2ab);
+}
+:root[data-style="soft"][data-neu] {
+  --neu-r-seg: 28px; --neu-r-ctl: 12px; --neu-r-tile: 18px; --neu-r-grp: 16px;
+  --neu-grad: linear-gradient(var(--neu-bg), var(--neu-bg)) border-box;
+  --neu-t1:        20px 20px 60px var(--neu-lo), -20px -20px 60px var(--neu-hi);
+  --neu-raised:    20px 20px 60px var(--neu-lo), -20px -20px 60px var(--neu-hi);
+  --neu-raised-sm: 7px 7px 20px var(--neu-lo), -7px -7px 20px var(--neu-hi);
+  --neu-raised-xs: 4px 4px 12px var(--neu-lo), -4px -4px 12px var(--neu-hi);
+  --neu-t2-hover:  9px 9px 26px var(--neu-lo), -9px -9px 26px var(--neu-hi);
+  --neu-t2-grp:    3px 3px 9px var(--neu-lo);
+  --neu-knob:      4px 4px 10px var(--neu-lo), -2px -2px 7px var(--neu-hi);
+  --neu-inset:      inset 10px 10px 27px var(--neu-lo), inset -10px -10px 27px var(--neu-hi);
+  --neu-inset-deep: inset 8px 8px 22px var(--neu-lo), inset -8px -8px 22px var(--neu-hi);
+  --neu-inset-sm:   inset 6px 6px 16px var(--neu-lo), inset -6px -6px 16px var(--neu-hi);
+  --neu-inset-xs:   inset 4px 4px 11px var(--neu-lo), inset -4px -4px 11px var(--neu-hi);
+  --neu-pressed-sm: var(--neu-inset-sm); --neu-pressed-xs: var(--neu-inset-xs);
+  --neu-sel-inset:    inset 8px 8px 20px -6px var(--neu-lo);
+  --neu-sel-inset-sm: inset 6px 6px 14px -4px var(--neu-lo);
+  --neu-sel-inset-xs: inset 4px 4px 10px -3px var(--neu-lo);
+  --neu-sel-press:    inset 8px 8px 18px -4px var(--neu-lo);
+  --neu-sel-bg: var(--neu-sel-glow-l) border-box, var(--neu-press) border-box;
+  --neu-acc-raised-sm: 7px 7px 20px var(--neu-lo), -7px -7px 20px var(--neu-acc-hi);
+  --neu-acc-raised-xs: 4px 4px 12px var(--neu-lo), -4px -4px 12px var(--neu-acc-hi);
+}
+/* hover = "sticking out": the bg gradient flips to light-to-dark */
+:root[data-style="soft"][data-neu] :is(.btn, .icon-btn, .tb-btn, .lang-btn, .step, .x-btn, .lvl-chips button, .seg button, .ec-item, .hc-tile):hover:not(.on):not(.primary):not(:disabled):not(.na):not([aria-pressed="true"]) { background: var(--neu-out) border-box; }
+
+/* Classic gets the same breathing room as Pixel / Soft (spacing only, so switching styles does not make the page jump) */
+:root[data-style="classic"]  { --neu-gap: 18px; }
+:root[data-style="classic"] .module-enchanting  { --ec-gap: 20px; --ec-strip: 62px; }
+:root[data-style="classic"] .module-trims  { --tr-gap: 20px; }
+:root[data-style="classic"] .topbar  { padding-top: 14px; padding-bottom: 14px; margin-bottom: 14px; }
+:root[data-style="classic"] .page-head, :root[data-style="classic"] .module-trims .tr-head  { margin: 18px 0 20px; }
+:root[data-style="classic"] .ec-card-head, :root[data-style="classic"] .tr-card-head  { margin-bottom: 18px; gap: 12px; }
+:root[data-style="classic"] .ec-pv-box, :root[data-style="classic"] .ec-pi  { gap: 14px; }
+:root[data-style="classic"] .ec-pi.done  { padding-block: 14px; }
+:root[data-style="classic"] .ec-gear-list  { gap: 14px; }
+:root[data-style="classic"] .ec-items  { gap: 12px; grid-template-columns: repeat(auto-fill, minmax(98px, 1fr)); }
+:root[data-style="classic"] .ec-item  { min-height: 92px; padding: 12px 6px 10px; }
+:root[data-style="classic"] .ec-slots  { gap: 10px; }
+:root[data-style="classic"] .ec-rowbox  { --ec-lbl-gap: 18px; --ec-tile-h: 84px; --ec-tile-min: 70px; }
+:root[data-style="classic"] .ec-picker  { --ec-tile-h: 84px; }
+:root[data-style="classic"] .ec-pick-label  { margin-bottom: 14px; }
+:root[data-style="classic"] .ec-rows  { gap: 22px; }
+:root[data-style="classic"] .ec-picker .ec-item  { min-height: var(--ec-tile-h); padding: 10px 2px 8px; }
+:root[data-style="classic"] .ec-picker .ec-item.has-since  { padding: 6px 2px 15px; }
+:root[data-style="classic"] .ec-ench-list  { gap: 10px; }
+:root[data-style="classic"] .ec-ench  { padding: 10px 16px 10px 16px; }
+:root[data-style="classic"] .ec-lo-list  { gap: 10px; }
+:root[data-style="classic"] .ec-group-name  { margin-bottom: 12px; }
+:root[data-style="classic"] .ec-indep  { margin-top: 24px; padding-top: 18px; }
+:root[data-style="classic"] .ec-section-head  { margin-bottom: 12px; }
+:root[data-style="classic"] .ec-pv-main  { gap: 16px; }
+:root[data-style="classic"] .ec-pv-bar  { gap: 10px; margin-bottom: 16px; }
+:root[data-style="classic"] .hl-preset-list  { gap: 12px; }
+:root[data-style="classic"] .hl-preset  { padding: 14px 18px; column-gap: 16px; }
+:root[data-style="classic"] .hl-steps ol  { gap: 8px; }
+:root[data-style="classic"] .hl-steps button  { padding: 0 12px 0 10px; gap: 10px; }
+:root[data-style="classic"] .hl-strips  { gap: 10px; }
+:root[data-style="classic"] .hl-strip  { min-height: 58px; padding-right: 12px; }
+:root[data-style="classic"] .hl-strip-ro, :root[data-style="classic"] .hl-strip-next  { min-height: 48px; }
+:root[data-style="classic"] .hl-subrows  { padding: 8px 12px 12px 42px; gap: 8px; }
+:root[data-style="classic"] .hl-group-head  { margin-bottom: 8px; min-height: 40px; }
+:root[data-style="classic"] .hl-review-card, :root[data-style="classic"] .hl-prog  { gap: 16px; }
+:root[data-style="classic"] .hl-map  { gap: 14px; }
+:root[data-style="classic"] .hl-detail  { gap: 16px; }
+:root[data-style="classic"] .hl-check  { padding: 24px 26px 20px; gap: 18px; }
+:root[data-style="classic"] .hl-quick  { gap: 10px; }
+:root[data-style="classic"] .hl-lock  { padding: 11px 14px; }
+:root[data-style="classic"] .bd-grid, :root[data-style="classic"] .bd-features  { gap: 20px; }
+:root[data-style="classic"] .bd-card, :root[data-style="classic"] .bd-feature  { gap: 10px; }
+:root[data-style="classic"] .bd-bar  { margin-bottom: 18px; gap: 16px; }
+:root[data-style="classic"] .ov-grid  { gap: clamp(20px, 2.2vw, 32px); }
+:root[data-style="classic"] .ov-hero  { margin-bottom: clamp(32px, 5vw, 56px); }
+:root[data-style="classic"] .tr-tiles  { gap: 6px; }
+:root[data-style="classic"] .toolbar  { padding: 3px; gap: 2px; margin-bottom: 0; }
+:root[data-style="classic"] .ec-side  { padding: 10px; margin: -10px; }
+:root[data-style="classic"] .nav { height: 48px; padding: 0 4px; gap: 6px; }
+:root[data-style="classic"] .nav-item { min-height: 40px; }
+:root[data-style="classic"] .toolbar { height: 48px; }
+:root[data-style="classic"] :is(.panel, .tr-saved) { padding: 20px; }
+:root[data-style="soft"][data-neu] { --neu-sel-glow-l: radial-gradient(circle 90px at 100% 100%, var(--neu-sel-glow), transparent 100%); }

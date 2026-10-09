@@ -1067,30 +1067,33 @@
       },
     }) : null;
 
-    const rows = [cardRow('.hl-card-head', [toggle, on && !multi ? tag(stalls[0], 0) : null, add], multi ? null : tiers(0), null)];
-    if (multi) {
-      stalls.forEach((st, i) => {
-        const onDel = () => {
-          if (hasProgress(st) && !confirm('This librarian has logged progress. Remove it anyway?')) return;
-          const b0 = fresh();
-          const rest = b0 ? b0.stalls.filter((s) => s.id !== st.id) : [];
-          softUpdate((x) => {
-            const b = x.books[e.id];
-            if (!b) return;
-            const lvs = b.stalls.filter((s) => s.id !== st.id).map((s) => stLv(b, s));
-            b.stalls = b.stalls.filter((s) => s.id !== st.id);
-            setLevels(b, lvs, e.maxLevel);
-          }, { focus: rest.length > 1 ? 'rm-' + rest[Math.min(i, rest.length - 1)].id : 'dup-' + e.id });
-        };
-        rows.push(cardRow('.hl-copy' + (st.done ? '.is-done' : '') + (justAdded === st.id ? '.is-new' : ''),
-          [h('span.hl-idx', { 'aria-label': `${i + 1} of ${n}` }, `${i + 1}/${n}`), tag(st, i), st.done ? h('span.hl-ok', 'locked') : null],
-          tiers(i),
-          delBtn({ key: st.id, label: `Remove ${local} ${i + 1} of ${n}`, onDel }),
-          { 'data-n': i }));
-      });
+    if (!multi) {
+      return h('li.hl-card-item', { 'data-book': e.id },
+        h('div.hl-strip.hl-card' + (on ? '.is-on' : ''),
+          cardRow('.hl-card-head', [toggle, on ? tag(stalls[0], 0) : null, add], tiers(0), null)));
     }
-    return h('li.hl-card-item', { 'data-book': e.id },
-      h('div.hl-strip.hl-card' + (on ? '.is-on' : '') + (multi ? '.is-multi' : ''), rows));
+    // 2+ villagers: one stripe per villager, joined into one segmented group (first stripe carries the name, + and the toggle)
+    const copyRow = (st, i) => {
+      const onDel = () => {
+        if (hasProgress(st) && !confirm('This librarian has logged progress. Remove it anyway?')) return;
+        const b0 = fresh();
+        const rest = b0 ? b0.stalls.filter((s) => s.id !== st.id) : [];
+        softUpdate((x) => {
+          const b = x.books[e.id];
+          if (!b) return;
+          const lvs = b.stalls.filter((s) => s.id !== st.id).map((s) => stLv(b, s));
+          b.stalls = b.stalls.filter((s) => s.id !== st.id);
+          setLevels(b, lvs, e.maxLevel);
+        }, { focus: rest.length > 1 ? 'rm-' + rest[Math.min(i, rest.length - 1)].id : 'dup-' + e.id });
+      };
+      const lock = st.done ? h('span.hl-ok', 'locked') : null;
+      const main = i === 0
+        ? [toggle, tag(st, 0), add, lock]
+        : [h('span.hl-tick-gap', { 'aria-hidden': 'true' }), h('span.hl-copyname', { 'aria-hidden': 'true' }, local), tag(st, i), lock];
+      return h('div.hl-strip.hl-card.is-on.is-multi.hl-copyrow' + (st.done ? '.is-done' : '') + (justAdded === st.id ? '.is-new' : ''), { 'data-n': i },
+        cardRow('.hl-card-head', main, tiers(i), delBtn({ key: st.id, label: `Remove ${local} ${i + 1} of ${n}`, onDel })));
+    };
+    return h('li.hl-card-item', { 'data-book': e.id }, h('div.hl-seggrp', stalls.map(copyRow)));
   }
 
   /* ---- step 3: trades (strips) ---- */
@@ -1107,8 +1110,8 @@
       const rows = CATALOG.filter((c) => c.dir === sd.id);
       const custom = hall.trades.filter((t) => !catalogKeys.has(t.prof + '|' + t.purpose) && dirOf(t) === sd.id);
       const count = hall.trades.filter((t) => dirOf(t) === sd.id).reduce((a, t) => a + t.target, 0);
-      return h('section.hl-side.hl-side-' + sd.id, { 'aria-label': sd.title },
-        h('div.hl-side-head',
+      return h('section.hl-ts.hl-ts-' + sd.id, { 'aria-label': sd.title },
+        h('div.hl-ts-head',
           h('span.hl-flow', { 'aria-hidden': 'true' }, TH.icon(sd.from, { size: 28 }), h('span.hl-flow-arrow'), TH.icon(sd.to, { size: 28 })),
           h('span.hl-group-title', h('h3', sd.title), h('small', sd.hint)),
           count ? h('span.hl-group-count', plural(count, 'villager')) : null),
@@ -1279,7 +1282,7 @@
     const sideBlock = (sd) => {
       const list = hall.trades.filter((tr) => dirOf(tr) === sd.id);
       return h('div.hl-rev-side',
-        h('div.hl-side-head', h('span.hl-flow', { 'aria-hidden': 'true' }, TH.icon(sd.from, { size: 24 }), h('span.hl-flow-arrow'), TH.icon(sd.to, { size: 24 })),
+        h('div.hl-ts-head', h('span.hl-flow', { 'aria-hidden': 'true' }, TH.icon(sd.from, { size: 24 }), h('span.hl-flow-arrow'), TH.icon(sd.to, { size: 24 })),
           h('span.hl-group-title', h('h3', sd.title)), list.length ? h('span.hl-group-count', plural(sideCount(sd.id), 'villager')) : null),
         list.length ? h('ul.hl-strips', list.map(tradeCard)) : h('p.muted.hl-rev-none', sd.id === 'sell' ? 'Nothing sold yet.' : 'Nothing bought yet.'));
     };

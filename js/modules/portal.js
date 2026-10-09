@@ -61,7 +61,7 @@
   }
 
   /**
-   * Obsidian portal: the smallest legal frame (4 x 5 blocks, no corners) around a 2 x 3 portal. Every block is a
+   * Obsidian portal: the smallest frame (4 x 5 blocks, corners filled) around a 2 x 3 portal. Every block is a
    * 4 x 4 pixel texture (obsidian / portal), generated in code and drawn crisp.
    */
   function portalArt() {
@@ -84,7 +84,6 @@
     for (let y = 0; y < CH; y++) for (let x = 0; x < CW; x++) {
       const edge = x === 0 || y === 0 || x === CW - 1 || y === CH - 1;
       if (!edge) continue;
-      if ((x === 0 || x === CW - 1) && (y === 0 || y === CH - 1)) continue;   // frame corners stay empty
       block(x, y, OBS, 0);
     }
     for (let y = 1; y < CH - 1; y++) for (let x = 1; x < CW - 1; x++) block(x, y, PORT, 0.6);
@@ -352,6 +351,7 @@
 
     root.append(
       h('div.page-head', h('h2', 'Portal Calculator')),
+      h('div.pt-page',
       h('section.panel.pt-calc', { 'aria-label': 'Convert coordinates' },
         h('div.pt-grid',
           sideCol('ow'),
@@ -371,7 +371,7 @@
             h('div.pt-listhead', h('h4', 'Your portals'),
               h('button.btn.small', { type: 'button', onclick: () => addPortal(current(), DIMS[st.dir] + ' portal ' + (st.portals.length + 1)) }, '+ Add')),
             listEl))),
-      h('div.pt-tips', tips.map(([t, x]) => h('div.panel.bd-idea', h('h4', t), h('div.muted', x)))));
+      h('div.pt-tips', tips.map(([t, x]) => h('div.panel.bd-idea', h('h4', t), h('div.muted', x))))));
 
     buildList();
     update();

@@ -166,7 +166,7 @@ TH.icon = (function () {
     ['entity/wolf/wolf', 64, 32, 4, 4, 6, 6, 4], ['entity/illager/pillager', 64, 64, 8, 8, 8, 10, 3], ['entity/armadillo', 64, 64, 43, 17, 7, 5, 4],
   ];
   /** URL of any texture path (entity/..., item/...). Entity skins always come from the CDN mirror (cached by sw.js). */
-  icon.tex = (p) => (BUNDLED ? LOCAL_BASE : BASE) + p + '.png';
+  icon.tex = (p) => (BUNDLED ? new URL(LOCAL_BASE + p + '.png', document.baseURI).href : BASE + p + '.png');   // absolute: also used from CSS (url() resolves against css/)
 
   icon.aliases = ALIAS;
   icon.external = EXTERNAL;

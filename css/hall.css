@@ -750,22 +750,22 @@ button.hl-strip-main { cursor: pointer; }
 /* ============ Trades step: sell / buy sides (Oct 2026) ============ */
 .hl-sides { display: grid; grid-template-columns: minmax(0, 1fr); gap: 22px 28px; align-items: start; margin-top: 12px; }
 @container hl-groups (min-width: 860px) { .hl-sides { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-.hl-side, .hl-rev-side { min-width: 0; display: grid; gap: 8px; align-content: start; }
-.hl-side-head { display: flex; align-items: center; gap: 12px; min-height: 44px; flex-wrap: wrap; }
-.hl-side-head h3 { font: 400 15px var(--display); letter-spacing: .5px; color: var(--text); }
-.hl-side-head small { color: var(--muted); font-size: 12px; }
+.hl-ts, .hl-rev-side { min-width: 0; display: grid; gap: 8px; align-content: start; }
+.hl-ts-head { display: flex; align-items: center; gap: 12px; min-height: 44px; flex-wrap: wrap; }
+.hl-ts-head h3 { font: 400 15px var(--display); letter-spacing: .5px; color: var(--text); }
+.hl-ts-head small { color: var(--muted); font-size: 12px; }
 .hl-flow { display: inline-flex; align-items: center; gap: 8px; flex: none; }
 .hl-flow-arrow { width: 22px; height: 12px; position: relative; color: var(--accent); }
 .hl-flow-arrow::before { content: ''; position: absolute; left: 0; right: 2px; top: 50%; height: 3px; margin-top: -1.5px; background: currentColor; }
 .hl-flow-arrow::after { content: ''; position: absolute; right: 0; top: 50%; width: 7px; height: 7px; margin-top: -3.5px; border-top: 3px solid currentColor; border-right: 3px solid currentColor; transform: rotate(45deg) scale(.9); transform-origin: 70% 30%; }
-.hl-side-sell { --side: var(--c-hall, var(--accent)); }
-.hl-side .hl-add-row { margin-top: 2px; }
+.hl-ts-sell { --side: var(--c-hall, var(--accent)); }
+.hl-ts .hl-add-row { margin-top: 2px; }
 .hl-rev-none { margin: 0; font-size: 13px; }
 .hl-rev-ghead { position: static; background: none; backdrop-filter: none; }
 @media (max-width: 640px) { .hl-group-items { display: none; } }
-.hl-side-head { flex-wrap: nowrap; }
-.hl-side-head .hl-group-title { flex-direction: column; align-items: flex-start; gap: 1px; flex: 1; }
-.hl-side-head .hl-group-count { flex: none; }
+.hl-ts-head { flex-wrap: nowrap; }
+.hl-ts-head .hl-group-title { flex-direction: column; align-items: flex-start; gap: 1px; flex: 1; }
+.hl-ts-head .hl-group-count { flex: none; }
 
 /* ---- Oct 2026 (2): one accent for all strips, plus next to the name, item-first trade icons, block progress ---- */
 .hl-strip, .hl-card, .hl-rev-prof, .hl-strip-next { --pc: transparent; }
@@ -783,3 +783,23 @@ button.hl-strip-main { cursor: pointer; }
 .hl-cube-pct { position: absolute; left: 0; right: 0; top: 56%; text-align: center; font: 400 12px var(--display); color: #fff; text-shadow: 1px 1px 0 rgb(0 0 0 / .8), -1px 1px 0 rgb(0 0 0 / .8), 1px -1px 0 rgb(0 0 0 / .8), -1px -1px 0 rgb(0 0 0 / .8); }
 .hl-prog.is-done .hl-cube { animation: hl-cube-glow 2.4s ease-in-out infinite alternate; }
 .hl-col:has(.hl-side.has-detail) .hl-cube-wrap, .hl-col:has(.hl-side.has-detail) .hl-cube { width: 76px; height: 84px; }
+
+/* ---- duplicates: one stripe per villager, joined as a segmented group; controls appear on hover / focus ---- */
+.hl-strips-2 .hl-card, .hl-strips-2 .hl-card-row { --lv-w: auto; }
+.hl-strips-2 .hl-card-row { grid-template-columns: minmax(0, 1fr) auto 30px; }
+.hl-strips-2 .hl-strip-lv { justify-content: flex-end; }
+.hl-seggrp { --hl-r: var(--radius); display: flex; flex-direction: column; gap: 2px; }
+:root[data-neu] .hl-seggrp { --hl-r: var(--neu-r-tile); }
+.hl-seggrp > .hl-strip { border-radius: 0; }
+.hl-seggrp > .hl-strip:first-child { border-radius: var(--hl-r) var(--hl-r) 0 0; }
+.hl-seggrp > .hl-strip:last-child { border-radius: 0 0 var(--hl-r) var(--hl-r); }
+.hl-seggrp > .hl-strip .hl-card-head { min-height: 44px; }
+.hl-tick-gap { flex: none; width: 18px; }
+.hl-copyname { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; font-size: 14px; color: var(--muted); }
+.hl-copyrow.is-done .hl-copyname { color: var(--text); }
+/* quiet until needed: + tag, +, x (a filled tag always shows; touch screens always show them) */
+.hl-card .hl-tag:placeholder-shown, .hl-card .hl-dup, .hl-card .hl-del { opacity: 0; transition: opacity .12s; }
+.hl-card:hover .hl-tag:placeholder-shown, .hl-card:focus-within .hl-tag:placeholder-shown,
+.hl-card:hover .hl-dup, .hl-card:focus-within .hl-dup, .hl-card:hover .hl-del, .hl-card:focus-within .hl-del { opacity: 1; }
+.hl-card .hl-dup:disabled { opacity: 0 !important; }
+@media (hover: none) { .hl-card .hl-tag:placeholder-shown, .hl-card .hl-dup, .hl-card .hl-del { opacity: 1; } }

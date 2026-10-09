@@ -12,6 +12,9 @@ const DIRS = ['entity/equipment/humanoid/', 'entity/equipment/humanoid_leggings/
   'trims/entity/humanoid_leggings/', 'trims/color_palettes/', 'trims/items/'];
 const FILES = ['entity/player/wide/steve.png', 'entity/player/slim/alex.png', 'misc/enchanted_glint_item.png', 'misc/enchanted_glint_armor.png'];
 
+// mob faces of the page background (entity skins listed in icons.js)
+for (const m of fs.readFileSync(path.join(root, 'js/core/icons.js'), 'utf8').matchAll(/\['(entity\/[^']+)'/g)) FILES.push(m[1] + '.png');
+
 (async () => {
   const want = new Set(FILES.map((f) => '/assets/minecraft/textures/' + f));
   for (const d of DIRS) {

@@ -851,3 +851,7 @@ button.hl-strip-main { cursor: pointer; }
 .hl-card.hl-cols { gap: 6px; padding-right: 6px; }
 .hl-vcol .hl-del { width: 18px; }
 .hl-vcol .hl-tag { max-width: 58px; min-width: 36px; padding: 0 4px; }
+/* duplicates, cleaner: the columns are plain (no recessed well inside the stripe); only the tier keys are controls */
+.hl-vcol { background: none; box-shadow: none; padding: 2px 4px; }
+.hl-vcol.is-done { background: color-mix(in srgb, var(--accent) 9%, transparent); box-shadow: none; }
+.hl-vcol.is-done { background: none; }

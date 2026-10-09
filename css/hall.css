@@ -1009,3 +1009,13 @@ button.hl-strip-main { cursor: pointer; }
 .hl-cols-v { justify-content: flex-start; }
 .hl-cols-v > .hl-vcol:first-child { margin-left: auto; }
 .hl-vcol[hidden], .hl-vmore[hidden] { display: none !important; }
+
+/* one tier-key size in every stripe, one stripe height */
+.hl-card .lvl-chips, .hl-vcol .lvl-chips { padding: 3px; gap: 3px; }
+.hl-card .lvl-chips button, .hl-vcol .lvl-chips button { min-width: 34px; height: 30px; padding: 0 6px; font-size: 13px; }
+.hl-card .hl-card-head, .hl-card.hl-cols { min-height: 68px; }
+.hl-ov-flat { max-height: 300px; overflow-y: auto; margin: 4px 0 8px; }
+.hl-ov-st { font: 600 11px var(--mono); text-transform: uppercase; letter-spacing: .5px; }
+.hl-ov-st.is-needed { color: var(--muted); }
+.hl-ov-st.is-locked, .hl-ov-st.is-perfect { color: var(--accent); }
+.hl-side-save { margin: 6px 0 4px; }

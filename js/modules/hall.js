@@ -130,7 +130,6 @@
   const STEPS = [
     { t: 'Start', d: 'Pick a preset, or start from scratch' },
     { t: 'Villagers', d: 'Librarian books and other traders' },
-    { t: 'Review', d: 'Final check & Finish' },
   ];
 
   const DEFAULTS = {
@@ -659,7 +658,7 @@
   function renderWizard(root, state) {
     const hall = state.hall;
     const step = clamp(hall.step || 0, 0, STEPS.length - 1);
-    const body = [stepStart, stepVillagers, stepReview][step](state);
+    const body = [stepStart, stepVillagers][step](state);
 
     root.append(
       h('div.page-head.hl-wiz-head',
@@ -742,14 +741,12 @@
     const t = totals(hall);
     return h('aside.hl-wiz-side', { 'aria-label': 'Total so far' },
       h('div.panel.hl-side-panel',
-        h('ol.hl-mini', { 'aria-label': 'Setup steps' }, STEPS.map((st, i) => h('li' + (i < step ? '.is-done' : i === step ? '.is-current' : ''),
-          h('button', { type: 'button', 'aria-current': i === step ? 'step' : null, 'data-focus': 'step-' + i, title: (i + 1) + '. ' + st.t + ' — ' + st.d, onclick: () => goStep(i) },
-            h('span.hl-mini-n', { 'aria-hidden': 'true' }, i < step ? '✓' : String(i + 1)), h('span.hl-mini-t', st.t))))),
         h('div.hl-side-sum', { 'aria-live': 'polite' },
           h('div.hl-side-title', 'Total so far'),
           h('div.hl-side-total', bumpNum('tot', t.total), h('span', t.total === 1 ? 'villager' : 'villagers')),
           h('div.hl-side-split', bumpNum('lib', t.stalls), t.stalls === 1 ? ' librarian · ' : ' librarians · ', bumpNum('oth', t.trades), ' other')),
         t.total ? wsList(hall, { key: 'side' }) : h('p.hl-side-empty', 'Nothing planned yet.'),
+        t.total ? h('button.btn.ghost.small.hl-side-save', { type: 'button', onclick: savePreset }, TH.icon('item/writable_book', { size: 16 }), 'Save as preset') : null,
         wizardNav(step)));
   }
 
@@ -760,7 +757,7 @@
   function wizardNav(step) {
     const last = step === STEPS.length - 1;
     return h('div.th-act-row.hl-wiz-nav', { role: 'group', 'aria-label': 'Setup steps navigation' },
-      step > 0 ? h('button.btn', { type: 'button', 'data-focus': 'wiz-back', onclick: () => goStep(step - 1) }, '← Back') : null,
+      step > 0 ? h('button.btn', { type: 'button', 'data-focus': 'wiz-back', onclick: () => goStep(step - 1) }, '← Back to presets') : null,
       last
         ? h('button.btn.primary', { type: 'button', 'data-focus': 'wiz-finish', onclick: finishSetup }, 'Finish → Hall')
         : h('button.btn.primary', { type: 'button', 'data-focus': 'wiz-next', onclick: () => goStep(step + 1) }, 'Next: ' + STEPS[step + 1].t + ' →'));
@@ -780,7 +777,7 @@
     const step = clamp(state.hall.step || 0, 0, STEPS.length - 1);
     const y = window.scrollY;
     justAdded = o.added || null;
-    try { body.replaceChildren([stepStart, stepVillagers, stepReview][step](state)); } finally { justAdded = null; }
+    try { body.replaceChildren([stepStart, stepVillagers][step](state)); } finally { justAdded = null; }
     const sy = side.scrollTop, ns = wizardSide(state.hall, step);
     ns.style.maxHeight = side.style.maxHeight;
     side.replaceWith(ns);
@@ -1307,75 +1304,6 @@
     upd((x) => { x.trades.push({ id, prof: 'farmer', purpose: '', target: 1, group: 'other', dir: dir || 'buy', note: '' }); });
   }
 
-  /* ---- step 4: review ---- */
-
-  function stepReview(state) {
-    const hall = state.hall;
-    const t = totals(hall);
-    const profs = profCounts(hall);
-    const books = bookSummary(hall);
-
-    if (!t.total) {
-      return h('div.panel.empty', h('div.empty-icon', TH.icon('block/crafting_table_front', { size: 36 })), h('p', 'Your plan is empty.'),
-        h('div.hl-row-btns.hl-center', h('button.btn', { type: 'button', onclick: () => goStep(0) }, 'Pick a preset'),
-          h('button.btn', { type: 'button', onclick: () => goStep(1) }, 'Choose books')));
-    }
-
-    // read-only cards (same look as the Books / Trades step cards, no controls)
-    const tradeCard = (tr) => {
-      const p = profOf(tr);
-      return h('li.hl-card-item', h('div.hl-strip.hl-card.hl-strip-trade.is-ro',
-        cardRow('.hl-card-head', [tradeIcons(p, tr.purpose, 22), h('span.hl-strip-text',
-          h('span.hl-card-name', h('b', tr.purpose || profName(p)), tr.target > 1 ? h('span.hl-count', { title: tr.target + ' villagers' }, '×' + tr.target) : null),
-          h('small', h('span.hl-prof-dot', profName(p)), tradeShort(tr) ? h('span', tradeShort(tr)) : null))])));
-    };
-    const sideCount = (id) => hall.trades.filter((tr) => dirOf(tr) === id).reduce((a, tr) => a + tr.target, 0);
-    const sideBlock = (sd) => {
-      const list = hall.trades.filter((tr) => dirOf(tr) === sd.id);
-      return h('div.hl-rev-side',
-        h('div.hl-ts-head', h('span.hl-flow', { 'aria-hidden': 'true' }, TH.icon(sd.from, { size: 24 }), h('span.hl-flow-arrow'), TH.icon(sd.to, { size: 24 })),
-          h('span.hl-group-title', h('h3', sd.title)), list.length ? h('span.hl-group-count', plural(sideCount(sd.id), 'villager')) : null),
-        list.length ? h('ul.hl-strips.hl-rev-cards', list.map(tradeCard)) : h('p.muted.hl-rev-none', sd.id === 'sell' ? 'Nothing sold yet.' : 'Nothing bought yet.'));
-    };
-    const bookCard = (id) => {
-      const e = ENCH[id], b = hall.books[id], n = b.stalls.length;
-      const lvCount = new Map();
-      b.stalls.forEach((st) => { const lv = stLv(b, st); lvCount.set(lv, (lvCount.get(lv) || 0) + 1); });
-      const tags = b.stalls.map((st) => st.label).filter(Boolean);
-      return h('li.hl-card-item', h('div.hl-strip.hl-card.is-on.is-ro',
-        cardRow('.hl-card-head', [h('span.hl-strip-text',
-          h('span.hl-card-name', h('b', enchLocal(e)), n > 1 ? h('span.hl-count', { title: n + ' librarians' }, '×' + n) : null),
-          tags.length ? h('small', h('span', tags.join(' · '))) : null)],
-        e.maxLevel > 1 ? h('span.hl-lvpills', [...lvCount.entries()].sort((x, y) => y[0] - x[0]).map(([lv, k]) =>
-          h('span.hl-lvpill', { title: enchLabel(e, lv) + (k > 1 ? ' ×' + k : '') }, lvlText(lv), lvCount.size > 1 && k > 1 ? h('small', '×' + k) : null))) : null)));
-    };
-    // books grouped by the item they are for, like the Books step
-    const bookGroups = D.enchantCategories.map((cat) => {
-      const ids = bookIds(hall).filter((id) => ENCH[id].category === cat.id);
-      return ids.length ? h('section.hl-group', { 'aria-label': cat.name },
-        h('div.hl-group-head.hl-rev-ghead',
-          h('span.hl-group-items', { 'aria-hidden': 'true' }, (CAT_ITEMS[cat.id] || []).map((i) => TH.icon(i, { size: 22 }))),
-          h('span.hl-group-title', h('h3', cat.name))),
-        h('ul.hl-strips.hl-strips-2.hl-rev-cards', ids.map(bookCard))) : null;
-    }).filter(Boolean);
-
-    return h('div.hl-review.is-compact',
-      // plain totals (like the sidebar) + the plan per workstation (workstation names: what you craft)
-      h('section.panel.hl-review-card',
-        h('div.hl-review-head', h('h3.section-title', 'Books'), h('span.hl-toolbar-info', libBooks(t.stalls, books.length)), h('span.spacer'),
-          h('button.btn.ghost.small', { type: 'button', onclick: () => goStep(1) }, 'Edit')),
-        books.length ? h('div.hl-groups.hl-groups-stack', bookGroups) : h('p.muted', 'No books selected.')),
-      h('section.panel.hl-review-card',
-        h('div.hl-review-head', h('h3.section-title', `Other villagers (${t.trades})`), h('span.spacer'),
-          h('button.btn.ghost.small', { type: 'button', onclick: () => goStep(1) }, 'Edit')),
-        hall.trades.length ? h('div.hl-groups', h('div.hl-sides', SIDES.map(sideBlock))) : h('p.muted', 'No other villagers.')),
-      h('section.panel.hl-review-card.hl-review-actions',
-        h('div', h('b', 'Happy with it?'), h('p.muted', 'Save it as a preset to reuse in another world, then press Finish → Hall to open your hall and arrange it.')),
-        h('div.hl-row-btns',
-          h('button.btn', { type: 'button', onclick: savePreset }, TH.icon('item/writable_book', { size: 16 }), 'Save as preset'))),
-    );
-  }
-
   /* ================= dashboard ================= */
 
   function renderDashboard(root, state) {
@@ -1806,34 +1734,21 @@
         h('div', h('h3', `${vs.length} villagers selected`),
           h('div.hl-detail-sub', plural(books.length, 'librarian'), ' · ', plural(vs.length - books.length, 'other villager'))),
         h('button.x-btn.hl-detail-close', { type: 'button', 'aria-label': 'Clear selection', title: 'Clear selection (Esc)', 'data-focus': 'detail-close', onclick: clearSelection }, '✕')),
-      h('p.hl-hint.hl-lock-why', LOCK_WHY),
-      h('p.hl-hint.hl-lock-why', PIN_WHY),
-      h('div.hl-ov-stats',
-        stat('', lockedAll, 'locked in'),
-        stat('.is-perfect', cnt.perfect, 'perfect ★'),
-        stat('.is-needed', cnt.needed, 'still needed')),
-      books.length ? h('div.hl-ov-prices',
-        h('div', h('span.faint', 'Perfect total'), cost(perfectSum)),
-        paid ? h('div', h('span.faint', 'Paid so far'), cost(paid)) : null,
-        over ? h('div', h('span.faint', 'Above perfect'), h('span.hl-cost.is-old', emerald(), h('b', '+' + over))) : null,
-        noPrice ? h('div.hl-ov-note', plural(noPrice, 'locked librarian') + ' without a logged price') : null) : null,
-      byBook.size ? sec('Books', byBook.size, h('ul.hl-ov-list', Array.from(byBook.values()).map((r) => row(
-        TH.icon('enchanted_book', { size: 22, glint: r.done === r.n }),
-        enchLabel(r.v.ench, r.v.lv),
-        `${r.done} of ${r.n} locked · perfect ${minPrice(r.v.ench, r.v.lv)}`, r)))) : null,
-      byTrade.size ? sec('Villagers', byTrade.size, h('ul.hl-ov-list', Array.from(byTrade.values()).map((r) => row(
-        TH.icon.prof(r.v.prof.id, { size: 22 }),
-        r.v.trade.purpose || profName(r.v.prof),
-        `${profName(r.v.prof)}${tradeShort(r.v.trade) ? ' · ' + tradeShort(r.v.trade) : ''} · ${r.done} of ${r.n} in your hall`, r)))) : null,
+      h('ul.hl-ov-list.hl-ov-flat', vs.map((v) => {
+        const st = status(v);
+        const book = v.kind === 'book';
+        return h('li.hl-ov-row',
+          h('span.hl-ov-ico', { 'aria-hidden': 'true' }, book ? TH.icon('enchanted_book', { size: 22, glint: st === 'perfect' }) : TH.icon.prof(v.prof.id, { size: 22 })),
+          h('span.hl-ov-text', h('b', book ? enchLabel(v.ench, v.lv) : (v.trade.purpose || profName(v.prof))), v.kind === 'book' && v.stall.label ? h('small', v.stall.label) : null),
+          h('span.hl-ov-n.hl-ov-st.is-' + st, st === 'needed' ? 'needed' : st === 'perfect' ? 'perfect' : 'locked'));
+      })),
       h('div.hl-row-btns.hl-ov-actions',
-        h('button.btn.small' + (cnt.needed >= lockedAll ? '.primary' : ''), { type: 'button', disabled: cnt.needed === 0, onclick: () => bulkLock(keys, true) }, cnt.needed && lockedAll ? `Lock ${cnt.needed} more` : 'Lock trades'),
-        h('button.btn.small', { type: 'button', disabled: lockedAll === 0, onclick: () => bulkLock(keys, false) }, lockedAll && cnt.needed ? `Unlock ${lockedAll}` : 'Unlock trades'),
-        h('button.btn.small', { type: 'button', disabled: pinnedN === keys.length, 'data-focus': 'pin-all', onclick: () => setPinned(keys, true) }, TH.hallCanvas.pinIcon(13), pinnedN ? `Pin ${keys.length - pinnedN} more` : 'Pin all'),
-        h('button.btn.small', { type: 'button', disabled: pinnedN === 0, onclick: () => setPinned(keys, false) }, TH.hallCanvas.pinIcon(13), pinnedN && pinnedN < keys.length ? `Unpin ${pinnedN}` : 'Unpin all'),
-        keys.length === 2 ? h('button.btn.small', { type: 'button', 'data-focus': 'swap', disabled: pinnedN > 0, title: pinnedN ? 'Pinned villagers can’t be swapped' : null, onclick: () => swapTwo(keys) }, '⇄ Swap') : null,
-        h('button.btn.small.ghost', { type: 'button', disabled: true, title: 'Select a single librarian to check an offer' }, 'Check offer'),
-        h('button.btn.small.ghost', { type: 'button', onclick: clearSelection }, 'Clear selection')),
-      h('p.hl-hint.hl-detail-hint', 'Drag any selected villager to move them all together (pinned ones stay put). Ctrl/⌘-click adds or removes one. Click empty canvas to close.'));
+        h('button.btn.small.primary', { type: 'button', disabled: cnt.needed === 0, onclick: () => bulkLock(keys, true) }, cnt.needed ? `Lock ${cnt.needed}` : 'Lock'),
+        h('button.btn.small', { type: 'button', disabled: lockedAll === 0, onclick: () => bulkLock(keys, false) }, lockedAll ? `Unlock ${lockedAll}` : 'Unlock'),
+        h('button.btn.small', { type: 'button', disabled: pinnedN === keys.length, 'data-focus': 'pin-all', onclick: () => setPinned(keys, true) }, TH.hallCanvas.pinIcon(13), 'Pin all'),
+        pinnedN ? h('button.btn.small', { type: 'button', onclick: () => setPinned(keys, false) }, TH.hallCanvas.pinIcon(13), 'Unpin') : null,
+        keys.length === 2 ? h('button.btn.small', { type: 'button', 'data-focus': 'swap', disabled: pinnedN > 0, title: pinnedN ? 'Pinned villagers can’t be swapped' : 'Swap their places', onclick: () => swapTwo(keys) }, 'Swap') : null,
+        h('button.btn.small.ghost', { type: 'button', onclick: clearSelection }, 'Clear selection')));
   }
 
   function renderDetail(hall, pl, v, fresh) {
@@ -1912,9 +1827,6 @@
               oninput: (ev) => setStall((st) => { st.label = ev.target.value; }, { silent: true }),
               onchange: () => setTimeout(TH.app.render, 0),
             }))),
-        h('div.hl-row-btns',
-          h('button.btn.small' + (s.done ? '' : '.primary'), { type: 'button', 'data-focus': 'detail-check', onclick: () => openCheck(e.id) },
-            TH.icon('enchanted_book', { size: 16 }), s.done ? 'Check a cheaper offer' : 'Check an offer')),
       ]);
   }
 
@@ -2334,6 +2246,7 @@
       hall.archive = hall.archive || {};
       if (!Array.isArray(s.customPresets)) s.customPresets = [];
       migrate(s);
+      if (!hall.stepsV3) { hall.stepsV3 = true; if (hall.step >= 2) hall.step = 1; }
       if (!hall.stepsV2) { hall.stepsV2 = true; if (hall.step >= 2) hall.step -= 1; }
       migrateTradeLocks(hall);
       if (hall.setupDone) placeNew(hall);

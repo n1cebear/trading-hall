@@ -8,7 +8,7 @@ window.TH = window.TH || {};
 TH.store = (function () {
   const KEY = 'tradingHall.state';
   const VERSION = 1;
-  const defaults = { version: VERSION, settings: { theme: 'auto', style: 'classic', styleV: 2 }, customPresets: [] };
+  const defaults = { version: VERSION, settings: { theme: 'auto', style: 'classic', styleV: 2, zoom: 0.9 }, customPresets: [] };
   const listeners = new Set();
   let state = load();
 

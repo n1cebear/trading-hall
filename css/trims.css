@@ -11,10 +11,10 @@
 
 /* ---------- layout: Armor + Saved + Skin | Preview | Trim + Materials (stacked: preview, armor column, trim column) ---------- */
 .module-trims .tr-head { margin: 12px 0 16px; }
-.tr-page { max-width: 1500px; margin: 0 auto; }
+.tr-page { max-width: none; margin: 0 auto; }
 .tr-layout {
   display: grid; gap: calc(var(--tr-gap) + 4px); align-items: start;
-  grid-template-columns: minmax(300px, 330px) minmax(440px, 1fr) minmax(420px, 470px);
+  grid-template-columns: minmax(300px, 0.9fr) minmax(440px, 1.5fr) minmax(420px, 1.1fr);
 }
 .tr-col { display: flex; flex-direction: column; gap: calc(var(--tr-gap) + 4px); min-width: 0; }
 /* the preview has its column to itself: the stage fills the viewport height left after the header + viewer bars (sticky on wide screens) */
@@ -328,3 +328,11 @@
 @media (max-width: 640px) { .tr-ely { grid-column: 1; left: 50%; max-width: none; } }
 .tr-ely { grid-column: auto; grid-row: auto; left: 16px; top: 12px; transform: none; align-self: auto; width: 32px; height: 32px; justify-content: center; }
 @media (max-width: 640px) { .tr-ely { grid-column: auto; left: 16px; } }
+
+/* chest + leggings thumbnails a touch smaller, so the four pieces read as one row; no diamond counts in the pattern list */
+.tr-pt[aria-label^="Chestplate"] .tr-thumb, .tr-pt[aria-label^="Leggings"] .tr-thumb { width: 42px; height: 42px; }
+.tr-pr-dia { display: none; }
+.tr-studio[hidden] { display: none !important; }
+.tr-rnd { gap: 8px; }
+.tr-rnd-ico { display: inline-grid; place-items: center; width: 24px; height: 24px; color: var(--muted); }
+.tr-rnd-seg button { min-height: 28px; padding: 4px 10px; }

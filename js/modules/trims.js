@@ -908,7 +908,7 @@
       const B = S.bdCam || { r: 0, p: 0, y: 0 };   // a terrain island: back + up until its bounding sphere (radius r) fits the frame
       const d = fit() * S.camK / S.zoom, pitch = S.pitch + B.p, cp = Math.cos(pitch);
       if (S.onZoom && S.lastZ !== S.zoom) { S.lastZ = S.zoom; S.onZoom(S.zoom); }
-      S.target.y = S.camY - B.y;
+      S.target.y = S.camY;   // always look at the figure, whatever the backdrop (the island sits under it)
       S.camera.position.set(S.target.x + d * Math.sin(S.yaw) * cp, S.target.y + d * Math.sin(pitch), S.target.z + d * Math.cos(S.yaw) * cp);
       S.camera.lookAt(S.target);
       S.camera.updateMatrixWorld();
@@ -1696,9 +1696,11 @@
   /** Three raised actions: Surprise me (everything; shift = per piece), Pattern, Material. */
   function randomBar() {
     return h('div.tr-rnd', { role: 'group', 'aria-label': 'Randomise' },
-      h('button.btn.small.tr-surprise', { type: 'button', 'data-focus': 'tr-rnd-all', title: 'Random armor, pattern and trim material · Shift-click: every piece different', onclick: (e) => surprise(e.shiftKey) }, glyph('dice'), h('span', 'Surprise me')),
-      h('button.btn.small', { type: 'button', 'data-focus': 'tr-rnd-pattern', title: 'Random pattern on every piece (keeps the material and armor)', onclick: randomPattern }, 'Pattern'),
-      h('button.btn.small', { type: 'button', 'data-focus': 'tr-rnd-material', title: 'Random trim material (keeps the patterns and armor)', onclick: randomMaterial }, 'Material'));
+      h('span.tr-rnd-ico', { 'aria-hidden': 'true' }, glyph('dice')),
+      h('div.seg.tr-rnd-seg',
+        h('button.tr-surprise', { type: 'button', 'data-focus': 'tr-rnd-all', title: 'Random armor, pattern and trim material · Shift-click: every piece different', onclick: (e) => surprise(e.shiftKey) }, 'Surprise me'),
+        h('button', { type: 'button', 'data-focus': 'tr-rnd-pattern', title: 'Random pattern on every piece (keeps the material and armor)', onclick: randomPattern }, 'Pattern'),
+        h('button', { type: 'button', 'data-focus': 'tr-rnd-material', title: 'Random trim material (keeps the patterns and armor)', onclick: randomMaterial }, 'Material')));
   }
 
   function mount(st) {
@@ -1741,7 +1743,7 @@
         p.id ? h('span.tr-pr-tpl', TH.icon.trim(p.id, { size: 32 })) : h('span.tr-pr-tpl.none', TH.icon('item/barrier', { size: 22 })),
         h('span.tr-pr-name', p.id ? names.pat[i - 1] : 'No trim'));
       withTip(main, () => (p.id ? patternTipLines(p) : ['No trim', 'Removes the trim']).concat(['Click: all pieces']));
-      const dup = h('span.tr-pr-dup', p.id ? [TH.icon(p.blockIcon, { size: 16 }), h('span.tr-pr-dia', TH.icon('diamond', { size: 14 }), h('b', '×' + D.templateCopyDiamonds))] : null);
+      const dup = h('span.tr-pr-dup', p.id ? [TH.icon(p.blockIcon, { size: 16 })] : null);
       if (p.id) withTip(dup, dupTipLines(p));
       const row = h('div.tr-pr', { role: 'group', 'aria-label': title, onclick: (e) => { if (!e.target.closest('button')) setPattern(p.id, PIECES); } }, main, dup, h('div.tr-pr-pcs', pcs.map((x) => x.b)));
       return { p, row, pcs };

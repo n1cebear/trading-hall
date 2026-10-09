@@ -1206,3 +1206,9 @@
 @media (min-width: 1000.02px) { :root[data-style="soft"] .hl-wiz-side { padding: 28px; margin: -28px; } }
 :root[data-style="soft"][data-neu] .ec-side .panel { box-shadow: 10px 10px 30px var(--neu-lo), -10px -10px 30px var(--neu-hi); }
 :root[data-style="soft"][data-neu] :is(.btn, .seg button, .ec-item, .ec-matkey, .lvl-chips button, .tr-oslot-main).on { color: var(--accent); }
+
+/* Soft v3: tighter radii (small keys were pills), a stronger dark-mode relief */
+:root[data-style="soft"][data-neu] { --neu-r-xs: 4px; --neu-r-sm: 6px; --neu-r-ctl: 8px; --neu-r-md: 10px; --neu-r-tile: 12px; --neu-r-grp: 12px; --neu-r-seg: 22px; --radius: 8px; }
+:root[data-style="soft"][data-neu] :is(.lvl-chips button, .step, .x-btn, .swatch, .hl-quick-chip, .hl-badge, .check span, .hl-tick, .ec-want) { border-radius: 4px !important; }
+:root[data-style="soft"][data-neu]:not([data-theme="light"]) { --neu-lo: #101017; --neu-hi: #2d2d3b; --neu-lo-dark: #0a0a10; }
+@media (prefers-color-scheme: light) { :root[data-style="soft"][data-neu]:not([data-theme="dark"]) { --neu-lo: #c2b8a2; --neu-hi: #fff8db; --neu-lo-dark: #a69c85; } }

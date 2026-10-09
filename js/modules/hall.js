@@ -1072,8 +1072,9 @@
         h('div.hl-strip.hl-card' + (on ? '.is-on' : ''),
           cardRow('.hl-card-head', [toggle, on ? tag(stalls[0], 0) : null, add], tiers(0), null)));
     }
-    // 2+ villagers: one stripe per villager, joined into one segmented group (first stripe carries the name, + and the toggle)
-    const copyRow = (st, i) => {
+    // 2+ villagers: the one stripe is split into a column per villager (name + "+" once on the left, then one well per
+    // villager: tiers on top, tag underneath, x on hover). No lines, the wells are the segments.
+    const col = (st, i) => {
       const onDel = () => {
         if (hasProgress(st) && !confirm('This librarian has logged progress. Remove it anyway?')) return;
         const b0 = fresh();
@@ -1086,14 +1087,14 @@
           setLevels(b, lvs, e.maxLevel);
         }, { focus: rest.length > 1 ? 'rm-' + rest[Math.min(i, rest.length - 1)].id : 'dup-' + e.id });
       };
-      const lock = st.done ? h('span.hl-ok', 'locked') : null;
-      const main = i === 0
-        ? [toggle, tag(st, 0), add, lock]
-        : [h('span.hl-tick-gap', { 'aria-hidden': 'true' }), h('span.hl-copyname', { 'aria-hidden': 'true' }, local), tag(st, i), lock];
-      return cardRow('.hl-card-head.hl-copyrow' + (st.done ? '.is-done' : '') + (justAdded === st.id ? '.is-new' : ''), main, tiers(i),
-        delBtn({ key: st.id, label: `Remove ${local} ${i + 1} of ${n}`, onDel }), { 'data-n': i });
+      return h('div.hl-vcol' + (st.done ? '.is-done' : '') + (justAdded === st.id ? '.is-new' : ''), { 'data-n': i },
+        h('div.hl-vcol-top', tiers(i) || h('span.hl-vcol-max', 'max')),
+        h('div.hl-vcol-bot', tag(st, i), delBtn({ key: st.id, label: `Remove ${local} ${i + 1} of ${n}`, onDel })));
     };
-    return h('li.hl-card-item', { 'data-book': e.id }, h('div.hl-strip.hl-card.is-on.is-multi.hl-divided', stalls.map(copyRow)));
+    return h('li.hl-card-item', { 'data-book': e.id },
+      h('div.hl-strip.hl-card.is-on.is-multi.hl-cols',
+        h('div.hl-cols-main', toggle, add),
+        h('div.hl-cols-v', stalls.map(col))));
   }
 
   /* ---- step 3: trades (strips) ---- */

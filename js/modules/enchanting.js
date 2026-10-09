@@ -488,8 +488,7 @@ TH.anvil = (function () {
   }
 
   /** Material icon overrides (the data file's chain texture isn't what players recognise). */
-  const MAT_ICON = { netherite: 'item/netherite_pickaxe', diamond: 'item/diamond_pickaxe', iron: 'item/iron_pickaxe', golden: 'item/golden_pickaxe', copper: 'item/copper_pickaxe',
-    stone: 'item/stone_pickaxe', wooden: 'item/wooden_pickaxe', chainmail: 'item/chainmail_chestplate', leather: 'item/leather_chestplate', turtle: 'item/turtle_helmet' };
+  const MAT_ICON = { chainmail: 'item/chainmail_chestplate' };
   const matIcon = (m, size) => TH.icon(MAT_ICON[m] || D.materials[m].icon, { size });
 
   /** Two segments side by side: armor (helmet to boots, then shield/elytra) and tools & weapons. */
@@ -530,7 +529,7 @@ TH.anvil = (function () {
           return h('button.btn.ec-matkey' + (on ? '.on' : ''), {
             type: 'button', role: 'radio', 'aria-checked': String(on), 'aria-label': nm, 'data-focus': 'ec-mat-' + m,
             title: materialHint(m) ? nm + ' — ' + materialHint(m) : nm, onclick: () => pickMaterial(m),
-          }, matIcon(m, 32), h('span.ec-mat-name', nm));
+          }, (() => { const ic = matIcon(m, 32); if (m === 'wooden' || m === 'stone') ic.classList.add('ec-mat-block'); return ic; })(), h('span.ec-mat-name', nm));
         })))),
       h('div.ec-pickrow',
         box('armor', 'Armor',

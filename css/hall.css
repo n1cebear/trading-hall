@@ -805,9 +805,6 @@ button.hl-strip-main { cursor: pointer; }
 @media (hover: none) { .hl-card .hl-tag:placeholder-shown, .hl-card .hl-dup, .hl-card .hl-del { opacity: 1; } }
 
 /* ---- Oct 2026 (4): one divided card for duplicates, compact Review ---- */
-.hl-card.hl-divided { display: block; }
-.hl-card.hl-divided > .hl-card-row + .hl-card-row { border-top: 1px solid color-mix(in srgb, var(--text) 10%, transparent); }
-.hl-card.hl-divided > .hl-card-row { min-height: 40px; }
 .hl-review.is-compact { gap: 14px; }
 .hl-review.is-compact .hl-review-card { padding-block: 14px; }
 .hl-review.is-compact .hl-review-head { margin-bottom: 6px; }
@@ -825,3 +822,32 @@ button.hl-strip-main { cursor: pointer; }
 .hl-review.is-compact .hl-ts-head { min-height: 32px; }
 .hl-review.is-compact .hl-trade-ico { width: 30px; height: 30px; }
 @container hl-groups (min-width: 900px) { .hl-rev-cards.hl-strips-2 { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+
+/* ---- duplicates: one stripe, a column (well) per villager. No divider lines. ---- */
+.hl-card.hl-cols { display: flex; flex-direction: row; align-items: center; gap: 10px; padding: 6px 8px 6px 0; min-height: 56px; }
+.hl-cols-main { display: flex; align-items: center; gap: 4px; flex: 1 1 130px; min-width: 0; }
+.hl-cols-v { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; flex: 0 1 auto; min-width: 0; }
+.hl-vcol {
+  display: grid; gap: 2px; justify-items: end; padding: 4px 6px 3px; border-radius: var(--radius, 6px);
+  background: var(--slot, rgb(0 0 0 / .18)); box-shadow: var(--slot-shadow, none);
+}
+.hl-vcol.is-done { box-shadow: var(--slot-shadow, none), inset 0 -2px 0 color-mix(in srgb, var(--accent) 55%, transparent); }
+.hl-vcol-top { display: flex; align-items: center; gap: 4px; }
+.hl-vcol-bot { display: flex; align-items: center; gap: 6px; min-height: 22px; }
+.hl-vcol-max { font: 500 11px var(--mono); color: var(--faint); padding: 0 6px; }
+.hl-vcol .hl-del { width: 22px; height: 22px; padding: 0; }
+.hl-vcol .lvl-chips button { min-width: 24px; }
+.hl-card.hl-cols .hl-card-toggle { flex: 0 1 auto; padding-left: 10px; }
+.hl-cols-main { flex: 0 0 auto; max-width: 48%; }
+.hl-cols-v { flex: 1 1 0; }
+.hl-vcol { padding: 4px 5px 3px; }
+.hl-vcol .lvl-chips button { min-width: 22px; padding: 0 3px; }
+.hl-vcol .hl-tag { max-width: 70px; min-width: 40px; }
+.hl-vcol-bot { justify-content: space-between; width: 100%; }
+.hl-vcol.is-done .hl-vcol-top::after { content: ''; }
+.hl-vcol .lvl-chips { padding: 2px; gap: 1px; }
+.hl-vcol .lvl-chips button { min-width: 20px; height: 22px; padding: 0 2px; font-size: 10.5px; }
+.hl-cols-v { gap: 4px; }
+.hl-card.hl-cols { gap: 6px; padding-right: 6px; }
+.hl-vcol .hl-del { width: 18px; }
+.hl-vcol .hl-tag { max-width: 58px; min-width: 36px; padding: 0 4px; }

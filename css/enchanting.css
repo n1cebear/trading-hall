@@ -678,9 +678,9 @@
 /* enchantment rows: item header, then two columns of shorter strips */
 .ec-for { display: flex; align-items: center; gap: 10px; margin: 2px 0 8px; font: 400 15px var(--display); color: var(--text); }
 .ec-ench-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px 12px; align-items: start; }
-@container (min-width: 700px) { .ec-ench-list { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-.ec-ench-list .ec-ench { grid-template-columns: 22px minmax(0, 1fr); align-items: start; }
-.ec-ench-list .ec-ench .ec-ench-side { grid-column: 2; justify-content: flex-start; flex-wrap: wrap; }
+/* one column: name + description on the left, tiers and hall status on the same row at the right */
+.ec-ench-list .ec-ench { gap: 10px; padding: 6px 8px 6px 10px; }
+.ec-ench-list .ec-ench .ec-ench-side { flex-wrap: nowrap; gap: 6px; }
 .ec-ench-list .ec-ench .ec-ench-side .lvl-chips.ec-lv { width: auto; }
 .ec-ench-title { font-family: var(--display); font-weight: 400; font-size: 13px; }
 
@@ -720,3 +720,4 @@
 .ec-toprow > .ec-mode button { padding: 5px 8px; font-size: 12px; gap: 5px; min-height: 0; }
 .ec-toprow > .ec-mode button > .mc { --mc: 14px !important; }
 .ec-toprow > .ec-mode .nav-badge { display: none; }
+.ec-matkey > .mc.ec-mat-block { --mc: 26px !important; }   /* full-bleed block textures read bigger than the item icons: a touch smaller to match */

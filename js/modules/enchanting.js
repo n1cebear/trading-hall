@@ -350,9 +350,10 @@ TH.anvil = (function () {
 
   function toggleSelect(id) {
     set((e) => {
-      if (e.selected[id]) { delete e.selected[id]; return; }
+      if (e.selected[id]) { delete e.selected[id]; e.loadout = null; return; }
       for (const c of conflictList(id, Object.keys(e.selected))) delete e.selected[c];
       e.selected[id] = Math.max(byId[id].maxLevel, 1);
+      e.loadout = null;
     });
   }
 
@@ -360,6 +361,7 @@ TH.anvil = (function () {
     set((e) => {
       for (const c of conflictList(id, Object.keys(e.selected))) delete e.selected[c];
       e.selected[id] = level;
+      e.loadout = null;
     });
   }
 
@@ -675,7 +677,9 @@ TH.anvil = (function () {
         h('span.ec-row-label', { id: 'ec-lbl-presets' }, 'Presets'),
         h('div.ec-lo-list', { role: 'group', 'aria-labelledby': 'ec-lbl-presets' }, it.loadouts.map((l) => h('button.btn.small.ec-lo' + (s.loadout === l.id ? '.on' : ''), {
           type: 'button', title: l.desc, 'aria-pressed': String(s.loadout === l.id), 'data-focus': 'ec-lo-' + l.id, onclick: () => applyLoadout(l),
-        }, l.name, l.id === 'best' ? TH.util.reco() : null)))),
+        }, l.id === 'best' ? bookIcon(26) : itemIcon(s.item, s.material, 26), h('span.ec-lo-name', l.name), l.id === 'best' ? TH.util.reco() : null)).concat(s.loadout ? [h('button.btn.small.ec-lo.ec-lo-reset', {
+          type: 'button', title: 'Back to nothing picked', 'data-focus': 'ec-lo-reset', onclick: () => set((e) => { e.selected = {}; e.loadout = null; }),
+        }, '\u2715 Reset')] : []))),
       own || exIds.length ? renderUsesRow(s) : null,
       h('div.ec-for', itemIcon(s.item, s.material, 28), h('span', itemName(s.item, s.material))),
       h('div.ec-ench-list' + (own ? '.is-own' : ''), normal.map(row)),

@@ -666,12 +666,6 @@
         h('h2', TITLE),
         hall.editing ? h('button.btn', { type: 'button', onclick: finishSetup }, '← Back to hall') : null,
       ),
-      // slim one-row stepper: badge + title + one-line subtext; on phones the other steps fold to their badge (hall.css)
-      h('nav.hl-steps', { 'aria-label': 'Setup steps' },
-        h('ol', STEPS.map((s, i) => h('li' + (i < step ? '.is-done' : i === step ? '.is-current' : ''),
-          h('button', { type: 'button', 'aria-current': i === step ? 'step' : null, 'data-focus': 'step-' + i, title: (i + 1) + '. ' + s.t + ' — ' + s.d, onclick: () => goStep(i) },
-            h('span.hl-step-dot', { 'aria-hidden': 'true' }, i < step ? '✓' : String(i + 1)),
-            h('span.hl-step-text', h('b', s.t), h('small', s.d))))))),
       h('div.hl-wiz-layout',
         h('section.hl-wiz-body', { 'aria-label': STEPS[step].t }, body),
         wizardSide(hall, step)),
@@ -748,6 +742,9 @@
     const t = totals(hall);
     return h('aside.hl-wiz-side', { 'aria-label': 'Total so far' },
       h('div.panel.hl-side-panel',
+        h('ol.hl-mini', { 'aria-label': 'Setup steps' }, STEPS.map((st, i) => h('li' + (i < step ? '.is-done' : i === step ? '.is-current' : ''),
+          h('button', { type: 'button', 'aria-current': i === step ? 'step' : null, 'data-focus': 'step-' + i, title: (i + 1) + '. ' + st.t + ' — ' + st.d, onclick: () => goStep(i) },
+            h('span.hl-mini-n', { 'aria-hidden': 'true' }, i < step ? '✓' : String(i + 1)), h('span.hl-mini-t', st.t))))),
         h('div.hl-side-sum', { 'aria-live': 'polite' },
           h('div.hl-side-title', 'Total so far'),
           h('div.hl-side-total', bumpNum('tot', t.total), h('span', t.total === 1 ? 'villager' : 'villagers')),
@@ -900,11 +897,10 @@
     }, h('span.hl-own-plus', { 'aria-hidden': 'true' }, '+'), h('span.hl-own-text', h('b', 'Create your own'), h('span', 'Start empty and pick every book and villager yourself'))));
 
     return h('div.hl-presets',
-      isCustomPlan || showPrev ? h('ul.hl-preset-grid.hl-preset-current',
+            h('ul.hl-preset-grid',
         isCustomPlan ? strip({ key: 'current', title: 'Current plan', desc: 'Your own plan, as you left it. Press Next to edit it.', icon: ico('item/writable_book'), sum: sumOfPlan(hall), on: true, onPick: () => {} }) : null,
-        showPrev ? strip({ key: 'previous', title: 'Previous plan', desc: 'Your plan before you picked a preset. Pick it to switch back.', icon: ico('item/writable_book'), sum: sumOfPlan(prevPlan.plan), onPick: restore }) : null) : null,
-      h('h3.section-title.hl-sec-title', 'Start here'),
-      h('ul.hl-preset-grid', own,
+        showPrev ? strip({ key: 'previous', title: 'Previous plan', desc: 'Your plan before you picked a preset. Pick it to switch back.', icon: ico('item/writable_book'), sum: sumOfPlan(prevPlan.plan), onPick: restore }) : null,
+        own,
         builtIn.slice().sort((a, b) => (b.id === 'blueprint') - (a.id === 'blueprint')).map((p) => presetStrip(p, ico(icons[p.id] || 'item/chest_minecart'), { reco: p.id === 'blueprint', tileCls: p.id === 'blueprint' ? '.is-reco' : '' }))),
       custom.length ? [
         h('h3.section-title.hl-sec-title', 'Your presets'),

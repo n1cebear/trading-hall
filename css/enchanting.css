@@ -744,3 +744,14 @@
 .ec-mode::before { display: none !important; }
 :root:root .ec-mode button.on { background: var(--accent) !important; color: var(--on-accent, #0b0b10) !important; box-shadow: inset 2px 2px 5px rgb(0 0 0 / .28) !important; }
 :root:root .ec-mode button.on .mc { filter: none; }
+
+/* presets: bigger keys with an icon */
+.ec-lo-list { gap: 10px; }
+.ec-lo { display: inline-flex; align-items: center; gap: 10px; min-height: 48px; padding: 6px 16px 6px 12px; font-size: 13.5px; }
+.ec-lo .mc { --mc: 26px !important; }
+.ec-lo-reset { color: var(--muted); }
+/* armor keys: icon above the name, like every other key */
+.ec-slots.armor { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.ec-slots.armor .ec-item { grid-template-columns: none; grid-template-rows: auto auto; justify-items: center; text-align: center; min-height: 84px; padding: 10px 4px; }
+.ec-slots.armor .ec-item .ec-item-name { justify-content: center; align-self: auto; width: 100%; }
+.ec-slots.armor .ec-item .ec-item-name > span { font-size: 10px; }

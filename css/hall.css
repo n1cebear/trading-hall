@@ -943,3 +943,20 @@ button.hl-strip-main { cursor: pointer; }
 .hl-preset-grid .is-reco .hl-preset { border-top-width: 0; }
 .hl-preset-grid .hl-own-btn { flex-direction: column; justify-content: center; text-align: center; gap: 12px; padding: 18px; }
 .hl-preset-grid .hl-own-text { align-items: center; }
+
+/* ---- steps inside "Total so far": three quiet keys, the current one lit ---- */
+.hl-steps { display: none; }
+.hl-mini { list-style: none; margin: 0 0 14px; padding: 0; display: flex; gap: 4px; }
+.hl-mini li { flex: 1 1 0; min-width: 0; }
+.hl-mini button { width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 5px 4px; border: 0; background: none; cursor: pointer; color: var(--muted); font: 600 11px var(--font); border-radius: var(--radius, 6px); }
+.hl-mini button:hover { color: var(--text); }
+.hl-mini-n { display: grid; place-items: center; width: 18px; height: 18px; border-radius: 3px; font: 600 10px var(--mono); background: color-mix(in srgb, var(--text) 8%, transparent); }
+.hl-mini li.is-current button { color: var(--text); }
+.hl-mini li.is-current .hl-mini-n { background: var(--accent); color: var(--on-accent, #0b0b10); }
+.hl-mini li.is-done .hl-mini-n { color: var(--accent); }
+.hl-mini-t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* preset tiles: a big bare icon, counts and workstation icons stacked so nothing runs out of the tile */
+.hl-preset-grid .hl-preset-icon { width: auto; height: 72px; align-self: center; justify-content: center; background: none !important; border: 0 !important; box-shadow: none !important; }
+.hl-preset-grid .hl-preset-icon .mc { --mc: 64px !important; }
+.hl-preset-grid .hl-preset-meta { flex-direction: column; align-items: flex-start; gap: 8px; }
+.hl-preset-profs { flex-wrap: wrap; row-gap: 4px; }

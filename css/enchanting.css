@@ -847,3 +847,32 @@
 :root:root:root .ec-slots:is(.tools, .other) .ec-item { grid-template-rows: auto auto; align-content: center; row-gap: 6px; padding-block: 10px; }
 :root:root:root .ec-slots:is(.tools, .other) .ec-item .ec-item-name { align-self: start; line-height: 1.25; }
 :root:root:root .ec-slots:is(.tools, .other) .ec-item .ec-item-name { min-height: 0; height: auto; }
+
+/* ===== mode slider: a track with a gliding thumb ===== */
+:root:root:root .ec-modecards { position: relative; display: grid; grid-template-rows: 1fr 1fr; gap: 0; padding: 5px; align-self: stretch; border-radius: var(--radius); background: var(--neu-well, var(--slot)); box-shadow: var(--neu-inset-sm, inset 0 2px 5px rgb(0 0 0 / .4)); }
+.ec-slide-thumb { position: absolute; left: 5px; right: 5px; top: 5px; height: calc((100% - 10px) / 2); border-radius: var(--radius); background: var(--accent); box-shadow: 0 0 18px -4px color-mix(in srgb, var(--accent) 65%, transparent), 3px 3px 7px -2px rgb(0 0 0 / .45), inset 0 1px 0 rgb(255 255 255 / .35); transition: transform .32s cubic-bezier(.3, .8, .25, 1); }
+.ec-modecards[data-mode="plan"] .ec-slide-thumb { transform: translateY(100%); }
+:root:root:root .ec-modecard { position: relative; z-index: 1; background: transparent !important; box-shadow: none !important; color: var(--muted); transition: color .25s; }
+:root:root:root .ec-modecard[aria-pressed="true"], :root:root:root .ec-modecard[aria-pressed="true"] .ec-modecard-t { color: var(--on-accent, #0b0b10); }
+:root:root:root .ec-modecard:hover:not(:disabled):not([aria-pressed="true"]) { color: var(--text); }
+:root:root:root .ec-modecard[aria-pressed="true"] .ec-modecard-n { background: var(--on-accent, #0b0b10); color: var(--accent); }
+@media (max-width: 760px) { :root:root:root .ec-modecards { grid-template-rows: none; grid-template-columns: 1fr 1fr; } .ec-slide-thumb { height: calc(100% - 10px); width: calc((100% - 10px) / 2); right: auto; } .ec-modecards[data-mode="plan"] .ec-slide-thumb { transform: translateX(100%); } }
+
+/* ===== My plan: same frame as Single item ===== */
+.ec-pv-head { display: flex; flex-direction: column; gap: 10px; justify-content: center; }
+.ec-pv-stats { display: flex; flex-wrap: wrap; gap: 6px 22px; color: var(--muted); font-size: 13px; }
+.ec-pv-stat b { font: 400 17px/1 var(--mono); color: var(--text); font-variant-numeric: tabular-nums; }
+.ec-pv-tools { display: flex; flex-wrap: wrap; gap: 8px; }
+.ec-pv-head .ec-prog { margin: 0; }
+.ec-pv-empty { display: grid; place-items: center; text-align: center; }
+.ec-pv-list { display: flex; flex-direction: column; gap: var(--ec-gap); min-width: 0; }
+.ec-pv-list .ec-sec { display: flex; flex-direction: column; gap: 10px; }
+.ec-pi-list { display: flex; flex-direction: column; gap: 12px; }
+.ec-pi { padding: 14px 16px; gap: 12px; }
+.ec-pi-prog { font: 400 12px/1 var(--mono); color: var(--faint); }
+.ec-pi-prog b { color: var(--accent); }
+.ec-pi.complete .ec-pi-prog b { color: var(--accent); }
+:root:root .ec-todos { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 4px 16px; background: none; box-shadow: none; padding: 0; border-radius: 0; }
+.ec-shop .ec-pv-sec { display: flex; flex-direction: column; gap: 10px; }
+:root:root .ec-shop .ec-buy { background: none; box-shadow: none; padding: 0; border-radius: 0; }
+.ec-shop .ec-total { padding: 12px 14px; }

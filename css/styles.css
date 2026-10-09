@@ -920,3 +920,24 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; }
 
 /* icons inside buttons / tiles / rows are centred by their container, not nudged up (the optical -0.18em made every icon+label button sit high) */
 :is(button, a, summary, label, [role="radio"], [role="tab"], .ec-item-ico, .tr-sw, .ec-item, .ec-matkey) .mc { margin-top: 0; }
+
+/* ===== main tool switcher: obvious. Inactive keys carry their tool colour; the active one is LIT (filled, glowing, with a lamp under it) ===== */
+:root:root:root .nav-item { color: color-mix(in srgb, var(--text) 82%, var(--muted)); font-weight: 700; letter-spacing: .3px; }
+:root:root:root .nav-item .nav-icon { filter: drop-shadow(0 0 6px color-mix(in srgb, var(--tc) 55%, transparent)); }
+:root:root:root .nav-item .nav-icon .mc { --mc: 20px !important; }
+:root:root:root .nav-item:hover:not(.active) { color: var(--text); box-shadow: 0 0 0 1px color-mix(in srgb, var(--tc) 45%, transparent), 0 0 18px -4px color-mix(in srgb, var(--tc) 50%, transparent); }
+:root:root:root .nav-item.active {
+  color: var(--on-accent, #0b0b10);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--tc) 100%, #fff 14%), var(--tc) 55%, color-mix(in srgb, var(--tc) 100%, #000 18%));
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / .45), inset 0 -3px 6px -2px rgb(0 0 0 / .3), 0 0 26px -2px color-mix(in srgb, var(--tc) 70%, transparent), 0 6px 14px -6px rgb(0 0 0 / .5);
+  text-shadow: none;
+}
+:root:root:root .nav-item.active .nav-icon { filter: drop-shadow(0 1px 0 rgb(0 0 0 / .35)); }
+:root:root:root .nav-item.active :is(.nav-badge, .nav-soon) { background: rgb(0 0 0 / .22); color: inherit; }
+:root:root:root .nav-item.active::after { left: 22%; right: 22%; bottom: -9px; height: 4px; border-radius: 4px; background: var(--tc); box-shadow: 0 0 14px 2px var(--tc); opacity: 1; transform: scaleX(1); }
+@media (min-width: 641px) { :root:root:root .nav-item { height: 44px; padding-inline: 16px; font-size: 13.5px; } }
+@media (max-width: 640px) {
+  :root:root:root .nav-item { padding-block: 9px 8px; font-size: 10px; letter-spacing: 0; gap: 4px; }
+  :root:root:root .nav-item .nav-icon .mc { --mc: 24px !important; }
+  :root:root:root .nav-item.active::after { top: -5px; bottom: auto; left: 28%; right: 28%; height: 4px; border-radius: 0 0 4px 4px; }
+}

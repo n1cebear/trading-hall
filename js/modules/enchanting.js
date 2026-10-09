@@ -1038,16 +1038,29 @@ TH.anvil = (function () {
 
   /* ---------- planner: view ---------- */
 
-  /** Single item / My plan as two big mode cards: icon, name, one line of status; the active one is a solid accent card. */
-  function renderModeCards(s, row) {
-    const total = s.plan.length, done = s.plan.filter((x) => x.done).length;
-    const card = (mode, label, sub, icon, disabled, tip) => h('button.btn.ec-modecard' + (s.mode === mode ? '.on' : ''), {
-      type: 'button', 'aria-pressed': String(s.mode === mode), 'data-focus': 'ec-mode-' + mode, disabled, title: tip || null,
-      onclick: () => set((e) => { e.mode = mode; }),
-    }, h('span.ec-modecard-ico', TH.icon(icon, { size: 28 }), mode === 'plan' && total ? h('b.ec-modecard-n', total) : null), h('span.ec-modecard-t', label));
-    return h('div.ec-modecards' + (row ? '.is-row' : ''), { role: 'group', 'aria-label': 'Enchanting view' },
-      card('single', 'Single item', 'One item at a time', 'enchanted_book', false),
-      card('plan', 'My plan', total ? done + ' of ' + total + ' done' : 'Nothing added yet', 'item/writable_book', total === 0 && s.mode !== 'plan', total === 0 ? 'Add an item to your plan first' : null));
+  /** Single item / My plan as a slider: one persistent element (so the thumb glides between the two positions on a re-render). */
+  let modeEl = null;
+  function renderModeCards(s) {
+    const total = s.plan.length;
+    if (!modeEl) {
+      const card = (mode, label, icon) => h('button.btn.ec-modecard', {
+        type: 'button', 'data-m': mode, 'data-focus': 'ec-mode-' + mode,
+        onclick: () => set((e) => { e.mode = mode; }),
+      }, h('span.ec-modecard-ico', TH.icon(icon, { size: 28 }), h('b.ec-modecard-n')), h('span.ec-modecard-t', label));
+      modeEl = h('div.ec-modecards', { role: 'group', 'aria-label': 'Enchanting view', 'data-mode': s.mode },
+        h('span.ec-slide-thumb', { 'aria-hidden': 'true' }), card('single', 'Single item', 'enchanted_book'), card('plan', 'My plan', 'item/writable_book'));
+    }
+    modeEl.querySelectorAll('.ec-modecard').forEach((b) => {
+      const on = b.dataset.m === s.mode;
+      b.setAttribute('aria-pressed', String(on));
+      if (b.dataset.m === 'plan') {
+        b.disabled = total === 0 && s.mode !== 'plan';
+        b.title = total === 0 ? 'Add an item to your plan first' : '';
+        const n = b.querySelector('.ec-modecard-n'); n.textContent = total || ''; n.hidden = !total;
+      }
+    });
+    if (modeEl.dataset.mode !== s.mode) setTimeout(() => { void modeEl.offsetWidth; modeEl.dataset.mode = s.mode; }, 0);
+    return modeEl;
   }
 
   function renderModeSwitch(s, vertical) {
@@ -1159,18 +1172,19 @@ TH.anvil = (function () {
         p.partial ? ['leave out ', h('b', p.partial.dropped.map((b) => lvlName(b.id, b.level)).join(', ')), '. Steps below skip it.'] : 'no order works. Edit this item.'));
     }
 
+    const meta = [rows.length ? (p.totalLevels || 0) + ' levels · ' + rows.length + ' step' + (rows.length === 1 ? '' : 's') : null, gear ? gear.name : null,
+      Object.keys(en.existing).length ? 'has ' + Object.keys(en.existing).length + ' enchant' + (Object.keys(en.existing).length > 1 ? 's' : '') : null,
+      en.uses ? en.uses + ' anvil use' + (en.uses === 1 ? '' : 's') : null].filter(Boolean).join(' · ') || 'fresh item';
     return h('article.panel.ec-pi' + (all ? '.complete' : ''), { 'aria-label': name },
       h('div.ec-pi-head',
         h('span.ec-pi-num', idx + 1),
         h('span.ec-pi-icon', itemIcon(en.item, en.material, 32)),
-        h('div.ec-pi-title',
-          h('b', name),
-          h('span.faint', [gear ? gear.name : null, Object.keys(en.existing).length ? 'has ' + Object.keys(en.existing).length + ' enchant' + (Object.keys(en.existing).length > 1 ? 's' : '') : null,
-            en.uses ? en.uses + ' anvil use' + (en.uses === 1 ? '' : 's') : null].filter(Boolean).join(' · ') || 'fresh item')),
+        h('div.ec-pi-title', h('b', name), h('span.faint', meta)),
+        rows.length ? h('span.ec-pi-prog', h('b', done), '/' + rows.length) : null,
         h('div.ec-pi-actions',
           h('button.btn.small', { type: 'button', title: 'Load into the editor', 'data-focus': 'ec-pi-edit-' + en.id, onclick: () => editEntry(en) }, 'Edit'),
+          h('button.btn.small' + (all ? '.primary' : ''), { type: 'button', 'data-focus': 'ec-pi-done-' + en.id, title: gear ? 'Check off and update “' + gear.name + '”' : 'Check this item off', onclick: () => setDone(en.id, true, p) }, 'Done'),
           remove)),
-      h('div.ec-pi-ench', books.slice().sort((a, b) => byUse(a.id, b.id)).map((b) => h('span.ec-want', bookIcon(14), lvlName(b.id, b.level)))),
       canUpgrade(en) ? h('label.ec-tile' + (upgrade ? '.on' : ''),
         h('span.switch', h('input', {
           type: 'checkbox', checked: upgrade, 'data-focus': 'ec-pi-up-' + en.id,
@@ -1178,17 +1192,12 @@ TH.anvil = (function () {
         }), h('span')),
         h('span.ec-tile-text', h('b', 'Upgrading from diamond'), h('span', 'Adds the smithing step and its materials'))) : null,
       alert,
-      rows.length ? progressBar(done, rows.length, name + ' progress') : null,
-      rows.length ? h('ol.ec-todos', rows.map((r) => todoRow(en.id, r.key, en.ticks.includes(r.key), r.body, r.cost, r.bad ? '.bad' : ''))) : null,
-      h('div.ec-pi-foot',
-        rows.length ? h('span.ec-pi-total', h('b', p.totalLevels || 0), ' levels · ', rows.length, ' step' + (rows.length === 1 ? '' : 's')) : h('span'),
-        h('button.btn.small' + (all ? '.primary' : ''), { type: 'button', 'data-focus': 'ec-pi-done-' + en.id, title: gear ? 'Check off and update “' + gear.name + '”' : 'Check this item off', onclick: () => setDone(en.id, true, p) },
-          'Done')));
+      rows.length ? h('ol.ec-todos', rows.map((r) => todoRow(en.id, r.key, en.ticks.includes(r.key), r.body, r.cost, r.bad ? '.bad' : ''))) : null);
   }
 
   function renderPlanView(state, s) {
     if (!s.plan.length) {
-      return [h('div.ec-mode-row', renderModeCards(s, true)), h('section.panel.ec-pv-empty',
+      return h('div.ec-layout.ec-layout-single.is-empty', h('div.ec-main', h('div.ec-toprow', renderModeCards(s), h('section.panel.ec-card.ec-pv-empty',
         h('div.empty',
           h('div.empty-icon', { 'aria-hidden': 'true' }, TH.icon('item/writable_book', { size: 44 })),
           h('h3', 'Your plan is empty'),
@@ -1197,7 +1206,7 @@ TH.anvil = (function () {
             h('li', 'Switch to ', h('b', 'Single item'), ' and pick an item.'),
             h('li', 'Choose its enchantments (and what it already has).'),
             h('li', 'Press ', h('b', 'Add to plan'), '. Repeat for every item.')),
-          h('button.btn.primary', { type: 'button', 'data-focus': 'ec-pv-start', onclick: newItem }, 'Pick the first item')))];
+          h('button.btn.primary', { type: 'button', 'data-focus': 'ec-pv-start', onclick: newItem }, 'Pick the first item'))))));
     }
 
     const offers = hallOffers(state);
@@ -1205,7 +1214,7 @@ TH.anvil = (function () {
     const open = rows.filter((r) => !r.en.done);
     const finished = rows.length - open.length;
 
-    // ---- a) books, merged ----
+    // books, merged over every open item
     const need = new Map();
     open.forEach(({ en, p }) => usedBooks(p).forEach((b) => {
       const key = b.id + ':' + b.level;
@@ -1218,7 +1227,7 @@ TH.anvil = (function () {
     const bookTotal = books.reduce((n, b) => n + b.count, 0);
     const gotBooks = books.reduce((n, b) => n + Math.min(owned(s, b.key), b.count), 0);
 
-    // ---- b) costs ----
+    // costs
     let levels = 0, points = 0, left = 0, emeralds = 0, hallBooks = 0, unpriced = 0, bad = 0;
     open.forEach(({ en, p }) => {
       if (!p.ok) bad++;
@@ -1231,23 +1240,32 @@ TH.anvil = (function () {
         if (stt.price != null) emeralds += stt.price * b.count; else unpriced += b.count;
       }
     });
-
-    // ---- d) base materials (diamond → netherite only) ----
     const ups = open.filter(({ en }) => en.upgrade && canUpgrade(en)).length;
 
-    const toolbar = h('div.ec-pv-bar',
-      h('button.btn.small', { type: 'button', 'data-focus': 'ec-pv-add', onclick: newItem }, '+ Add another item'),
-      h('span.spacer'),
-      finished ? h('button.btn.small.ghost', { type: 'button', onclick: () => set((e) => { e.plan = e.plan.filter((x) => !x.done); }) }, 'Clear finished (' + finished + ')') : null,
-      h('button.btn.small.ghost', { type: 'button', onclick: () => window.print() }, 'Print'),
-      h('button.btn.small.ghost.danger', {
-        type: 'button', onclick: () => {
-          if (!confirm('Remove every item from your plan?')) return;
-          set((e) => { e.plan = []; e.planGot = {}; e.booksOwned = {}; e.planEditing = null; });
-        },
-      }, 'Clear plan'));
+    const allSteps = open.reduce((n, { en, p }) => n + p.steps.length + (en.upgrade && canUpgrade(en) ? 1 : 0), 0);
+    const doneSteps = open.reduce((n, { en, p }) => n + en.ticks.filter((k) => k === 's' ? en.upgrade && canUpgrade(en) : p.steps.some((x) => 'n' + x.n === k)).length, 0);
 
-    const costs = h('section.panel.ec-pv-box.ec-costs', { 'aria-label': 'Costs total' },
+    // ---- left: the same top row as Single item (mode slider + a summary panel), then the to-do list ----
+    const head = h('section.panel.ec-card.ec-pv-head', { 'aria-label': 'Plan summary' },
+      h('h3.ec-pick-label', 'Your plan'),
+      h('div.ec-pv-stats',
+        h('span.ec-pv-stat', h('b', open.length), open.length === 1 ? ' item to do' : ' items to do'),
+        h('span.ec-pv-stat', h('b', doneSteps + '/' + allSteps), ' anvil steps done'),
+        finished ? h('span.ec-pv-stat', h('b', finished), ' finished') : null),
+      allSteps ? progressBar(doneSteps, allSteps, 'Plan progress') : null,
+      h('div.ec-pv-tools',
+        finished ? h('button.btn.small.ghost', { type: 'button', onclick: () => set((e) => { e.plan = e.plan.filter((x) => !x.done); }) }, 'Clear finished (' + finished + ')') : null,
+        h('button.btn.small.ghost.danger', {
+          type: 'button', onclick: () => {
+            if (!confirm('Remove every item from your plan?')) return;
+            set((e) => { e.plan = []; e.planGot = {}; e.booksOwned = {}; e.planEditing = null; });
+          },
+        }, 'Clear plan')));
+
+    const list = armorToolSections(rows.map((r, i) => Object.assign({ i }, r)), (r) => r.en.item, (r) => renderEntry(r.en, r.p, s, r.i), '.ec-pi-list');
+
+    // ---- right: shopping list in the sticky Anvil-plan style, floating actions at the foot ----
+    const costs = h('section.ec-pv-sec.ec-costs', { 'aria-label': 'Costs total' },
       h('div.ec-sub-head', 'Costs total', h('span.faint', open.length + ' item' + (open.length === 1 ? '' : 's'))),
       h('div.ec-total',
         h('div.ec-total-num', h('span.ec-xp', levels), h('span.ec-total-label', 'levels for every anvil step')),
@@ -1259,7 +1277,7 @@ TH.anvil = (function () {
       unpriced ? h('p.ec-pv-note', unpriced + ' hall book' + (unpriced > 1 ? 's have' : ' has') + ' no price yet — set it in the Trading Hall tab.') : null,
       bad ? h('p.ec-alert', TH.icon('item/barrier', { size: 14 }), h('span', bad + ' item' + (bad > 1 ? 's hit' : ' hits') + ' Too Expensive! — see the checklist.')) : null);
 
-    const bookBox = h('section.panel.ec-pv-box', { 'aria-label': 'Books to get' },
+    const bookBox = h('section.ec-pv-sec', { 'aria-label': 'Books to get' },
       h('div.ec-sub-head', 'Books to get', h('span.faint', bookTotal)),
       bookTotal ? progressBar(gotBooks, bookTotal, 'Books obtained') : null,
       books.length
@@ -1279,7 +1297,7 @@ TH.anvil = (function () {
         }))
         : h('p.ec-pv-note', 'Nothing to buy — every open item is done or has no books.'));
 
-    const matBox = ups ? h('section.panel.ec-pv-box', { 'aria-label': 'Base item materials' },
+    const matBox = ups ? h('section.ec-pv-sec', { 'aria-label': 'Base item materials' },
       h('div.ec-sub-head', 'Base item materials', h('span.faint', 'diamond → netherite')),
       h('ul.ec-buy', UPGRADE.map((m) => {
         const n = m.count * ups, key = 'mat:' + m.id, got = isGot(s, key, n);
@@ -1290,19 +1308,13 @@ TH.anvil = (function () {
           h('label.ec-buy-text', { for: inputId }, h('span.ec-buy-name', matItemName(m), h('span.ec-x', '×' + n))));
       }))) : null;
 
-    const allSteps = open.reduce((n, { en, p }) => n + p.steps.length + (en.upgrade && canUpgrade(en) ? 1 : 0), 0);
-    const doneSteps = open.reduce((n, { en, p }) => n + en.ticks.filter((k) => k === 's' ? en.upgrade && canUpgrade(en) : p.steps.some((x) => 'n' + x.n === k)).length, 0);
+    const actions = h('div.th-act-row', { role: 'group', 'aria-label': 'Plan actions' },
+      h('button.btn.primary', { type: 'button', 'data-focus': 'ec-pv-add', onclick: newItem }, '+ Add another item'),
+      h('button.btn', { type: 'button', onclick: () => window.print() }, 'Print'));
 
-    return [
-      toolbar,
-      h('div.ec-pv',
-        h('div.ec-mode-row', renderModeCards(s, true)),
-        h('div.ec-pv-side', costs, bookBox, matBox),
-        h('section.ec-pv-main', { 'aria-label': 'Anvil to-do checklist' },
-          h('div.ec-section-head', h('h3.section-title', 'Anvil to-do'),
-            allSteps ? h('span.faint', doneSteps + ' of ' + allSteps + ' steps done') : null),
-          armorToolSections(rows.map((r, i) => Object.assign({ i }, r)), (r) => r.en.item, (r) => renderEntry(r.en, r.p, s, r.i), '.ec-pi-list'))),
-    ];
+    return h('div.ec-layout.ec-layout-single',
+      h('div.ec-main', h('div.ec-toprow', renderModeCards(s), head), h('section.ec-pv-list', { 'aria-label': 'Anvil to-do checklist' }, list)),
+      h('div.ec-side', h('aside.panel.ec-plan.ec-shop', { 'aria-label': 'Shopping list' }, h('div.ec-plan-body', costs, bookBox, matBox), actions)));
   }
 
   /* ---------- page ---------- */

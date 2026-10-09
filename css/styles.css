@@ -902,3 +902,4 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; }
 :root[data-theme="light"] .th-reco { color: var(--accent); }
 /* top nav in the Minecraft font (the page's headings font) */
 .nav-item .nav-name { font-family: var(--display); font-weight: 400; font-size: 12px; letter-spacing: .2px; }
+.nav-item .nav-name { text-transform: uppercase; letter-spacing: .6px; font-size: 11px; }

@@ -842,3 +842,8 @@
 /* the action row is a solid band at the foot of the plan box: nothing shows through or casts a ghost shadow */
 :root:root:root .ec-plan > .th-act-row { background: var(--neu-bg, var(--panel)); filter: none; box-shadow: none; padding-top: 12px; }
 :root:root:root .ec-plan > .th-act-row .btn { filter: none; }
+
+/* icon + name centred as one block in the tool / other tiles (the name row used to reserve two lines, so one-line names left a gap below) */
+:root:root:root .ec-slots:is(.tools, .other) .ec-item { grid-template-rows: auto auto; align-content: center; row-gap: 6px; padding-block: 10px; }
+:root:root:root .ec-slots:is(.tools, .other) .ec-item .ec-item-name { align-self: start; line-height: 1.25; }
+:root:root:root .ec-slots:is(.tools, .other) .ec-item .ec-item-name { min-height: 0; height: auto; }

@@ -1233,3 +1233,14 @@
 :root[data-style="soft"][data-neu] { --neu-sel-glow-l: radial-gradient(ellipse 85% 135% at 100% 100%, var(--neu-sel-glow), transparent 80%); }
 :root[data-style="soft"] .switch span::after { box-shadow: var(--neu-raised-2xs); }
 :root[data-style="soft"] .switch input:checked + span::after { box-shadow: var(--neu-raised-2xs), inset 2px 2px 4px -2px color-mix(in srgb, var(--accent) 45%, transparent); }
+
+/* top nav, highest tier: bigger keys and a wider reach of light and shadow */
+@media (min-width: 641px) {
+  :root[data-neu] .nav { height: 58px; padding: 0 6px; gap: 10px; }
+  :root[data-neu] .nav-item { height: 46px; padding: 0 17px; box-shadow: 8px 8px 16px -3px var(--neu-lo), -7px -7px 14px -3px var(--neu-hi); }
+  :root[data-neu] .nav-item:hover:not(.active) { box-shadow: 10px 10px 20px -3px var(--neu-lo), -8px -8px 16px -3px var(--neu-hi); }
+  :root[data-style="soft"] .nav-item { box-shadow: 8px 8px 18px var(--neu-lo), -8px -8px 18px var(--neu-hi); }
+  :root[data-style="soft"] .nav-item:hover:not(.active) { box-shadow: 10px 10px 22px var(--neu-lo), -10px -10px 22px var(--neu-hi); }
+  :root[data-style="soft"] .nav-item.active, :root[data-neu] .nav-item.active { box-shadow: var(--neu-sel-inset-sm); }
+}
+:root[data-neu] .topbar::before { box-shadow: 0 14px 26px -16px var(--neu-lo); }

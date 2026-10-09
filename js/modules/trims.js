@@ -1638,11 +1638,11 @@
   function buildViewer(st) {
     /* one row of individual raised controls aligned to the stage edges: toggles left, view actions right */
     const vbtn = (icon, label, attrs) => h('button.btn.small.tr-vbtn' + (label ? '' : '.sq'), Object.assign({ type: 'button' }, attrs), glyph(icon), label ? h('span.tr-vlabel', label) : null);
-    const autoBtn = vbtn('rot', 'Rotate', { 'aria-pressed': String(V.auto), 'data-focus': 'tr-rotate', title: 'Slowly rotate', onclick: () => V.setAuto(!V.auto) });
+    const autoBtn = vbtn('rot', null, {'aria-label': 'Rotate',  'aria-pressed': String(V.auto), 'data-focus': 'tr-rotate', title: 'Slowly rotate', onclick: () => V.setAuto(!V.auto) });
     V.onAuto = (on) => press(autoBtn, on);
     const elyBtn = vbtn('wing', 'Elytra', { 'aria-pressed': String(!!st.elytra), 'data-focus': 'tr-elytra', title: 'Wear an elytra instead of the chestplate', onclick: () => upd((s) => { s.elytra = !s.elytra; }) });
     V.onElytra = (on) => press(elyBtn, on);
-    const glintBtn = vbtn('glint', 'Glint', { 'aria-pressed': String(!!st.glint), 'data-focus': 'tr-glint', title: 'Enchantment glint on the armor', onclick: () => upd((s) => { s.glint = !s.glint; }) });
+    const glintBtn = vbtn('glint', null, {'aria-label': 'Enchantment glint',  'aria-pressed': String(!!st.glint), 'data-focus': 'tr-glint', title: 'Enchantment glint on the armor', onclick: () => upd((s) => { s.glint = !s.glint; }) });
     V.onGlint = (on) => press(glintBtn, on);
     press(autoBtn, V.auto); press(elyBtn, !!st.elytra); press(glintBtn, !!st.glint);
     const bdIco = h('span.tr-bd-cur'), bdName = h('span.tr-vlabel.tr-bdname');

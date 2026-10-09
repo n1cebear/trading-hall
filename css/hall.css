@@ -916,3 +916,30 @@ button.hl-strip-main { cursor: pointer; }
 .hl-preset-grid .hl-preset-name .th-reco { display: block; margin: 0 0 4px; }
 .hl-preset-grid > .hl-preset-item, .hl-preset-grid > .hl-own { align-items: stretch; }
 .hl-own-btn { height: 100%; align-items: center; }
+
+/* ---- stripes: same height with one or many villagers, centred; the x is quiet text (red on hover) ---- */
+.hl-card-row, .hl-card.hl-cols { align-items: center; }
+.hl-card-head, .hl-card.hl-cols { min-height: 54px; }
+.hl-card.hl-cols { padding-block: 4px; }
+.hl-vcol { gap: 0; padding: 0 4px; }
+.hl-vcol .lvl-chips { padding: 2px; }
+.hl-vcol .lvl-chips button { height: 24px; }
+.hl-vcol-bot { min-height: 14px; gap: 4px; justify-content: space-between; }
+.hl-vcol .hl-tag { height: 14px; min-height: 14px; font-size: 10px; line-height: 14px; padding: 0 2px; min-width: 30px; max-width: 54px; }
+:root:root .hl-vcol .hl-del { width: 14px; height: 14px; min-height: 0; padding: 0; border: 0; background: none !important; box-shadow: none !important; font-size: 10px; line-height: 14px; color: var(--faint); }
+:root:root .hl-vcol .hl-del:hover { color: var(--danger); }
+
+/* ---- preset tiles: tall, a big icon on top, books and counts pinned to the bottom ---- */
+.hl-preset-grid { grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); }
+.hl-preset-grid .hl-preset { display: flex; flex-direction: column; align-items: stretch; gap: 12px; padding: 18px; min-height: 100%; }
+.hl-preset-grid .hl-preset-icon { width: 60px; height: 60px; align-self: flex-start; }
+.hl-preset-grid .hl-preset-icon .mc { --mc: 40px !important; }
+.hl-preset-grid .hl-preset-main { flex: 1; display: flex; flex-direction: column; gap: 6px; }
+.hl-preset-grid .hl-preset-books { margin-top: auto; padding-top: 6px; }
+.hl-preset-grid .hl-preset-meta { margin-top: 2px; }
+.hl-preset-grid .hl-preset-check { position: absolute; top: 14px; right: 14px; }
+.hl-preset-grid .hl-preset-item { position: relative; }
+.hl-preset-grid .hl-preset { text-align: left; }
+.hl-preset-grid .is-reco .hl-preset { border-top-width: 0; }
+.hl-preset-grid .hl-own-btn { flex-direction: column; justify-content: center; text-align: center; gap: 12px; padding: 18px; }
+.hl-preset-grid .hl-own-text { align-items: center; }

@@ -364,3 +364,6 @@
 .tr-ely { display: none !important; }
 /* studio colour in every style (set live from the colour key) */
 :root .tr-stage[data-bg="studio"][style*="--tr-studio"] { background: radial-gradient(ellipse 60% 40% at 50% 92%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 70%), var(--tr-studio); }
+
+.tr-vbar { flex-wrap: wrap; row-gap: 8px; }
+.tr-vgrp { flex-wrap: wrap; }

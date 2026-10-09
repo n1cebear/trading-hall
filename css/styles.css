@@ -255,7 +255,7 @@ h1, h2, h3 { margin: 0; }
 }
 /* full-bleed band behind the bar (own layer: keeps the bar's content out of the backdrop-filter containing block) */
 .topbar::before {
-  content: ''; position: absolute; z-index: -1; inset: 0 calc(50% - 50vw);
+  content: ''; position: absolute; z-index: -1; inset: 0 calc(50% - 50vw / 0.9);
   background: color-mix(in srgb, var(--bg) 88%, transparent);
   -webkit-backdrop-filter: blur(12px) saturate(1.2); backdrop-filter: blur(12px) saturate(1.2);
 }
@@ -903,3 +903,13 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; }
 /* top nav in the Minecraft font (the page's headings font) */
 .nav-item .nav-name { font-family: var(--display); font-weight: 400; font-size: 12px; letter-spacing: .2px; }
 .nav-item .nav-name { text-transform: uppercase; letter-spacing: .6px; font-size: 11px; }
+
+/* top nav: room for its shadows (it used to scroll-clip them), a size up */
+@media (min-width: 641px) {
+  .nav { overflow: visible; }
+  .nav-item { height: 46px; padding: 0 17px; font-size: 12px; }
+  .topbar { padding-block: 16px; }
+}
+/* "Recommended!" hangs on the edge of its button like an annotation (inside a position:relative card / key) */
+.th-reco { position: absolute !important; top: -9px; right: 10px; z-index: 3; margin: 0 !important; padding: 2px 6px !important; border-radius: 3px; background: var(--neu-bg, var(--panel)) !important; box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent) !important; pointer-events: none; }
+.ec-lo { position: relative; }

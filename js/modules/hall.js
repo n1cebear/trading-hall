@@ -875,7 +875,7 @@
         },
           h('span.hl-preset-icon', { 'aria-hidden': 'true' }, o.icon),
           h('span.hl-preset-main',
-            h('b.hl-preset-name', o.reco ? TH.util.reco() : null, o.title),
+            h('b.hl-preset-name', o.title),
             h('span.hl-preset-desc', o.desc),
             s ? h('span.hl-preset-books', s.books.length ? s.books.slice(0, 6).join(' · ') + (s.books.length > 6 ? '  +' + (s.books.length - 6) : '') : 'No books') : null),
           s ? h('span.hl-preset-meta',
@@ -886,6 +886,7 @@
               profs.map(([pid]) => h('span', { title: PROF[pid] ? profName(PROF[pid]) : pid }, TH.icon.prof(pid, { size: 18 }))),
               s.profs.length > 5 ? h('small', '+' + (s.profs.length - 5)) : null)) : null,
           h('span.hl-preset-check', { 'aria-hidden': 'true' })),
+        o.reco ? TH.util.reco() : null,
         o.del ? h('button.x-btn.hl-preset-del', {
           type: 'button', title: 'Delete preset', 'aria-label': 'Delete preset ' + o.title, onclick: o.del,
         }, '✕') : null);

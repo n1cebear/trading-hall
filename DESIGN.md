@@ -203,3 +203,9 @@ Work moved from Claude Code cloud sessions to local Claude Code. State at handof
 - **Next features** (see Roadmap): Materials list (Litematica paste) is "next up"; Portal Calculator (#5) placeholder; Builds roadmap page; Block palettes (#6) undecided; Plan a build on hold.
 
 Process rules the user set: follow this file; one main colour per tool; no divider lines; no box-in-box nesting; app tooltips (not Minecraft-styled, except the Enchanting item preview); in-place updates without re-render animations on clicks; test in Classic + Pixel + Soft, dark + light, desktop + 390px; push to `main` to deploy.
+
+## Oct 2026 rework notes
+- **Hall Books step**: groups stack full width; the group head shows the items the enchants are for (`CAT_ITEMS` in hall.js), strips have no book icon and sit in two columns (`.hl-strips-2`, container >= 760px); a strip with 2+ copies spans both columns.
+- **Hall Trades step**: two sides, "Sell to villagers" (item to emeralds) and "Buy from villagers" (emeralds to item), by `dir` on catalog rows (`dirOf(trade)`; custom trades carry `dir`, old saves fall back to the catalog / group). Review mirrors both (books grouped by item, trades by side).
+- **Portal Calculator**: two-way fields (Overworld | animated portal | Nether), saved portals live inside the map panel. No box inside a panel: the sides are plain, only fields are wells.
+- **Builds**: "Example builds" preview cards (needs, steps, tip, wiki link) from `EXAMPLES` in builds.js; text summarised from Minecraft Wiki tutorials.

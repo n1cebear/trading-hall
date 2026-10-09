@@ -1032,3 +1032,5 @@ button.hl-strip-main { cursor: pointer; }
 /* one left edge for every tick: single-slot stripes (with or without an icon) line up with the multi-slot ones */
 :root:root:root .hl-card .hl-strip-main { padding-left: 22px; }
 :root:root:root .hl-card .hl-card-toggle { gap: 12px; }
+:root:root:root .hl-card .hl-strip-main { padding-left: 30px; }
+:root:root:root .hl-card.hl-cols .hl-card-toggle { padding-left: 30px; }

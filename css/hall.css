@@ -732,3 +732,38 @@ button.hl-strip-main { cursor: pointer; }
 .hl-ov-text small { font-size: 11px; color: var(--muted); }
 .hl-ov-n { font: 500 13px var(--mono); color: var(--accent); }
 .hl-ov-actions .btn:disabled { opacity: .45; cursor: not-allowed; }
+
+/* ============ Books step: item icons above, two columns of short strips (Oct 2026) ============ */
+.hl-groups-stack { display: grid; gap: 6px; }
+.hl-group-items { display: inline-flex; gap: 2px; align-items: center; }
+.hl-group-title { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; min-width: 0; }
+.hl-group-head .hl-group-count { margin-left: 2px; }
+.hl-strips-2 { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px 12px; align-items: start; }
+@container hl-groups (min-width: 760px) {
+  .hl-strips-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+.hl-strips-2 .hl-card { --lv-w: 146px; }
+.hl-strips-2 .hl-card-head { min-height: 44px; }
+.hl-strips-2 .hl-card .hl-strip-main { padding-left: 8px; }
+.hl-strips-2 .hl-card .hl-copy .hl-idx { margin-left: 0; }
+.hl-strips-2 > li:has(.hl-card.is-multi) { grid-column: 1 / -1; }
+
+/* ============ Trades step: sell / buy sides (Oct 2026) ============ */
+.hl-sides { display: grid; grid-template-columns: minmax(0, 1fr); gap: 22px 28px; align-items: start; margin-top: 12px; }
+@container hl-groups (min-width: 860px) { .hl-sides { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.hl-side, .hl-rev-side { min-width: 0; display: grid; gap: 8px; align-content: start; }
+.hl-side-head { display: flex; align-items: center; gap: 12px; min-height: 44px; flex-wrap: wrap; }
+.hl-side-head h3 { font: 400 15px var(--display); letter-spacing: .5px; color: var(--text); }
+.hl-side-head small { color: var(--muted); font-size: 12px; }
+.hl-flow { display: inline-flex; align-items: center; gap: 8px; flex: none; }
+.hl-flow-arrow { width: 22px; height: 12px; position: relative; color: var(--accent); }
+.hl-flow-arrow::before { content: ''; position: absolute; left: 0; right: 2px; top: 50%; height: 3px; margin-top: -1.5px; background: currentColor; }
+.hl-flow-arrow::after { content: ''; position: absolute; right: 0; top: 50%; width: 7px; height: 7px; margin-top: -3.5px; border-top: 3px solid currentColor; border-right: 3px solid currentColor; transform: rotate(45deg) scale(.9); transform-origin: 70% 30%; }
+.hl-side-sell { --side: var(--c-hall, var(--accent)); }
+.hl-side .hl-add-row { margin-top: 2px; }
+.hl-rev-none { margin: 0; font-size: 13px; }
+.hl-rev-ghead { position: static; background: none; backdrop-filter: none; }
+@media (max-width: 640px) { .hl-group-items { display: none; } }
+.hl-side-head { flex-wrap: nowrap; }
+.hl-side-head .hl-group-title { flex-direction: column; align-items: flex-start; gap: 1px; flex: 1; }
+.hl-side-head .hl-group-count { flex: none; }

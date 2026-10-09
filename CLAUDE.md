@@ -6,7 +6,7 @@ Static, no-build PWA of Minecraft tools (Hall planner, Enchanting, Trims, Builds
 
 ## Run / ship
 - Preview: `node tools/serve.js` (http://localhost:5173), or the `toolbox` config in `.claude/launch.json`.
-- Save a version: `powershell -File tools/push.ps1 "message"` (syntax check, bumps `sw.js` cache, commits). Add `-Push` for a major step (pushes to `main`, Pages deploys). Every commit also gets a line in the control-room artifact (https://claude.ai/artifact/AxRwKs5zWjUiopvcf8wppj); GitHub only gets major steps.
+- Save a version: `powershell -ExecutionPolicy Bypass -File tools/push.ps1 "message"` (syntax check, bumps `sw.js` cache, commits). Add `-Push` for a major step (pushes to `main`, Pages deploys). Every commit also gets a line in the control-room artifact (https://claude.ai/artifact/AxRwKs5zWjUiopvcf8wppj); GitHub only gets major steps.
 - Always bump the `sw.js` cache when changing shipped files, or installed copies keep the old version.
 
 ## Compatibility notes

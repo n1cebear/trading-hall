@@ -103,6 +103,14 @@
     { prof: 'fletcher', purpose: 'Emerald → Arrows', short: 'Arrows', item: 'item/arrow', group: 'utility', target: 1, note: 'Arrows, flint and tipped arrows.' },
   ];
 
+  /** Direction of a catalog row: what the player sells to the villager (item -> emerald) or buys from it (emerald -> item). */
+  CATALOG.forEach((c) => { c.dir = c.dir || (c.group === 'generator' ? 'sell' : 'buy'); });
+  CATALOG.splice(CATALOG.findIndex((c) => c.prof === 'armorer') + 1, 0,
+    { prof: 'armorer', purpose: 'Emerald → Diamond armor', short: 'Diamond armor', item: 'item/diamond_chestplate', group: 'blacksmith', dir: 'buy', target: 1, note: 'Master armorer: diamond armor, often enchanted.' });
+  CATALOG.find((c) => c.prof === 'armorer' && c.purpose.startsWith('Iron')).dir = 'sell';
+  /** Sell / buy side of any trade: catalog rows say it themselves, custom ones carry `dir`. */
+  const dirOf = (t) => { const c = catOf(t.prof, t.purpose); return c ? c.dir : (t.dir || (t.group === 'generator' ? 'sell' : 'buy')); };
+
   /** Catalog entry for a trade (matched by profession + purpose). */
   const tradeShort = (t) => shortOf(t.prof, t.purpose);
   const PRESET_SHORT = {};
@@ -907,6 +915,13 @@
 
   /* ---- step 2: books (strips) ---- */
 
+  /** The items an enchant category is for, shown once in the group head instead of a book icon on every strip. */
+  const CAT_ITEMS = {
+    armor: ['diamond_helmet', 'diamond_chestplate', 'diamond_leggings', 'diamond_boots'], boots: ['diamond_boots'], helmet: ['diamond_helmet'],
+    melee: ['diamond_sword', 'diamond_axe', 'diamond_spear'], mace: ['mace'], tools: ['diamond_pickaxe', 'diamond_shovel', 'diamond_axe', 'diamond_hoe'],
+    bow: ['bow'], crossbow: ['crossbow_standby'], trident: ['trident'], fishing: ['fishing_rod'], universal: ['anvil'], curse: ['item/barrier'],
+  };
+
   function stepBooks(state) {
     const hall = state.hall;
     const q = (hall.ui.search || '').trim().toLowerCase();
@@ -938,16 +953,17 @@
       const onCount = items.filter((e) => hall.books[e.id]).length;
       groups.push(groupEntry(items.length, h('section.hl-group', { 'aria-label': cat.name },
         h('div.hl-group-head',
-          h('h3', cat.name), h('small', cat.hint),
+          h('span.hl-group-items', { 'aria-hidden': 'true' }, (CAT_ITEMS[cat.id] || []).map((i) => TH.icon(i, { size: 32 }))),
+          h('span.hl-group-title', h('h3', cat.name), h('small', cat.hint)),
           onCount ? h('span.hl-group-count', onCount + ' on') : null,
           h('span.spacer'),
           selectable.length > 1 ? h('button.btn.ghost.small', {
             type: 'button', 'aria-label': (allOn ? 'Deselect all in ' : 'Select all in ') + cat.name, 'data-focus': 'catall-' + cat.id,
             onclick: () => upd((x) => selectable.forEach((e) => (allOn ? removeBook(x, e.id) : x.books[e.id] || addBook(x, e.id)))),
           }, allOn ? 'None' : 'All') : null),
-        h('ul.hl-strips', items.map((e) => bookStrip(hall, e))))));
+        h('ul.hl-strips.hl-strips-2', items.map((e) => bookStrip(hall, e))))));
     }
-    if (groups.length) out.append(groupColumns(groups));
+    if (groups.length) out.append(h('div.hl-groups.hl-groups-stack', groups.map((g) => g.el)));
     if (!shown) out.append(h('div.panel.empty', h('div.empty-icon', TH.icon('compass', { size: 36 })), 'No enchantment matches “', hall.ui.search, '”. ',
       h('button.btn.small', { type: 'button', onclick: () => upd((x) => { x.ui.search = ''; }) }, 'Clear search')));
     return out;
@@ -995,7 +1011,6 @@
       return h('li.hl-card-item', h('div.hl-strip.hl-card.is-disabled', { title: 'Librarians never sell this book' },
         cardRow('.hl-card-head', [
           h('span.hl-tick', { 'aria-hidden': 'true' }),
-          bookCover(e.id, { cls: 'hl-strip-icon' }),
           h('span.hl-strip-text', h('b', local), h('small', TH.icon('item/barrier', { size: 12 }), NOT_LIBRARIAN[e.id] || 'Not sold by librarians'))])));
     }
 
@@ -1034,7 +1049,6 @@
       },
     },
     h('span.hl-tick', { 'aria-hidden': 'true' }),
-    bookCover(e.id, { cls: 'hl-strip-icon', glint: on }),
     h('span.hl-strip-text',
       h('span.hl-card-name', h('b', local), multi ? h('span.hl-count', { title: n + ' librarians' }, '×' + n) : null),
       (sub || e.treasure || (on && !multi && stalls[0].done)) ? h('small',
@@ -1078,29 +1092,27 @@
 
   /* ---- step 3: trades (strips) ---- */
 
+  const SIDES = [
+    { id: 'sell', title: 'Sell to villagers', hint: 'Items from your farms, turned into emeralds', from: 'item/iron_ingot', to: 'item/emerald' },
+    { id: 'buy', title: 'Buy from villagers', hint: 'Spend emeralds on what you need', from: 'item/emerald', to: 'item/diamond_chestplate' },
+  ];
+
   function stepTrades(state) {
     const hall = state.hall;
-    const out = h('div.hl-books');
     const catalogKeys = new Set(CATALOG.map((c) => c.prof + '|' + c.purpose));
-    const groups = [];
-
-    for (const g of GROUPS) {
-      const cat = CATALOG.filter((c) => c.group === g.id);
-      const custom = hall.trades.filter((t) => (t.group || 'other') === g.id && !catalogKeys.has(t.prof + '|' + t.purpose));
-      const count = hall.trades.filter((t) => (t.group || 'other') === g.id).reduce((a, t) => a + t.target, 0);
-      // weight = catalog rows (+1 for the custom-trade row): adding a custom trade never reshuffles the columns
-      groups.push(groupEntry(cat.length + (g.id === 'other' ? 1 : 0), h('section.hl-group', { 'aria-label': g.name },
-        h('div.hl-group-head', h('h3', g.name), h('small', g.hint), count ? h('span.hl-group-count', plural(count, 'villager')) : null),
-        cat.length || custom.length ? h('ul.hl-strips',
-          cat.map((c) => tradeStrip(hall, c)),
-          custom.map((t) => customTradeStrip(t))) : null,
-        g.id === 'other' ? h('div.hl-add-row',
-          h('button.btn.small', { type: 'button', onclick: addCustomTrade }, '+ Custom trade'),
-          !custom.length ? h('span.hl-hint', 'Anything not in the lists above — pick a profession and describe what it’s for.') : null) : null,
-      )));
-    }
-    out.append(groupColumns(groups));
-    return out;
+    const sideEl = (sd) => {
+      const rows = CATALOG.filter((c) => c.dir === sd.id);
+      const custom = hall.trades.filter((t) => !catalogKeys.has(t.prof + '|' + t.purpose) && dirOf(t) === sd.id);
+      const count = hall.trades.filter((t) => dirOf(t) === sd.id).reduce((a, t) => a + t.target, 0);
+      return h('section.hl-side.hl-side-' + sd.id, { 'aria-label': sd.title },
+        h('div.hl-side-head',
+          h('span.hl-flow', { 'aria-hidden': 'true' }, TH.icon(sd.from, { size: 28 }), h('span.hl-flow-arrow'), TH.icon(sd.to, { size: 28 })),
+          h('span.hl-group-title', h('h3', sd.title), h('small', sd.hint)),
+          count ? h('span.hl-group-count', plural(count, 'villager')) : null),
+        h('ul.hl-strips', rows.map((c) => tradeStrip(hall, c)), custom.map((t) => customTradeStrip(t))),
+        h('div.hl-add-row', h('button.btn.small', { type: 'button', onclick: () => addCustomTrade(sd.id) }, '+ Custom trade')));
+    };
+    return h('div.hl-books', h('div.hl-groups', h('div.hl-sides', SIDES.map(sideEl))));
   }
 
   /** A category section plus its layout weight (rows), for groupColumns. */
@@ -1195,7 +1207,7 @@
       type: 'button', 'aria-pressed': String(on), 'data-focus': key, title: c.note, 'aria-label': c.purpose + (on ? ', selected' : ''),
       onclick: () => upd((x) => {
         if (on) x.trades = x.trades.filter((tr) => tr !== findTrade(x, c.prof, c.purpose));
-        else x.trades.push({ id: uid('tr'), prof: c.prof, purpose: c.purpose, target: 1, group: c.group, note: c.note });
+        else x.trades.push({ id: uid('tr'), prof: c.prof, purpose: c.purpose, target: 1, group: c.group, dir: c.dir, note: c.note });
       }),
     },
     h('span.hl-tick', { 'aria-hidden': 'true' }),
@@ -1224,7 +1236,7 @@
           h('select.field', { 'aria-label': 'Profession', 'data-focus': 'cprof-' + t.id, onchange: (e) => set((tr) => { tr.prof = e.target.value; }) },
             D.professions.filter((x) => x.id !== 'librarian').map((x) => h('option', { value: x.id, selected: x.id === t.prof }, profName(x)))),
           h('input.field.hl-custom-purpose', {
-            value: t.purpose, placeholder: 'What is it for? e.g. Glass → Emerald', 'data-focus': 'purpose-' + t.id, 'aria-label': 'Purpose',
+            value: t.purpose, placeholder: dirOf(t) === 'sell' ? 'What do you sell? e.g. Glass → Emerald' : 'What do you buy? e.g. Emerald → Bell', 'data-focus': 'purpose-' + t.id, 'aria-label': 'Purpose',
             oninput: (e) => set((tr) => { tr.purpose = e.target.value; }, { silent: true }),
             onchange: () => TH.app.render(),
           })],
@@ -1233,10 +1245,10 @@
         n > 1 ? tradeCopies(t, key, name) : null));
   }
 
-  function addCustomTrade() {
+  function addCustomTrade(dir) {
     const id = uid('tr');
     TH.app.pendingFocus = 'purpose-' + id;
-    upd((x) => { x.trades.push({ id, prof: 'farmer', purpose: '', target: 1, group: 'other', note: '' }); });
+    upd((x) => { x.trades.push({ id, prof: 'farmer', purpose: '', target: 1, group: 'other', dir: dir || 'buy', note: '' }); });
   }
 
   /* ---- step 4: review ---- */
@@ -1253,29 +1265,43 @@
           h('button.btn', { type: 'button', onclick: () => goStep(1) }, 'Choose books')));
     }
 
-    // trades grouped by profession
-    const byProf = new Map();
-    hall.trades.forEach((tr) => { const k = profOf(tr).id; if (!byProf.has(k)) byProf.set(k, []); byProf.get(k).push(tr); });
     // read-only cards (same look as the Books / Trades step cards, no controls)
-    const tradeCards = [...byProf.values()].flat().map((tr) => {
+    const tradeCard = (tr) => {
       const p = profOf(tr);
       return h('li.hl-card-item', h('div.hl-strip.hl-card.hl-strip-trade.is-ro', { style: '--pc:' + p.color },
         cardRow('.hl-card-head', [tradeIcons(p, tr.purpose, 22), h('span.hl-strip-text',
           h('span.hl-card-name', h('b', tr.purpose || profName(p)), tr.target > 1 ? h('span.hl-count', { title: tr.target + ' villagers' }, '×' + tr.target) : null),
           h('small', h('span.hl-prof-dot', profName(p)), tradeShort(tr) ? h('span', tradeShort(tr)) : null))])));
-    });
-    const bookCards = bookIds(hall).map((id) => {
+    };
+    const sideCount = (id) => hall.trades.filter((tr) => dirOf(tr) === id).reduce((a, tr) => a + tr.target, 0);
+    const sideBlock = (sd) => {
+      const list = hall.trades.filter((tr) => dirOf(tr) === sd.id);
+      return h('div.hl-rev-side',
+        h('div.hl-side-head', h('span.hl-flow', { 'aria-hidden': 'true' }, TH.icon(sd.from, { size: 24 }), h('span.hl-flow-arrow'), TH.icon(sd.to, { size: 24 })),
+          h('span.hl-group-title', h('h3', sd.title)), list.length ? h('span.hl-group-count', plural(sideCount(sd.id), 'villager')) : null),
+        list.length ? h('ul.hl-strips', list.map(tradeCard)) : h('p.muted.hl-rev-none', sd.id === 'sell' ? 'Nothing sold yet.' : 'Nothing bought yet.'));
+    };
+    const bookCard = (id) => {
       const e = ENCH[id], b = hall.books[id], n = b.stalls.length;
       const lvCount = new Map();
       b.stalls.forEach((st) => { const lv = stLv(b, st); lvCount.set(lv, (lvCount.get(lv) || 0) + 1); });
       const tags = b.stalls.map((st) => st.label).filter(Boolean);
       return h('li.hl-card-item', h('div.hl-strip.hl-card.is-on.is-ro',
-        cardRow('.hl-card-head', [bookCover(id, { size: 22, glint: true, cls: 'hl-strip-icon' }), h('span.hl-strip-text',
+        cardRow('.hl-card-head', [h('span.hl-strip-text',
           h('span.hl-card-name', h('b', enchLocal(e)), n > 1 ? h('span.hl-count', { title: n + ' librarians' }, '×' + n) : null),
           tags.length ? h('small', h('span', tags.join(' · '))) : null)],
         e.maxLevel > 1 ? h('span.hl-lvpills', [...lvCount.entries()].sort((x, y) => y[0] - x[0]).map(([lv, k]) =>
           h('span.hl-lvpill', { title: enchLabel(e, lv) + (k > 1 ? ' ×' + k : '') }, lvlText(lv), lvCount.size > 1 && k > 1 ? h('small', '×' + k) : null))) : null)));
-    });
+    };
+    // books grouped by the item they are for, like the Books step
+    const bookGroups = D.enchantCategories.map((cat) => {
+      const ids = bookIds(hall).filter((id) => ENCH[id].category === cat.id);
+      return ids.length ? h('section.hl-group', { 'aria-label': cat.name },
+        h('div.hl-group-head.hl-rev-ghead',
+          h('span.hl-group-items', { 'aria-hidden': 'true' }, (CAT_ITEMS[cat.id] || []).map((i) => TH.icon(i, { size: 28 }))),
+          h('span.hl-group-title', h('h3', cat.name))),
+        h('ul.hl-strips.hl-strips-2.hl-rev-cards', ids.map(bookCard))) : null;
+    }).filter(Boolean);
 
     return h('div.hl-review',
       // plain totals (like the sidebar) + the plan per workstation (workstation names: what you craft)
@@ -1289,11 +1315,11 @@
       h('section.panel.hl-review-card',
         h('div.hl-review-head', h('h3.section-title', 'Books'), h('span.hl-toolbar-info', libBooks(t.stalls, books.length)), h('span.spacer'),
           h('button.btn.ghost.small', { type: 'button', onclick: () => goStep(1) }, 'Edit')),
-        books.length ? h('ul.hl-strips.hl-rev-cards', bookCards) : h('p.muted', 'No books selected.')),
+        books.length ? h('div.hl-groups.hl-groups-stack', bookGroups) : h('p.muted', 'No books selected.')),
       h('section.panel.hl-review-card',
         h('div.hl-review-head', h('h3.section-title', `Other villagers (${t.trades})`), h('span.spacer'),
           h('button.btn.ghost.small', { type: 'button', onclick: () => goStep(2) }, 'Edit')),
-        tradeCards.length ? h('ul.hl-strips.hl-rev-cards', tradeCards) : h('p.muted', 'No other villagers.')),
+        hall.trades.length ? h('div.hl-groups', h('div.hl-sides', SIDES.map(sideBlock))) : h('p.muted', 'No other villagers.')),
       h('section.panel.hl-review-card.hl-review-actions',
         h('div', h('b', 'Happy with it?'), h('p.muted', 'Save it as a preset to reuse in another world, then press Finish → Hall to open your hall and arrange it.')),
         h('div.hl-row-btns',

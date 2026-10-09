@@ -317,3 +317,14 @@
 .tr-studio-color { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; border: 0; padding: 0; }
 .tr-studio::before { content: ''; position: absolute; inset: 7px; border-radius: 2px; background: var(--tr-studio-sw, var(--bg-2)); outline: 1px solid color-mix(in srgb, var(--text) 35%, transparent); }
 .tr-stage[data-bg="studio"] { --tr-studio-fill: var(--tr-studio, var(--neu-well, var(--bg-2))); }
+
+/* elytra worn: a compact elytra badge right on top of the chestplate icon (icon only; the text is in the tooltip / for screen readers) */
+.tr-ely {
+  grid-column: 1; grid-row: 1; top: 2px; left: 50%; max-width: none; transform: translateX(-50%);
+  padding: 4px; gap: 0; border-radius: var(--radius, 6px); align-self: start;
+}
+.tr-ely > span:not(.mc) { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.tr-ely .mc { --mc: 24px !important; }
+@media (max-width: 640px) { .tr-ely { grid-column: 1; left: 50%; max-width: none; } }
+.tr-ely { grid-column: auto; grid-row: auto; left: 16px; top: 12px; transform: none; align-self: auto; width: 32px; height: 32px; justify-content: center; }
+@media (max-width: 640px) { .tr-ely { grid-column: auto; left: 16px; } }

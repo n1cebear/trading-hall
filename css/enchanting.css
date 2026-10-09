@@ -641,7 +641,7 @@
 /* ================= Oct 2026 (2): picker, plan type rule, enchantment columns ================= */
 /* Type rule (DESIGN.md "Type"): names of things from the game (items, materials, enchantments, steps, books) and every
    panel heading are Monocraft (--display); sentences, hints and the numbers inside fields stay body sans. */
-.ec-plan .ec-card-head h3, .ec-plan .ec-sub-head, .ec-plan .ec-node, .ec-plan .ec-step-cost b, .ec-plan .ec-sum-item b {
+.ec-plan .ec-card-head h3, .ec-plan .ec-sub-head, .ec-plan .ec-step-cost b, .ec-plan .ec-sum-item b {
   font-family: var(--display); font-weight: 400; letter-spacing: .2px;
 }
 /* info text stays in the clean body font */
@@ -724,3 +724,15 @@
 .ec-toprow > .ec-mode button > .mc { --mc: 14px !important; }
 .ec-toprow > .ec-mode .nav-badge { display: none; }
 .ec-matkey > .mc.ec-mat-block { --mc: 26px !important; }   /* full-bleed block textures read bigger than the item icons: a touch smaller to match */
+
+/* anvil plan names read like the Hall "Total so far" list: clean bold body font, Monocraft only for headings and numbers */
+.ec-plan .ec-node { font-family: var(--font, system-ui, sans-serif); font-weight: 600; font-size: 13px; letter-spacing: 0; }
+/* pickers: smaller keys, more air between them */
+.ec-slots.tools { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; }
+.ec-slots.armor { gap: 14px; }
+.ec-picker .ec-item { min-height: 70px; padding: 8px 4px; }
+.ec-picker .ec-item .ec-item-ico { width: 32px; height: 32px; }
+.ec-picker .ec-item .ec-item-ico .mc { --mc: 32px !important; }
+.ec-slots.armor .ec-item { grid-template-columns: 32px auto; min-height: 52px; }
+.ec-picker .ec-item .ec-item-name > span { font-size: 10px; }
+@media (max-width: 760px) { .ec-slots.tools { grid-template-columns: repeat(3, minmax(0, 1fr)); } }

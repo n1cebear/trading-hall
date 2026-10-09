@@ -1080,39 +1080,46 @@
 :root[data-style="soft"][data-neu] {
   --neu-bg: #1f1f29; --neu-well: #1f1f29; --neu-row: #232330;
   --neu-lo: #1a1a23; --neu-hi: #24242f; --neu-lo-in: transparent; --neu-hi-in: transparent;
-  --neu-press: linear-gradient(145deg, #1c1c25, #21212c); --neu-out: linear-gradient(145deg, #21212c, #1c1c25);
+  --neu-press: linear-gradient(145deg, #1a1a22, #20202b); --neu-out: linear-gradient(145deg, #21212c, #1c1c25);
+  --neu-lo-dark: #10101a;
 }
 @media (prefers-color-scheme: light) {
   :root[data-style="soft"][data-neu]:not([data-theme="dark"]) {
     --neu-bg: #e4d8be; --neu-well: #e4d8be; --neu-row: #e8dcc2;
     --neu-lo: #c2b8a2; --neu-hi: #fff8db;
-    --neu-press: linear-gradient(145deg, #cdc2ab, #f4e7cb); --neu-out: linear-gradient(145deg, #f4e7cb, #cdc2ab);
+    --neu-press: linear-gradient(145deg, #c4b9a2, #f0e3c7); --neu-out: linear-gradient(145deg, #f4e7cb, #cdc2ab);
+    --neu-lo-dark: #a69c85;
   }
 }
 :root[data-style="soft"][data-neu][data-theme="light"] {
   --neu-bg: #e4d8be; --neu-well: #e4d8be; --neu-row: #e8dcc2;
   --neu-lo: #c2b8a2; --neu-hi: #fff8db; --neu-lo-in: transparent; --neu-hi-in: transparent;
-  --neu-press: linear-gradient(145deg, #cdc2ab, #f4e7cb); --neu-out: linear-gradient(145deg, #f4e7cb, #cdc2ab);
+  --neu-press: linear-gradient(145deg, #c4b9a2, #f0e3c7); --neu-out: linear-gradient(145deg, #f4e7cb, #cdc2ab);
+  --neu-lo-dark: #a69c85;
 }
 :root[data-style="soft"][data-neu] {
   --neu-r-seg: 28px; --neu-r-ctl: 12px; --neu-r-tile: 18px; --neu-r-grp: 16px;
   --neu-grad: linear-gradient(var(--neu-bg), var(--neu-bg)) border-box;
   --neu-t1:        20px 20px 60px var(--neu-lo), -20px -20px 60px var(--neu-hi);
   --neu-raised:    20px 20px 60px var(--neu-lo), -20px -20px 60px var(--neu-hi);
-  --neu-raised-sm: 7px 7px 20px var(--neu-lo), -7px -7px 20px var(--neu-hi);
-  --neu-raised-xs: 4px 4px 12px var(--neu-lo), -4px -4px 12px var(--neu-hi);
+  --neu-raised-sm: 6px 6px 18px var(--neu-lo), -6px -6px 18px var(--neu-hi);
+  --neu-raised-xs: 3px 3px 9px var(--neu-lo), -3px -3px 9px var(--neu-hi);
+  --neu-raised-2xs: 2px 2px 5px var(--neu-lo), -2px -2px 5px var(--neu-hi);
+  --neu-inset-2xs: inset 2px 2px 5px var(--neu-lo), inset -2px -2px 5px var(--neu-hi);
   --neu-t2-hover:  9px 9px 26px var(--neu-lo), -9px -9px 26px var(--neu-hi);
   --neu-t2-grp:    3px 3px 9px var(--neu-lo);
   --neu-knob:      4px 4px 10px var(--neu-lo), -2px -2px 7px var(--neu-hi);
   --neu-inset:      inset 10px 10px 27px var(--neu-lo), inset -10px -10px 27px var(--neu-hi);
   --neu-inset-deep: inset 8px 8px 22px var(--neu-lo), inset -8px -8px 22px var(--neu-hi);
-  --neu-inset-sm:   inset 6px 6px 16px var(--neu-lo), inset -6px -6px 16px var(--neu-hi);
-  --neu-inset-xs:   inset 4px 4px 11px var(--neu-lo), inset -4px -4px 11px var(--neu-hi);
+  --neu-inset-sm:   inset 5px 5px 14px var(--neu-lo), inset -5px -5px 14px var(--neu-hi);
+  --neu-inset-xs:   inset 3px 3px 9px var(--neu-lo), inset -3px -3px 9px var(--neu-hi);
   --neu-pressed-sm: var(--neu-inset-sm); --neu-pressed-xs: var(--neu-inset-xs);
-  --neu-sel-inset:    inset 8px 8px 20px -6px var(--neu-lo);
-  --neu-sel-inset-sm: inset 6px 6px 14px -4px var(--neu-lo);
-  --neu-sel-inset-xs: inset 4px 4px 10px -3px var(--neu-lo);
-  --neu-sel-press:    inset 8px 8px 18px -4px var(--neu-lo);
+  --neu-sel-lo: var(--neu-lo-dark);
+  --neu-sel-inset:    inset 9px 9px 22px -5px var(--neu-lo-dark);
+  --neu-sel-inset-sm: inset 6px 6px 15px -3px var(--neu-lo-dark);
+  --neu-sel-inset-xs: inset 4px 4px 10px -2px var(--neu-lo-dark);
+  --neu-sel-inset-2xs: inset 2px 2px 6px -1px var(--neu-lo-dark);
+  --neu-sel-press:    inset 9px 9px 20px -3px var(--neu-lo-dark);
   --neu-sel-bg: var(--neu-sel-glow-l) border-box, var(--neu-press) border-box;
   --neu-acc-raised-sm: 7px 7px 20px var(--neu-lo), -7px -7px 20px var(--neu-acc-hi);
   --neu-acc-raised-xs: 4px 4px 12px var(--neu-lo), -4px -4px 12px var(--neu-acc-hi);
@@ -1183,3 +1190,8 @@
 :root[data-style="classic"] :is(.tr-mats, .tr-saved) .tr-card-head { margin-bottom: 12px; }
 :root[data-style="classic"] .bd-filter button { min-height: 32px; }
 :root[data-style="classic"] .ec-pv-row { gap: 18px; }
+
+/* Soft: small keys get the small shadow and a tighter radius (size-aware), panels stay flat so big gradients cannot band */
+:root[data-style="soft"][data-neu] :is(.lvl-chips button, .step, .x-btn, .swatch, .hl-quick-chip, .hl-badge, .check span, .hl-tick, .ec-want):not(.on):not(:disabled) { box-shadow: var(--neu-raised-2xs); border-radius: 5px; }
+:root[data-style="soft"][data-neu] :is(.lvl-chips button, .step, .ec-want).on { box-shadow: var(--neu-sel-inset-2xs); border-radius: 5px; }
+:root[data-style="soft"][data-neu] :is(.panel, .ov-card, .tr-saved) { background: var(--neu-bg); }

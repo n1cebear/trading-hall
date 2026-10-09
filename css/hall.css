@@ -865,3 +865,6 @@ button.hl-strip-main { cursor: pointer; }
 .hl-vcol .hl-tag { max-width: 70px; min-width: 40px; padding: 0 6px; }
 .hl-vcol .hl-del { width: 22px; }
 .hl-vmore { flex: none; align-self: center; min-width: 40px; height: 30px; padding: 0 8px; border: 0; border-radius: var(--radius, 6px); cursor: pointer; font: 600 12px var(--mono); color: var(--accent); background: var(--accent-soft); }
+
+/* workbench badges: no rounding */
+.hl-trade-item, .hl-trade-ico { border-radius: 2px !important; }

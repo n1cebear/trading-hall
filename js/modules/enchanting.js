@@ -413,7 +413,7 @@ TH.anvil = (function () {
   /* ---------- saved gear ---------- */
 
   /** Armor section = the four armor pieces plus elytra and shield; everything else is Tools. Armor is listed first. */
-  const ARMOR_IDS = ['helmet', 'chestplate', 'leggings', 'boots', 'elytra', 'shield'];
+  const ARMOR_IDS = ['helmet', 'chestplate', 'leggings', 'boots', 'elytra'];
   const isArmorItem = (id) => ARMOR_IDS.includes(id);
   function armorToolSections(entries, itemOf, render, listCls) {
     const armor = entries.filter((x) => isArmorItem(itemOf(x))).sort((a, b) => ARMOR_IDS.indexOf(itemOf(a)) - ARMOR_IDS.indexOf(itemOf(b)));
@@ -492,8 +492,8 @@ TH.anvil = (function () {
   const matIcon = (m, size) => TH.icon(MAT_ICON[m] || D.materials[m].icon, { size });
 
   /** Two segments side by side: armor (helmet to boots, then shield/elytra) and tools & weapons. */
-  const HUD_ARMOR = ['helmet', 'chestplate', 'leggings', 'boots', 'shield', 'elytra'];
-  const HUD_TOOLS = ['sword', 'axe', 'pickaxe', 'shovel', 'hoe', 'spear', 'bow', 'crossbow', 'trident', 'mace', 'fishing_rod'];
+  const HUD_ARMOR = ['helmet', 'chestplate', 'leggings', 'boots', 'elytra'];
+  const HUD_TOOLS = ['sword', 'axe', 'pickaxe', 'shovel', 'hoe', 'spear', 'bow', 'crossbow', 'trident', 'mace', 'fishing_rod', 'shield'];
 
   /** Material-less name for greyed-out tiles ("Sword", "Fishing Rod"). */
   const genericName = (id) => id.split('_').map((w) => w[0].toUpperCase() + w.slice(1)).join(' ');

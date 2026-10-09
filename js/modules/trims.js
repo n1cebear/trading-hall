@@ -1816,6 +1816,12 @@
       viewer.setBd(st.backdrop);
       const tg = st.target;
       tgtBtns.forEach((b, id) => { sel(b, id === tg); b.tabIndex = id === tg ? 0 : -1; });
+      // the piece icons wear the armor material chosen in the Armor panel
+      tgtBtns.forEach((b, id) => {
+        if (id === 'all') return;
+        const am = st.outfit[id].armor;
+        if (b.dataset.am !== am) { b.dataset.am = am; b.replaceChildren(TH.icon.item(id, am, { size: 20 })); }
+      });
       // material the tile row shows: the targeted piece's, or the shared one of all trimmed pieces (none highlighted when they differ)
       const trimmed = PIECES.filter((pc) => st.outfit[pc].pattern);
       const shown = tg === 'all' ? (trimmed.length ? (trimmed.every((pc) => st.outfit[pc].material === st.outfit[trimmed[0]].material) ? st.outfit[trimmed[0]].material : null) : gm)

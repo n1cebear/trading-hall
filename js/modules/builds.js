@@ -76,11 +76,11 @@
       [{ id: 'all', name: 'All', hint: 'Every planned build' }].concat(DIMS).map((d) => h('button', {
         type: 'button', 'data-dim': d.id, 'aria-pressed': d.id === dim,
         class: d.id === dim ? 'on' : null,
-        onclick: () => { dim = d.id; apply(true); },
+        onclick: () => { dim = d.id; apply(); },
       }, d.name)));
     chips.querySelectorAll('button').forEach((b, i) => TH.util.tooltip(b, ([{ hint: 'Every planned build' }].concat(DIMS))[i].hint));
 
-    function apply(animate) {
+    function apply() {
       let n = 0;
       grid.querySelectorAll('.bd-card').forEach((c) => {
         const show = dim === 'all' || c.dataset.dim === dim;
@@ -94,14 +94,11 @@
       });
       const cur = DIMS.find((x) => x.id === dim);
       count.textContent = n + ' planned' + (cur ? ' · ' + cur.hint : '');
-      if (animate) TH.util.reveal(grid, { items: '.bd-card:not(.hidden)', step: 0.04 });
     }
-    apply(false);
+    apply();
 
     root.append(
-      h('div.page-head',
-        h('div', h('h2', 'Builds'),
-          h('p', 'Plan a build and know exactly what to gather before you place the first block.'))),
+      h('div.page-head', h('h2', 'Builds')),
       h('div.panel.soon-banner.bd-banner',
         h('div.big', TH.icon('block/crafting_table_front', { size: 48 })),
         h('div',

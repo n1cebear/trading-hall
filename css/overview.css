@@ -39,7 +39,6 @@
     linear-gradient(var(--grid-line) 1px, transparent 1px) 0 0 / 16px 16px,
     linear-gradient(90deg, var(--grid-line) 1px, transparent 1px) 0 0 / 16px 16px,
     color-mix(in srgb, var(--tc) 8%, var(--bg-2));
-  border-bottom: 1px solid var(--line);
 }
 .ov-art::after { content: ''; position: absolute; left: 50%; bottom: 20px; width: 84px; height: 12px; margin-left: -42px; border-radius: 50%; background: radial-gradient(closest-side, rgb(0 0 0 / .45), transparent); }
 .ov-icon { position: relative; z-index: 1; display: grid; filter: drop-shadow(0 6px 0 rgb(0 0 0 / .25)) drop-shadow(0 0 18px color-mix(in srgb, var(--tc) 55%, transparent)); animation: ov-float 4.5s ease-in-out infinite; animation-delay: calc(var(--i) * -1.3s); }

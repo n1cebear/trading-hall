@@ -53,6 +53,97 @@ TH.app = (function () {
       const old = a.querySelector('.nav-badge'), next = badgeEl(m.badge && m.badge(state));
       if (old && next) old.replaceWith(next); else if (old) old.remove(); else if (next) a.querySelector('.nav-name').after(next);
     });
+    fitNav();
+  }
+
+  /**
+   * Top-nav fit (desktop; phones use the bottom tab bar). Measured, not a breakpoint: #nav[data-fit] steps through
+   *   full names -> short names -> inactive tabs icon-only (active keeps its label) -> all tabs icon-only
+   *   -> 'tight' (all icon-only + the brand folds to its logo, .topbar[data-brand="compact"]; ~641-790px)
+   * and takes the widest stage whose measured width fits the room left between brand and toolbar. The width every stage
+   * needs is measured once per nav content (labels, badges, active tab, style, fonts) and cached; resizes only compare.
+   * Hysteresis: a wider stage only comes back with FIT_HYST px to spare, so the bar never flickers at a threshold.
+   */
+  const FIT = ['full', 'short', 'icons', 'all', 'tight'];
+  const FIT_HYST = 16; // extra px a wider stage needs before it comes back
+  const FIT_PAD = 12;  // breathing room every stage keeps beside the grid gaps, so the bar never looks jammed
+  const phoneMQ = matchMedia('(max-width: 640px)');
+  let fitNeed = null, fitSig = '', fitRO = null, fitBrandGain = 0;
+  const iconOnly = (a) => {
+    const f = a.parentElement && a.parentElement.dataset.fit;
+    return !phoneMQ.matches && (f === 'all' || f === 'tight' || (f === 'icons' && !a.classList.contains('active')));
+  };
+  /** What the tab's badge / "soon" tag says, for the tooltip and the aria-label of an icon-only tab. */
+  function navNote(a) {
+    const b = a.querySelector('.nav-badge');
+    if (b) {
+      const m = b.classList.contains('is-progress') && b.textContent.match(/^(\d+)\/(\d+)$/);
+      return m ? m[1] + ' of ' + m[2] + ' done' : b.textContent;
+    }
+    return a.querySelector('.nav-soon') ? 'Coming soon' : '';
+  }
+  /** App tooltip with the tab's name, shown only while the tab is icon-only. */
+  function navTip(a, m) {
+    TH.util.tooltip(a, () => {
+      if (!iconOnly(a)) return null;
+      const note = navNote(a);
+      return [h('div.th-tooltip-title', m.name), note ? h('div.th-tooltip-sub', note) : null].filter(Boolean);
+    });
+  }
+  /** Room the nav can take: the top bar's content box minus brand, toolbar and the grid / flex gaps. */
+  function navRoom(bar, nav) {
+    const cs = getComputedStyle(bar);
+    let w = bar.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight), n = 0;
+    for (const el of bar.children) {
+      const s = getComputedStyle(el);
+      if (s.display === 'none' || s.position === 'absolute' || s.position === 'fixed') continue;
+      n++;
+      w -= parseFloat(s.marginLeft) + parseFloat(s.marginRight);
+      if (el !== nav) w -= el.getBoundingClientRect().width;
+    }
+    return w - Math.max(0, n - 1) * (parseFloat(cs.columnGap) || 0);
+  }
+  function fitNav(force) {
+    const nav = document.getElementById('nav'), bar = nav && nav.closest('.topbar');
+    if (!nav || !bar || !nav.firstElementChild) return;
+    if (!fitRO && window.ResizeObserver) {
+      fitRO = new ResizeObserver(() => fitNav());
+      // not the brand: fitNav itself folds it ('tight'), observing it would re-enter at the same depth (RO loop warning)
+      [bar, bar.querySelector('.topbar-actions')].forEach((el) => el && fitRO.observe(el));
+      phoneMQ.addEventListener('change', () => fitNav(true));
+      if (document.fonts) { document.fonts.addEventListener('loadingdone', () => fitNav(true)); document.fonts.ready.then(() => fitNav(true)); }
+    }
+    if (!phoneMQ.matches) {
+      const sig = document.documentElement.dataset.style + '|' + nav.textContent + '|' + (nav.querySelector('.active') || {}).href;
+      const brand = bar.querySelector('.brand');
+      if (force || !fitNeed || sig !== fitSig) {
+        // measure every stage synchronously (no paint in between, so nothing flashes)
+        const was = nav.dataset.fit, wasB = bar.dataset.brand;
+        fitNeed = FIT.map((s) => { nav.dataset.fit = s; return nav.scrollWidth + nav.offsetWidth - nav.clientWidth; });
+        delete bar.dataset.brand;
+        const bw = brand ? brand.getBoundingClientRect().width : 0;
+        bar.dataset.brand = 'compact';
+        fitBrandGain = brand ? Math.max(0, bw - brand.getBoundingClientRect().width) : 0;
+        if (was) nav.dataset.fit = was; else delete nav.dataset.fit;
+        if (wasB) bar.dataset.brand = wasB; else delete bar.dataset.brand;
+        fitSig = sig;
+      }
+      // room next to the full brand; 'tight' also folds the brand to its logo and gains that width
+      const room = navRoom(bar, nav) - (bar.dataset.brand === 'compact' ? fitBrandGain : 0), cur = FIT.indexOf(nav.dataset.fit);
+      let pick = FIT.length - 1;
+      for (let i = 0; i < FIT.length; i++) {
+        const r = room + (FIT[i] === 'tight' ? fitBrandGain : 0);
+        if (fitNeed[i] + FIT_PAD <= r + 0.5 - (cur >= 0 && i < cur ? FIT_HYST : 0)) { pick = i; break; }
+      }
+      if (nav.dataset.fit !== FIT[pick]) nav.dataset.fit = FIT[pick];
+      if (FIT[pick] === 'tight') bar.dataset.brand = 'compact'; else delete bar.dataset.brand;
+    } else delete bar.dataset.brand;
+    // icon-only tabs keep their name for assistive tech
+    nav.querySelectorAll('.nav-item').forEach((a) => {
+      if (!iconOnly(a)) { a.removeAttribute('aria-label'); return; }
+      const name = (modules.find((m) => m.id === a.dataset.tool) || {}).name || a.textContent, note = navNote(a);
+      a.setAttribute('aria-label', note ? name + ', ' + note : name);
+    });
   }
 
   /** Background: small pixelated mob faces (cropped from entity skins) rising slowly. */
@@ -82,13 +173,16 @@ TH.app = (function () {
     document.documentElement.dataset.tool = current.id;
     nav.replaceChildren(...modules.filter((m) => !m.hidden).map((m) => {
       const badge = m.badge && m.badge(state);
-      return h('a.nav-item' + (m === current ? '.active' : ''), { href: '#/' + m.id, 'data-tool': m.id, 'aria-current': m === current ? 'page' : null },
+      const a = h('a.nav-item' + (m === current ? '.active' : ''), { href: '#/' + m.id, 'data-tool': m.id, 'aria-current': m === current ? 'page' : null },
         h('span.nav-icon', { 'aria-hidden': 'true' }, typeof m.icon === 'string' && m.icon.startsWith('mc:') ? TH.icon(m.icon.slice(3), { size: 18 }) : m.icon),
         h('span.nav-name', m.short ? [h('span.nm-full', m.name), h('span.nm-short', m.short)] : m.name),
         badgeEl(badge),
         m.soon ? h('span.nav-soon', 'soon') : null,
       );
+      navTip(a, m);
+      return a;
     }));
+    fitNav();
 
     const view = document.getElementById('view');
     // preserve scroll + focused field across re-renders of the same module
@@ -198,12 +292,60 @@ TH.app = (function () {
     syncThemeBtn();
   }
 
-  /** Visual style: "classic" (default) or "soft" (neumorphism, css/style-neu.css). Persisted in settings.style. */
+  /**
+   * Visual style, persisted in settings.style:
+   *   "classic" = blocky inventory (default) | "pixel" = Minecraft neumorphism | "soft" = smooth neumorphism.
+   * <html data-style> carries the value; both neumorphic styles also get the boolean data-neu attribute, which scopes the
+   * shared tier system in css/style-neu.css. Old saves are migrated once in store.js (styleV). Unknown values = classic.
+   */
+  const STYLES = ['classic', 'pixel', 'soft'];
+  const styleOf = (v) => (STYLES.includes(v) ? v : 'classic');
   function applyStyle() {
-    const soft = TH.store.get().settings.style === 'soft';
-    document.documentElement.dataset.style = soft ? 'soft' : 'classic';
-    const l = document.getElementById('styleLabel');
-    if (l) l.textContent = 'Style: ' + (soft ? 'Soft' : 'Classic');
+    const s = styleOf(TH.store.get().settings.style);
+    const root = document.documentElement;
+    root.dataset.style = s;
+    if (s === 'classic') delete root.dataset.neu; else root.dataset.neu = '';
+    document.querySelectorAll('#styleSeg [data-style-key]').forEach((b) => {
+      const on = b.dataset.styleKey === s;
+      b.classList.toggle('on', on);
+      b.setAttribute('aria-checked', String(on));
+    });
+    fitNav(); // nav tab metrics differ per style
+  }
+
+  /** ⋯ menu style switcher: 3 keys (radio semantics), applies instantly and keeps the menu open so styles can be compared. */
+  function initStyleSeg() {
+    const seg = document.getElementById('styleSeg');
+    if (!seg) return;
+    const keys = [...seg.querySelectorAll('[data-style-key]')];
+    const tips = {
+      classic: ['Classic', 'Blocky inventory'],
+      pixel: ['Pixel', 'Minecraft neumorphism: pixel bevels, stepped shadows'],
+      soft: ['Soft', 'Smooth neumorphism: soft blurred light, no pixel bevels'],
+    };
+    const pick = (key) => {
+      if (styleOf(TH.store.get().settings.style) !== key) TH.store.update((st) => { st.settings.style = key; }, { silent: true });
+      applyStyle();
+    };
+    keys.forEach((b) => {
+      const [t, sub] = tips[b.dataset.styleKey];
+      TH.util.tooltip(b, () => [TH.util.h('div.th-tooltip-title', t), TH.util.h('div.th-tooltip-sub', sub)]);
+    });
+    seg.addEventListener('click', (e) => {
+      e.stopPropagation(); // the document click handler would close the menu
+      const b = e.target.closest('[data-style-key]');
+      if (b) pick(b.dataset.styleKey);
+    });
+    seg.addEventListener('keydown', (e) => {
+      const i = keys.indexOf(document.activeElement);
+      if (i < 0) return;
+      const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
+      const j = step ? (i + step + keys.length) % keys.length : e.key === 'Home' ? 0 : e.key === 'End' ? keys.length - 1 : -1;
+      if (j < 0) return;
+      e.preventDefault();
+      keys[j].focus();
+      pick(keys[j].dataset.styleKey);
+    });
   }
 
   /** Top-right ⋯ menu: backup export/import, style toggle and reset. */
@@ -218,13 +360,12 @@ TH.app = (function () {
     btn.addEventListener('click', (e) => { e.stopPropagation(); toggle(menu.classList.contains('hidden')); });
     document.addEventListener('click', () => toggle(false));
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape') toggle(false); });
+    // the style keys keep the menu open on purpose; leaving the page (link, back button, keyboard) still closes it
+    window.addEventListener('hashchange', () => toggle(false));
     menu.addEventListener('click', (e) => {
       const act = e.target.closest('[data-act]')?.dataset.act;
       if (act === 'export') {
-        TH.util.download(`trading-hall-${new Date().toISOString().slice(0, 10)}.json`, TH.store.exportJSON());
-      } else if (act === 'style') {
-        TH.store.update((st) => { st.settings.style = st.settings.style === 'soft' ? 'classic' : 'soft'; }, { silent: true });
-        applyStyle();
+        TH.util.download(`toolbox-${new Date().toISOString().slice(0, 10)}.json`, TH.store.exportJSON());
       } else if (act === 'import') {
         file.click();
       } else if (act === 'reset' && confirm('Erase all progress, prices, gear and presets? This cannot be undone.')) {
@@ -256,6 +397,7 @@ TH.app = (function () {
       applyTheme();
     });
     initMenu();
+    initStyleSeg();
     initLang();
     initSaveState();
     initOffline();

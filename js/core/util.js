@@ -195,5 +195,166 @@ TH.util = (function () {
     tooltip(el, label || 'Recommended');
     return el;
   }
-  return { h, append, reco, roman, clamp, uid, debounce, toast, emerald, stepper, ring, download, reveal, tooltip };
+  /**
+   * Scroll edge shadows (CSS: styles.css "scroll edge shadows"). Keep SCROLL_Y / SCROLL_X in sync with the CSS lists.
+   * Always: every container gets its computed padding (--sc-pt/-pr/-pb/-pl) and gap along its axis (--sc-gap) as inline
+   * custom properties: sticky offsets are measured inside the scroller's padding, and padding / gap differ per style and
+   * breakpoint (e.g. .panel in Pixel/Soft), so CSS cannot hard-code them.
+   * Attribute path (fallback): when animation-timeline is unsupported (Firefox) or reduced motion is on (module rules
+   * switch pseudo animations off; the shade is state, not motion) it sets :root[data-sc-js] (which turns the timeline
+   * animations off, so the two paths never double up) and toggles [data-sc-start] / [data-sc-end] from passive scroll
+   * listeners. A ResizeObserver per container, a MutationObserver on <body> (containers rendered later by modules,
+   * menus, dialogs; class / hidden / open changes) and one on <html> (style / theme switches) keep both up to date.
+   * TH.util.scrollEdges.force(true | false | null) forces the fallback on / off / back to auto (debugging).
+   */
+  const SCROLL_Y = '.th-scroll, .tr-grid, .hl-next-panel, .hl-wiz-side, .hl-cb-list, .hc-help, .lang-list, .ec-side, .hl-detail';
+  const SCROLL_X = '.th-scroll-x, .hl-quick, .hc-bar, .ec-mats';
+  const scrollEdges = (function () {
+    const root = document.documentElement;
+    const native = !!(window.CSS && CSS.supports && CSS.supports('animation-timeline: scroll()'));
+    const rm = window.matchMedia ? matchMedia('(prefers-reduced-motion: reduce)') : null;
+    const els = new Set();
+    let forced = null, on = false, raf = 0;
+    const setAttr = (el, name, v) => { if (el.hasAttribute(name) !== v) el.toggleAttribute(name, v); };
+    const setVar = (el, name, v) => { if (el.style.getPropertyValue(name) !== v) el.style.setProperty(name, v); };
+    function edges(el) {
+      let start = false, end = false;
+      if (on) {
+        const x = el.__scX, cs = getComputedStyle(el), ov = x ? cs.overflowX : cs.overflowY;
+        if (ov === 'auto' || ov === 'scroll') {
+          const pos = Math.abs(x ? el.scrollLeft : el.scrollTop);
+          const max = x ? el.scrollWidth - el.clientWidth : el.scrollHeight - el.clientHeight;
+          start = max > 1 && pos > 1; end = max > 1 && pos < max - 1;
+        }
+      }
+      setAttr(el, 'data-sc-start', start); setAttr(el, 'data-sc-end', end);
+    }
+    function measure(el) {
+      const cs = getComputedStyle(el), flow = /flex|grid/.test(cs.display);
+      setVar(el, '--sc-pt', cs.paddingTop); setVar(el, '--sc-pr', cs.paddingRight);
+      setVar(el, '--sc-pb', cs.paddingBottom); setVar(el, '--sc-pl', cs.paddingLeft);
+      const gap = flow ? (el.__scX ? cs.columnGap : cs.rowGap) : '0px';
+      setVar(el, '--sc-gap', gap === 'normal' ? '0px' : gap);
+      edges(el);
+    }
+    const onScroll = (e) => { if (on) edges(e.currentTarget); };
+    const ro = window.ResizeObserver ? new ResizeObserver((list) => list.forEach((en) => measure(en.target))) : null;
+    function attach(el, x) {
+      if (els.has(el)) return;
+      el.__scX = x; els.add(el);
+      el.addEventListener('scroll', onScroll, { passive: true });
+      if (ro) ro.observe(el);
+    }
+    function detach(el) {
+      els.delete(el);
+      el.removeEventListener('scroll', onScroll);
+      if (ro) ro.unobserve(el);
+    }
+    function scan() {
+      raf = 0;
+      els.forEach((el) => { if (!el.isConnected) detach(el); });
+      document.querySelectorAll(SCROLL_Y).forEach((el) => attach(el, false));
+      document.querySelectorAll(SCROLL_X).forEach((el) => attach(el, true));
+      els.forEach(measure); // content / padding may have changed without the container resizing
+    }
+    const queue = () => { if (!raf) raf = requestAnimationFrame(scan); };
+    function update() {
+      const want = forced != null ? forced : (!native || !!(rm && rm.matches));
+      if (want !== on) { on = want; root.toggleAttribute('data-sc-js', on); }
+      scan();
+    }
+    function start() {
+      new MutationObserver(queue).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'hidden', 'open'] });
+      new MutationObserver(queue).observe(root, { attributes: true, attributeFilter: ['data-style', 'data-theme', 'data-neu'] });
+      window.addEventListener('resize', queue, { passive: true });
+      if (rm) { if (rm.addEventListener) rm.addEventListener('change', update); else if (rm.addListener) rm.addListener(update); }
+      update();
+    }
+    if (document.body) start(); else document.addEventListener('DOMContentLoaded', start);
+    return {
+      refresh: scan,
+      force: (v) => { forced = v == null ? null : !!v; update(); },
+      get active() { return on; },
+    };
+  })();
+
+  /**
+   * Sliding knob for every one-of-N segmented toggle (`.seg`, DESIGN.md "Surface tiers" rule 3b). No module JS needed:
+   * a MutationObserver on <body> sees `.on` / aria-checked / aria-pressed changes on a seg's keys and segs added by
+   * re-renders; a ResizeObserver per seg (and style / font changes) re-places the knob without motion.
+   * Writes on the seg: data-knob = "on" (slides) | "still" (placed without a transition) | "none" (no active key), and
+   * --seg-x / --seg-y / --seg-w / --seg-h = the active key's box (offsetLeft/Top/Width/Height inside the seg). The knob is the
+   * seg's ::before (styles.css, style-neu.css); the keys sit above it. First paint never slides; a seg that a module
+   * re-rendered (new element, same aria-label / aria-labelledby / id) slides from the last known position when the
+   * selection changed. Reduced motion: CSS drops the transition. TH.util.segKnob.refresh() re-places every seg.
+   */
+  const segKnob = (function () {
+    const ACTIVE = ':scope > .on, :scope > [aria-checked="true"], :scope > [aria-pressed="true"]';
+    const last = new Map();       // seg key -> { i, n, x, y, w, h } (survives re-renders)
+    const known = new WeakMap();  // seg element -> last placed geometry
+    const watched = new Set();
+    const keyOf = (s) => s.id || s.getAttribute('aria-label') || s.getAttribute('aria-labelledby') || s.className;
+    const ro = window.ResizeObserver ? new ResizeObserver((list) => list.forEach((en) => place(en.target, false))) : null;
+    function setGeo(s, g) {
+      s.style.setProperty('--seg-x', g.x + 'px'); s.style.setProperty('--seg-y', g.y + 'px');
+      s.style.setProperty('--seg-w', g.w + 'px'); s.style.setProperty('--seg-h', g.h + 'px');
+    }
+    const settle = (s) => { s.offsetWidth; getComputedStyle(s, '::before').transform; }; // commit the start position
+    function place(s, animate) {
+      if (!s.isConnected) return;
+      if (ro && !watched.has(s)) { watched.add(s); ro.observe(s); }
+      const keys = [...s.children].filter((c) => c.tagName === 'BUTTON' || /radio/.test(c.getAttribute('role') || ''));
+      const act = s.querySelector(ACTIVE);
+      if (!act) { s.dataset.knob = 'none'; known.delete(s); return; }
+      if (!act.offsetWidth) return; // hidden (closed menu, display:none): the ResizeObserver places it once it shows
+      const g = { i: keys.indexOf(act), n: keys.length, x: act.offsetLeft, y: act.offsetTop, w: act.offsetWidth, h: act.offsetHeight };
+      const prev = known.get(s), k = keyOf(s);
+      if (prev) {
+        // a changed selection always slides; anything else (resize, style switch) only re-targets: a running slide keeps
+        // going to the new box, a resting knob jumps ("on" falls back to "still" on transitionend)
+        if (prev.i !== g.i) { if (s.dataset.knob !== 'on') { s.dataset.knob = 'still'; settle(s); } s.dataset.knob = 'on'; }
+        else if (s.dataset.knob !== 'on') s.dataset.knob = 'still';
+        setGeo(s, g);
+      } else {
+        if (!s.__segEnd) { s.__segEnd = true; s.addEventListener('transitionend', (e) => { if (e.pseudoElement === '::before' && e.propertyName === 'transform' && s.dataset.knob === 'on') s.dataset.knob = 'still'; }); }
+        const from = last.get(k);
+        s.dataset.knob = 'still';
+        if (animate && from && from.i !== g.i && from.n === g.n) { setGeo(s, from); settle(s); s.dataset.knob = 'on'; }
+        setGeo(s, g);
+      }
+      known.set(s, g); last.set(k, g);
+    }
+    function all(animate) { document.querySelectorAll('.seg').forEach((s) => place(s, animate)); }
+    function onMutate(records) {
+      const todo = new Map(); // seg -> animate
+      const add = (s, a) => { if (s && !(todo.get(s))) todo.set(s, a); };
+      for (const r of records) {
+        const t = r.target;
+        if (r.type === 'attributes') {
+          if (t.parentElement && t.parentElement.classList.contains('seg')) add(t.parentElement, true);
+          else if (t.classList && t.classList.contains('seg')) add(t, false);
+          else if (r.attributeName === 'class' && t.querySelectorAll) t.querySelectorAll('.seg').forEach((s) => add(s, false)); // e.g. a menu un-hidden
+        } else {
+          if (t.classList && t.classList.contains('seg')) add(t, true);
+          r.addedNodes.forEach((n) => {
+            if (n.nodeType !== 1) return;
+            if (n.classList.contains('seg')) add(n, true);
+            n.querySelectorAll('.seg').forEach((s) => add(s, true));
+          });
+        }
+      }
+      watched.forEach((s) => { if (!s.isConnected) { watched.delete(s); if (ro) ro.unobserve(s); } });
+      todo.forEach((a, s) => place(s, a));
+    }
+    function start() {
+      new MutationObserver(onMutate).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'aria-checked', 'aria-pressed'] });
+      new MutationObserver(() => all(false)).observe(document.documentElement, { attributes: true, attributeFilter: ['data-style', 'data-theme', 'data-neu'] });
+      if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => all(false));
+      all(false);
+    }
+    if (document.body) start(); else document.addEventListener('DOMContentLoaded', start);
+    return { refresh: () => all(false) };
+  })();
+
+  return { h, append, reco, roman, clamp, uid, debounce, toast, emerald, stepper, ring, download, reveal, tooltip, scrollEdges, segKnob };
 })();

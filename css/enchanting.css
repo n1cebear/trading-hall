@@ -5,9 +5,23 @@
 /* emerald next to numbers: real square icon, centred on the digits */
 .module-enchanting .mc.emerald { width: var(--mc); height: var(--mc); margin-top: 0; }
 
-.ec-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(320px, 390px); gap: var(--ec-gap); align-items: start; }
-.ec-main { display: flex; flex-direction: column; gap: var(--ec-gap); min-width: 0; }
-.ec-side { position: sticky; top: 76px; min-width: 0; max-height: calc(100vh - 92px); overflow-y: auto; border-radius: var(--radius); }
+/* Two columns that END on the same line: the left column spans both rows, the right one is [mode switch / Anvil plan].
+   Both stretch to the row; the sidebar is capped at the viewport (sticky + its own scroll) and the Anvil plan panel
+   fills it, so its bottom meets the viewport while scrolling and the left column's bottom at the end (sticky stays inside
+   its grid area). If the plan is the taller one, the Enchantments panel (last left box) grows to match. */
+.ec-layout {
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(320px, 390px); grid-template-rows: auto 1fr;
+  grid-template-areas: "main mode" "main side"; gap: var(--ec-gap); align-items: stretch;
+}
+.ec-mode-row { grid-area: mode; display: flex; justify-content: center; min-width: 0; }
+.ec-main { grid-area: main; display: flex; flex-direction: column; gap: var(--ec-gap); min-width: 0; }
+.ec-main > .panel:last-child { flex: 1 0 auto; }
+.ec-side {
+  grid-area: side; position: sticky; top: 85px; min-width: 0; max-height: calc(100vh - 101px);   /* 69px top bar + 16px gap (16px left below too) */
+  display: flex; flex-direction: column; overflow-y: auto; border-radius: var(--radius);
+}
+.ec-side > .ec-plan { flex: 1 0 auto; }
+.ec-plan > .ec-actions { margin-top: auto; }   /* extra height collects above the name field + action row, which rest at the bottom */
 
 .ec-card { padding: 14px 16px 16px; min-width: 0; }
 .ec-card-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; min-width: 0; }
@@ -28,7 +42,7 @@
 .ec-section-head .faint { font-size: 12px; }
 .ec-gear-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 8px; }
 .ec-gear-card { display: flex; align-items: center; gap: 4px; padding: 4px 6px 4px 4px; min-width: 0; transition: border-color .15s; }
-.ec-gear-card.active { border-color: var(--accent); background: linear-gradient(160deg, var(--accent-soft), var(--panel) 75%); box-shadow: 0 0 0 1px var(--accent), var(--shadow); }
+.ec-gear-card.active { border-color: var(--sel-edge); background: linear-gradient(160deg, var(--accent-soft), var(--panel) 75%); box-shadow: var(--sel-slot); }   /* pressed-in slot, styles.css */
 .ec-gear-card.editing { padding: 8px; gap: 8px; }
 .ec-gear-main { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; padding: 6px; border: 0; background: transparent; border-radius: 4px; cursor: pointer; text-align: left; }
 .ec-gear-main:hover { background: var(--panel-2); }
@@ -36,49 +50,110 @@
 .ec-gear-text b, .ec-gear-text span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ec-gear-text span { font-size: 12px; }
 .ec-gear-actions { display: flex; flex-direction: column; gap: 2px; }
-.ec-rename { display: flex; gap: 6px; flex: 1; min-width: 0; flex-wrap: wrap; }
-.ec-rename .field { flex: 1 1 120px; }
 
 /* ---------- 1. material, then item ---------- */
-.ec-mats { display: flex; flex-wrap: nowrap; gap: 4px; padding: 4px; margin-bottom: 8px; border-radius: 4px; background: var(--bg-2); overflow-x: auto; }
+/* Material bar = "sunken bar, active flush" (DESIGN.md, Controls): ONE continuous sunken well, keys edge to edge (no gaps,
+   no dividers: every join is read from light and shadow only). Inactive keys sit on the well floor, each with its own inset
+   (dark inner edge top-left, faint light bottom-right). The chosen key rises exactly to the panel surface: flush, never
+   proud of it (no drop shadow), its top-left edge catches only a faint hairline of light, and it casts a shadow onto the
+   sunken key to its right (--mk-cast). Its label + icon glow in the accent (light only, never in a shadow).
+   FLUSH = SEE-THROUGH: the well itself is transparent and every INACTIVE key paints the floor (--mk-floor-bg); the chosen
+   key paints nothing, so what fills it is the panel's own surface at exactly that spot (gradient in panel coordinates, any
+   style/theme, any tint in between). A key that paints its own copy of the surface restarts the panel gradient over its
+   small box and never matches. The recipe lives in --mk-* tokens: Classic below, Pixel (crisp zero-blur steps) and Soft
+   (blurred, rule 9) re-point them in style-neu.css. */
+.ec-mats {
+  --mk-r: 4px;                                                                                   /* outer radius of the well */
+  --mk-bw: 1px;                                                                                  /* well border (Classic slot) */
+  --mk-floor-bg: var(--bg-2);                                                                    /* the well floor, painted by the inactive keys */
+  --mk-floor: inset 2px 2px 0 var(--edge-lo), inset -1px -1px 0 var(--edge-hi);                  /* sunken key */
+  --mk-floor-hover: inset 1px 1px 0 var(--edge-lo), inset -1px -1px 0 var(--edge-hi);            /* lifts toward the surface */
+  --mk-floor-press: inset 3px 3px 0 var(--edge-lo), inset -1px -1px 0 var(--edge-hi);            /* a hair deeper */
+  --mk-flush: inset 1px 1px 0 color-mix(in srgb, var(--edge-hi) 45%, transparent);              /* chosen: faint lit top-left hairline */
+  --mk-cast: inset 4px 0 0 color-mix(in srgb, var(--edge-lo) 55%, transparent);                 /* chosen key's shadow on its right neighbour */
+  --mk-surface: transparent;                                                                     /* chosen: the panel shows through (see above) */
+  --mk-hover-bg: color-mix(in srgb, var(--panel) 45%, var(--mk-floor-bg));
+  --mk-glow: color-mix(in srgb, var(--accent) 60%, transparent);
+  display: flex; flex-wrap: nowrap; gap: 0; padding: 0; margin: 0; overflow-x: auto; overflow-y: hidden; scrollbar-width: thin;
+  border: var(--mk-bw) solid var(--line); border-radius: var(--mk-r); background: transparent; box-shadow: none;
+}
+/* the bar fills the Material box; keys carry the same 32px icons as the Armor / Tools tiles */
 .ec-mat {
-  flex: 1 0 40px; display: grid; place-items: center; min-width: 40px; height: 40px; padding: 0; border-radius: 3px;
-  border: 1px solid transparent; background: transparent; cursor: pointer; color: var(--muted);
-  transition: background .12s, color .12s, border-color .12s;
+  --mk-cast-l: 0 0 transparent;
+  flex: 1 1 0; min-width: 52px; min-height: 56px; padding: 5px 2px 4px; margin: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  border: 0; border-radius: 0; background: var(--mk-floor-bg); color: var(--muted); cursor: pointer;
+  box-shadow: var(--mk-cast-l), var(--mk-floor);
+  transition: background-color .12s, box-shadow .12s, color .12s;
 }
-.ec-mat .mc { opacity: .75; transition: opacity .12s, transform .12s; }
-.ec-mat:hover { color: var(--text); background: var(--panel-2); }
-.ec-mat:hover .mc { opacity: 1; transform: translateY(-1px); }
-.ec-mat.on {
-  color: var(--text); background: var(--accent-soft); border-color: var(--accent);
-  box-shadow: inset 1px 1px 0 var(--edge-hi), 0 2px 0 var(--edge-lo), 0 0 12px -5px var(--accent);
+.ec-mat:first-child { border-radius: calc(var(--mk-r) - var(--mk-bw)) 0 0 calc(var(--mk-r) - var(--mk-bw)); }
+.ec-mat:last-child { border-radius: 0 calc(var(--mk-r) - var(--mk-bw)) calc(var(--mk-r) - var(--mk-bw)) 0; }
+.ec-mat .mc { opacity: .72; transition: opacity .12s, filter .12s; }
+.ec-mat-name { display: block; max-width: 100%; font-size: 10px; line-height: 1.1; letter-spacing: .1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ec-mat.on + .ec-mat { --mk-cast-l: var(--mk-cast); }
+.ec-mat:hover:not(.on) { color: var(--text); background: var(--mk-hover-bg); box-shadow: var(--mk-cast-l), var(--mk-floor-hover); }
+.ec-mat:hover:not(.on) .mc { opacity: .95; }
+.ec-mat:active:not(.on) { background: var(--mk-floor-bg); box-shadow: var(--mk-cast-l), var(--mk-floor-press); }
+.ec-mat.on { color: var(--text); background: var(--mk-surface); box-shadow: var(--mk-flush); }
+.ec-mat.on .mc { opacity: 1; filter: drop-shadow(0 0 5px var(--mk-glow)); }
+.ec-mat.on .ec-mat-name { color: var(--accent); font-weight: 600; text-shadow: 0 0 8px var(--mk-glow); }
+.ec-mat:focus-visible { outline: 2px solid var(--accent); outline-offset: -3px; }
+/* narrow Material box (phones, the two-column squeeze): two runs of five inside the same well (the second run's floor
+   inset is the join). The box is a size container (.ec-picker). */
+@container (max-width: 559px) {
+  .ec-mats { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); overflow: hidden; }
+  .ec-mats::before, .ec-mats::after { content: none; }   /* nothing scrolls here: no scroll-edge shades (they'd take grid cells) */
+  .ec-mat { min-width: 0; }
+  .ec-mat:nth-child(5n+1) { --mk-cast-l: 0 0 transparent; }
+  .ec-mat:first-child { border-radius: calc(var(--mk-r) - var(--mk-bw)) 0 0 0; }
+  .ec-mat:nth-child(5) { border-radius: 0 calc(var(--mk-r) - var(--mk-bw)) 0 0; }
+  .ec-mat:nth-child(6) { border-radius: 0 0 0 calc(var(--mk-r) - var(--mk-bw)); }
+  .ec-mat:last-child { border-radius: 0 0 calc(var(--mk-r) - var(--mk-bw)) 0; }
 }
-.ec-mat.on .mc { opacity: 1; filter: drop-shadow(0 0 6px color-mix(in srgb, var(--accent) 55%, transparent)); }
 .ec-mat-line { display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 10px; margin: 0 2px 14px; min-height: 18px; font-size: 13px; }
 .ec-mat-line b { font-weight: 600; }
 
 .ec-group-name { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; margin: 0 2px 7px; }
 .ec-group-name > span:first-child { font: 400 12px var(--display); text-transform: uppercase; letter-spacing: 1px; color: var(--muted); }
 .ec-mat-hint { font-size: 12px; color: var(--faint); }
-.ec-indep { margin-top: 16px; padding-top: 12px; border-top: 1px dashed var(--line-2); }
+.ec-indep { margin-top: 22px; }
 
-/* picker: armor row on top, tools & weapons (2 x 8) underneath */
-.ec-segs { display: flex; flex-direction: column; gap: 18px; }
-.ec-seg { min-width: 0; }
-.ec-seg .ec-group-name { margin-bottom: 8px; }
+/* LABEL-LEFT ROWS (DESIGN.md, Layout): every grouped row in a picker panel is [eyebrow label | buttons]. The label column
+   has ONE fixed width (--ec-lbl-w) so all rows' buttons start on the same line; the label is centred on the FIRST line of
+   buttons (--ec-row-h = one line's height; the buttons may wrap below it). The panel is a size container: when the
+   button column would drop under ~480px (the material bar's ten keys) the label goes back above its row (phones too). */
+.ec-rowbox { container-type: inline-size; --ec-lbl-w: 84px; --ec-lbl-gap: 14px; --ec-tile-h: 78px; --ec-tile-min: 66px; }
+.ec-rows { display: flex; flex-direction: column; gap: 16px; }
+.ec-row { display: grid; grid-template-columns: var(--ec-lbl-w) minmax(0, 1fr); align-items: start; gap: 8px var(--ec-lbl-gap); min-width: 0; }
+.ec-row-label {
+  display: flex; align-items: center; min-height: var(--ec-row-h, 0px); margin: 0 0 0 2px; min-width: 0;
+  font: 400 12px/1.35 var(--display); text-transform: uppercase; letter-spacing: 1px; color: var(--muted);
+}
+.ec-loadouts.ec-row { display: grid; gap: 8px var(--ec-lbl-gap); --ec-row-h: 31px; }   /* one line of .btn.small presets */
+@container (max-width: 599px) {
+  .ec-row { grid-template-columns: minmax(0, 1fr); }
+  .ec-row-label { min-height: 0; align-self: start; }
+}
+/* ITEM PICKER: three separate segments (Material / Armor / Tools & weapons), each a .panel with a top-left eyebrow
+   heading (same eyebrow as PRESETS). Tiles: one uniform height, 32px icons everywhere (material keys too). Column
+   counts are chosen per box width so rows stay full: Tools (16 items) 8 per row = two rows on desktop, 4 per row below
+   ~560px of box width; Armor (6) one row of 6, 3 + 3 below that. */
+.ec-picker { container-type: inline-size; --ec-tile-h: 78px; padding-top: 12px; }
+.ec-pick-label { margin: 0 0 10px 2px; font: 400 12px/1.35 var(--display); text-transform: uppercase; letter-spacing: 1px; color: var(--muted); }
 .ec-slots { display: grid; gap: 6px; }
 .ec-slots.armor { grid-template-columns: repeat(6, minmax(0, 1fr)); }
-.ec-slots.grid { grid-template-columns: repeat(8, minmax(0, 1fr)); }
-@media (max-width: 760px) {
+.ec-slots.tools { grid-template-columns: repeat(8, minmax(0, 1fr)); }
+@container (max-width: 559px) {
   .ec-slots.armor { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .ec-slots.grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .ec-slots.tools { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
-@media (max-width: 420px) {
-  .ec-slots.grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-}
+.ec-picker .ec-item { grid-template-rows: 32px 2.4em; row-gap: 4px; min-height: var(--ec-tile-h); padding: 6px 4px; font-size: 11px; }
+.ec-picker .ec-item .ec-item-ico { width: 32px; height: 32px; }
+.ec-picker .ec-item.has-since { row-gap: 2px; padding: 2px 4px 13px; min-height: var(--ec-tile-h); }
 /* Minecraft tooltip preview: dark in both themes, it is an in-game artefact.
    Real MC is an 8px grid at 2x: 16px Monocraft, 20px lines, 6px 8px padding, shadow = colour at 25% brightness. */
-.ec-preview { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; margin-bottom: var(--ec-gap); padding: 18px 14px; }
+.ec-pv-sec { display: flex; flex-direction: column; gap: 8px; min-width: 0; }   /* first section of the Anvil plan panel */
+.ec-preview { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; margin: 0; padding: 6px 0 2px; }
 .ec-pv-row { display: flex; align-items: center; justify-content: center; gap: 14px; flex-wrap: wrap; max-width: 100%; }
 .mct-slot { display: grid; place-items: center; width: 52px; height: 52px; flex-shrink: 0; background: #8b8b8b; border: 2px solid; border-color: #373737 #fff #fff #373737; }
 .mct {
@@ -112,9 +187,9 @@
 .ec-item:hover { border-color: var(--line-2); color: var(--text); }
 .ec-item:hover .mc { transform: translateY(-2px); }
 .ec-item.on {
-  color: var(--text); border-color: var(--accent); font-weight: 600;
+  color: var(--text); border-color: var(--sel-edge); font-weight: 600;
   background: linear-gradient(160deg, var(--accent-soft), var(--panel-2) 85%);
-  box-shadow: 0 0 0 1px var(--accent) inset, 0 0 16px -6px var(--accent);
+  box-shadow: var(--sel-slot);
 }
 .ec-item.has-since { padding-bottom: 17px; min-height: 90px; }
 .ec-new { position: absolute; bottom: 3px; right: 3px; font: 400 8px/1.4 var(--mono); padding: 0 3px; border-radius: 2px; background: var(--accent-soft); color: var(--accent); }
@@ -129,7 +204,7 @@
 .ec-pen.warn b { color: var(--danger); }
 
 /* "It already has enchantments": a compact toggle row; the strips below match the main enchant list */
-.module-enchanting { --ec-on-bg: color-mix(in srgb, var(--accent-soft), var(--accent) 9%); --ec-on-bar: inset 4px 0 0 var(--accent); }
+.module-enchanting { --ec-on-bg: color-mix(in srgb, var(--accent-soft), var(--accent) 9%); --ec-on-bar: var(--sel-slot); }   /* selected strip = pressed-in slot: dark top-left, accent bottom-right (not a left bar: left is the shadow side) */
 .ec-toggle { display: flex; align-items: center; gap: 10px; cursor: pointer; font-weight: 500; min-height: 26px; }
 .ec-toggle-text { color: var(--muted); }
 .ec-toggle:has(input:checked) .ec-toggle-text { color: var(--text); font-weight: 600; }
@@ -144,7 +219,7 @@
 .lvl-chips.ec-lv button { min-width: 30px; height: 26px; }
 .lvl-chips.ec-lv button:hover:not(.on) { color: var(--text); border-color: var(--muted); }
 /* a picked level is a selection (violet stays for enchanted results) */
-.lvl-chips.ec-lv button.on { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); box-shadow: inset 1px 1px 0 var(--edge-hi), 0 0 10px -3px var(--accent); }
+.lvl-chips.ec-lv button.on { color: var(--accent); border-color: var(--sel-edge); background: var(--accent-soft); box-shadow: var(--sel-slot); }
 /* "none" is not a tier: selected = plain and muted, no glow */
 .lvl-chips.ec-lv button.none.on { color: var(--text); border-color: var(--line-2); background: var(--panel-2); box-shadow: none; }
 .ec-ench-side .lvl-chips.ec-lv { width: 200px; flex-wrap: nowrap; }
@@ -155,8 +230,7 @@
 .ec-loadouts { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 10px; margin-bottom: 8px; }
 .ec-lo-list { display: flex; flex-wrap: wrap; gap: 6px; }
 .ec-lo { position: relative; }
-.ec-lo.on { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); box-shadow: 0 2px 0 var(--edge-lo), 0 0 12px -4px var(--accent); }
-.ec-lo-desc { margin: 0 0 10px; font-size: 12.5px; color: var(--muted); }
+.ec-lo.on { color: var(--accent); border-color: var(--sel-edge); background: var(--accent-soft); box-shadow: var(--sel-slot); }
 
 .ec-ench-list { display: flex; flex-direction: column; gap: 3px; }
 .ec-ench {
@@ -248,14 +322,6 @@
 .ec-step-cost.warn b { color: var(--gold); }
 .ec-step-cost.bad { color: var(--danger); font-weight: 700; }
 
-.ec-final { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 4px; background: linear-gradient(140deg, var(--enchant-soft), var(--panel-2) 70%); position: relative; overflow: hidden; }
-.ec-final::after {
-  content: ''; position: absolute; inset: 0; pointer-events: none;
-  background: linear-gradient(115deg, transparent 30%, color-mix(in srgb, var(--accent) 14%, transparent) 50%, transparent 70%);
-  background-size: 250% 100%; animation: ec-sheen 5s linear infinite;
-}
-@keyframes ec-sheen { from { background-position: 100% 0; } to { background-position: -150% 0; } }
-.ec-final-body { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .ec-final-ench { display: flex; flex-wrap: wrap; gap: 4px; }
 .ec-ench-pill { font-size: 11.5px; font-weight: 600; padding: 2px 7px; border-radius: 3px; background: var(--panel); color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent); }
 
@@ -266,8 +332,13 @@
 .ec-shop-total { margin-top: 8px; display: flex; align-items: center; gap: 8px; font-size: 12.5px; padding: 6px 10px; border-radius: 4px; background: var(--accent-soft); color: var(--accent); }
 
 .ec-actions { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
-.ec-save { display: flex; gap: 6px; }
-.ec-save .field { flex: 1; min-width: 0; }
+/* input + button rows (save gear, rename gear): one row, both exactly the .field height (36px in every style), the button
+   sized to its label (never stretched, never wrapped), centred on the same line */
+.ec-save, .ec-rename { --ec-row-h: 36px; display: flex; align-items: center; gap: 8px; }
+.ec-save .field, .ec-rename .field { flex: 1 1 0; min-width: 0; height: var(--ec-row-h); }
+.ec-save .btn, .ec-rename .btn { flex: none; box-sizing: border-box; height: var(--ec-row-h); padding-block: 0; white-space: nowrap; }
+.ec-rename { flex: 1; min-width: 0; flex-wrap: wrap; }   /* inside a narrow gear card: the buttons drop under the name together */
+.ec-rename .field { flex-basis: 100px; }
 .ec-act-row { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 6px; }
 .ec-act-row .btn { justify-content: center; white-space: normal; }
 .ec-act-row .btn.primary { padding-block: 9px; }
@@ -280,7 +351,7 @@
 
 /* ---------- mode switch + plan link ---------- */
 .ec-mode button { display: inline-flex; align-items: center; gap: 7px; }
-.ec-mode button.on { color: var(--text); box-shadow: var(--shadow), inset 0 -2px 0 var(--accent); }
+.ec-mode button.on { color: var(--text); box-shadow: inset 0 2px 0 color-mix(in srgb, var(--accent) 75%, transparent), var(--shadow); }   /* raised knob: accent on its lit top edge (styles.css .seg) */
 .ec-mode .nav-badge { margin-left: 0; }
 
 .ec-linked {
@@ -298,8 +369,11 @@
 /* ---------- plan view ---------- */
 .ec-pv-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
 .ec-pv-bar .spacer { flex: 1; }
-.ec-pv { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 380px); gap: var(--ec-gap); align-items: start; }
-.ec-pv-side { order: 2; display: flex; flex-direction: column; gap: var(--ec-gap); position: sticky; top: 76px; min-width: 0; }
+.ec-pv { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 380px); grid-template-rows: auto 1fr; grid-template-areas: "main mode" "main side"; gap: var(--ec-gap); align-items: start; }
+.ec-pv > .ec-mode-row { grid-area: mode; }
+.ec-mode-row + .ec-pv-empty { margin-top: var(--ec-gap); }   /* empty plan: the switch centred above the card */
+.ec-pv-main { grid-area: main; }
+.ec-pv-side { grid-area: side; display: flex; flex-direction: column; gap: var(--ec-gap); position: sticky; top: 85px; min-width: 0; }
 .ec-pv-main { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
 .ec-pv-main > .ec-section-head { margin-bottom: 0; }
 .ec-pv-box { padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
@@ -325,10 +399,10 @@
 .ec-prog.full .ec-prog-n b { color: var(--accent); }
 
 /* shopping strips */
-.ec-buy { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
-.ec-buy-row + .ec-buy-row { border-top: 1px solid var(--line); }
+/* rows are separate strips 2px apart (no divider lines between them) */
+.ec-buy { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; border-radius: 4px; overflow: hidden; }
 .ec-buy-row {
-  display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; min-height: 44px; padding: 5px 10px; border-radius: 0;
+  display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; min-height: 44px; padding: 5px 10px; border-radius: 3px;
   background: var(--panel-2); border: 0; transition: background .15s, border-color .15s;
 }
 .ec-buy-row.on { background: var(--accent-soft); box-shadow: inset 3px 0 0 var(--accent); }
@@ -374,17 +448,16 @@
 
 /* generic switch tile (netherite upgrade) — same active language as .ec-has */
 .ec-tile { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 4px; border: 1px solid var(--line); background: var(--panel-2); cursor: pointer; transition: border-color .15s, background .15s; }
-.ec-tile.on { border-color: var(--accent); background: var(--ec-on-bg); box-shadow: var(--ec-on-bar); }
+.ec-tile.on { border-color: var(--sel-edge); background: var(--ec-on-bg); box-shadow: var(--ec-on-bar); }
 .ec-tile-text { display: flex; flex-direction: column; min-width: 0; font-size: 13px; }
 .ec-tile-text b { font-weight: 600; color: var(--muted); }
 .ec-tile.on .ec-tile-text b { color: var(--text); }
 .ec-tile-text span { font-size: 11.5px; color: var(--faint); }
 
-.ec-todos { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
-.ec-todo + .ec-todo { border-top: 1px solid var(--line); }
+.ec-todos { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; border-radius: 4px; overflow: hidden; }
 .ec-todo {
   display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; align-items: center; gap: 10px;
-  min-height: 46px; padding: 6px 10px; border-radius: 0; background: var(--panel-2); border: 0;
+  min-height: 46px; padding: 6px 10px; border-radius: 3px; background: var(--panel-2); border: 0;
   transition: background .15s, border-color .15s;
 }
 .ec-todo:hover { background: color-mix(in srgb, var(--panel-2) 70%, var(--line)); }
@@ -419,10 +492,11 @@
 
 /* ---------- responsive ---------- */
 @media (max-width: 980px) {
-  .ec-layout { grid-template-columns: minmax(0, 1fr); }
+  .ec-layout { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; grid-template-areas: "mode" "main" "side"; }
   .ec-side { position: static; max-height: none; overflow: visible; }
-  .ec-pv { grid-template-columns: minmax(0, 1fr); }
-  .ec-pv-side { position: static; order: 0; }
+  .ec-main > .panel:last-child { flex: none; }
+  .ec-pv { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; grid-template-areas: "mode" "side" "main"; }
+  .ec-pv-side { position: static; }
 }
 @media (max-width: 640px) {
   .ec-card, .ec-plan { padding: 12px; }
@@ -439,7 +513,7 @@
   .ec-ench-sub { white-space: normal; }
   .ec-gear-list { grid-template-columns: minmax(0, 1fr); }
   .ec-step { gap: 8px; padding-right: 8px; }
-  .page-head .ec-mode { width: 100%; }
+  .ec-mode-row .ec-mode { width: 100%; }
   .ec-mode button { flex: 1; justify-content: center; padding: 6px 8px; }
   .ec-pv-box, .ec-pi { padding: 10px 12px; }
   .ec-todo { grid-template-columns: 22px minmax(0, 1fr); gap: 4px 10px; }
@@ -486,7 +560,7 @@
 .ec-ur-main, .ec-ur-rc { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; min-width: 0; }
 .ec-usesrow .ec-label { white-space: nowrap; }
 .ec-usesrow input.field { width: 76px; height: 28px; }
-.ec-usesrow .btn.small { height: 28px; }
+.ec-usesrow .btn.small { box-sizing: border-box; height: 28px; padding-block: 0; flex: none; }   /* same height as the cost field beside it */
 .ec-ur-rc .ec-rc-out { font-size: 12px; color: var(--muted); }
 .ec-ur-rc .ec-rc-out.ok { color: var(--accent); }
 
@@ -502,7 +576,6 @@
 .ec-step-cost b { font-size: 16px; }
 .ec-ref { border: 0; }
 .ec-ench-pill { border: 0; background: var(--bg-2); }
-.ec-final { background: var(--enchant-soft); }
 .ec-act-foot { margin-top: 2px; }
 
 @media (max-width: 640px) {
@@ -530,10 +603,6 @@
 .ec-buy-name { flex-wrap: wrap; }
 
 /* ---------- v7: material buttons with labels, calmer anvil plan ---------- */
-.ec-mats { margin-bottom: 16px; }
-.ec-mat { flex: 1 1 0; min-width: 52px; height: auto; min-height: 58px; padding: 6px 2px 5px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; }
-.ec-mat-name { display: block; max-width: 100%; font-size: 10.5px; line-height: 1.1; letter-spacing: .1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ec-mat.on .ec-mat-name { color: var(--text); font-weight: 600; }
 
 .ec-sum { padding: 12px 14px; gap: 6px 28px; align-items: flex-end; }
 .ec-sum-main { gap: 8px 28px; flex-wrap: wrap; }
@@ -553,9 +622,17 @@
 .ec-steps .ec-step-cost b { font-size: 18px; }
 .ec-cost-unit { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .6px; color: var(--faint); }
 .ec-steps .ec-step-cost.bad { font-size: 12px; text-align: right; white-space: normal; }
-@media (max-width: 640px) { .ec-mats { overflow-x: auto; } .ec-mat { flex: 0 0 56px; } }
 
 /* "Already on it": neutral (not accent) check and rows */
 .ec-ench-list.is-own .check input:checked + span { --accent: var(--muted); --accent-deep: var(--line-2); }
 .ec-ench-list.is-own .ec-ench.has:not(.on) { background: color-mix(in srgb, var(--panel-2) 80%, var(--line)); }
 .ec-usesrow [hidden] { display: none !important; }
+
+/* ---------- plan actions: "Add to plan" / "Done" = the shared sticky action row (.th-act-row, styles.css, DESIGN rule 11),
+   the last row of the Anvil plan panel; --act-pp = the panel's padding so it rests flush with the inner edge. */
+.ec-plan { --act-pp: 16px; }
+.th-act-row .ec-add, .th-act-row .ec-add:hover:not(:disabled) { background: var(--panel-2); }   /* opaque while floating */
+@media (max-width: 640px) {
+  .ec-plan { --act-pp: 12px; }
+  .ec-plan .th-act-row { grid-auto-flow: row; }
+}

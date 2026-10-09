@@ -8,14 +8,28 @@ window.TH = window.TH || {};
 TH.store = (function () {
   const KEY = 'tradingHall.state';
   const VERSION = 1;
-  const defaults = { version: VERSION, settings: { theme: 'auto', style: 'classic' }, customPresets: [] };
+  const defaults = { version: VERSION, settings: { theme: 'auto', style: 'classic', styleV: 2 }, customPresets: [] };
   const listeners = new Set();
   let state = load();
+
+  /**
+   * One-time style migration (styleV 2): before it, "soft" meant the pixel neumorphism, now called "pixel"; "soft" is
+   * the smooth style. Saves without styleV >= 2 get soft -> pixel once; afterwards "soft" is never touched again.
+   * The pre-paint script in index.html applies the same rule to localStorage directly.
+   */
+  function migrate(st) {
+    const s = st.settings = Object.assign({ theme: 'auto', style: 'classic' }, st.settings);
+    if (!(s.styleV >= 2)) {
+      if (s.style === 'soft') s.style = 'pixel';
+      s.styleV = 2;
+    }
+    return st;
+  }
 
   function load() {
     try {
       const raw = localStorage.getItem(KEY);
-      if (raw) return Object.assign(structuredClone(defaults), JSON.parse(raw));
+      if (raw) return migrate(Object.assign(structuredClone(defaults), JSON.parse(raw)));
     } catch (e) { /* storage blocked or corrupt -> start fresh */ }
     return structuredClone(defaults);
   }
@@ -55,8 +69,8 @@ TH.store = (function () {
   function importJSON(text) {
     const parsed = JSON.parse(text);
     const incoming = parsed.state || parsed;
-    if (typeof incoming !== 'object' || !incoming) throw new Error('Not a Trading Hall backup');
-    state = Object.assign(structuredClone(defaults), incoming);
+    if (typeof incoming !== 'object' || !incoming) throw new Error('Not a toolbox backup');
+    state = migrate(Object.assign(structuredClone(defaults), incoming));
     save();
     listeners.forEach((l) => l(state));
   }

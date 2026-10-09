@@ -1,81 +1,78 @@
 /* =====================================================================
-   Trading Hall — "Soft" style (neumorphism). Opt-in: <html data-style="soft">.
-   Loaded LAST (after every module stylesheet). Classic (blocky inventory) is
-   untouched when data-style is absent. Per DESIGN.md "Optional style toggle":
+   Trading Hall — neumorphic styles. <html data-style="pixel|soft" data-neu> (data-style="classic" has no data-neu).
+     :root[data-neu]             shared tier system (tokens, surfaces, hooks) for BOTH neumorphic styles
+     :root[data-style="pixel"]   Pixel = Minecraft neumorphism: stepped pixel bevels, crisp stepped shadows, steps() motion
+     :root[data-style="soft"]    Soft = smooth neumorphism (last section): no bevels, blurred light, larger radii, eased motion
+   Loaded LAST (after every module stylesheet). Classic (blocky inventory) is untouched. Per DESIGN.md "Style toggle":
    tokens + surface/shadow/radius/border overrides only; the layout is never changed.
      raised  = outer light + dark shadow pair     inset = inner pair (pressed / wells)
    Per-feature accents (var(--accent), [data-tool]), Monocraft display font and the
-   pixel icons are kept: the chrome goes soft, the Minecraft identity stays in content.
+   pixel icons are kept: the chrome goes neumorphic, the Minecraft identity stays in content.
    ===================================================================== */
 
 /* ============ tokens ============ */
 /* shared (theme independent): radius scale + shadow recipes built from --neu-hi / --neu-lo */
-:root[data-style="soft"] {
+:root[data-neu] {
   --neu-r-xs: 6px; --neu-r-sm: 8px; --neu-r-md: 10px; --neu-r-lg: 14px; --neu-r-xl: 18px;
   --radius: var(--neu-r-md);
-  --neu-raised:    8px 8px 18px var(--neu-lo), -6px -6px 16px var(--neu-hi);
-  --neu-raised-sm: 3px 3px 7px var(--neu-lo), -2px -2px 6px var(--neu-hi);   /* Tier 2 (crisp) */
-  --neu-raised-xs: 2px 2px 4px var(--neu-lo), -1px -1px 4px var(--neu-hi);   /* Tier 2, compact controls */
-  --neu-inset:     inset 5px 5px 11px var(--neu-lo), inset -4px -4px 10px var(--neu-hi);
-  --neu-inset-sm:  inset 3px 3px 7px var(--neu-lo), inset -2px -2px 6px var(--neu-hi);
-  --neu-inset-xs:  inset 2px 2px 4px var(--neu-lo), inset -1px -1px 3px var(--neu-hi);
+  --neu-raised:    13px 13px 18px -5px var(--neu-lo), -11px -11px 16px -5px var(--neu-hi);
+  --neu-raised-sm: 5px 5px 7px -2px var(--neu-lo), -4px -4px 6px -2px var(--neu-hi);   /* Tier 2 (crisp) */
+  --neu-raised-xs: 3px 3px 4px -1px var(--neu-lo), -3px -3px 4px -1px var(--neu-hi);   /* Tier 2, compact controls */
+  --neu-inset:     inset 8px 8px 11px -3px var(--neu-lo), inset -7px -7px 10px -3px var(--neu-hi);
+  --neu-inset-sm:  inset 5px 5px 7px -2px var(--neu-lo), inset -4px -4px 6px -2px var(--neu-hi);
+  --neu-inset-xs:  inset 3px 3px 4px -1px var(--neu-lo), inset -2px -2px 3px -1px var(--neu-hi);
   --neu-grad: linear-gradient(145deg, color-mix(in srgb, var(--neu-bg) 92%, #fff), color-mix(in srgb, var(--neu-bg) 95%, #000));
   /* carved segments: the page colour a hair darker; fields are cut deeper still (--neu-well) */
   --neu-carve: color-mix(in srgb, var(--neu-bg) 78%, var(--neu-well));
-  --neu-inset-deep: inset 4px 4px 9px var(--neu-lo), inset -3px -3px 8px var(--neu-hi);
+  --neu-inset-deep: inset 7px 7px 9px -2px var(--neu-lo), inset -6px -6px 8px -2px var(--neu-hi);
   --neu-flat: color-mix(in srgb, var(--text) 4.5%, transparent);
   /* DIRECTIONAL LIGHT: the scene is lit from the top-left at 45deg. Raised = light top-left (negative offset) + shadow
-     bottom-right (positive). Inset = shadow top-left + light bottom-right. Selection never draws a ring: the accent lives
-     in the physical light/shadow - an accent-tinted inner shadow falling from the top-left, a faint accent-tinted rim light
-     bottom-right, and a soft accent glow bleeding up from the lit lower-right of the surface. */
-  --neu-sel-lo: color-mix(in srgb, var(--accent) 55%, var(--neu-lo));
-  --neu-sel-hi: color-mix(in srgb, var(--accent) 9%, var(--neu-hi));
-  --neu-sel-glow: color-mix(in srgb, var(--accent) 20%, transparent);
-  --neu-sel-bg: radial-gradient(115% 125% at 90% 96%, var(--neu-sel-glow), transparent 60%), color-mix(in srgb, var(--accent) 4%, var(--neu-bg));
-  --neu-sel-inset:    inset 9px 9px 15px -4px var(--neu-sel-lo), inset -4px -4px 10px var(--neu-sel-hi);
-  --neu-sel-inset-sm: inset 7px 7px 11px -4px var(--neu-sel-lo), inset -3px -3px 7px var(--neu-sel-hi);
-  --neu-sel-inset-xs: inset 4px 4px 6px -2px var(--neu-sel-lo), inset -2px -2px 4px var(--neu-sel-hi);
-  /* accent surfaces (primary buttons, raised chosen): lighter accent top-left, deeper accent bottom-right */
+     bottom-right (positive). Inset = shadow top-left + light bottom-right.
+     ACCENT LIVES ONLY IN LIGHT, NEVER IN SHADOW. Shadows are always neutral (--neu-lo); the feature colour only appears on
+     the side that catches the light:
+       - inset / pressed / selected: neutral inner shadow from the top-left, accent rim light on the bottom-right inner edge,
+         accent glow bleeding up from the lit lower-right, accent pixels on the lit (bottom-right) steps of the flipped bevel;
+       - raised accent surfaces: neutral drop shadow bottom-right, accent highlight top-left.
+     Selection never draws a ring. Never mix the accent into a --neu-lo shadow or a positive-offset shadow.
+     MECHANISM (Oct 2026): the selected insets (--neu-sel-inset*) are NEUTRAL ONLY. An inset box-shadow rim cannot fade
+     along its edge: the old accent rim (inset -3px -3px) ran the full height of the right edge and the full width of the
+     bottom, so it reached the top-right / bottom-left corners and, with the radius + blur, tinted the top and left edges.
+     The accent light now lives in the BACKGROUND (--neu-sel-bg): a 1px lit rim drawn in the transparent border ring by a
+     "to bottom right" gradient whose 50% line runs exactly through the top-right and bottom-left corners (so the rim is 0
+     there and on the whole top-left half), plus a lower-right glow clamped below mid-height. The Pixel bevel's lit steps
+     fade out the same way (--neu-px-acc-h/-v). Needs a 1px transparent border (every T2 control has one). */
+  --neu-sel-lo: var(--neu-lo);                                              /* shadow side: neutral */
+  --neu-sel-rim: color-mix(in srgb, var(--accent) 70%, transparent);       /* 1px lit rim, bottom-right only */
+  --neu-sel-ring: linear-gradient(to bottom right, transparent 50%, var(--neu-sel-rim) 92%);
+  --neu-sel-glow: color-mix(in srgb, var(--accent) 22%, transparent);
+  --neu-sel-glow-l: radial-gradient(120% 100% at 92% 100%, var(--neu-sel-glow), transparent 58%);   /* stays in the lower ~58% */
+  --neu-sel-bg: var(--neu-sel-glow-l) padding-box, linear-gradient(var(--neu-bg), var(--neu-bg)) padding-box, var(--neu-sel-ring) border-box var(--neu-bg);
+  --neu-sel-inset:    inset 10px 10px 15px -5px var(--neu-sel-lo);
+  --neu-sel-inset-sm: inset 7px 7px 11px -4px var(--neu-sel-lo);
+  --neu-sel-inset-xs: inset 4px 4px 6px -2px var(--neu-sel-lo);
+  --neu-sel-press: inset 9px 9px 12px -3px var(--neu-sel-lo);             /* selected + pressed again: deeper, still neutral */
+  --neu-knob: 3px 3px 4px -1px var(--neu-lo), inset 1px 1px 0 var(--neu-hi);   /* the raised key of a .seg (one-of-N) well */
+  --neu-px-acc: color-mix(in srgb, var(--accent) 45%, var(--neu-px-hi));    /* lit pixel step of a selected bevel */
+  /* accent surfaces (primary buttons, raised chosen): accent highlight top-left, neutral shadow bottom-right */
   --neu-acc-hi: color-mix(in srgb, var(--accent) 38%, var(--neu-hi));
-  --neu-acc-lo: color-mix(in srgb, var(--accent-deep, var(--accent)) 70%, var(--neu-lo));
-  --neu-acc-raised-sm: 5px 5px 11px var(--neu-acc-lo), -3px -3px 8px var(--neu-acc-hi), inset 1px 1px 1px rgb(255 255 255 / .28), inset -1px -1px 2px rgb(0 0 0 / .16);
-  --neu-acc-raised-xs: 3px 3px 6px var(--neu-acc-lo), -2px -2px 5px var(--neu-acc-hi), inset 1px 1px 1px rgb(255 255 255 / .24), inset -1px -1px 2px rgb(0 0 0 / .14);
-  --neu-pressed-sm: inset 4px 4px 9px var(--neu-lo), inset -2px -2px 6px var(--neu-hi);
-  --neu-pressed-xs: inset 3px 3px 5px var(--neu-lo), inset -1px -1px 4px var(--neu-hi);
+  --neu-acc-lo: var(--neu-lo);
+  --neu-acc-glow: color-mix(in srgb, var(--accent) 55%, transparent);     /* light an accent block throws, top-left only */
+  --neu-acc-raised-sm: 8px 8px 11px -3px var(--neu-acc-lo), -6px -6px 8px -2px var(--neu-acc-hi), inset 1px 1px 1px rgb(255 255 255 / .28), inset -2px -2px 2px 0px rgb(0 0 0 / .16);
+  --neu-acc-raised-xs: 5px 5px 6px -1px var(--neu-acc-lo), -4px -4px 5px -1px var(--neu-acc-hi), inset 1px 1px 1px rgb(255 255 255 / .24), inset -2px -2px 2px 0px rgb(0 0 0 / .14);
+  --neu-pressed-sm: inset 7px 7px 9px -2px var(--neu-lo), inset -4px -4px 6px -2px var(--neu-hi);
+  --neu-pressed-xs: inset 4px 4px 5px -1px var(--neu-lo), inset -3px -3px 4px -1px var(--neu-hi);
   --neu-focus: 0 0 0 3px color-mix(in srgb, var(--accent) 38%, transparent), 0 0 14px 1px color-mix(in srgb, var(--accent) 50%, transparent);
   /* ===== SURFACE TIERS (see DESIGN.md "Surface tiers") =====
-     T0 page  | T1 segment: raised, soft, no bevel | T2 control: raised, crisp + 2px pixel bevel | T-1 well: inset */
-  --neu-r-seg: 18px;                       /* T1 radius, every segment */
+     T0 page  | T1 segment: raised block, stepped shadow, 1px rim, no bevel | T2 control: raised, crisp + 2px pixel bevel | T-1 well: inset */
+  --neu-r-seg: 14px;                       /* T1 radius, every segment */
   --neu-r-ctl: 8px;                        /* T2 radius (buttons, chips, toolbar buttons) */
   --neu-r-tile: 12px;                      /* T2 radius for bigger tiles / cards */
   --neu-r-grp: 10px;                       /* outer corners of a segmented group */
   --neu-pad: 20px;                         /* T1 inner padding, every segment */
-  --neu-t1: 7px 7px 16px var(--neu-lo), -5px -5px 14px var(--neu-hi);
   --neu-t2: var(--neu-raised-sm);
-  --neu-t2-hover: 4px 4px 9px var(--neu-lo), -3px -3px 8px var(--neu-hi);
-  --neu-t2-grp: 2px 2px 3px var(--neu-lo), -1px -1px 2px var(--neu-hi);   /* buttons joined in a segmented group */
-  /* pixel bevel: stepped 2px edge, light top-left / dark bottom-right (the top-nav look, fainter). -in = pressed / selected (flipped) */
-  --neu-bevel:
-    linear-gradient(var(--neu-px-hi), var(--neu-px-hi)) 4px 0 / calc(100% - 8px) 2px no-repeat,
-    linear-gradient(var(--neu-px-hi), var(--neu-px-hi)) 2px 2px / 2px 2px no-repeat,
-    linear-gradient(var(--neu-px-hi), var(--neu-px-hi)) 0 4px / 2px calc(100% - 8px) no-repeat,
-    linear-gradient(var(--neu-px-lo), var(--neu-px-lo)) right 4px bottom 0 / calc(100% - 8px) 2px no-repeat,
-    linear-gradient(var(--neu-px-lo), var(--neu-px-lo)) right 2px bottom 2px / 2px 2px no-repeat,
-    linear-gradient(var(--neu-px-lo), var(--neu-px-lo)) right 0 bottom 4px / 2px calc(100% - 8px) no-repeat;
-  --neu-bevel-in:
-    linear-gradient(var(--neu-px-lo), var(--neu-px-lo)) 4px 0 / calc(100% - 8px) 2px no-repeat,
-    linear-gradient(var(--neu-px-lo), var(--neu-px-lo)) 2px 2px / 2px 2px no-repeat,
-    linear-gradient(var(--neu-px-lo), var(--neu-px-lo)) 0 4px / 2px calc(100% - 8px) no-repeat,
-    linear-gradient(var(--neu-px-hi), var(--neu-px-hi)) right 4px bottom 0 / calc(100% - 8px) 2px no-repeat,
-    linear-gradient(var(--neu-px-hi), var(--neu-px-hi)) right 2px bottom 2px / 2px 2px no-repeat,
-    linear-gradient(var(--neu-px-hi), var(--neu-px-hi)) right 0 bottom 4px / 2px calc(100% - 8px) no-repeat;
-  /* square variant for buttons inside a segmented group (inner joins are straight) */
-  --neu-bevel-sq:
-    linear-gradient(var(--neu-px-hi), var(--neu-px-hi)) 0 0 / 100% 2px no-repeat,
-    linear-gradient(var(--neu-px-lo), var(--neu-px-lo)) 0 100% / 100% 2px no-repeat;
-  --neu-bevel-sq-in:
-    linear-gradient(var(--neu-px-lo), var(--neu-px-lo)) 0 0 / 100% 2px no-repeat,
-    linear-gradient(var(--neu-px-hi), var(--neu-px-hi)) 0 100% / 100% 2px no-repeat;
+  --neu-t2-hover: 7px 7px 9px -2px var(--neu-lo), -6px -6px 8px -2px var(--neu-hi);
+  --neu-t2-grp: 3px 3px 3px 0px var(--neu-lo);   /* buttons joined in a segmented group: dark only (a light halo would light the 2px gap = the previous key's shadow side) */
+  /* --neu-t1 and the bevel layers (--neu-bevel*) are per style: see the Pixel block below and the Soft section at the end */
   --neu-ctl: var(--neu-bevel), var(--neu-grad);
   --neu-ctl-on: var(--neu-bevel-in), var(--neu-sel-bg);
   --neu-ctl-sq: var(--neu-bevel-sq), var(--neu-grad);
@@ -88,42 +85,94 @@
   --slot-shadow: var(--neu-inset-sm);
   --grid-line: transparent;
 }
-/* dark ("Obsidian", soft): base = dark, like styles.css */
-:root[data-style="soft"] {
+/* Pixel only: stepped T1 + pixel bevels */
+:root[data-style="pixel"] {
+  /* T1 = a block, not a pillow: two crisp 2px "pixel steps" of shadow (zero blur, follow the radius) under a short ambient
+     falloff, light side the same in miniature, plus a 1px directional rim (lit top-left, dark bottom-right). Calmer than T2:
+     no stepped bevel, lower-contrast steps. */
+  --neu-t1-step-lo: color-mix(in srgb, var(--neu-lo) 46%, transparent);
+  --neu-t1-step-hi: color-mix(in srgb, var(--neu-hi) 80%, transparent);
+  --neu-t1:
+    2px 2px 0 var(--neu-t1-step-lo), 4px 4px 0 var(--neu-t1-step-lo), 9px 9px 12px -3px var(--neu-lo),
+    -2px -2px 0 var(--neu-t1-step-hi), -7px -7px 10px -3px var(--neu-hi);
+  /* pixel bevel: stepped 2px edge, light top-left / dark bottom-right (the top-nav look, fainter). -in = pressed / selected (flipped) */
+  --neu-bevel:
+    linear-gradient(var(--neu-px-hi), var(--neu-px-hi)) 4px 0 / calc(100% - 8px) 2px no-repeat border-box,
+    linear-gradient(var(--neu-px-hi), var(--neu-px-hi)) 0 0 / 4px 4px no-repeat border-box,
+    linear-gradient(var(--neu-px-hi), var(--neu-px-hi)) 0 4px / 2px calc(100% - 8px) no-repeat border-box,
+    linear-gradient(var(--neu-px-lo), var(--neu-px-lo)) right 4px bottom 0 / calc(100% - 8px) 2px no-repeat border-box,
+    linear-gradient(var(--neu-px-lo), var(--neu-px-lo)) right 0 bottom 0 / 4px 4px no-repeat border-box,
+    linear-gradient(var(--neu-px-lo), var(--neu-px-lo)) right 0 bottom 4px / 2px calc(100% - 8px) no-repeat border-box;
+  --neu-bevel-in:
+    linear-gradient(var(--neu-px-lo), var(--neu-px-lo)) 4px 0 / calc(100% - 8px) 2px no-repeat border-box,
+    linear-gradient(var(--neu-px-lo), var(--neu-px-lo)) 0 0 / 4px 4px no-repeat border-box,
+    linear-gradient(var(--neu-px-lo), var(--neu-px-lo)) 0 4px / 2px calc(100% - 8px) no-repeat border-box,
+    var(--neu-px-acc-h) right 4px bottom 0 / calc(100% - 8px) 2px no-repeat border-box,
+    linear-gradient(var(--neu-px-acc), var(--neu-px-acc)) right 0 bottom 0 / 4px 4px no-repeat border-box,
+    var(--neu-px-acc-v) right 0 bottom 4px / 2px calc(100% - 8px) no-repeat border-box;
+  /* the lit accent steps fade out toward the bottom-left / top-right corners (those corners are the boundary between
+     shadow and light, so no accent reaches the top or left edge). The bevel stays a crisp 2px thick; only its LENGTH fades,
+     as one continuous ramp (the old hard stops 0-34-62% showed as three separate blocks on wide strips; Oct 2026).
+     --neu-px-acc-mid is an eased midpoint, not a step. */
+  --neu-px-acc-mid: color-mix(in srgb, var(--neu-px-acc) 40%, transparent);
+  --neu-px-acc-h: linear-gradient(to right, transparent 16%, var(--neu-px-acc-mid) 52%, var(--neu-px-acc) 86%);
+  --neu-px-acc-v: linear-gradient(transparent 16%, var(--neu-px-acc-mid) 52%, var(--neu-px-acc) 86%);
+  /* raised bevel whose lit top-left steps catch the accent (checked switch knob) */
+  --neu-bevel-lit:
+    linear-gradient(var(--neu-px-acc), var(--neu-px-acc)) 4px 0 / calc(100% - 8px) 2px no-repeat border-box,
+    linear-gradient(var(--neu-px-acc), var(--neu-px-acc)) 0 0 / 4px 4px no-repeat border-box,
+    linear-gradient(var(--neu-px-acc), var(--neu-px-acc)) 0 4px / 2px calc(100% - 8px) no-repeat border-box,
+    linear-gradient(var(--neu-px-lo), var(--neu-px-lo)) right 4px bottom 0 / calc(100% - 8px) 2px no-repeat border-box,
+    linear-gradient(var(--neu-px-lo), var(--neu-px-lo)) right 0 bottom 0 / 4px 4px no-repeat border-box,
+    linear-gradient(var(--neu-px-lo), var(--neu-px-lo)) right 0 bottom 4px / 2px calc(100% - 8px) no-repeat border-box;
+  /* square variant for buttons inside a segmented group (inner joins are straight) */
+  --neu-bevel-sq:
+    linear-gradient(var(--neu-px-hi), var(--neu-px-hi)) 0 0 / 100% 2px no-repeat border-box,
+    linear-gradient(var(--neu-px-lo), var(--neu-px-lo)) 0 100% / 100% 2px no-repeat border-box;
+  --neu-bevel-sq-in:
+    linear-gradient(var(--neu-px-lo), var(--neu-px-lo)) 0 0 / 100% 2px no-repeat border-box,
+    var(--neu-px-acc-h) 0 100% / 100% 2px no-repeat border-box;
+}
+/* dark ("Obsidian", neumorphic): base = dark, like styles.css */
+:root[data-neu] {
   --neu-bg: #22232d; --neu-well: #1a1b22; --neu-row: #292a36;
   --neu-hi: rgb(255 255 255 / .07); --neu-lo: rgb(2 2 8 / .72);
   --neu-edge: rgb(255 255 255 / .045); --neu-px-hi: rgb(255 255 255 / .11); --neu-px-lo: rgb(0 0 0 / .26);
+    --neu-rim-hi: rgb(255 255 255 / .06); --neu-rim-lo: rgb(0 0 0 / .24);
   --line: rgb(255 255 255 / .06); --line-2: rgb(255 255 255 / .11);
   --muted: #b0afba; --faint: #9796a3;
   --glow-a: rgb(91 140 255 / .05); --glow-b: color-mix(in srgb, var(--tc, #17dd62) 5%, transparent); --mob-op: .07;
   color-scheme: dark;
 }
 @media (prefers-color-scheme: dark) {
-  :root[data-style="soft"]:not([data-theme="light"]) {
+  :root[data-neu]:not([data-theme="light"]) {
     --neu-bg: #22232d; --neu-well: #1a1b22; --neu-row: #292a36;
     --neu-hi: rgb(255 255 255 / .07); --neu-lo: rgb(2 2 8 / .72);
     --neu-edge: rgb(255 255 255 / .045); --neu-px-hi: rgb(255 255 255 / .11); --neu-px-lo: rgb(0 0 0 / .26);
+    --neu-rim-hi: rgb(255 255 255 / .06); --neu-rim-lo: rgb(0 0 0 / .24);
     --line: rgb(255 255 255 / .06); --line-2: rgb(255 255 255 / .11);
     --muted: #b0afba; --faint: #9796a3;
     --glow-a: rgb(91 140 255 / .05); --glow-b: color-mix(in srgb, var(--tc, #17dd62) 5%, transparent); --mob-op: .07;
     color-scheme: dark;
   }
 }
-:root[data-style="soft"][data-theme="dark"] {
+:root[data-neu][data-theme="dark"] {
   --neu-bg: #22232d; --neu-well: #1a1b22; --neu-row: #292a36;
   --neu-hi: rgb(255 255 255 / .07); --neu-lo: rgb(2 2 8 / .72);
   --neu-edge: rgb(255 255 255 / .045); --neu-px-hi: rgb(255 255 255 / .11); --neu-px-lo: rgb(0 0 0 / .26);
+    --neu-rim-hi: rgb(255 255 255 / .06); --neu-rim-lo: rgb(0 0 0 / .24);
   --line: rgb(255 255 255 / .06); --line-2: rgb(255 255 255 / .11);
   --muted: #b0afba; --faint: #9796a3;
   --glow-a: rgb(91 140 255 / .05); --glow-b: color-mix(in srgb, var(--tc, #17dd62) 5%, transparent); --mob-op: .07;
   color-scheme: dark;
 }
-/* light ("Parchment", soft) */
+/* light ("Parchment", neumorphic) */
 @media (prefers-color-scheme: light) {
-  :root[data-style="soft"]:not([data-theme="dark"]) {
+  :root[data-neu]:not([data-theme="dark"]) {
     --neu-bg: #eadfc7; --neu-well: #dfd3b6; --neu-row: #e2d6bb;
     --neu-hi: rgb(255 252 238 / .9); --neu-lo: rgb(135 95 40 / .38);
     --neu-edge: rgb(255 252 238 / .45); --neu-px-hi: rgb(255 253 242 / .85); --neu-px-lo: rgb(120 80 20 / .17);
+    --neu-rim-hi: rgb(255 253 242 / .75); --neu-rim-lo: rgb(120 80 20 / .13);
     --line: rgb(110 80 30 / .13); --line-2: rgb(110 80 30 / .22);
     --muted: #5f4a2c; --faint: #644f33;
     --c-hall: #096629; --c-ench: #6f35b8; --c-trim: #095f5a; --c-build: #8e420a; --c-portal: #a52019; --c-home: #74490a; --danger: #a52019;
@@ -131,10 +180,11 @@
     color-scheme: light;
   }
 }
-:root[data-style="soft"][data-theme="light"] {
+:root[data-neu][data-theme="light"] {
   --neu-bg: #eadfc7; --neu-well: #dfd3b6; --neu-row: #e2d6bb;
   --neu-hi: rgb(255 252 238 / .9); --neu-lo: rgb(135 95 40 / .38);
   --neu-edge: rgb(255 252 238 / .45); --neu-px-hi: rgb(255 253 242 / .85); --neu-px-lo: rgb(120 80 20 / .17);
+    --neu-rim-hi: rgb(255 253 242 / .75); --neu-rim-lo: rgb(120 80 20 / .13);
   --line: rgb(110 80 30 / .13); --line-2: rgb(110 80 30 / .22);
   --muted: #5f4a2c; --faint: #644f33;
   --c-hall: #096629; --c-ench: #6f35b8; --c-trim: #095f5a; --c-build: #8e420a; --c-portal: #a52019; --c-home: #74490a; --danger: #a52019;
@@ -143,44 +193,49 @@
 }
 
 /* ============ base: page, scrollbar, atmosphere ============ */
-:root[data-style="soft"] body { background: var(--neu-bg); }
-:root[data-style="soft"] .atmosphere::before {
+:root[data-neu] body { background: var(--neu-bg); }
+:root[data-neu] .atmosphere::before {
   background:
     radial-gradient(60vw 50vh at 8% -5%, var(--glow-a), transparent 70%),
     radial-gradient(50vw 45vh at 100% 105%, var(--glow-b), transparent 70%);
 }
-:root[data-style="soft"] ::-webkit-scrollbar-track { background: transparent; border-radius: 99px; box-shadow: inset 1px 1px 3px var(--neu-lo), inset -1px -1px 2px var(--neu-hi); }
-:root[data-style="soft"] ::-webkit-scrollbar-thumb { border-radius: 99px; background-color: color-mix(in srgb, var(--muted) 40%, var(--neu-bg)); box-shadow: inset 1px 1px 2px rgb(255 255 255 / .22), inset -1px -1px 2px rgb(0 0 0 / .22); }
-:root[data-style="soft"] ::-webkit-scrollbar-thumb:hover { background-color: color-mix(in srgb, var(--accent) 60%, var(--neu-bg)); }
-:root[data-style="soft"] ::-webkit-scrollbar-thumb:active { background-color: var(--accent); box-shadow: inset 1px 1px 2px rgb(0 0 0 / .25), inset -1px -1px 2px rgb(255 255 255 / .15); }
-:root[data-style="soft"] :focus-visible { outline: 3px solid color-mix(in srgb, var(--accent) 45%, transparent); outline-offset: 2px; filter: drop-shadow(0 0 6px color-mix(in srgb, var(--accent) 70%, transparent)); }
-:root[data-style="soft"] .module-enchanting button:focus-visible, :root[data-style="soft"] .module-enchanting summary:focus-visible, :root[data-style="soft"] .ec-usesrow summary:focus-visible { outline-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+:root[data-neu] ::-webkit-scrollbar-track { background: transparent; border-radius: 99px; box-shadow: inset 2px 2px 3px -1px var(--neu-lo), inset -2px -2px 2px 0px var(--neu-hi); }
+:root[data-neu] ::-webkit-scrollbar-thumb { border-radius: 99px; background-color: color-mix(in srgb, var(--muted) 40%, var(--neu-bg)); box-shadow: inset 2px 2px 2px 0px rgb(255 255 255 / .22), inset -2px -2px 2px 0px rgb(0 0 0 / .22); }
+:root[data-neu] ::-webkit-scrollbar-thumb:hover { background-color: color-mix(in srgb, var(--accent) 60%, var(--neu-bg)); }
+:root[data-neu] ::-webkit-scrollbar-thumb:active { background-color: var(--accent); box-shadow: inset 2px 2px 2px 0px rgb(0 0 0 / .25), inset -2px -2px 2px 0px rgb(255 255 255 / .15); }
+:root[data-neu] :focus-visible { outline: 3px solid color-mix(in srgb, var(--accent) 45%, transparent); outline-offset: 2px; filter: drop-shadow(0 0 6px color-mix(in srgb, var(--accent) 70%, transparent)); }
+:root[data-neu] .module-enchanting button:focus-visible, :root[data-neu] .module-enchanting summary:focus-visible, :root[data-neu] .ec-usesrow summary:focus-visible { outline-color: color-mix(in srgb, var(--accent) 45%, transparent); }
 
 /* ============ top bar + toolbar strip ============ */
-:root[data-style="soft"] .topbar::before {
+:root[data-neu] .topbar::before {
   background: color-mix(in srgb, var(--neu-bg) 90%, transparent); border-bottom: 0;
-  box-shadow: 0 10px 22px -14px var(--neu-lo), 0 1px 0 var(--neu-edge);
+  box-shadow: 0 10px 22px -14px var(--neu-lo);
 }
-:root[data-style="soft"] .brand { border-radius: var(--neu-r-md); }
-:root[data-style="soft"] .brand:hover { background: transparent; box-shadow: var(--neu-raised-xs); }
-:root[data-style="soft"] .brand:active { box-shadow: var(--neu-inset-xs); }
+:root[data-neu] .brand { border-radius: var(--neu-r-md); }
+:root[data-neu] .brand:hover { background: transparent; box-shadow: var(--neu-raised-xs); }
+:root[data-neu] .brand:active { box-shadow: var(--neu-inset-xs); }
 
-/* TOP NAV = "Minecraft-stylised neumorphism". Each tab is a soft raised block (outer light top-left / shadow bottom-right)
+/* TOP NAV (pixel bevel, dotted mark: Pixel only; Soft re-draws them at the end) = "Minecraft-stylised neumorphism". Each tab is a soft raised block (outer light top-left / shadow bottom-right)
    wearing a 2px PIXEL bevel on top of the soft light: a stepped 3-pixel diagonal + short edge bars in the lit top-left corner
    and the mirrored dark steps in the shadowed bottom-right (::before). The current tab is pressed in: the bevel flips,
-   an inner shadow in its feature colour falls from the top-left and its colour bleeds up from the lit lower-right, and a
+   a neutral inner shadow falls from the top-left while its feature colour catches only the lit lower-right (rim + glow), and a
    pixel dotted underline (2x2 dots, ::after) marks it. Hover lifts, :active sinks. */
-:root[data-style="soft"] .nav-item {
+:root[data-neu] .nav-item {
   --px-hi: rgb(255 255 255 / .20); --px-lo: rgb(0 0 0 / .32);
-  --nv-sh: color-mix(in srgb, var(--tc, var(--accent)) 58%, var(--neu-lo));
-  --nv-li: color-mix(in srgb, var(--tc, var(--accent)) 16%, var(--neu-hi));
-  border-radius: 8px; padding: 10px 16px; letter-spacing: .1px;
+  --nv-sh: var(--neu-lo);                                                   /* shadow side stays neutral */
+  /* lit bottom-right rim + glow take the feature colour, in the background (like --neu-sel-bg, but per tab: --tc is set
+     on the tab itself, so the :root token cannot be reused). The 1px transparent border carries the corner-faded rim. */
+  --nv-rim: color-mix(in srgb, var(--tc, var(--accent)) 70%, transparent);
+  --nv-on-bg: radial-gradient(110% 100% at 92% 100%, color-mix(in srgb, var(--tc, var(--accent)) 28%, transparent), transparent 58%) padding-box,
+              linear-gradient(var(--neu-bg), var(--neu-bg)) padding-box,
+              linear-gradient(to bottom right, transparent 50%, var(--nv-rim) 92%) border-box var(--neu-bg);
+  border: 1px solid transparent; border-radius: 8px; padding: 9px 15px; letter-spacing: .1px;
   transition: color .15s, background .15s, box-shadow .15s, transform .12s;
 }
-:root[data-style="soft"][data-theme="light"] .nav-item { --px-hi: rgb(255 253 242 / .95); --px-lo: rgb(120 80 20 / .24); }
-@media (prefers-color-scheme: light) { :root[data-style="soft"]:not([data-theme="dark"]) .nav-item { --px-hi: rgb(255 253 242 / .95); --px-lo: rgb(120 80 20 / .24); } }
-:root[data-style="soft"] .nav-item::before {
-  content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; transition: opacity .15s;
+:root[data-style="pixel"][data-theme="light"] .nav-item { --px-hi: rgb(255 253 242 / .95); --px-lo: rgb(120 80 20 / .24); }
+@media (prefers-color-scheme: light) { :root[data-style="pixel"]:not([data-theme="dark"]) .nav-item { --px-hi: rgb(255 253 242 / .95); --px-lo: rgb(120 80 20 / .24); } }
+:root[data-style="pixel"] .nav-item::before {
+  content: ''; position: absolute; inset: -1px; border-radius: inherit; pointer-events: none; transition: opacity .15s;   /* -1px: over the 1px rim border, flush with the outer edge */
   background:
     linear-gradient(var(--px-hi), var(--px-hi)) 6px 0 / calc(100% - 12px) 2px no-repeat,
     linear-gradient(var(--px-hi), var(--px-hi)) 4px 2px / 2px 2px no-repeat,
@@ -191,7 +246,7 @@
     linear-gradient(var(--px-lo), var(--px-lo)) right 2px bottom 4px / 2px 2px no-repeat,
     linear-gradient(var(--px-lo), var(--px-lo)) right 0 bottom 6px / 2px calc(100% - 12px) no-repeat;
 }
-:root[data-style="soft"] .nav-item::after {                                                    /* pixel dotted underline in the feature colour */
+:root[data-style="pixel"] .nav-item::after {                                                    /* pixel dotted underline in the feature colour */
   content: ''; left: 50%; right: auto; top: auto; bottom: 5px; width: 2px; height: 2px; border-radius: 0; margin-left: -1px;
   background: var(--tc, var(--select)); transform: scale(0); opacity: 0;
   box-shadow: -4px 0 0 var(--tc, var(--select)), 4px 0 0 var(--tc, var(--select)),
@@ -199,16 +254,16 @@
               0 0 9px 1px color-mix(in srgb, var(--tc, var(--select)) 60%, transparent);
   transition: transform .2s steps(3, end), opacity .15s;
 }
-:root[data-style="soft"] .nav-item:hover:not(.active)::after { transform: scale(1); opacity: .55; }
-:root[data-style="soft"] .nav-item.active::after { transform: scale(1); opacity: 1; }
-:root[data-style="soft"] .nav-item:hover { background: transparent; }
-:root[data-style="soft"] .nav-item.active {
+:root[data-neu] .nav-item:hover:not(.active)::after { transform: scale(1); opacity: .55; }
+:root[data-neu] .nav-item.active::after { transform: scale(1); opacity: 1; }
+:root[data-neu] .nav-item:hover { background: transparent; }
+:root[data-neu] .nav-item.active {
   color: var(--text); --px-hi: rgb(255 255 255 / .10); --px-lo: rgb(0 0 0 / .30);
-  background: radial-gradient(110% 130% at 92% 100%, color-mix(in srgb, var(--tc, var(--accent)) 26%, transparent), transparent 66%), color-mix(in srgb, var(--tc, var(--accent)) 5%, var(--neu-bg));
-  box-shadow: inset 7px 7px 11px -4px var(--nv-sh), inset -3px -3px 7px var(--nv-li);
+  background: var(--nv-on-bg);
+  box-shadow: inset 7px 7px 11px -4px var(--nv-sh);
 }
 /* active bevel flips: dark stepped pixels fall in at the top-left, light ones catch at the bottom-right */
-:root[data-style="soft"] .nav-item.active::before {
+:root[data-style="pixel"] .nav-item.active::before {
   background:
     linear-gradient(var(--px-lo), var(--px-lo)) 6px 0 / calc(100% - 12px) 2px no-repeat,
     linear-gradient(var(--px-lo), var(--px-lo)) 4px 2px / 2px 2px no-repeat,
@@ -219,542 +274,793 @@
     linear-gradient(var(--px-hi), var(--px-hi)) right 2px bottom 4px / 2px 2px no-repeat,
     linear-gradient(var(--px-hi), var(--px-hi)) right 0 bottom 6px / 2px calc(100% - 12px) no-repeat;
 }
-:root[data-style="soft"] .nav-item .nav-icon, :root[data-style="soft"] .nav-item .nav-name { position: relative; z-index: 1; }
-:root[data-style="soft"] .nav-item:active:not(.active) { transform: translateY(1px); box-shadow: inset 6px 6px 9px -3px var(--nv-sh), inset -2px -2px 6px var(--nv-li); background: color-mix(in srgb, var(--tc, var(--accent)) 4%, var(--neu-bg)); }
-:root[data-style="soft"] .nav-item.active:active { transform: translateY(1px); }
+:root[data-neu] .nav-item .nav-icon, :root[data-neu] .nav-item .nav-name { position: relative; z-index: 1; }
+:root[data-neu] .nav-item:active:not(.active) { transform: translateY(1px); box-shadow: inset 6px 6px 9px -3px var(--nv-sh); background: var(--nv-on-bg); }
+:root[data-neu] .nav-item.active:active { transform: translateY(1px); }
 @media (min-width: 641px) {
-  /* sunken strip = the nav's own layout box (no negative margins, nothing sticks out): 44px tall like the toolbar strip,
-     tabs 34px centred inside. It hugs its tabs; the toolbar group is pushed to the right edge of the page grid. */
-  :root[data-style="soft"] .nav { flex: 0 1 auto; min-width: 0; height: 44px; align-items: center; padding: 0 5px; margin: 0; gap: 6px; border-radius: 12px; background: var(--neu-carve); box-shadow: var(--neu-inset-sm); }
-  :root[data-style="soft"] .topbar-actions { margin-left: auto; }
-  :root[data-style="soft"] .nav-item { height: 34px; padding: 0 14px; background: var(--neu-grad); box-shadow: 3px 3px 6px var(--neu-lo), -2px -2px 5px var(--neu-hi); }
-  :root[data-style="soft"] .nav-item:hover:not(.active) { background: var(--neu-grad); transform: translateY(-1px); box-shadow: 4px 5px 9px var(--neu-lo), -3px -3px 7px var(--neu-hi); color: var(--text); }
-  :root[data-style="soft"] .nav-item.active { background: radial-gradient(110% 130% at 92% 100%, color-mix(in srgb, var(--tc, var(--accent)) 26%, transparent), transparent 66%), color-mix(in srgb, var(--tc, var(--accent)) 5%, var(--neu-bg)); box-shadow: inset 7px 7px 11px -4px var(--nv-sh), inset -3px -3px 7px var(--nv-li); }
-  :root[data-style="soft"] .nav-item:active:not(.active) { transform: translateY(1px); background: color-mix(in srgb, var(--tc, var(--accent)) 4%, var(--neu-bg)); box-shadow: inset 6px 6px 9px -3px var(--nv-sh), inset -2px -2px 6px var(--nv-li); }
+  /* sunken strip = the nav's own layout box (no negative margins, nothing sticks out): 48px tall like the toolbar strip,
+     tabs 40px centred inside. It hugs its tabs; the toolbar group is pushed to the right edge of the page grid. */
+  :root[data-neu] .nav { flex: 0 1 auto; min-width: 0; height: 48px; align-items: center; padding: 0 4px; margin: 0; gap: 6px; border-radius: 12px; background: var(--neu-carve); box-shadow: var(--neu-inset-sm); }
+  :root[data-neu] .topbar-actions { margin-left: auto; }
+  :root[data-neu] .nav-item { height: 40px; padding: 0 13px; background: var(--neu-grad); box-shadow: 5px 5px 6px -1px var(--neu-lo), -4px -4px 5px -1px var(--neu-hi); }
+  :root[data-neu] .nav-item:hover:not(.active) { background: var(--neu-grad); transform: translateY(-1px); box-shadow: 7px 8px 9px -2px var(--neu-lo), -5px -5px 7px -2px var(--neu-hi); color: var(--text); }
+  :root[data-neu] .nav-item.active { background: var(--nv-on-bg); box-shadow: inset 7px 7px 11px -4px var(--nv-sh); }
+  :root[data-neu] .nav-item:active:not(.active) { transform: translateY(1px); background: var(--nv-on-bg); box-shadow: inset 6px 6px 9px -3px var(--nv-sh); }
+  /* nav fit (app.js fitNav): icon-only tabs are compact square-ish keys; the corner badge rides inside the bevel */
+  :root[data-neu] .nav[data-fit="icons"] .nav-item:not(.active), :root[data-neu] .nav:is([data-fit="all"], [data-fit="tight"]) .nav-item { padding: 0 9px; }
+  :root[data-neu] .nav[data-fit="icons"] .nav-item:not(.active) :is(.nav-badge, .nav-soon), :root[data-neu] .nav:is([data-fit="all"], [data-fit="tight"]) .nav-item :is(.nav-badge, .nav-soon) { position: relative; z-index: 1; }
 }
-:root[data-style="soft"] .nav-badge, :root[data-style="soft"] .nav-soon { border-radius: var(--neu-r-xs); }
-:root[data-style="soft"] .nav-badge.is-progress { box-shadow: var(--neu-inset-xs); border-color: transparent; }
-:root[data-style="soft"] .nav-badge.is-progress.is-done { border-color: transparent; background: var(--accent); box-shadow: 0 0 10px -3px var(--accent); }
-:root[data-style="soft"] .icon-btn { border-color: transparent; border-radius: var(--neu-r-md); background: var(--neu-ctl); box-shadow: var(--neu-raised-sm); }
-:root[data-style="soft"] .icon-btn:hover { border-color: transparent; }
+:root[data-neu] .nav-badge, :root[data-neu] .nav-soon { border-radius: var(--neu-r-xs); }
+:root[data-neu] .nav-badge.is-progress { box-shadow: var(--neu-inset-xs); border-color: transparent; }
+:root[data-neu] .nav-badge.is-progress.is-done { border-color: transparent; background: var(--accent); box-shadow: -4px -4px 8px -4px var(--accent); }
+:root[data-neu] .icon-btn { border-color: transparent; border-radius: var(--neu-r-md); background: var(--neu-ctl); box-shadow: var(--neu-raised-sm); }
+:root[data-neu] .icon-btn:hover { border-color: transparent; }
 
 /* TOOLBAR GROUP = segmented group: one sunken strip, raised keys joined side by side. Only the outer corners of the
    group are rounded (first key left, last key right); inner joins are square, a 2px sliver of the well is the divider. */
-:root[data-style="soft"] .toolbar { border-color: transparent; border-radius: 12px; background: var(--neu-carve); box-shadow: var(--neu-inset-sm); padding: 4px; gap: 2px; margin-bottom: 0; height: 44px; align-items: stretch; }
-:root[data-style="soft"] .toolbar > * + * { border-left: 0; box-shadow: none; }
-:root[data-style="soft"] .toolbar .tb-btn, :root[data-style="soft"] .toolbar .lang-btn { border-radius: 0; background: var(--neu-ctl-sq); box-shadow: var(--neu-t2-grp); }
-:root[data-style="soft"] .toolbar > :first-child .tb-btn, :root[data-style="soft"] .toolbar > :first-child .lang-btn { border-radius: var(--neu-r-ctl) 0 0 var(--neu-r-ctl); }
-:root[data-style="soft"] .toolbar > :last-child .tb-btn, :root[data-style="soft"] .toolbar > :last-child .lang-btn { border-radius: 0 var(--neu-r-ctl) var(--neu-r-ctl) 0; }
-:root[data-style="soft"] .tb-btn { width: 36px; transition: background .12s, box-shadow .12s; }
-:root[data-style="soft"] .toolbar .tb-btn:hover, :root[data-style="soft"] .toolbar .lang-btn:hover { background: var(--neu-ctl-sq); box-shadow: 3px 3px 5px var(--neu-lo), -2px -2px 4px var(--neu-hi); }
-:root[data-style="soft"] .toolbar .tb-btn:active, :root[data-style="soft"] .toolbar .tb-btn[aria-expanded="true"], :root[data-style="soft"] .toolbar .lang-btn[aria-expanded="true"] { background: var(--neu-bg); box-shadow: var(--neu-inset-sm); }
-:root[data-style="soft"] .tb-btn:active .pix { transform: translateY(1px); }
-:root[data-style="soft"] .lang { background: transparent; box-shadow: none; }
-:root[data-style="soft"] .icon-btn { border-color: transparent; border-radius: var(--neu-r-ctl); background: var(--neu-ctl); box-shadow: var(--neu-t2); }
-:root[data-style="soft"] .icon-btn:hover { border-color: transparent; }
+:root[data-neu] .toolbar { border-color: transparent; border-radius: 12px; background: var(--neu-carve); box-shadow: var(--neu-inset-sm); padding: 3px; gap: 2px; margin-bottom: 0; height: 48px; align-items: stretch; }
+:root[data-neu] .toolbar > * + * { border-left: 0; box-shadow: none; }
+:root[data-neu] .toolbar .tb-btn, :root[data-neu] .toolbar .lang-btn { border-radius: 0; background: var(--neu-ctl-sq); box-shadow: var(--neu-t2-grp); }
+:root[data-neu] .toolbar > :first-child .tb-btn, :root[data-neu] .toolbar > :first-child .lang-btn { border-radius: var(--neu-r-ctl) 0 0 var(--neu-r-ctl); }
+:root[data-neu] .toolbar > :last-child .tb-btn, :root[data-neu] .toolbar > :last-child .lang-btn { border-radius: 0 var(--neu-r-ctl) var(--neu-r-ctl) 0; }
+:root[data-neu] .tb-btn { width: 40px; transition: background .12s, box-shadow .12s; }
+:root[data-neu] .toolbar .tb-btn:hover, :root[data-neu] .toolbar .lang-btn:hover { background: var(--neu-ctl-sq); box-shadow: 4px 4px 5px -1px var(--neu-lo), -3px -3px 4px -1px var(--neu-hi); }
+:root[data-neu] .toolbar .tb-btn:active, :root[data-neu] .toolbar .tb-btn[aria-expanded="true"], :root[data-neu] .toolbar .lang-btn[aria-expanded="true"] { background: var(--neu-bg); box-shadow: var(--neu-inset-sm); }
+:root[data-neu] .tb-btn:active .pix { transform: translateY(1px); }
+:root[data-neu] .lang { background: transparent; box-shadow: none; }
+:root[data-neu] .icon-btn { border-color: transparent; border-radius: var(--neu-r-ctl); background: var(--neu-ctl); box-shadow: var(--neu-t2); }
+:root[data-neu] .icon-btn:hover { border-color: transparent; }
 
 /* menus / dialogs / popovers: big raised sheets, no hard border */
-:root[data-style="soft"] .menu, :root[data-style="soft"] .lang-list {
-  border-color: var(--neu-edge); border-radius: var(--neu-r-lg); background: var(--neu-grad);
-  box-shadow: 10px 12px 30px var(--neu-lo), -6px -6px 18px var(--neu-hi);
+:root[data-neu] .menu, :root[data-neu] .lang-list {
+  border-color: var(--neu-edge) transparent transparent var(--neu-edge); border-radius: var(--neu-r-lg); background: var(--neu-grad);
+  box-shadow: 20px 22px 30px -10px var(--neu-lo), -12px -12px 18px -6px var(--neu-hi);
 }
-:root[data-style="soft"] .menu::before { display: none; }
-:root[data-style="soft"] .menu-title { border-bottom-color: var(--line); }
-:root[data-style="soft"] .menu button, :root[data-style="soft"] .lang-opt { border-radius: var(--neu-r-sm); }
-:root[data-style="soft"] .menu button:hover, :root[data-style="soft"] .menu button:focus-visible, :root[data-style="soft"] .lang-opt.active { background: var(--neu-bg); box-shadow: var(--neu-inset-xs); border-color: transparent; }
-:root[data-style="soft"] .lang-opt[aria-selected="true"] { background: var(--neu-sel-bg); border-color: transparent; box-shadow: var(--neu-sel-inset-xs); }
-:root[data-style="soft"] .lang-opt[aria-selected="true"].active { box-shadow: var(--neu-sel-inset-xs); }
+:root[data-neu] .menu::before { display: none; }
+:root[data-neu] .menu button, :root[data-neu] .lang-opt { border-radius: var(--neu-r-sm); }
+:root[data-neu] .menu button:hover, :root[data-neu] .menu button:focus-visible, :root[data-neu] .lang-opt.active { background: var(--neu-bg); box-shadow: var(--neu-inset-xs); border-color: transparent; }
+:root[data-neu] .lang-opt[aria-selected="true"] { background: var(--neu-sel-bg); border-color: transparent; box-shadow: var(--neu-sel-inset-xs); }
+:root[data-neu] .lang-opt[aria-selected="true"].active { box-shadow: var(--neu-sel-inset-xs); }
 
 /* tooltips */
-:root[data-style="soft"] .th-tooltip { border-color: var(--neu-edge); border-radius: var(--neu-r-sm); background: var(--neu-grad); box-shadow: 5px 6px 16px var(--neu-lo), -3px -3px 10px var(--neu-hi); }
-:root[data-style="soft"] .th-tooltip-tag { background: color-mix(in srgb, var(--accent) 16%, var(--neu-bg)); }
+:root[data-neu] .th-tooltip { border-color: var(--neu-edge) transparent transparent var(--neu-edge); border-radius: var(--neu-r-sm); background: var(--neu-grad); box-shadow: 11px 12px 16px -5px var(--neu-lo), -7px -7px 10px -3px var(--neu-hi); }
+:root[data-neu] .th-tooltip-tag { background: color-mix(in srgb, var(--accent) 16%, var(--neu-bg)); }
 
 /* footer */
-:root[data-style="soft"] .foot-toggle { border-radius: var(--neu-r-md); }
-:root[data-style="soft"] .foot-toggle:hover { border-color: transparent; background: transparent; box-shadow: var(--neu-raised-xs); }
-:root[data-style="soft"] .foot-toggle[aria-expanded="true"] { border-color: transparent; background: transparent; box-shadow: var(--neu-inset-xs); }
+:root[data-neu] .foot-toggle { border-radius: var(--neu-r-md); }
+:root[data-neu] .foot-toggle:hover { border-color: transparent; background: transparent; box-shadow: var(--neu-raised-xs); }
+:root[data-neu] .foot-toggle[aria-expanded="true"] { border-color: transparent; background: transparent; box-shadow: var(--neu-inset-xs); }
 
 /* mobile bottom tab bar: a raised sheet; tabs are the same pixel-bevelled soft blocks, the dotted mark sits on the top edge */
 @media (max-width: 640px) {
-  :root[data-style="soft"] { --bottom-bar: calc(72px + env(safe-area-inset-bottom)); }
-  :root[data-style="soft"] .nav { gap: 6px; padding: 8px 10px calc(8px + env(safe-area-inset-bottom)); background: color-mix(in srgb, var(--neu-bg) 96%, transparent); border-top: 0; box-shadow: 0 -12px 26px -12px var(--neu-lo), 0 -1px 0 var(--neu-edge); border-radius: 20px 20px 0 0; }
-  :root[data-style="soft"] .nav-item { border-radius: 9px; padding: 8px 2px 7px; background: var(--neu-ctl); box-shadow: 3px 3px 7px var(--neu-lo), -2px -2px 6px var(--neu-hi); }
-  :root[data-style="soft"] .nav-item::after { top: 4px; bottom: auto; left: 50%; right: auto; width: 2px; height: 2px; border-radius: 0; }
-  :root[data-style="soft"] .nav-item:hover:not(.active) { transform: none; box-shadow: 3px 3px 7px var(--neu-lo), -2px -2px 6px var(--neu-hi); }
-  :root[data-style="soft"] .nav-item.active { box-shadow: inset 6px 6px 9px -3px var(--nv-sh), inset -2px -2px 6px var(--nv-li); }
-  :root[data-style="soft"] .nav-item:active:not(.active) { box-shadow: inset 5px 5px 8px -3px var(--nv-sh), inset -2px -2px 5px var(--nv-li); }
-  :root[data-style="soft"] .toast { bottom: calc(88px + env(safe-area-inset-bottom)); }
+  :root[data-neu] { --bottom-bar: calc(72px + env(safe-area-inset-bottom)); }
+  :root[data-neu] .nav { gap: 6px; padding: 8px 10px calc(8px + env(safe-area-inset-bottom)); background: color-mix(in srgb, var(--neu-bg) 96%, transparent); border-top: 0; box-shadow: 0 -12px 26px -12px var(--neu-lo); border-radius: 20px 20px 0 0; }
+  :root[data-neu] .nav-item { border-radius: 9px; padding: 7px 1px 6px; background: var(--neu-ctl); box-shadow: 5px 5px 7px -2px var(--neu-lo), -4px -4px 6px -2px var(--neu-hi); }
+  :root[data-style="pixel"] .nav-item::after { top: 4px; bottom: auto; left: 50%; right: auto; width: 2px; height: 2px; border-radius: 0; }
+  :root[data-neu] .nav-item:hover:not(.active) { transform: none; box-shadow: 5px 5px 7px -2px var(--neu-lo), -4px -4px 6px -2px var(--neu-hi); }
+  :root[data-neu] .nav-item.active { background: var(--nv-on-bg); box-shadow: inset 6px 6px 9px -3px var(--nv-sh); }
+  :root[data-neu] .nav-item:active:not(.active) { background: var(--nv-on-bg); box-shadow: inset 5px 5px 8px -3px var(--nv-sh); }
+  :root[data-neu] .toast { bottom: calc(88px + env(safe-area-inset-bottom)); }
+  :root[data-neu] .toolbar { height: 44px; padding: 4px; }   /* phones: no nav strip beside it, the compact 44px strip keeps the bar short */
+  :root[data-neu] .tb-btn { width: 36px; }
 }
 
 /* ============ surfaces ============
-   TIER 1 - SEGMENT: every container that groups content. One recipe: soft raised, same radius, same padding, no bevel.
+   TIER 1 - SEGMENT: every container that groups content. One recipe: a raised block (stepped crisp shadow + 1px rim, see
+   --neu-t1), same radius, same padding, no stepped bevel (that belongs to T2 controls).
    New features only need class `.panel` (or one of the listed hooks) - never style a container surface in module CSS. */
-:root[data-style="soft"] :is(.panel, .ov-card, .tr-saved, .hl-steps) {
-  border: 1px solid var(--neu-edge); border-radius: var(--neu-r-seg); background: var(--neu-grad); box-shadow: var(--neu-t1);
+:root[data-neu] :is(.panel, .ov-card, .tr-saved) {
+  border: 1px solid; border-color: var(--neu-rim-hi) var(--neu-rim-lo) var(--neu-rim-lo) var(--neu-rim-hi); border-radius: var(--neu-r-seg); background: var(--neu-grad); box-shadow: var(--neu-t1);
 }
-:root[data-style="soft"] :is(.panel, .tr-saved) { padding: var(--neu-pad); }
-:root[data-style="soft"] .hl-steps { padding: calc(var(--neu-pad) - 12px) calc(var(--neu-pad) - 12px); margin-bottom: var(--neu-gap); }
-:root[data-style="soft"] .hl-steps ol { gap: 6px; }
+:root[data-neu] :is(.panel, .tr-saved) { padding: var(--neu-pad); }
+/* the wizard stepper is a slim flat row on the page (no segment of its own, see hall.css) */
+:root[data-neu] .hl-steps { margin-bottom: 16px; }
 /* never nest a segment in a segment: a container inside one is flat (a faint tint), not raised */
-:root[data-style="soft"] .panel .panel { background: var(--neu-flat); box-shadow: none; border-color: transparent; border-radius: var(--neu-r-tile); }
-:root[data-style="soft"] .hl-check.panel { background: var(--neu-grad); border-color: var(--neu-edge); }
-:root[data-style="soft"] .page-head h2 { text-shadow: none; }
-:root[data-style="soft"] .toast { border-color: var(--neu-edge); border-radius: var(--neu-r-md); background: var(--neu-grad); box-shadow: var(--neu-raised-sm), 0 0 22px -8px var(--accent); }
-:root[data-style="soft"] .empty-icon { filter: none; }
-:root[data-style="soft"] .swatch { border-color: transparent; border-radius: var(--neu-r-sm); background: var(--neu-ctl); box-shadow: var(--neu-raised-xs); }
+:root[data-neu] .panel .panel { background: var(--neu-flat); box-shadow: none; border-color: transparent; border-radius: var(--neu-r-tile); }
+:root[data-neu] .hl-check.panel { background: var(--neu-grad); border-color: transparent; }
+:root[data-neu] .page-head h2 { text-shadow: none; }
+:root[data-neu] .toast { border-color: var(--neu-edge) transparent transparent var(--neu-edge); border-radius: var(--neu-r-md); background: var(--neu-grad); box-shadow: var(--neu-raised-sm), -9px -9px 22px -13px var(--accent); }
+:root[data-neu] .empty-icon { filter: none; }
+:root[data-neu] .swatch { border-color: transparent; border-radius: var(--neu-r-sm); background: var(--neu-ctl); box-shadow: var(--neu-raised-xs); }
 
 /* ============ buttons ============ */
-:root[data-style="soft"] .btn {
+:root[data-neu] .btn {
   border-color: transparent; border-radius: var(--neu-r-ctl); background: var(--neu-ctl); box-shadow: var(--neu-raised-sm);
   transition: box-shadow .12s, background .15s, color .15s, filter .15s;
 }
-:root[data-style="soft"] .btn:hover { border-color: transparent; color: var(--text); filter: brightness(1.05); }
-:root[data-style="soft"] .btn:active:not(:disabled) { transform: none; box-shadow: var(--neu-inset-sm); filter: none; background: var(--neu-bg); }
-:root[data-style="soft"] .btn.primary {
+:root[data-neu] .btn:hover { border-color: transparent; color: var(--text); filter: brightness(1.05); }
+:root[data-neu] .btn:active:not(:disabled) { transform: none; box-shadow: var(--neu-inset-sm); filter: none; background: var(--neu-bg); }
+:root[data-neu] .btn.primary {
   color: var(--accent-ink); border-color: transparent;
   background: var(--neu-bevel), linear-gradient(145deg, color-mix(in srgb, var(--accent) 88%, #fff), var(--accent) 55%, color-mix(in srgb, var(--accent) 86%, #000));
   box-shadow: var(--neu-acc-raised-sm);
 }
-:root[data-style="soft"] .btn.primary:hover { box-shadow: 5px 5px 13px var(--neu-acc-lo), -4px -4px 10px var(--neu-acc-hi); background: var(--neu-bevel), linear-gradient(145deg, color-mix(in srgb, var(--accent) 80%, #fff), color-mix(in srgb, var(--accent) 92%, #fff) 55%, var(--accent)); border-color: transparent; filter: none; }
-:root[data-style="soft"] .btn.primary:active:not(:disabled) {
+:root[data-neu] .btn.primary:hover { box-shadow: 9px 9px 13px -4px var(--neu-acc-lo), -7px -7px 10px -3px var(--neu-acc-hi); background: var(--neu-bevel), linear-gradient(145deg, color-mix(in srgb, var(--accent) 80%, #fff), color-mix(in srgb, var(--accent) 92%, #fff) 55%, var(--accent)); border-color: transparent; filter: none; }
+:root[data-neu] .btn.primary:active:not(:disabled) {
   transform: none; filter: none;
   background: linear-gradient(145deg, color-mix(in srgb, var(--accent) 88%, #000), var(--accent));
-  box-shadow: inset 3px 3px 7px color-mix(in srgb, var(--accent-deep) 85%, #000), inset -2px -2px 6px color-mix(in srgb, var(--accent) 70%, #fff);
+  box-shadow: inset 5px 5px 7px -2px var(--neu-lo), inset -4px -4px 6px -2px color-mix(in srgb, var(--accent) 70%, #fff);
 }
-:root[data-style="soft"] .btn.ghost { background: transparent; box-shadow: none; filter: none; color: var(--muted); }
-:root[data-style="soft"] .btn.ghost:hover { background: transparent; box-shadow: var(--neu-raised-xs); color: var(--text); }
-:root[data-style="soft"] .btn.ghost:active:not(:disabled) { box-shadow: var(--neu-inset-xs); }
-:root[data-style="soft"] .btn.danger { color: var(--danger); }
-:root[data-style="soft"] .btn:disabled { filter: none; box-shadow: var(--neu-raised-xs); }
-:root[data-style="soft"] .btn.ec-undone { color: var(--muted); }
-:root[data-style="soft"] .ec-add { border-color: transparent; color: var(--accent); }
-:root[data-style="soft"] .ec-add:hover:not(:disabled) { background: var(--neu-ctl); border-color: transparent; }
-:root[data-style="soft"] .ec-inplan:disabled { border-color: transparent; }
-:root[data-style="soft"] .hl-add-row .btn { border-style: solid; }
-:root[data-style="soft"] .x-btn { border-radius: var(--neu-r-sm); }
-:root[data-style="soft"] .x-btn:hover { background: transparent; box-shadow: var(--neu-raised-xs); }
-:root[data-style="soft"] .x-btn:active:not(:disabled) { box-shadow: var(--neu-inset-xs); }
+:root[data-neu] .btn.ghost { background: transparent; box-shadow: none; filter: none; color: var(--muted); }
+:root[data-neu] .btn.ghost:hover { background: transparent; box-shadow: var(--neu-raised-xs); color: var(--text); }
+:root[data-neu] .btn.ghost:active:not(:disabled) { box-shadow: var(--neu-inset-xs); }
+:root[data-neu] .btn.danger { color: var(--danger); }
+:root[data-neu] .btn:disabled { filter: none; box-shadow: var(--neu-raised-xs); }
+:root[data-neu] .btn.ec-undone { color: var(--muted); }
+:root[data-neu] .ec-add { border-color: transparent; color: var(--accent); }
+:root[data-neu] .ec-add:hover:not(:disabled) { background: var(--neu-ctl); border-color: transparent; }
+:root[data-neu] .ec-inplan:disabled { border-color: transparent; }
+:root[data-neu] .hl-add-row .btn { border-style: solid; }
+:root[data-neu] .x-btn { border-radius: var(--neu-r-sm); }
+:root[data-neu] .x-btn:hover { background: transparent; box-shadow: var(--neu-raised-xs); }
+:root[data-neu] .x-btn:active:not(:disabled) { box-shadow: var(--neu-inset-xs); }
 
-/* ============ segmented control: inset track, raised thumb ============ */
-:root[data-style="soft"] .seg { border-color: transparent; border-radius: var(--neu-r-lg); background: var(--neu-well); box-shadow: var(--neu-inset-sm); }
-:root[data-style="soft"] .seg button { border-radius: var(--neu-r-md); border: 1px solid transparent; transition: color .15s, background .15s, box-shadow .15s; }
-:root[data-style="soft"] .seg button:hover:not(.on) { color: var(--text); }
-:root[data-style="soft"] .seg button.on, :root[data-style="soft"] .module-hall .seg button.on, :root[data-style="soft"] .ec-mode button.on {
+/* ============ segmented control (.seg = one-of-N): one sunken well, ONE raised knob ============
+   Exclusive toggles (2-key mode switches, the style switcher, sort/filter/skin pickers) read as a single knob sitting in
+   the well: inactive keys lie flat on the well floor (no surface, no bevel, no shadow), the active key is a raised T2 key
+   with all corners rounded (--neu-r-ctl), neutral dark shadow bottom-right, light top-left, accent only in its label. */
+:root[data-neu] .seg { border-color: transparent; border-radius: var(--neu-r-lg); background: var(--neu-well); box-shadow: var(--neu-inset-sm); }
+:root[data-neu] .seg button { border-radius: var(--neu-r-ctl); border: 1px solid transparent; background: transparent; box-shadow: none; transition: color .15s, background .15s, box-shadow .15s; }
+:root[data-neu] .seg button:hover:not(.on) { color: var(--text); background: transparent; }
+:root[data-neu] .seg button.on, :root[data-neu] .module-hall .seg button.on, :root[data-neu] .ec-mode button.on {
   background: var(--neu-ctl); border-color: transparent; color: var(--accent);
-  box-shadow: var(--neu-raised-xs);
+  box-shadow: var(--neu-knob);
 }
-:root[data-style="soft"] .seg button.on .count { opacity: .9; }
+:root[data-neu] .seg button.on .count { opacity: .9; }
 
 /* ============ form controls: inset slots ============ */
-:root[data-style="soft"] .field, :root[data-style="soft"] .price, :root[data-style="soft"] .stepper, :root[data-style="soft"] .search .field { border-color: transparent; border-radius: var(--neu-r-md); background: var(--neu-well); box-shadow: var(--neu-inset-deep); }
-:root[data-style="soft"] .field:hover { border-color: transparent; }
-:root[data-style="soft"] .field:focus, :root[data-style="soft"] .stepper:focus-within, :root[data-style="soft"] .price:focus-within {
+:root[data-neu] .field, :root[data-neu] .price, :root[data-neu] .stepper, :root[data-neu] .search .field { border-color: transparent; border-radius: var(--neu-r-md); background: var(--neu-well); box-shadow: var(--neu-inset-deep); }
+:root[data-neu] .field:hover { border-color: transparent; }
+:root[data-neu] .field:focus, :root[data-neu] .stepper:focus-within, :root[data-neu] .price:focus-within {
   border-color: transparent; filter: none;
   box-shadow: var(--neu-sel-inset-sm), 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent), 0 0 14px color-mix(in srgb, var(--accent) 30%, transparent);
 }
-:root[data-style="soft"] .search::before { border-radius: 50%; }
-:root[data-style="soft"] .step { border-color: transparent; border-radius: var(--neu-r-sm); background: var(--neu-ctl); box-shadow: var(--neu-raised-xs); transition: box-shadow .08s; }
-:root[data-style="soft"] .step:hover { border-color: transparent; color: var(--accent); }
-:root[data-style="soft"] .step:active:not(:disabled) { transform: none; box-shadow: var(--neu-inset-xs); }
+:root[data-neu] .search::before { border-radius: 50%; }
+:root[data-neu] .step { border-color: transparent; border-radius: var(--neu-r-sm); background: var(--neu-ctl); box-shadow: var(--neu-raised-xs); transition: box-shadow .08s; }
+:root[data-neu] .step:hover { border-color: transparent; color: var(--accent); }
+:root[data-neu] .step:active:not(:disabled) { transform: none; box-shadow: var(--neu-inset-xs); }
 
 /* checkbox: inset well; checked = accent block with a soft glow */
-:root[data-style="soft"] .check span { border-color: transparent; border-radius: var(--neu-r-sm); background-color: var(--neu-well); box-shadow: var(--neu-inset-xs); }
-:root[data-style="soft"] .check input:checked + span {
+:root[data-neu] .check span { border-color: transparent; border-radius: var(--neu-r-sm); background-color: var(--neu-well); box-shadow: var(--neu-inset-xs); }
+:root[data-neu] .check input:checked + span {
   background-color: var(--accent); border-color: transparent;
-  box-shadow: 2px 2px 5px var(--neu-lo), -1px -1px 4px var(--neu-hi), 0 0 12px -2px color-mix(in srgb, var(--accent) 65%, transparent);
+  box-shadow: 4px 4px 5px -1px var(--neu-lo), -5px -5px 8px -3px var(--neu-acc-glow);
 }
-:root[data-style="soft"] .check input:focus-visible + span { outline-offset: 3px; }
+:root[data-neu] .check input:focus-visible + span { outline-offset: 3px; }
 
-/* switch: inset pill, round raised knob */
-:root[data-style="soft"] .switch span { border-color: transparent; border-radius: 99px; background: var(--neu-well); box-shadow: var(--neu-inset-deep); }
-:root[data-style="soft"] .switch span::after { top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; box-shadow: var(--neu-raised-xs); }
-:root[data-style="soft"] .switch input:checked + span { background: color-mix(in srgb, var(--accent) 24%, var(--neu-well)); }
-:root[data-style="soft"] .switch input:checked + span::after { box-shadow: 2px 2px 4px var(--neu-lo), 0 0 10px var(--accent); }
-:root[data-style="soft"] .switch input:focus-visible + span { outline-offset: 3px; }
-
-/* slider: inset groove, round raised thumb */
-:root[data-style="soft"] .slider::-webkit-slider-runnable-track { border-color: transparent; border-radius: 99px; background: var(--neu-well); box-shadow: var(--neu-inset-xs); }
-:root[data-style="soft"] .slider::-moz-range-track { border-color: transparent; border-radius: 99px; background: var(--neu-well); box-shadow: var(--neu-inset-xs); }
-:root[data-style="soft"] .slider::-webkit-slider-thumb { width: 18px; height: 18px; margin-top: -5px; border-radius: 50%; border: 0; background: var(--accent); box-shadow: var(--neu-raised-xs), 0 0 10px -2px var(--accent); }
-:root[data-style="soft"] .slider::-moz-range-thumb { width: 18px; height: 18px; border-radius: 50%; border: 0; background: var(--accent); box-shadow: var(--neu-raised-xs), 0 0 10px -2px var(--accent); }
-
-/* level chips: raised keys, chosen = pressed + accent */
-:root[data-style="soft"] .lvl-chips button { border-color: transparent; border-radius: var(--neu-r-sm); background: var(--neu-ctl); box-shadow: var(--neu-raised-xs); color: var(--faint); transition: box-shadow .1s, color .12s; }
-:root[data-style="soft"] .lvl-chips button:hover { color: var(--text); }
-:root[data-style="soft"] .lvl-chips button.on, :root[data-style="soft"] .module-hall .lvl-chips button.on, :root[data-style="soft"] .lvl-chips.ec-lv button.on {
-  color: var(--accent); border-color: transparent; background: var(--neu-bg);
+/* switch = lever (shape + knob below are Pixel; Soft has its own at the end): a T-1 well track (blocky --neu-r-ctl, sunken) with a T2 knob (raised + stepped pixel bevel, like the
+   buttons). Checked: the track's neutral shadow stays, the accent only catches the lit side (bottom-right rim + glow from
+   the lower-right) and the knob's lit top-left steps + highlight take the accent. The knob carries a 4px "lamp" pixel:
+   unlit = a dark notch, checked = lit in the accent (emitted light). Pixel-crisp travel (steps). */
+:root[data-neu] .switch { width: 44px; height: 24px; }
+:root[data-style="pixel"] .switch span { border: 1px solid transparent; border-radius: var(--neu-r-ctl); background: var(--neu-well); box-shadow: var(--neu-inset-sm); transition: background .12s steps(2, end), box-shadow .12s steps(2, end); }
+:root[data-style="pixel"] .switch span::after {
+  top: 2px; left: 2px; width: 18px; height: 18px; border-radius: var(--neu-r-xs);   /* 2px + the 1px rim border = 3px from the edge */
+  background: linear-gradient(var(--neu-px-lo), var(--neu-px-lo)) center / 4px 4px no-repeat border-box, var(--neu-ctl); box-shadow: var(--neu-raised-xs);
+  transition: transform .16s steps(5, end), box-shadow .12s, background .12s;
+}
+:root[data-neu] .switch input:checked + span {
+  background: radial-gradient(130% 100% at 96% 100%, color-mix(in srgb, var(--accent) 36%, transparent), transparent 62%) padding-box,
+              linear-gradient(var(--neu-well), var(--neu-well)) padding-box, var(--neu-sel-ring) border-box var(--neu-well);
   box-shadow: var(--neu-sel-inset-xs);
 }
-:root[data-style="soft"] .module-hall .hl-strip:not(.is-on) .lvl-chips button.on, :root[data-style="soft"] .lvl-chips.ec-lv button.none.on { color: var(--text); border-color: transparent; background: var(--neu-bg); box-shadow: var(--neu-inset-xs); }
-:root[data-style="soft"] .lvl-chips.ec-lv button:hover:not(.on) { border-color: transparent; }
-:root[data-style="soft"] .lvl-chips.ec-lv.is-empty { box-shadow: none; }
+:root[data-style="pixel"] .switch input:checked + span::after { transform: translateX(20px); background: linear-gradient(var(--accent), var(--accent)) center / 4px 4px no-repeat, var(--neu-bevel-lit), var(--neu-grad); box-shadow: 3px 3px 4px -1px var(--neu-lo), -3px -3px 5px -2px var(--neu-acc-hi); }
+:root[data-neu] :is(.tr-sync, .ec-tile):active .switch span::after, :root[data-neu] .switch:active span::after { box-shadow: var(--neu-pressed-xs); }
+:root[data-neu] .switch input:focus-visible + span { outline-offset: 3px; }
+
+/* slider: inset groove, round raised thumb */
+:root[data-neu] .slider::-webkit-slider-runnable-track { border-color: transparent; border-radius: 99px; background: var(--neu-well); box-shadow: var(--neu-inset-xs); }
+:root[data-neu] .slider::-moz-range-track { border-color: transparent; border-radius: 99px; background: var(--neu-well); box-shadow: var(--neu-inset-xs); }
+:root[data-neu] .slider::-webkit-slider-thumb { width: 18px; height: 18px; margin-top: -5px; border-radius: 50%; border: 0; background: var(--accent); box-shadow: 3px 3px 4px -1px var(--neu-lo), -4px -4px 8px -4px var(--neu-acc-glow); }
+:root[data-neu] .slider::-moz-range-thumb { width: 18px; height: 18px; border-radius: 50%; border: 0; background: var(--accent); box-shadow: 3px 3px 4px -1px var(--neu-lo), -4px -4px 8px -4px var(--neu-acc-glow); }
+
+/* level chips: raised keys, chosen = pressed + accent */
+:root[data-neu] .lvl-chips button { border-color: transparent; border-radius: var(--neu-r-sm); background: var(--neu-ctl); box-shadow: var(--neu-raised-xs); color: var(--faint); transition: box-shadow .1s, color .12s; }
+:root[data-neu] .lvl-chips button:hover { color: var(--text); }
+:root[data-neu] .lvl-chips button.on, :root[data-neu] .module-hall .lvl-chips button.on, :root[data-neu] .lvl-chips.ec-lv button.on {
+  color: var(--accent); border-color: transparent; background: var(--neu-sel-bg);
+  box-shadow: var(--neu-sel-inset-xs);
+}
+:root[data-neu] .module-hall .hl-strip:not(.is-on) .lvl-chips button.on, :root[data-neu] .lvl-chips.ec-lv button.none.on { color: var(--text); border-color: transparent; background: var(--neu-bg); box-shadow: var(--neu-inset-xs); }
+:root[data-neu] .lvl-chips.ec-lv button:hover:not(.on) { border-color: transparent; }
+:root[data-neu] .lvl-chips.ec-lv.is-empty { box-shadow: none; }
 
 /* small pieces */
-:root[data-style="soft"] .chip { border-color: transparent; border-radius: var(--neu-r-sm); background: var(--neu-flat); box-shadow: none; }
-:root[data-style="soft"] .pill { border-radius: var(--neu-r-xs); }
-:root[data-style="soft"] .pill.ec-onitem { border-color: var(--line-2); }
-:root[data-style="soft"] .ring-bg { stroke: var(--neu-well); }
-:root[data-style="soft"] .bar { height: 8px; border-radius: 99px; background: var(--neu-well); box-shadow: var(--neu-inset-xs); }
-:root[data-style="soft"] .bar > span { border-radius: 99px; background: linear-gradient(180deg, var(--accent-2), var(--accent)); box-shadow: 0 0 8px -1px color-mix(in srgb, var(--accent) 70%, transparent); }
+:root[data-neu] .chip { border-color: transparent; border-radius: var(--neu-r-sm); background: var(--neu-flat); box-shadow: none; }
+:root[data-neu] .pill { border-radius: var(--neu-r-xs); }
+:root[data-neu] .pill.ec-onitem { border-color: var(--line-2); }
+:root[data-neu] .ring-bg { stroke: var(--neu-well); }
+:root[data-neu] .bar { height: 8px; border-radius: 99px; background: var(--neu-well); box-shadow: var(--neu-inset-xs); }
+:root[data-neu] .bar > span { border-radius: 99px; background: linear-gradient(180deg, var(--accent-2), var(--accent)); box-shadow: 0 0 8px -1px color-mix(in srgb, var(--accent) 70%, transparent); }
 
 /* ============ Trading Hall: wizard ============ */
-:root[data-style="soft"] .hl-steps button { border-radius: var(--neu-r-ctl); }
-:root[data-style="soft"] .hl-steps button:hover { background: color-mix(in srgb, var(--text) 4%, transparent); }
-:root[data-style="soft"] .hl-step-dot { border-color: transparent; border-radius: var(--neu-r-sm); background: var(--neu-bg); box-shadow: var(--neu-inset-xs); }
-:root[data-style="soft"] .hl-steps li.is-current .hl-step-dot { background: var(--accent); box-shadow: var(--neu-raised-xs), 0 0 14px -3px var(--accent); }
-:root[data-style="soft"] .hl-steps li.is-done .hl-step-dot { border-color: transparent; background: color-mix(in srgb, var(--accent) 14%, var(--neu-bg)); box-shadow: var(--neu-inset-xs); }
+:root[data-neu] .hl-steps button { border-radius: var(--neu-r-ctl); }
+:root[data-neu] .hl-steps button:hover { background: color-mix(in srgb, var(--text) 4%, transparent); }
+:root[data-neu] .hl-step-dot { border-color: transparent; border-radius: var(--neu-r-sm); background: var(--neu-bg); box-shadow: var(--neu-inset-xs); }
+:root[data-neu] .hl-steps li.is-current .hl-step-dot { background: var(--accent); box-shadow: 3px 3px 4px -1px var(--neu-lo), -6px -6px 10px -4px var(--neu-acc-glow); }
+:root[data-neu] .hl-steps li.is-done .hl-step-dot { border-color: transparent; background: color-mix(in srgb, var(--accent) 14%, var(--neu-bg)); box-shadow: var(--neu-inset-xs); }
 
-:root[data-style="soft"] .hl-preset { border-color: transparent; border-radius: 14px; background: var(--neu-ctl); box-shadow: 5px 5px 12px var(--neu-lo), -4px -4px 10px var(--neu-hi); }
-:root[data-style="soft"] .hl-preset:hover { border-color: var(--neu-edge); }
-:root[data-style="soft"] .hl-preset.is-on { border-color: transparent; background: var(--neu-ctl-on); box-shadow: var(--neu-sel-inset); }
-:root[data-style="soft"] .hl-preset-icon { border-color: transparent; border-radius: var(--neu-r-md); background: var(--neu-bg); box-shadow: var(--neu-inset-sm); }
-:root[data-style="soft"] .hl-detail-icon, :root[data-style="soft"] .hl-trade-ico, :root[data-style="soft"] .hl-rev-stat-ico, :root[data-style="soft"] .hl-verdict-icon, :root[data-style="soft"] .ec-pi-icon { border-color: transparent; border-radius: var(--neu-r-md); background: var(--neu-flat); box-shadow: none; }
-:root[data-style="soft"] .hl-preset-check, :root[data-style="soft"] .hl-tick { border-color: transparent; border-radius: var(--neu-r-sm); background-color: var(--neu-well); box-shadow: var(--neu-inset-xs); }
-:root[data-style="soft"] .hl-preset.is-on .hl-preset-check, :root[data-style="soft"] .hl-strip.is-on .hl-tick {
+:root[data-neu] .hl-preset { border-color: transparent; border-radius: 14px; background: var(--neu-ctl); box-shadow: 9px 9px 12px -3px var(--neu-lo), -7px -7px 10px -3px var(--neu-hi); }
+:root[data-neu] .hl-preset:hover { border-color: var(--neu-edge) transparent transparent var(--neu-edge); }
+:root[data-neu] .hl-preset.is-on { border-color: transparent; background: var(--neu-ctl-on); box-shadow: var(--neu-sel-inset); }
+:root[data-neu] .hl-preset-icon { border-color: transparent; border-radius: var(--neu-r-md); background: var(--neu-bg); box-shadow: var(--neu-inset-sm); }
+:root[data-neu] .hl-detail-icon, :root[data-neu] .hl-trade-ico, :root[data-neu] .hl-rev-stat-ico, :root[data-neu] .hl-verdict-icon, :root[data-neu] .ec-pi-icon { border-color: transparent; border-radius: var(--neu-r-md); background: var(--neu-flat); box-shadow: none; }
+:root[data-neu] .hl-preset-check, :root[data-neu] .hl-tick { border-color: transparent; border-radius: var(--neu-r-sm); background-color: var(--neu-well); box-shadow: var(--neu-inset-xs); }
+:root[data-neu] .hl-preset.is-on .hl-preset-check, :root[data-neu] .hl-strip.is-on .hl-tick {
   background-color: var(--sel); border-color: transparent;
-  box-shadow: 2px 2px 4px var(--neu-lo), -1px -1px 3px var(--neu-hi), 0 0 10px -2px color-mix(in srgb, var(--sel) 65%, transparent);
+  box-shadow: 3px 3px 4px -1px var(--neu-lo), -4px -4px 7px -3px color-mix(in srgb, var(--sel) 55%, transparent);
 }
-:root[data-style="soft"] .hl-preset-tags span { border-color: transparent; border-radius: var(--neu-r-xs); box-shadow: var(--neu-inset-xs); }
 
-/* strips: flat rows on the surface; selected = pressed in with an accent ring */
-:root[data-style="soft"] .hl-strip { border-color: transparent; border-radius: var(--neu-r-tile); background: var(--neu-ctl); box-shadow: var(--neu-raised-xs); }
-:root[data-style="soft"] .hl-strip:hover { border-color: transparent; background: var(--neu-ctl); }
-:root[data-style="soft"] .hl-strip.is-on, :root[data-style="soft"] .hl-strip.hl-strip-trade.is-on {
+/* strips: raised rows on the surface; selected = pressed in, accent only on the lit lower-right */
+:root[data-neu] .hl-strip { border-color: transparent; border-radius: var(--neu-r-tile); background: var(--neu-ctl); box-shadow: var(--neu-raised-xs); }
+:root[data-neu] .hl-strip:hover { border-color: transparent; background: var(--neu-ctl); }
+:root[data-neu] .hl-strip.is-on, :root[data-neu] .hl-strip.hl-strip-trade.is-on {
   border-color: transparent; background: var(--neu-ctl-on);
   box-shadow: var(--neu-sel-inset-sm);
 }
-:root[data-style="soft"] .hl-strip.is-disabled { background: transparent; border: 1px dashed var(--line-2); box-shadow: none; }
-:root[data-style="soft"] .hl-strip-trade, :root[data-style="soft"] .hl-strip-next[style] { box-shadow: inset 3px 0 0 var(--pc), var(--neu-raised-xs); }
-:root[data-style="soft"] .hl-strip-ro[style] { background: var(--neu-flat); box-shadow: inset 3px 0 0 var(--pc); }
-:root[data-style="soft"] .hl-strip.hl-strip-trade.is-on { box-shadow: inset 3px 0 0 var(--pc), var(--neu-sel-inset-sm); }
-:root[data-style="soft"] .hl-strip-next button.hl-strip-main:hover { background: transparent; }
-:root[data-style="soft"] .hl-subrows { border-color: transparent; background: var(--neu-flat); box-shadow: none; border-radius: 0 0 var(--neu-r-md) var(--neu-r-md); }
-:root[data-style="soft"] .hl-trade-item { border-color: transparent; border-radius: var(--neu-r-xs); background: var(--neu-bg); box-shadow: var(--neu-raised-xs); }
-:root[data-style="soft"] .hl-badge { border-color: transparent; border-radius: var(--neu-r-sm); background: var(--neu-ctl); box-shadow: var(--neu-raised-xs); }
-:root[data-style="soft"] .hl-badge.is-static { background: var(--neu-flat); box-shadow: none; border-color: transparent; }
-:root[data-style="soft"] .hl-badge[aria-expanded="true"] { border-color: transparent; background: var(--neu-bg); color: var(--sel); box-shadow: var(--neu-inset-xs); }
-:root[data-style="soft"] .hl-group-count, :root[data-style="soft"] .hl-idx, :root[data-style="soft"] .hl-rev-n { border-radius: var(--neu-r-xs); }
-:root[data-style="soft"] .hl-pos { border-color: transparent; border-radius: var(--neu-r-xs); box-shadow: var(--neu-inset-xs); }
-:root[data-style="soft"] .hl-note { border-color: transparent; border-radius: var(--neu-r-md); background: var(--neu-flat); }
-:root[data-style="soft"] .module-hall kbd { border-color: transparent; border-radius: var(--neu-r-xs); background: var(--neu-ctl); box-shadow: var(--neu-raised-xs); }
-:root[data-style="soft"] .hl-slot { border-bottom-color: var(--line-2); }
+:root[data-neu] .hl-strip.is-disabled { background: transparent; border: 1px dashed var(--line-2); box-shadow: none; }
+:root[data-neu] .hl-strip-trade, :root[data-neu] .hl-strip-next[style] { box-shadow: inset 3px 0 0 var(--pc), var(--neu-raised-xs); }
+:root[data-neu] .hl-strip-ro[style] { background: var(--neu-flat); box-shadow: inset 3px 0 0 var(--pc); }
+:root[data-neu] .hl-strip.hl-strip-trade.is-on { box-shadow: inset 3px 0 0 var(--pc), var(--neu-sel-inset-sm); }
+:root[data-neu] .hl-strip-next button.hl-strip-main:hover { background: transparent; }
+:root[data-neu] .hl-subrows { border-color: transparent; background: var(--neu-flat); box-shadow: none; border-radius: 0 0 var(--neu-r-md) var(--neu-r-md); }
+:root[data-neu] .hl-trade-item { border-color: transparent; border-radius: var(--neu-r-xs); background: var(--neu-bg); box-shadow: var(--neu-raised-xs); }
+:root[data-neu] .hl-badge { border-color: transparent; border-radius: var(--neu-r-sm); background: var(--neu-ctl); box-shadow: var(--neu-raised-xs); }
+:root[data-neu] .hl-badge.is-static { background: var(--neu-flat); box-shadow: none; border-color: transparent; }
+:root[data-neu] .hl-badge[aria-expanded="true"] { border-color: transparent; background: var(--neu-bg); color: var(--sel); box-shadow: var(--neu-inset-xs); }
+:root[data-neu] .hl-group-count, :root[data-neu] .hl-idx, :root[data-neu] .hl-rev-n { border-radius: var(--neu-r-xs); }
+:root[data-neu] .hl-pos { border-color: transparent; border-radius: var(--neu-r-xs); box-shadow: var(--neu-inset-xs); }
+:root[data-neu] .module-hall kbd { border-color: transparent; border-radius: var(--neu-r-xs); background: var(--neu-ctl); box-shadow: var(--neu-raised-xs); }
 
-/* duplicate group */
-:root[data-style="soft"] .hl-dupgroup.is-multi { border-color: var(--line); border-radius: var(--neu-r-lg); background: transparent; box-shadow: none; }
-:root[data-style="soft"] .hl-dupgroup.is-multi > .hl-strip, :root[data-style="soft"] .hl-dupgroup.is-multi > .hl-strip.is-on, :root[data-style="soft"] .hl-dupgroup.is-multi > .hl-strip.hl-strip-trade.is-on { background: transparent; box-shadow: none; }
-:root[data-style="soft"] .hl-dupgroup.is-multi > .hl-strip.is-on { background: color-mix(in srgb, var(--sel) 8%, transparent); }
-:root[data-style="soft"] .hl-dupgroup.is-multi > .hl-strip + .hl-strip { border-top-color: var(--line); }
-:root[data-style="soft"] .hl-dupgroup.is-multi > .hl-strip:hover { background: color-mix(in srgb, var(--accent) 7%, transparent); }
+/* enchantment / trade cards (hall.css "cards"): the card is the .hl-strip T2 surface above; its copy rows / chips are flat on it */
+:root[data-neu] .hl-copychip, :root[data-neu] .hl-count, :root[data-neu] .hl-lvpill { border-radius: var(--neu-r-xs); }
+:root[data-neu] .hl-copychip { background: var(--neu-flat); }
+/* read-only (Review): flat inside its panel (rule 1), profession bar kept */
+:root[data-neu] .hl-card.is-ro { border-color: transparent; border-radius: var(--neu-r-sm); background: var(--neu-flat); box-shadow: none; }
+:root[data-neu] .hl-card.hl-strip-trade.is-ro { box-shadow: inset 3px 0 0 var(--pc); }
 
 /* sidebar / sums / review */
-:root[data-style="soft"] .hl-side-row.is-total { border-color: transparent; border-radius: var(--neu-r-md); background: color-mix(in srgb, var(--accent) 12%, transparent); box-shadow: none; }
-:root[data-style="soft"] .hl-side-ws li { border-radius: 4px; }
-:root[data-style="soft"] .hl-rev-book, :root[data-style="soft"] .hl-ov-row, :root[data-style="soft"] .hl-ov-prices { border-color: transparent; border-radius: var(--neu-r-sm); background: var(--neu-flat); }
-:root[data-style="soft"] .hl-fchip { border-color: transparent; border-radius: var(--neu-r-sm); background: var(--neu-ctl); box-shadow: var(--neu-raised-xs); }
-:root[data-style="soft"] .hl-fchip.is-more { border: 1px dashed var(--line-2); box-shadow: none; background: transparent; }
-:root[data-style="soft"] .hl-rev-prof { border-color: transparent; border-radius: var(--neu-r-md); background: var(--neu-flat); box-shadow: inset 3px 0 0 var(--pc); }
-:root[data-style="soft"] .hl-ov-stat { border-color: transparent; border-radius: var(--neu-r-md); background: var(--neu-flat); box-shadow: none; }
-:root[data-style="soft"] .hl-lock { border-color: transparent; border-radius: var(--neu-r-md); background: var(--neu-ctl); box-shadow: var(--neu-raised-xs); }
-:root[data-style="soft"] .hl-lock.is-on { border-color: transparent; background: var(--neu-ctl-on); box-shadow: var(--neu-sel-inset-xs); }
-:root[data-style="soft"] .hl-lockrow .btn.on { border-color: transparent; background: var(--neu-ctl-on); box-shadow: var(--neu-sel-inset-xs); }
-:root[data-style="soft"] .hl-detail-hint { border-top-color: var(--line); }
-:root[data-style="soft"] .hl-detail { border-radius: var(--neu-r-lg); }
-:root[data-style="soft"] .hl-sw { border-color: var(--line-2); border-radius: var(--neu-r-xs); }
-:root[data-style="soft"] .hl-sw.is-selected { border-color: transparent; background: var(--neu-ctl-on); box-shadow: var(--neu-sel-inset-xs); }
+:root[data-neu] .hl-rev-book, :root[data-neu] .hl-ov-row, :root[data-neu] .hl-ov-prices { border-color: transparent; border-radius: var(--neu-r-sm); background: var(--neu-flat); }
+:root[data-neu] .hl-rev-prof { border-color: transparent; border-radius: var(--neu-r-md); background: var(--neu-flat); box-shadow: inset 3px 0 0 var(--pc); }
+:root[data-neu] .hl-ov-stat { border-color: transparent; border-radius: var(--neu-r-md); background: var(--neu-flat); box-shadow: none; }
+:root[data-neu] .hl-lock { border-color: transparent; border-radius: var(--neu-r-md); background: var(--neu-ctl); box-shadow: var(--neu-raised-xs); }
+:root[data-neu] .hl-lock.is-on { border-color: transparent; background: var(--neu-ctl-on); box-shadow: var(--neu-sel-inset-xs); }
+:root[data-neu] .hl-lockrow .btn.on { border-color: transparent; background: var(--neu-ctl-on); box-shadow: var(--neu-sel-inset-xs); }
+:root[data-neu] .hl-detail { border-radius: var(--neu-r-lg); }
+:root[data-neu] .hl-sw { border-color: var(--line-2); border-radius: var(--neu-r-xs); }
+:root[data-neu] .hl-sw.is-selected { border-color: transparent; background: var(--neu-ctl-on); box-shadow: var(--neu-sel-inset-xs); }
 
 /* dashboard */
-:root[data-style="soft"] .hl-mstats { border-radius: var(--neu-r-lg); background: var(--neu-flat); box-shadow: none; }
-:root[data-style="soft"] .hl-psq { border-radius: var(--neu-r-xs); }
+:root[data-neu] .hl-mstats { border-radius: var(--neu-r-lg); background: var(--neu-flat); box-shadow: none; }
+:root[data-neu] .hl-psq { border-radius: var(--neu-r-xs); }
 
 /* check-an-offer dialog + combobox */
-:root[data-style="soft"] .hl-check { border-radius: var(--neu-r-xl); box-shadow: 14px 16px 44px var(--neu-lo), -8px -8px 24px var(--neu-hi); }
-:root[data-style="soft"] .hl-cb-btn[aria-expanded="true"] { border-color: transparent; box-shadow: var(--neu-sel-inset-sm); }
-:root[data-style="soft"] .hl-cb-pop { border-color: var(--neu-edge); border-radius: var(--neu-r-lg); background: var(--neu-grad); box-shadow: 8px 10px 26px var(--neu-lo), -5px -5px 16px var(--neu-hi); }
-:root[data-style="soft"] .hl-cb-opt { border-radius: var(--neu-r-sm); }
-:root[data-style="soft"] .hl-cb-opt:hover { background: var(--neu-row); }
-:root[data-style="soft"] .hl-cb-opt.is-hi { border-color: transparent; background: var(--neu-sel-bg); box-shadow: var(--neu-sel-inset-xs); }
-:root[data-style="soft"] .hl-cb-opt.is-cur { background: color-mix(in srgb, var(--sel) 9%, transparent); }
-:root[data-style="soft"] .hl-quick-chip { border-color: transparent; border-radius: var(--neu-r-sm); background: var(--neu-ctl); box-shadow: var(--neu-raised-xs); }
-:root[data-style="soft"] .hl-quick-chip:hover { border-color: transparent; }
-:root[data-style="soft"] .hl-quick-chip.on { border-color: transparent; background: var(--neu-ctl-on); color: var(--sel); box-shadow: var(--neu-sel-inset-xs); }
-:root[data-style="soft"] .hl-verdict { border-radius: var(--neu-r-md); }
-:root[data-style="soft"] .hl-verdict.is-idle { border-color: transparent; background: var(--neu-flat); }
-:root[data-style="soft"] .hl-verdict.is-lock, :root[data-style="soft"] .hl-verdict.is-skip, :root[data-style="soft"] .hl-verdict.is-warn { box-shadow: none; }
-:root[data-style="soft"] .hl-big.primary kbd { box-shadow: none; }
-@media (max-width: 899.98px) { :root[data-style="soft"] .hl-detail { border-radius: var(--neu-r-xl) var(--neu-r-xl) 0 0; background: var(--neu-grad); box-shadow: 0 -10px 30px var(--neu-lo), 0 -4px 14px var(--neu-hi); } }
+:root[data-neu] .hl-check { border-radius: var(--neu-r-xl); box-shadow: 29px 31px 44px -15px var(--neu-lo), -16px -16px 24px -8px var(--neu-hi); }
+:root[data-neu] .hl-cb-btn[aria-expanded="true"] { border-color: transparent; box-shadow: var(--neu-sel-inset-sm); }
+:root[data-neu] .hl-cb-pop { border-color: var(--neu-edge) transparent transparent var(--neu-edge); border-radius: var(--neu-r-lg); background: var(--neu-grad); box-shadow: 17px 19px 26px -9px var(--neu-lo), -11px -11px 16px -5px var(--neu-hi); }
+:root[data-neu] .hl-cb-opt { border-radius: var(--neu-r-sm); }
+:root[data-neu] .hl-cb-opt:hover { background: var(--neu-row); }
+:root[data-neu] .hl-cb-opt.is-hi { border-color: transparent; background: var(--neu-sel-bg); box-shadow: var(--neu-sel-inset-xs); }
+:root[data-neu] .hl-cb-opt.is-cur { background: color-mix(in srgb, var(--sel) 9%, transparent); }
+:root[data-neu] .hl-quick-chip { border-color: transparent; border-radius: var(--neu-r-sm); background: var(--neu-ctl); box-shadow: var(--neu-raised-xs); }
+:root[data-neu] .hl-quick-chip:hover { border-color: transparent; }
+:root[data-neu] .hl-quick-chip.on { border-color: transparent; background: var(--neu-ctl-on); color: var(--sel); box-shadow: var(--neu-sel-inset-xs); }
+:root[data-neu] .hl-verdict { border-radius: var(--neu-r-md); }
+:root[data-neu] .hl-verdict.is-idle { border-color: transparent; background: var(--neu-flat); }
+:root[data-neu] .hl-verdict.is-lock, :root[data-neu] .hl-verdict.is-skip, :root[data-neu] .hl-verdict.is-warn { box-shadow: none; }
+:root[data-neu] .hl-big.primary kbd { box-shadow: none; }
+@media (max-width: 899.98px) { :root[data-neu] .hl-detail { border-radius: var(--neu-r-xl) var(--neu-r-xl) 0 0; background: var(--neu-grad); box-shadow: 0 -10px 30px var(--neu-lo), 0 -4px 14px var(--neu-hi); } }
 
 /* ============ hall canvas: inset well + soft raised tiles ============ */
 /* T-1 well: the canvas viewport is cut INTO the segment */
-:root[data-style="soft"] .hc-viewport { border-color: transparent; border-radius: var(--neu-r-lg); background-color: var(--neu-well); box-shadow: var(--neu-inset-deep); }
-:root[data-style="soft"] .hc-viewport:focus-visible { border-color: transparent; outline: 0; filter: none; box-shadow: var(--neu-sel-inset-sm), 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent), 0 0 14px color-mix(in srgb, var(--accent) 40%, transparent); }
-:root[data-style="soft"] .hc-tile {
+:root[data-neu] .hc-viewport { border-color: transparent; border-radius: var(--neu-r-lg); background-color: var(--neu-well); box-shadow: var(--neu-inset-deep); }
+:root[data-neu] .hc-viewport:focus-visible { border-color: transparent; outline: 0; filter: none; box-shadow: var(--neu-sel-inset-sm), 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent), 0 0 14px color-mix(in srgb, var(--accent) 40%, transparent); }
+:root[data-neu] .hc-tile {
   border-color: transparent; border-radius: var(--neu-r-tile); background: var(--neu-ctl); box-shadow: var(--neu-raised-sm);
 }
-:root[data-style="soft"] .hc-tile.is-needed { border: 1px dashed color-mix(in srgb, var(--muted) 50%, transparent); background: transparent; box-shadow: none; }
-:root[data-style="soft"] .hc-tile.is-locked { background: linear-gradient(145deg, color-mix(in srgb, var(--accent) 14%, var(--neu-bg)), color-mix(in srgb, var(--accent) 8%, var(--neu-bg))); }
-:root[data-style="soft"] .hc-tile.is-perfect {
+:root[data-neu] .hc-tile.is-needed { border: 1px dashed color-mix(in srgb, var(--muted) 50%, transparent); background: transparent; box-shadow: none; }
+:root[data-neu] .hc-tile.is-locked { background: linear-gradient(145deg, color-mix(in srgb, var(--accent) 14%, var(--neu-bg)), color-mix(in srgb, var(--accent) 8%, var(--neu-bg))); }
+:root[data-neu] .hc-tile.is-perfect {
   --st: var(--gold); border-color: color-mix(in srgb, var(--gold) 70%, transparent);
   background: linear-gradient(145deg, color-mix(in srgb, var(--gold) 24%, var(--neu-bg)), color-mix(in srgb, var(--gold) 9%, var(--neu-bg)));
   box-shadow: var(--neu-raised-sm), 0 0 14px -3px color-mix(in srgb, var(--gold) 60%, transparent);
 }
-:root[data-style="soft"] .hc-tile.is-selected { border-color: transparent; outline: 0; background: var(--neu-ctl-on); box-shadow: var(--neu-sel-inset-sm); }
-:root[data-style="soft"] .hc-tile.is-selected .hc-name { color: var(--accent); }
-:root[data-style="soft"] .hc-tile.is-dragging { box-shadow: 10px 18px 28px -8px var(--neu-lo), 8px 8px 20px color-mix(in srgb, var(--accent) 30%, transparent); }
-:root[data-style="soft"] .hc-tile.is-clash { border-color: transparent; }
-:root[data-style="soft"] .hc-tile.is-swap-target { border-color: transparent; }
-:root[data-style="soft"] .hc-item { border-color: transparent; border-radius: var(--neu-r-xs); background: var(--neu-bg); box-shadow: var(--neu-raised-xs); }
-:root[data-style="soft"] .hc-tag { border-radius: var(--neu-r-xs); background: var(--neu-carve); }
+:root[data-neu] .hc-tile.is-selected { border-color: transparent; outline: 0; background: var(--neu-ctl-on); box-shadow: var(--neu-sel-inset-sm); }
+:root[data-neu] .hc-tile.is-selected .hc-name { color: var(--accent); }
+:root[data-neu] .hc-tile.is-dragging { box-shadow: 15px 23px 28px -13px var(--neu-lo), -9px -9px 18px -9px color-mix(in srgb, var(--accent) 35%, transparent); }
+:root[data-neu] .hc-tile.is-clash { border-color: transparent; }
+:root[data-neu] .hc-tile.is-swap-target { border-color: transparent; }
+:root[data-neu] .hc-item { border-color: transparent; border-radius: var(--neu-r-xs); background: var(--neu-bg); box-shadow: var(--neu-raised-xs); }
+:root[data-neu] .hc-tag { border-radius: var(--neu-r-xs); background: var(--neu-carve); }
 /* canvas toolbar: the bar is just a lane; each .hc-grp is a segmented group (sunken strip, joined raised keys) */
-:root[data-style="soft"] .hc-bar { border-color: transparent; background: none; box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; padding: 2px 2px 3px; gap: 8px; }
-:root[data-style="soft"] .hc-grp { padding: 3px; gap: 2px; border-radius: 12px; background: var(--neu-carve); box-shadow: var(--neu-inset-sm); }
-:root[data-style="soft"] .hc-grp + .hc-grp { padding-left: 3px; border-left: 0; }
-:root[data-style="soft"] .hc-btn { border-color: transparent; background: var(--neu-ctl-sq); box-shadow: var(--neu-t2-grp); }
-:root[data-style="soft"] .hc-btn:hover { border-color: transparent; color: var(--accent); }
-:root[data-style="soft"] .hc-btn:active:not(:disabled) { transform: none; box-shadow: var(--neu-inset-xs); }
-:root[data-style="soft"] .hc-btn.on { border-color: transparent; background: var(--neu-ctl-sq-on); color: var(--accent); box-shadow: var(--neu-sel-inset-xs); }
-:root[data-style="soft"] .hc-minimap { border-color: transparent; border-radius: var(--neu-r-tile); background: color-mix(in srgb, var(--neu-bg) 92%, transparent); box-shadow: var(--neu-t2); }
-:root[data-style="soft"] .hc-help { border-color: var(--neu-edge); border-radius: var(--neu-r-lg); background: var(--neu-grad); box-shadow: 10px 12px 30px var(--neu-lo), -6px -6px 18px var(--neu-hi); }
-:root[data-style="soft"] .hc-marquee { border-radius: var(--neu-r-xs); }
-@media (max-width: 640px) { :root[data-style="soft"] .hc-viewport { border-radius: var(--neu-r-md); } }
+:root[data-neu] .hc-bar { border-color: transparent; background: none; box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; padding: 2px 2px 3px; gap: 8px; }
+:root[data-neu] .hc-grp { padding: 3px; gap: 2px; border-radius: 12px; background: var(--neu-carve); box-shadow: var(--neu-inset-sm); }
+:root[data-neu] .hc-grp + .hc-grp { padding-left: 3px; border-left: 0; }
+:root[data-neu] .hc-btn { border-color: transparent; background: var(--neu-ctl-sq); box-shadow: var(--neu-t2-grp); }
+:root[data-neu] .hc-btn:hover { border-color: transparent; color: var(--accent); }
+:root[data-neu] .hc-btn:active:not(:disabled) { transform: none; box-shadow: var(--neu-inset-xs); }
+:root[data-neu] .hc-btn.on { border-color: transparent; background: var(--neu-ctl-sq-on); color: var(--accent); box-shadow: var(--neu-sel-inset-xs); }
+:root[data-neu] .hc-minimap { border-color: transparent; border-radius: var(--neu-r-tile); background: color-mix(in srgb, var(--neu-bg) 92%, transparent); box-shadow: var(--neu-t2); }
+:root[data-neu] .hc-help { border-color: var(--neu-edge) transparent transparent var(--neu-edge); border-radius: var(--neu-r-lg); background: var(--neu-grad); box-shadow: 20px 22px 30px -10px var(--neu-lo), -12px -12px 18px -6px var(--neu-hi); }
+:root[data-neu] .hc-marquee { border-radius: var(--neu-r-xs); }
+@media (max-width: 640px) { :root[data-neu] .hc-viewport { border-radius: var(--neu-r-md); } }
 
 /* ============ Enchanting ============ */
-:root[data-style="soft"] .module-enchanting { --ec-on-bg: var(--neu-ctl-on); --ec-on-bar: var(--neu-sel-inset-sm); }
-:root[data-style="soft"] .ec-side { padding: 10px; margin: -10px; }
-:root[data-style="soft"] .ec-num { border-radius: var(--neu-r-sm); background: var(--neu-flat); box-shadow: none; }
+:root[data-neu] .module-enchanting { --ec-on-bg: var(--neu-ctl-on); --ec-on-bar: var(--neu-sel-inset-sm); }
+:root[data-neu] .ec-side { padding: 10px; margin: -10px; }
+:root[data-neu] .th-act-row .ec-add, :root[data-neu] .th-act-row .ec-add:hover:not(:disabled) { background: var(--neu-ctl); }
+:root[data-neu] .th-act-row { --act-pp: var(--neu-pad); }                /* shared sticky action row: rests on the T1 padding */
+@media (min-width: 1000.02px) { :root[data-neu] .hl-wiz-side { padding: 10px; margin: -10px; } }        /* room for the sidebar panel's T1 shadow inside its scroller (as .ec-side) */
+:root[data-neu] .ec-num { border-radius: var(--neu-r-sm); background: var(--neu-flat); box-shadow: none; }
 /* saved-gear cards are compact T2 cards (selectable), not segments */
-:root[data-style="soft"] .ec-gear-card.panel { border-color: transparent; border-radius: var(--neu-r-tile); padding: 6px 8px 6px 6px; background: var(--neu-ctl); box-shadow: var(--neu-t2); }
-:root[data-style="soft"] .ec-gear-card.panel.editing { background: var(--neu-well); box-shadow: var(--neu-inset-sm); }
-:root[data-style="soft"] .ec-gear-card.active { border-color: transparent; background: var(--neu-ctl-on); box-shadow: var(--neu-sel-inset-sm); }
-:root[data-style="soft"] .ec-gear-main { border-radius: var(--neu-r-md); }
-:root[data-style="soft"] .ec-gear-main:hover { background: transparent; box-shadow: var(--neu-raised-xs); }
-:root[data-style="soft"] .ec-mats { border-radius: var(--neu-r-lg); background: var(--neu-well); box-shadow: var(--neu-inset-sm); padding: 5px; }
-:root[data-style="soft"] .ec-mat { border-radius: var(--neu-r-md); }
-:root[data-style="soft"] .ec-mat:hover { background: color-mix(in srgb, var(--text) 5%, transparent); }
-:root[data-style="soft"] .ec-mat.on { border-color: transparent; background: var(--neu-ctl); box-shadow: var(--neu-acc-raised-xs); color: var(--accent); }
-:root[data-style="soft"] .ec-item { border-color: transparent; border-radius: var(--neu-r-tile); background: var(--neu-ctl); box-shadow: var(--neu-raised-sm); }
-:root[data-style="soft"] .ec-item:hover { border-color: transparent; }
-:root[data-style="soft"] .ec-item.on { border-color: transparent; background: var(--neu-ctl-on); box-shadow: var(--neu-sel-inset-sm); }
-:root[data-style="soft"] .ec-item.na { background: transparent; border: 1px dashed var(--line-2); box-shadow: none; }
-:root[data-style="soft"] .ec-item.na:hover { border-color: var(--line-2); }
-:root[data-style="soft"] .ec-new { border-radius: var(--neu-r-xs); }
-:root[data-style="soft"] .ec-lo.on { border-color: transparent; background: var(--neu-ctl-on); color: var(--accent); box-shadow: var(--neu-sel-inset-xs); }
-:root[data-style="soft"] .ec-ench { border-radius: var(--neu-r-tile); background: var(--neu-ctl); box-shadow: var(--neu-raised-xs); }
-:root[data-style="soft"] .ec-ench:hover:not(.on):not(.blocked) { background: var(--neu-ctl); box-shadow: var(--neu-raised-sm); }
-:root[data-style="soft"] .ec-ench.has:not(.on) { background: color-mix(in srgb, var(--accent) 7%, var(--neu-bg)); }
-:root[data-style="soft"] .ec-ench.on { background: var(--ec-on-bg); box-shadow: var(--ec-on-bar); }
-:root[data-style="soft"] .ec-ench.blocked:not(.has):not(.on) { background: transparent; box-shadow: none; }
-:root[data-style="soft"] .ec-toggle .ec-count { border-color: transparent; }
-:root[data-style="soft"] .lvl-chips.ec-lv button.own:disabled { background: var(--neu-flat); box-shadow: none; border-color: transparent; color: var(--muted); opacity: .8; }
-:root[data-style="soft"] .ec-ench-list.is-own .lvl-chips.ec-lv button.on { background: var(--neu-well); box-shadow: var(--neu-inset-xs); border-color: transparent; color: var(--text); }
-:root[data-style="soft"] .ec-ench.owned, :root[data-style="soft"] .ec-ench-list.is-own .ec-ench.has:not(.on) { background: var(--neu-ctl); }
-:root[data-style="soft"] .ec-ench-list.is-own .check input:checked + span { box-shadow: var(--neu-raised-xs); }
-:root[data-style="soft"] .ec-ownseg button { border-radius: 0; }
-:root[data-style="soft"] .ec-hall { border-radius: var(--neu-r-xs); }
-:root[data-style="soft"] .ec-sum { border-radius: var(--neu-r-md); background: var(--neu-flat); box-shadow: none; }
-:root[data-style="soft"] .ec-total { border-color: transparent; border-radius: var(--neu-r-md); background: var(--neu-flat); box-shadow: none; }
-:root[data-style="soft"] .ec-alert, :root[data-style="soft"] .ec-note { border-radius: var(--neu-r-md); }
-:root[data-style="soft"] .ec-step { border-radius: var(--neu-r-md); }
-:root[data-style="soft"] .ec-step-num { background: var(--neu-well); box-shadow: none; }
-:root[data-style="soft"] .ec-ref { background: var(--neu-well); box-shadow: none; }
-:root[data-style="soft"] .ec-final { border-radius: var(--neu-r-md); box-shadow: none; }
-:root[data-style="soft"] .ec-ench-pill { border-radius: var(--neu-r-xs); background: color-mix(in srgb, var(--accent) 12%, transparent); box-shadow: none; }
-:root[data-style="soft"] .ec-shop-total { border-radius: var(--neu-r-md); background: color-mix(in srgb, var(--accent) 10%, var(--neu-bg)); }
-:root[data-style="soft"] .ec-linked { border-color: transparent; border-radius: var(--neu-r-md); }
-:root[data-style="soft"] .ec-planbox-n { border-radius: var(--neu-r-xs); }
-:root[data-style="soft"] .ec-usesrow { border-radius: var(--neu-r-md); box-shadow: none; }
-:root[data-style="soft"] .ec-tile { border-color: transparent; border-radius: var(--neu-r-md); background: var(--neu-ctl); box-shadow: var(--neu-raised-xs); }
-:root[data-style="soft"] .ec-tile.on { border-color: transparent; background: var(--ec-on-bg); box-shadow: var(--ec-on-bar); }
-:root[data-style="soft"] .ec-cost { border-radius: var(--neu-r-sm); }
-:root[data-style="soft"] .ec-want { border-color: transparent; border-radius: var(--neu-r-sm); box-shadow: var(--neu-raised-xs); background: var(--neu-ctl); }
-:root[data-style="soft"] .ec-done-pill { border-radius: var(--neu-r-xs); }
-:root[data-style="soft"] .ec-todo-tag { border-color: transparent; border-radius: var(--neu-r-xs); background: var(--neu-well); box-shadow: none; }
-:root[data-style="soft"] .ec-pi.complete { border-color: transparent; box-shadow: var(--neu-t1), 0 0 24px -10px var(--accent); }
+:root[data-neu] .ec-gear-card.panel { border-color: transparent; border-radius: var(--neu-r-tile); padding: 6px 8px 6px 6px; background: var(--neu-ctl); box-shadow: var(--neu-t2); }
+:root[data-neu] .ec-gear-card.panel.editing { background: var(--neu-well); box-shadow: var(--neu-inset-sm); }
+:root[data-neu] .ec-gear-card.active { border-color: transparent; background: var(--neu-ctl-on); box-shadow: var(--neu-sel-inset-sm); }
+:root[data-neu] .ec-gear-main { border-radius: var(--neu-r-md); }
+:root[data-neu] .ec-gear-main:hover { background: transparent; box-shadow: var(--neu-raised-xs); }
+/* material bar = "sunken bar, active flush" (structure + Classic recipe in enchanting.css; here only the --mk-* tokens).
+   One T-1 well, keys edge to edge on its floor; the chosen key rises flush with the segment surface (no drop shadow, it
+   never protrudes; it is see-through, so the segment's own gradient fills it), a faint neutral hairline on its top-left
+   edge, a neutral shadow cast onto its right neighbour, and only its label/icon glow in the accent. The well carries no
+   shadow and no fill of its own: the inactive keys paint the floor (--mk-floor-bg) and their insets are its shading. */
+:root[data-neu] .ec-mats {
+  --mk-r: var(--neu-r-grp); --mk-bw: 0px;
+  --mk-floor-bg: var(--neu-well);
+  --mk-hover-bg: color-mix(in srgb, var(--neu-bg) 55%, var(--neu-well));
+  border: 0; background: transparent; box-shadow: none;
+}
+:root[data-neu] .ec-mat:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent); outline-offset: -3px; filter: none; }
+/* Pixel: crisp zero-blur 2px steps (floor = two dark steps top-left + a faint lit step bottom-right) */
+:root[data-style="pixel"] .ec-mats {
+  --mk-floor: inset 2px 2px 0 var(--neu-px-lo), inset 4px 4px 0 color-mix(in srgb, var(--neu-px-lo) 55%, transparent), inset -2px -2px 0 color-mix(in srgb, var(--neu-px-hi) 28%, transparent);
+  --mk-floor-hover: inset 2px 2px 0 color-mix(in srgb, var(--neu-px-lo) 70%, transparent), inset -2px -2px 0 color-mix(in srgb, var(--neu-px-hi) 28%, transparent);
+  --mk-floor-press: inset 2px 2px 0 var(--neu-px-lo), inset 4px 4px 0 var(--neu-px-lo), inset 6px 6px 0 color-mix(in srgb, var(--neu-px-lo) 45%, transparent), inset -2px -2px 0 color-mix(in srgb, var(--neu-px-hi) 30%, transparent);
+  --mk-flush: inset 0 2px 0 color-mix(in srgb, var(--neu-px-hi) 45%, transparent);
+  --mk-cast: inset 2px 0 0 var(--neu-px-lo), inset 4px 0 0 color-mix(in srgb, var(--neu-px-lo) 70%, transparent), inset 6px 0 0 color-mix(in srgb, var(--neu-px-lo) 35%, transparent);
+}
+:root[data-style="pixel"] .ec-mat { transition: background-color .08s steps(2), box-shadow .08s steps(2), color .08s; }
+:root[data-neu] .ec-item { border-color: transparent; border-radius: var(--neu-r-tile); background: var(--neu-ctl); box-shadow: var(--neu-raised-sm); }
+:root[data-neu] .ec-item:hover { border-color: transparent; }
+:root[data-neu] .ec-item.on { border-color: transparent; background: var(--neu-ctl-on); box-shadow: var(--neu-sel-inset-sm); }
+:root[data-neu] .ec-item.na { background: transparent; border: 1px dashed var(--line-2); box-shadow: none; }
+:root[data-neu] .ec-item.na:hover { border-color: var(--line-2); }
+:root[data-neu] .ec-new { border-radius: var(--neu-r-xs); }
+:root[data-neu] .ec-lo.on { border-color: transparent; background: var(--neu-ctl-on); color: var(--accent); box-shadow: var(--neu-sel-inset-xs); }
+:root[data-neu] .ec-ench { border-radius: var(--neu-r-tile); background: var(--neu-ctl); box-shadow: var(--neu-raised-xs); }
+:root[data-neu] .ec-ench:hover:not(.on):not(.blocked) { background: var(--neu-ctl); box-shadow: var(--neu-raised-sm); }
+:root[data-neu] .ec-ench.has:not(.on) { background: color-mix(in srgb, var(--accent) 7%, var(--neu-bg)); }
+:root[data-neu] .ec-ench.on { background: var(--ec-on-bg); box-shadow: var(--ec-on-bar); }
+:root[data-neu] .ec-ench.blocked:not(.has):not(.on) { background: transparent; box-shadow: none; }
+:root[data-neu] .ec-toggle .ec-count { border-color: transparent; }
+:root[data-neu] .lvl-chips.ec-lv button.own:disabled { background: var(--neu-flat); box-shadow: none; border-color: transparent; color: var(--muted); opacity: .8; }
+:root[data-neu] .ec-ench-list.is-own .lvl-chips.ec-lv button.on { background: var(--neu-well); box-shadow: var(--neu-inset-xs); border-color: transparent; color: var(--text); }
+:root[data-neu] .ec-ench.owned, :root[data-neu] .ec-ench-list.is-own .ec-ench.has:not(.on) { background: var(--neu-ctl); }
+:root[data-neu] .ec-ench-list.is-own .check input:checked + span { box-shadow: var(--neu-raised-xs); }
+:root[data-neu] .ec-hall { border-radius: var(--neu-r-xs); }
+:root[data-neu] .ec-sum { border-radius: var(--neu-r-md); background: var(--neu-flat); box-shadow: none; }
+:root[data-neu] .ec-total { border-color: transparent; border-radius: var(--neu-r-md); background: var(--neu-flat); box-shadow: none; }
+:root[data-neu] .ec-alert, :root[data-neu] .ec-note { border-radius: var(--neu-r-md); }
+:root[data-neu] .ec-step { border-radius: var(--neu-r-md); }
+:root[data-neu] .ec-step-num { background: var(--neu-well); box-shadow: none; }
+:root[data-neu] .ec-ref { background: var(--neu-well); box-shadow: none; }
+
+:root[data-neu] .ec-ench-pill { border-radius: var(--neu-r-xs); background: color-mix(in srgb, var(--accent) 12%, transparent); box-shadow: none; }
+:root[data-neu] .ec-shop-total { border-radius: var(--neu-r-md); background: color-mix(in srgb, var(--accent) 10%, var(--neu-bg)); }
+:root[data-neu] .ec-linked { border-color: transparent; border-radius: var(--neu-r-md); }
+:root[data-neu] .ec-planbox-n { border-radius: var(--neu-r-xs); }
+:root[data-neu] .ec-usesrow { border-radius: var(--neu-r-md); box-shadow: none; }
+:root[data-neu] .ec-tile { border-color: transparent; border-radius: var(--neu-r-md); background: var(--neu-ctl); box-shadow: var(--neu-raised-xs); }
+:root[data-neu] .ec-tile.on { border-color: transparent; background: var(--ec-on-bg); box-shadow: var(--ec-on-bar); }
+:root[data-neu] .ec-cost { border-radius: var(--neu-r-sm); }
+:root[data-neu] .ec-want { border-color: transparent; border-radius: var(--neu-r-sm); box-shadow: var(--neu-raised-xs); background: var(--neu-ctl); }
+:root[data-neu] .ec-done-pill { border-radius: var(--neu-r-xs); }
+:root[data-neu] .ec-todo-tag { border-color: transparent; border-radius: var(--neu-r-xs); background: var(--neu-well); box-shadow: none; }
+:root[data-neu] .ec-pi.complete { border-color: transparent; box-shadow: var(--neu-t1), -10px -10px 24px -14px var(--accent); }
 /* shopping + to-do lists: one inset well, flat rows, accent bar when done */
-:root[data-style="soft"] .ec-buy, :root[data-style="soft"] .ec-todos { border-color: transparent; border-radius: var(--neu-r-lg); background: var(--neu-flat); box-shadow: none; overflow: hidden; }
-:root[data-style="soft"] .ec-buy-row, :root[data-style="soft"] .ec-todo { background: transparent; }
-:root[data-style="soft"] .ec-buy-row + .ec-buy-row, :root[data-style="soft"] .ec-todo + .ec-todo { border-top-color: var(--line); }
-:root[data-style="soft"] .ec-todo:hover { background: color-mix(in srgb, var(--text) 4%, transparent); }
-:root[data-style="soft"] .ec-buy-row.on, :root[data-style="soft"] .ec-todo.on { background: color-mix(in srgb, var(--accent) 9%, transparent); box-shadow: inset 3px 0 0 var(--accent); }
-:root[data-style="soft"] .ec-todo.bad { background: color-mix(in srgb, var(--danger) 9%, transparent); }
+:root[data-neu] .ec-buy, :root[data-neu] .ec-todos { border-color: transparent; border-radius: var(--neu-r-lg); background: var(--neu-flat); box-shadow: none; overflow: hidden; }
+:root[data-neu] .ec-buy-row, :root[data-neu] .ec-todo { background: transparent; }
+:root[data-neu] .ec-todo:hover { background: color-mix(in srgb, var(--text) 4%, transparent); }
+:root[data-neu] .ec-buy-row.on, :root[data-neu] .ec-todo.on { background: color-mix(in srgb, var(--accent) 9%, transparent); box-shadow: inset 3px 0 0 var(--accent); }
+:root[data-neu] .ec-todo.bad { background: color-mix(in srgb, var(--danger) 9%, transparent); }
 /* Minecraft item tooltip preview stays Minecraft (in-game artefact) */
 
 /* ============ Trims ============ */
 /* segments: .panel (T1). Wells: .field + the 3D stage. Every clickable thing below is an individual T2 control sitting
    directly on its segment (no group strips, no card per row): raised + pixel bevel; selected = pressed in, accent light. */
-:root[data-style="soft"] .module-trims { --tr-pad: var(--neu-pad); }
-:root[data-style="soft"] .module-trims .tr-head h2 { text-shadow: none; }
-:root[data-style="soft"] .tr-stage { border: 0; border-radius: var(--neu-r-lg); box-shadow: var(--neu-inset-deep); }
-:root[data-style="soft"] .tr-stage[data-bg="studio"] { background: radial-gradient(ellipse 60% 40% at 50% 92%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 70%), var(--neu-well); }
-:root[data-style="soft"] .tr-drop { border-radius: var(--neu-r-lg); }
-:root[data-style="soft"] :is(.tr-vbtn, .tr-anim, .tr-ico, .tr-tile, .tr-pt, .tr-schip) {
-  border-color: transparent; border-radius: var(--neu-r-ctl); background: var(--neu-ctl); box-shadow: var(--neu-raised-xs); color: var(--muted);
-}
-:root[data-style="soft"] .tr-pt { border-radius: var(--neu-r-tile); box-shadow: var(--neu-t2); }
-:root[data-style="soft"] :is(.tr-vbtn, .tr-anim, .tr-ico, .tr-tile, .tr-pt):hover:not(.on) { border-color: transparent; background: var(--neu-ctl); color: var(--text); box-shadow: var(--neu-t2); }
-:root[data-style="soft"] .tr-pt:hover:not(.on) { box-shadow: var(--neu-t2-hover); }
-:root[data-style="soft"] :is(.tr-vbtn, .tr-anim, .tr-ico, .tr-tile, .tr-pt).on, :root[data-style="soft"] .tr-schip.active {
-  border-color: transparent; background: var(--neu-ctl-on); color: var(--accent); box-shadow: var(--neu-sel-inset-xs); transform: none;
-}
-:root[data-style="soft"] .tr-pt.on { box-shadow: var(--neu-sel-inset-sm); }
-:root[data-style="soft"] .tr-schip.active { color: var(--text); }
-:root[data-style="soft"] .tr-eye { border-radius: var(--neu-r-ctl); }
-:root[data-style="soft"] .tr-eye:hover { background: transparent; box-shadow: var(--neu-raised-xs); }
-:root[data-style="soft"] .tr-pr { border-radius: var(--neu-r-tile); }
-:root[data-style="soft"] .tr-pr:hover { background: var(--neu-flat); }
-:root[data-style="soft"] .tr-dye { border-color: transparent; border-radius: var(--neu-r-xs); box-shadow: var(--neu-raised-xs), inset 0 0 0 1px rgb(0 0 0 / .14); }
-:root[data-style="soft"] .tr-dye.on { box-shadow: inset 2px 2px 4px rgb(0 0 0 / .45), inset -1px -1px 2px rgb(255 255 255 / .3); }
-:root[data-style="soft"] .tr-pop { border-color: var(--neu-edge); border-radius: var(--neu-r-lg); background: var(--neu-grad); box-shadow: 10px 12px 30px var(--neu-lo), -6px -6px 18px var(--neu-hi); }
-:root[data-style="soft"] .tr-pop:focus-visible { outline: none; filter: none; }
-:root[data-style="soft"] .tr-pop button { border-radius: var(--neu-r-sm); }
-:root[data-style="soft"] .tr-pop button:hover, :root[data-style="soft"] .tr-pop button:focus-visible { border-color: transparent; background: var(--neu-bg); box-shadow: var(--neu-inset-xs); }
-:root[data-style="soft"] .tr-bd-studio { border-radius: 3px; box-shadow: var(--neu-inset-xs); }
-:root[data-style="soft"] .tr-grid { scrollbar-color: color-mix(in srgb, var(--muted) 40%, var(--neu-bg)) transparent; }
+:root[data-neu] .module-trims { --tr-pad: var(--neu-pad); }
+:root[data-neu] .module-trims .tr-head h2 { text-shadow: none; }
+:root[data-neu] .tr-stage { border: 0; border-radius: var(--neu-r-lg); box-shadow: var(--neu-inset-deep); }
+:root[data-neu] .tr-stage[data-bg="studio"] { background: radial-gradient(ellipse 60% 40% at 50% 92%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 70%), var(--neu-well); }
+:root[data-neu] .tr-drop { border-radius: var(--neu-r-lg); }
+/* Trims controls are the shared keys: .btn (viewer keys, armor / trim material tiles, pattern pieces, outfit slots) and
+   .seg (animation picker), so they take the Enchanting / Hall look. Only the selected state and tile radii are set here
+   (selected = the Hall lock-row .btn.on: neutral inset + accent light in the background, accent label). */
+:root[data-neu] .module-trims .btn.on { border-color: transparent; background: var(--neu-ctl-on); color: var(--accent); box-shadow: var(--neu-sel-inset-xs); transform: none; }
+:root[data-neu] :is(.tr-tile, .tr-pt, .tr-oslot-main, .tr-oslot-add, .tr-oslot-empty) { border-radius: var(--neu-r-tile); }
+:root[data-neu] .tr-oslot-add:hover { box-shadow: var(--neu-raised-xs); }
+:root[data-neu] :is(.tr-mats, .tr-saved) .tr-card-head { margin-bottom: 12px; }
+:root[data-neu] .tr-eye { border-radius: var(--neu-r-ctl); }
+:root[data-neu] .tr-eye:hover { background: transparent; box-shadow: var(--neu-raised-xs); }
+:root[data-neu] .tr-pr { border-radius: var(--neu-r-tile); }
+:root[data-neu] .tr-pr:hover { background: var(--neu-flat); }
+:root[data-neu] .tr-dye { border-color: transparent; border-radius: var(--neu-r-xs); box-shadow: var(--neu-raised-xs), inset 0 0 0 1px rgb(0 0 0 / .14); }
+:root[data-neu] .tr-dye.on { box-shadow: inset 3px 3px 4px -1px rgb(0 0 0 / .45), inset -2px -2px 2px 0px rgb(255 255 255 / .3); }
+:root[data-neu] .tr-pop { border-color: var(--neu-edge) transparent transparent var(--neu-edge); border-radius: var(--neu-r-lg); background: var(--neu-grad); box-shadow: 20px 22px 30px -10px var(--neu-lo), -12px -12px 18px -6px var(--neu-hi); }
+:root[data-neu] .tr-pop:focus-visible { outline: none; filter: none; }
+:root[data-neu] .tr-pop button { border-radius: var(--neu-r-sm); }
+:root[data-neu] .tr-pop button:hover, :root[data-neu] .tr-pop button:focus-visible { border-color: transparent; background: var(--neu-bg); box-shadow: var(--neu-inset-xs); }
+:root[data-neu] .tr-bd-studio { border-radius: 3px; box-shadow: var(--neu-inset-xs); }
 
 /* ============ Overview + Builds ============ */
-:root[data-style="soft"] .ov-eyebrow { border-color: transparent; border-radius: 99px; background: var(--neu-bg); box-shadow: var(--neu-inset-sm); }
-:root[data-style="soft"] .ov-hero h2 { text-shadow: none; }
-:root[data-style="soft"] .ov-card { border-top-color: var(--tc); }
-:root[data-style="soft"] .ov-card:hover, :root[data-style="soft"] .ov-card:focus-visible { border-color: var(--neu-edge); border-top-color: var(--tc); box-shadow: var(--neu-t1), 0 20px 40px -18px color-mix(in srgb, var(--tc) 55%, transparent); }
-:root[data-style="soft"] .ov-art { border-bottom: 0; background: radial-gradient(60% 80% at 50% 100%, color-mix(in srgb, var(--tc) 26%, transparent), transparent 75%), var(--neu-well); box-shadow: inset 0 -10px 18px -12px var(--neu-lo), inset 0 8px 14px -10px var(--neu-lo); }
-:root[data-style="soft"] .ov-art::after { background: radial-gradient(closest-side, var(--neu-lo), transparent); }
-:root[data-style="soft"] .ov-soon { border-color: transparent; border-radius: var(--neu-r-xs); background: var(--neu-bg); box-shadow: var(--neu-inset-xs); }
-:root[data-style="soft"] .ov-cta {
+:root[data-neu] .ov-eyebrow { border-color: transparent; border-radius: 99px; background: var(--neu-bg); box-shadow: var(--neu-inset-sm); }
+:root[data-neu] .ov-hero h2 { text-shadow: none; }
+:root[data-neu] .ov-card { border-top-color: var(--tc); }
+:root[data-neu] .ov-card:hover, :root[data-neu] .ov-card:focus-visible { border-color: var(--neu-rim-hi) var(--neu-rim-lo) var(--neu-rim-lo) var(--neu-rim-hi); border-top-color: var(--tc); box-shadow: var(--neu-t1), -14px -14px 34px -20px color-mix(in srgb, var(--tc) 55%, transparent); }
+:root[data-neu] .ov-art { border-bottom: 0; background: radial-gradient(60% 80% at 50% 100%, color-mix(in srgb, var(--tc) 26%, transparent), transparent 75%), var(--neu-well); box-shadow: inset 0 -10px 18px -12px var(--neu-lo), inset 0 8px 14px -10px var(--neu-lo); }
+:root[data-neu] .ov-art::after { background: radial-gradient(closest-side, var(--neu-lo), transparent); }
+:root[data-neu] .ov-soon { border-color: transparent; border-radius: var(--neu-r-xs); background: var(--neu-bg); box-shadow: var(--neu-inset-xs); }
+:root[data-neu] .ov-cta {
   border-color: transparent; border-radius: var(--neu-r-ctl); color: var(--on-accent);
   background: var(--neu-bevel), linear-gradient(145deg, color-mix(in srgb, var(--tc) 88%, #fff), var(--tc) 55%, color-mix(in srgb, var(--tc) 86%, #000));
-  box-shadow: var(--neu-raised-sm), 0 8px 18px -8px color-mix(in srgb, var(--tc) 70%, transparent);
+  box-shadow: 5px 5px 7px -2px var(--neu-lo), -6px -6px 9px -3px color-mix(in srgb, var(--tc) 50%, var(--neu-hi));
 }
-:root[data-style="soft"] .ov-card:active .ov-cta { transform: none; box-shadow: inset 3px 3px 7px color-mix(in srgb, var(--tc) 55%, #000), inset -2px -2px 6px color-mix(in srgb, var(--tc) 70%, #fff); }
-:root[data-style="soft"] .ov-stat .bar { height: 6px; }
-:root[data-style="soft"] .bd-card, :root[data-style="soft"] .bd-feature { border-top-color: var(--accent); }
-:root[data-style="soft"] .bd-dim { border-radius: var(--neu-r-xs); }
-:root[data-style="soft"] .bd-filter button { min-height: 32px; }
+:root[data-neu] .ov-card:active .ov-cta { transform: none; box-shadow: inset 5px 5px 7px -2px var(--neu-lo), inset -4px -4px 6px -2px color-mix(in srgb, var(--tc) 70%, #fff); }
+:root[data-neu] .ov-stat .bar { height: 6px; }
+:root[data-neu] .bd-card, :root[data-neu] .bd-feature { border-top-color: var(--accent); }
+:root[data-neu] .bd-dim { border-radius: var(--neu-r-xs); }
+:root[data-neu] .bd-filter button { min-height: 32px; }
 
 /* hover = stronger raised pair (distinct from the tinted inset used for selected) */
-:root[data-style="soft"] .ec-item:not(.on):not(.na):hover, :root[data-style="soft"] .hl-preset:not(.is-on):hover, :root[data-style="soft"] .hc-tile:not(.is-selected):not(.is-needed):hover { box-shadow: 6px 6px 14px var(--neu-lo), -5px -5px 12px var(--neu-hi); }
-:root[data-style="soft"] .hl-strip:not(.is-on):not(.hl-strip-ro):not([style]):hover { box-shadow: var(--neu-raised-sm); }
+:root[data-neu] .ec-item:not(.on):not(.na):hover, :root[data-neu] .hl-preset:not(.is-on):hover, :root[data-neu] .hc-tile:not(.is-selected):not(.is-needed):hover { box-shadow: 10px 10px 14px -4px var(--neu-lo), -9px -9px 12px -3px var(--neu-hi); }
+:root[data-neu] .hl-strip:not(.is-on):not(.hl-strip-ro):not([style]):hover { box-shadow: var(--neu-raised-sm); }
 
-/* ============ breathing space (soft only: layout is allowed to open up here) ============
+/* ============ breathing space (neumorphic styles only: layout is allowed to open up here) ============
    generous rhythm: panels 22-24px inside, 18-20px between cards, +6px rows, bigger radii. Phones keep it tighter. */
-:root[data-style="soft"] { --neu-gap: 18px; }
-:root[data-style="soft"] .module-enchanting { --ec-gap: 20px; --ec-strip: 62px; }
-:root[data-style="soft"] .module-trims { --tr-gap: 20px; }
-:root[data-style="soft"] .topbar { padding-top: 14px; padding-bottom: 14px; margin-bottom: 14px; }
-:root[data-style="soft"] .page-head, :root[data-style="soft"] .module-trims .tr-head { margin: 18px 0 20px; }
-:root[data-style="soft"] .ec-card-head, :root[data-style="soft"] .tr-card-head { margin-bottom: 18px; gap: 12px; }
-:root[data-style="soft"] .ec-pv-box, :root[data-style="soft"] .ec-pi { gap: 14px; }
-:root[data-style="soft"] .ec-pi.done { padding-block: 14px; }
-:root[data-style="soft"] .ec-gear-list { gap: 14px; }
-:root[data-style="soft"] .ec-items { gap: 12px; grid-template-columns: repeat(auto-fill, minmax(98px, 1fr)); }
-:root[data-style="soft"] .ec-item { min-height: 92px; padding: 12px 6px 10px; border-radius: var(--neu-r-tile); }
-:root[data-style="soft"] .ec-slots { gap: 12px; }
-:root[data-style="soft"] .ec-segs { gap: 26px; }
-:root[data-style="soft"] .ec-mats { padding: 7px; gap: 4px; }
-:root[data-style="soft"] .ec-ench-list { gap: 10px; }
-:root[data-style="soft"] .ec-ench { padding: 10px 16px 10px 16px; border-radius: var(--neu-r-tile); }
-:root[data-style="soft"] .ec-lo-list { gap: 10px; }
-:root[data-style="soft"] .ec-group-name { margin-bottom: 12px; }
-:root[data-style="soft"] .ec-indep { margin-top: 24px; padding-top: 18px; }
-:root[data-style="soft"] .ec-section-head { margin-bottom: 12px; }
-:root[data-style="soft"] .ec-pv-main { gap: 16px; }
-:root[data-style="soft"] .ec-pv-bar { gap: 10px; margin-bottom: 16px; }
+:root[data-neu] { --neu-gap: 18px; }
+:root[data-neu] .module-enchanting { --ec-gap: 20px; --ec-strip: 62px; }
+:root[data-neu] .module-trims { --tr-gap: 20px; }
+:root[data-neu] .topbar { padding-top: 14px; padding-bottom: 14px; margin-bottom: 14px; }
+:root[data-neu] .page-head, :root[data-neu] .module-trims .tr-head { margin: 18px 0 20px; }
+:root[data-neu] .ec-card-head, :root[data-neu] .tr-card-head { margin-bottom: 18px; gap: 12px; }
+:root[data-neu] .ec-pv-box, :root[data-neu] .ec-pi { gap: 14px; }
+:root[data-neu] .ec-pi.done { padding-block: 14px; }
+:root[data-neu] .ec-gear-list { gap: 14px; }
+:root[data-neu] .ec-items { gap: 12px; grid-template-columns: repeat(auto-fill, minmax(98px, 1fr)); }
+:root[data-neu] .ec-item { min-height: 92px; padding: 12px 6px 10px; border-radius: var(--neu-r-tile); }
+:root[data-neu] .ec-slots { gap: 10px; }
+/* label-left rows (enchanting.css): same pattern, roomier rhythm; picker tiles stay compact and uniform */
+:root[data-neu] .ec-rowbox { --ec-lbl-gap: 18px; --ec-tile-h: 84px; --ec-tile-min: 70px; }
+:root[data-neu] .ec-picker { --ec-tile-h: 84px; }
+:root[data-neu] .ec-pick-label { margin-bottom: 14px; }
+:root[data-neu] .ec-rows { gap: 22px; }
+:root[data-neu] .ec-picker .ec-item { min-height: var(--ec-tile-h); padding: 10px 2px 8px; }
+:root[data-neu] .ec-picker .ec-item.has-since { padding: 6px 2px 15px; }
+:root[data-neu] .ec-ench-list { gap: 10px; }
+:root[data-neu] .ec-ench { padding: 10px 16px 10px 16px; border-radius: var(--neu-r-tile); }
+:root[data-neu] .ec-lo-list { gap: 10px; }
+:root[data-neu] .ec-group-name { margin-bottom: 12px; }
+:root[data-neu] .ec-indep { margin-top: 24px; padding-top: 18px; }
+:root[data-neu] .ec-section-head { margin-bottom: 12px; }
+:root[data-neu] .ec-pv-main { gap: 16px; }
+:root[data-neu] .ec-pv-bar { gap: 10px; margin-bottom: 16px; }
 
-:root[data-style="soft"] .hl-preset-grid { gap: 20px; }
-:root[data-style="soft"] .hl-preset { padding: 20px 20px 18px; gap: 12px; border-radius: 14px; }
-:root[data-style="soft"] .hl-steps ol { gap: 12px; }
-:root[data-style="soft"] .hl-steps button { padding: 12px 14px; gap: 12px; }
-:root[data-style="soft"] .hl-strips { gap: 10px; }
-:root[data-style="soft"] .hl-strip { min-height: 58px; padding-right: 12px; border-radius: var(--neu-r-tile); }
-:root[data-style="soft"] .hl-strip-ro, :root[data-style="soft"] .hl-strip-next { min-height: 48px; }
-:root[data-style="soft"] .hl-subrows { padding: 8px 12px 12px 42px; gap: 8px; }
-:root[data-style="soft"] .hl-group-head { margin-bottom: 8px; min-height: 40px; }
-:root[data-style="soft"] .hl-review-card, :root[data-style="soft"] .hl-prog { gap: 16px; }
-:root[data-style="soft"] .hl-map { gap: 14px; }
-:root[data-style="soft"] .hl-detail { gap: 16px; }
-:root[data-style="soft"] .hl-check { padding: 24px 26px 20px; gap: 18px; }
-:root[data-style="soft"] .hl-quick { gap: 10px; }
-:root[data-style="soft"] .hl-lock { padding: 11px 14px; }
-:root[data-style="soft"] .hl-note { padding: 12px 16px; }
+:root[data-neu] .hl-preset-list { gap: 12px; }
+:root[data-neu] .hl-preset { padding: 14px 18px; column-gap: 16px; border-radius: 14px; }
+:root[data-neu] .hl-steps ol { gap: 8px; }
+:root[data-neu] .hl-steps button { padding: 0 12px 0 10px; gap: 10px; }
+@media (max-width: 720px) { :root[data-neu] .hl-steps ol { gap: 4px; } :root[data-neu] .hl-steps button { padding: 0 8px; gap: 8px; } }
+:root[data-neu] .hl-strips { gap: 10px; }
+:root[data-neu] .hl-strip { min-height: 58px; padding-right: 12px; border-radius: var(--neu-r-tile); }
+:root[data-neu] .hl-strip-ro, :root[data-neu] .hl-strip-next { min-height: 48px; }
+:root[data-neu] .hl-subrows { padding: 8px 12px 12px 42px; gap: 8px; }
+:root[data-neu] .hl-group-head { margin-bottom: 8px; min-height: 40px; }
+:root[data-neu] .hl-review-card, :root[data-neu] .hl-prog { gap: 16px; }
+:root[data-neu] .hl-map { gap: 14px; }
+:root[data-neu] .hl-detail { gap: 16px; }
+:root[data-neu] .hl-check { padding: 24px 26px 20px; gap: 18px; }
+:root[data-neu] .hl-quick { gap: 10px; }
+:root[data-neu] .hl-lock { padding: 11px 14px; }
 
-:root[data-style="soft"] .bd-grid, :root[data-style="soft"] .bd-features { gap: 20px; }
-:root[data-style="soft"] .bd-card, :root[data-style="soft"] .bd-feature { gap: 10px; }
-:root[data-style="soft"] .bd-bar { margin-bottom: 18px; gap: 16px; }
-:root[data-style="soft"] .ov-grid { gap: clamp(20px, 2.2vw, 32px); }
-:root[data-style="soft"] .ov-hero { margin-bottom: clamp(32px, 5vw, 56px); }
+:root[data-neu] .bd-grid, :root[data-neu] .bd-features { gap: 20px; }
+:root[data-neu] .bd-card, :root[data-neu] .bd-feature { gap: 10px; }
+:root[data-neu] .bd-bar { margin-bottom: 18px; gap: 16px; }
+:root[data-neu] .ov-grid { gap: clamp(20px, 2.2vw, 32px); }
+:root[data-neu] .ov-hero { margin-bottom: clamp(32px, 5vw, 56px); }
 
-:root[data-style="soft"] .tr-tiles { gap: 6px; }
+:root[data-neu] .tr-tiles { gap: 6px; }
 
 @media (max-width: 640px) {
-  :root[data-style="soft"] { --neu-pad: 14px; }
-  :root[data-style="soft"] .hl-map { padding: var(--neu-pad) 0 0; }
-  :root[data-style="soft"] .hl-check { padding: 16px; }
-  :root[data-style="soft"] .module-enchanting { --ec-gap: 16px; --ec-strip: 58px; }
-  :root[data-style="soft"] .module-trims { --tr-gap: 16px; }
-  :root[data-style="soft"] .ec-items { grid-template-columns: repeat(auto-fill, minmax(88px, 1fr)); gap: 10px; }
-  :root[data-style="soft"] .ec-slots { gap: 10px; }
-  :root[data-style="soft"] .hl-preset { padding: 16px; }
-  :root[data-style="soft"] .hl-strips { gap: 8px; }
-  :root[data-style="soft"] .page-head, :root[data-style="soft"] .module-trims .tr-head { margin: 14px 0 16px; }
-  :root[data-style="soft"] .topbar { padding-top: 10px; padding-bottom: 10px; margin-bottom: 8px; }
+  :root[data-neu] { --neu-pad: 14px; }
+  :root[data-neu] .hl-map { padding: var(--neu-pad) 0 0; }
+  :root[data-neu] .hl-check { padding: 16px; }
+  :root[data-neu] .module-enchanting { --ec-gap: 16px; --ec-strip: 58px; }
+  :root[data-neu] .module-trims { --tr-gap: 16px; }
+  :root[data-neu] .ec-items { grid-template-columns: repeat(auto-fill, minmax(88px, 1fr)); gap: 10px; }
+  :root[data-neu] .ec-slots { gap: 10px; }
+  :root[data-neu] .hl-preset { padding: 12px 14px; }
+  :root[data-neu] .hl-strips { gap: 8px; }
+  :root[data-neu] .page-head, :root[data-neu] .module-trims .tr-head { margin: 14px 0 16px; }
+  :root[data-neu] .topbar { padding-top: 10px; padding-bottom: 10px; margin-bottom: 8px; }
 }
 @media (min-width: 1100px) {
-  :root[data-style="soft"] .ec-side, :root[data-style="soft"] .ec-pv-side { top: 92px; }
-  :root[data-style="soft"] .ec-side { max-height: calc(100vh - 108px); }
+  :root[data-neu] .ec-side, :root[data-neu] .ec-pv-side { top: 96px; }       /* 76px top bar + 20px gap */
+  :root[data-neu] .ec-side { max-height: calc(100vh - 112px); }
 }
 
 /* ============ Enchanting preview: no carved well, the item floats on the page as an object ============ */
-:root[data-style="soft"] .ec-preview {
+:root[data-neu] .ec-preview {
   background: none; border-color: transparent; box-shadow: none; border-radius: 0; padding: 14px 4px 10px;
-  margin-bottom: calc(var(--ec-gap) + 4px); gap: 16px;
+  margin: 0; gap: 16px;
 }
-:root[data-style="soft"] .ec-pv-row { gap: 18px; }
-:root[data-style="soft"] .mct-slot {
-  box-shadow: 7px 9px 16px -3px var(--neu-lo), -4px -4px 10px var(--neu-hi), 0 0 0 1px rgb(0 0 0 / .25);
+:root[data-neu] .ec-pv-row { gap: 18px; }
+:root[data-neu] .mct-slot {
+  box-shadow: 10px 12px 16px -6px var(--neu-lo), -7px -7px 10px -3px var(--neu-hi), 0 0 0 1px rgb(0 0 0 / .25);
   transform: translateY(-2px);
 }
-:root[data-style="soft"] .mct {
-  box-shadow: 9px 11px 22px -4px var(--neu-lo), -5px -5px 12px var(--neu-hi), inset 1px 1px 0 rgb(255 255 255 / .06);
+:root[data-neu] .mct {
+  box-shadow: 14px 16px 22px -8px var(--neu-lo), -9px -9px 12px -3px var(--neu-hi), inset 1px 1px 0 rgb(255 255 255 / .06);
   transform: translateY(-3px);
 }
 
 /* ============ SEGMENTED GROUPS (toolbar, .seg, canvas groups, trims viewer bar) ============
    One rule for every group of joined controls: a sunken strip, keys 2px apart (the well shows through as the divider),
    NO radius on the inner joins - only the first key's left corners and the last key's right corners follow the strip. */
-:root[data-style="soft"] .seg { padding: 3px; gap: 2px; border-radius: 12px; }
-:root[data-style="soft"] .seg > button { border-radius: 0; }
-:root[data-style="soft"] .seg > button.on, :root[data-style="soft"] .module-hall .seg > button.on, :root[data-style="soft"] .ec-mode > button.on { background: var(--neu-ctl-sq); box-shadow: var(--neu-t2-grp); color: var(--accent); }
-:root[data-style="soft"] :is(.seg, .hc-grp) > :first-child { border-radius: var(--neu-r-ctl) 0 0 var(--neu-r-ctl); }
-:root[data-style="soft"] :is(.seg, .hc-grp) > :last-child { border-radius: 0 var(--neu-r-ctl) var(--neu-r-ctl) 0; }
-:root[data-style="soft"] :is(.seg, .hc-grp) > :only-child { border-radius: var(--neu-r-ctl); }
-:root[data-style="soft"] .hc-grp > button { border-radius: 0; }
-:root[data-style="soft"] .hc-grp > button:first-child { border-radius: var(--neu-r-ctl) 0 0 var(--neu-r-ctl); }
-:root[data-style="soft"] .hc-grp > button:last-child { border-radius: 0 var(--neu-r-ctl) var(--neu-r-ctl) 0; }
-:root[data-style="soft"] .hc-grp > button:only-child { border-radius: var(--neu-r-ctl); }
+/* .seg (one-of-N) is NOT a joined group: it is a well with one knob (see "segmented control" above), every key keeps
+   all four corners rounded. Square joins stay only where keys are independent: toolbar, nav strip, .hc-grp. */
+:root[data-neu] .seg { padding: 3px; gap: 2px; border-radius: 12px; }
+:root[data-neu] .seg > button { border-radius: var(--neu-r-ctl); }
+:root[data-neu] .seg > button.on, :root[data-neu] .module-hall .seg > button.on, :root[data-neu] .ec-mode > button.on { background: var(--neu-ctl); box-shadow: var(--neu-knob); color: var(--accent); }
+/* the sliding knob (mechanism in styles.css / TH.util.segKnob): same raised T2 key, moving like the .switch knob */
+:root[data-neu] .seg[data-knob]::before { border-radius: var(--neu-r-ctl); background: var(--neu-ctl); box-shadow: var(--neu-knob); }
+:root[data-style="pixel"] .seg[data-knob]::before { transition: transform .16s steps(5, end), width .16s steps(5, end), height .16s steps(5, end); }
+:root[data-style="soft"] .seg[data-knob]::before { transition: transform .3s var(--neu-ease), width .3s var(--neu-ease), height .3s var(--neu-ease); }
+:root[data-neu] .seg[data-knob="still"]::before { transition: none; }
+@media (prefers-reduced-motion: reduce) { :root[data-neu] .seg[data-knob]::before { transition: none; } }
+:root[data-neu] .hc-grp > :first-child { border-radius: var(--neu-r-ctl) 0 0 var(--neu-r-ctl); }
+:root[data-neu] .hc-grp > :last-child { border-radius: 0 var(--neu-r-ctl) var(--neu-r-ctl) 0; }
+:root[data-neu] .hc-grp > :only-child { border-radius: var(--neu-r-ctl); }
+:root[data-neu] .hc-grp > button { border-radius: 0; }
+:root[data-neu] .hc-grp > button:first-child { border-radius: var(--neu-r-ctl) 0 0 var(--neu-r-ctl); }
+:root[data-neu] .hc-grp > button:last-child { border-radius: 0 var(--neu-r-ctl) var(--neu-r-ctl) 0; }
+:root[data-neu] .hc-grp > button:only-child { border-radius: var(--neu-r-ctl); }
 
 /* ============ TIER 2 radius pass: every control uses --neu-r-ctl, tiles/cards --neu-r-tile ============ */
-:root[data-style="soft"] :is(.lvl-chips button, .hl-quick-chip, .hl-badge, .hl-fchip, .hl-lock, .step, .swatch, .tr-schip, .ec-want, .ec-mat, .ec-lo, .hl-lockrow .btn, .x-btn) { border-radius: var(--neu-r-ctl); }
-:root[data-style="soft"] :is(.ec-tile, .hl-trade-item) { border-radius: var(--neu-r-tile); }
+:root[data-neu] :is(.lvl-chips button, .hl-quick-chip, .hl-badge, .hl-lock, .step, .swatch, .ec-want, .ec-lo, .hl-lockrow .btn, .x-btn) { border-radius: var(--neu-r-ctl); }
+:root[data-neu] :is(.ec-tile, .hl-trade-item) { border-radius: var(--neu-r-tile); }
 
-/* ============ pressed state (soft): raised -> inset + 1px sink, for every button-like control ============
-   light from the top-left: the pressed control throws its shadow inward from the top-left; selected / accent ones keep their
-   colour in that shadow. Disabled and n/a never press. (:not(#_) lifts specificity over the :hover rules above.) */
-:root[data-style="soft"] :is(.btn, .icon-btn, .lang-btn, .tb-btn, .seg button, .step, .hc-btn, .x-btn, .foot-toggle, .brand, .lvl-chips button,
-       .ec-item, .ec-tile, .ec-mat, .ec-lo, .ec-gear-main, .ec-own-btn, .ec-want, .hl-preset, .hl-quick-chip, .hl-badge, .hl-lock, .hl-fchip,
-       .tr-tile, .tr-ico, .tr-pt, .tr-schip, .tr-vbtn, .tr-cbtn, .tr-anim, .tr-sync, .tr-eye, .tr-pop button, .menu button, .lang-opt, .hl-cb-opt, .swatch):active:not(:disabled):not(.na):not([aria-disabled="true"]):not(#_) { transform: translateY(1px); }
-:root[data-style="soft"] :is(.btn:not(.primary), .icon-btn, .lang-btn, .tb-btn, .seg button, .step, .hc-btn, .x-btn, .foot-toggle, .lvl-chips button, .ec-mat, .ec-lo,
-       .ec-gear-main, .ec-own-btn, .ec-want, .hl-quick-chip, .hl-badge, .hl-lock, .hl-fchip, .tr-tile, .tr-ico, .tr-schip, .tr-vbtn, .tr-cbtn, .tr-anim,
-       .tr-sync, .tr-eye, .tr-pop button, .menu button, .lang-opt, .swatch):not(.on):not(.is-on):not(.active):not([aria-selected="true"]):active:not(:disabled):not(.na):not(#_) {
+/* ============ pressed state (neumorphic): raised -> inset + 1px sink, for every button-like control ============
+   light from the top-left: the pressed control throws a neutral shadow inward from the top-left; selected / accent ones keep
+   their colour only in the lit bottom-right rim (accent lives in light, never in shadow). Disabled and n/a never press. (:not(#_) lifts specificity over the :hover rules above.) */
+:root[data-neu] :is(.btn, .icon-btn, .lang-btn, .tb-btn, .seg button, .step, .hc-btn, .x-btn, .foot-toggle, .brand, .lvl-chips button,
+       .ec-item, .ec-tile, .ec-lo, .ec-gear-main, .ec-own-btn, .ec-want, .hl-preset, .hl-quick-chip, .hl-badge, .hl-lock,
+       .tr-tile, .tr-ico, .tr-pt, .tr-vbtn, .tr-cbtn, .tr-anim, .tr-eye, .tr-pop button, .menu button, .lang-opt, .hl-cb-opt, .swatch):active:not(:disabled):not(.na):not([aria-disabled="true"]):not(#_) { transform: translateY(1px); }
+:root[data-neu] :is(.btn:not(.primary), .icon-btn, .lang-btn, .tb-btn, .seg button, .step, .hc-btn, .x-btn, .foot-toggle, .lvl-chips button, .ec-lo,
+       .ec-gear-main, .ec-own-btn, .ec-want, .hl-quick-chip, .hl-badge, .hl-lock, .tr-tile, .tr-ico, .tr-vbtn, .tr-cbtn, .tr-anim,
+       .tr-eye, .tr-pop button, .menu button, .lang-opt, .swatch):not(.on):not(.is-on):not(.active):not([aria-selected="true"]):active:not(:disabled):not(.na):not(#_) {
   background: var(--neu-bg); box-shadow: var(--neu-pressed-xs); filter: none;
 }
-:root[data-style="soft"] :is(.ec-item, .tr-pt):not(.on):active:not(:disabled):not(.na):not(#_) { background: var(--neu-bg); box-shadow: var(--neu-pressed-sm); }
-:root[data-style="soft"] .hl-preset:not(.is-on):active:not(:disabled):not(#_) { background: var(--neu-bg); box-shadow: var(--neu-inset-sm); }
-/* selected controls pressed again: the tinted shadow gets deeper */
-:root[data-style="soft"] :is(.seg button.on, .lvl-chips button.on, .ec-lo.on, .ec-item.on, .tr-ico.on, .tr-tile.on, .tr-pt.on, .tr-anim.on, .tr-schip.active, .tr-vbtn.on, .hc-btn.on, .hl-quick-chip.on, .hl-preset.is-on, .hl-lock.is-on, .ec-mat.on):active:not(:disabled):not(#_) {
-  box-shadow: inset 8px 8px 12px -3px var(--neu-sel-lo), inset -2px -2px 6px var(--neu-sel-hi);
+:root[data-neu] :is(.ec-item, .tr-pt):not(.on):active:not(:disabled):not(.na):not(#_) { background: var(--neu-bg); box-shadow: var(--neu-pressed-sm); }
+:root[data-neu] .hl-preset:not(.is-on):active:not(:disabled):not(#_) { background: var(--neu-bg); box-shadow: var(--neu-inset-sm); }
+/* selected controls pressed again: the (neutral) shadow gets deeper, the accent rim (background) stays. A .seg knob is raised,
+   it only sinks 1px (rule above). */
+:root[data-neu] :is(.lvl-chips button.on, .ec-lo.on, .ec-item.on, .tr-ico.on, .tr-tile.on, .tr-pt.on, .tr-anim.on, .tr-vbtn.on, .hc-btn.on, .hl-quick-chip.on, .hl-preset.is-on, .hl-lock.is-on):active:not(:disabled):not(#_) {
+  box-shadow: var(--neu-sel-press);
 }
-:root[data-style="soft"] .btn.primary:active:not(:disabled):not(#_) { box-shadow: inset 4px 4px 9px color-mix(in srgb, var(--accent-deep) 88%, #000), inset -2px -2px 6px color-mix(in srgb, var(--accent) 60%, #fff); }
-:root[data-style="soft"] .ov-card:active { transform: translateY(-1px); }
-:root[data-style="soft"] :is(.btn, .icon-btn, .hc-btn, .lvl-chips button):disabled:active { transform: none; }
+:root[data-neu] .btn.primary:active:not(:disabled):not(#_) { box-shadow: inset 7px 7px 9px -2px var(--neu-lo), inset -4px -4px 6px -2px color-mix(in srgb, var(--accent) 60%, #fff); }
+:root[data-neu] .ov-card:active { transform: translateY(-1px); }
+:root[data-neu] :is(.btn, .icon-btn, .hc-btn, .lvl-chips button):disabled:active { transform: none; }
 
 @media (prefers-reduced-motion: reduce) {
-  :root[data-style="soft"] .btn, :root[data-style="soft"] .nav-item, :root[data-style="soft"] .field, :root[data-style="soft"] .hl-strip, :root[data-style="soft"] .tb-btn { transition: none; }
+  :root[data-neu] .btn, :root[data-neu] .nav-item, :root[data-neu] .field, :root[data-neu] .hl-strip, :root[data-neu] .tb-btn,
+  :root[data-neu] .switch span, :root[data-neu] .switch span::after { transition: none; }
+}
+
+/* ============ menu style switcher (⋯ menu, both neumorphic styles) ============
+   The keys sit in the shared segmented-group well; the menu's own row hover (inset) must not apply to them. */
+:root[data-neu] .menu .menu-seg { width: 100%; }
+:root[data-neu] .menu .menu-seg > button:hover:not(.on), :root[data-neu] .menu .menu-seg > button:focus-visible:not(.on) { background: transparent; box-shadow: none; color: var(--text); }
+:root[data-neu] .menu .menu-seg > button.on { color: var(--accent); }
+
+/* ============ scroll edge shadows (mechanism: styles.css "scroll edge shadows") ============
+   Inset-style shade: the scroll edge reads as a cut into the surface, so the start (top / left) edge gets the deeper
+   shade falling inward from the light side and the end (bottom / right) edge a softer one. Neutral --neu-lo only, never
+   accent; no light band, so nothing halos. Pixel = crisp 2px zero-blur steps; Soft (end of file) = one smooth ramp.
+   Container padding / gaps (e.g. .ec-side 10px, .panel 20px here) are read by util.js, so there are no knobs here. */
+:root[data-style="pixel"] {
+  --sc-h: 6px;
+  --sc-g0: color-mix(in srgb, var(--neu-lo) 34%, transparent) 0 2px, color-mix(in srgb, var(--neu-lo) 20%, transparent) 2px 4px,
+           color-mix(in srgb, var(--neu-lo) 9%, transparent) 4px 6px;
+  --sc-g1: color-mix(in srgb, var(--neu-lo) 24%, transparent) 0 2px, color-mix(in srgb, var(--neu-lo) 12%, transparent) 2px 4px,
+           transparent 4px;
+}
+
+/* =====================================================================
+   SOFT = smooth neumorphism  (<html data-style="soft" data-neu>)
+   Same tiers, hooks and lighting as Pixel (light from the top-left, neutral shadows, accent only in light). What differs:
+   no pixel bevels, blurred shadow pairs instead of the stepped zero-blur steps, slightly larger radii, eased motion.
+   Shapes stay rounded RECTANGLES: no circles and no full pills (knobs, thumbs, marks, chips, bars).
+   Content stays Minecraft: Monocraft numerals, pixel textures and glyphs are untouched.
+   ===================================================================== */
+:root[data-style="soft"] {
+  --neu-r-xs: 6px; --neu-r-sm: 8px; --neu-r-md: 12px; --neu-r-lg: 18px; --neu-r-xl: 24px;
+  --radius: var(--neu-r-md);
+  --neu-r-seg: 22px; --neu-r-ctl: 10px; --neu-r-tile: 16px; --neu-r-grp: 14px;
+  /* SOFT EDGES (Oct 2026): the shape boundary is drawn ONLY by blurred light and shadow, never by a line. No 1px rim, no
+     hairline highlight, no 1px accent ring, no hard background-clip edge:
+       - every raised recipe = outer pair + a fainter INNER pair on the same sides (inner shade bottom-right, inner light
+         top-left), so the face darkens / lightens into its own outer shadow / light and the edge melts into the page;
+       - bigger blur, spread = offset - blur (rule 9 spill s + B - o = 0 everywhere), the shadow box ends at or inside the
+         edge, so the dark starts at ~40% at the boundary instead of ~70%;
+       - --neu-rim-hi/-lo and --neu-edge are transparent (theme blocks below), the face gradient is gentler and painted
+         under the border too (border-box), wells sit closer to the face colour;
+       - selected: the accent is a soft wash + glow from the lower-right in the background, no 1px ring (--neu-sel-ring empty). */
+  --neu-lo-in: color-mix(in srgb, var(--neu-lo) 42%, transparent);
+  --neu-hi-in: color-mix(in srgb, var(--neu-hi) 60%, transparent);
+  --neu-grad: linear-gradient(145deg, color-mix(in srgb, var(--neu-bg) 95%, #fff), color-mix(in srgb, var(--neu-bg) 97%, #000)) border-box;
+  --neu-t1: 12px 12px 28px -16px var(--neu-lo), -10px -10px 24px -14px var(--neu-hi),
+            inset -8px -8px 16px -8px var(--neu-lo-in), inset 8px 8px 16px -8px var(--neu-hi-in);
+  --neu-raised:    12px 12px 26px -14px var(--neu-lo), -10px -10px 22px -12px var(--neu-hi),
+                   inset -6px -6px 12px -6px var(--neu-lo-in), inset 6px 6px 12px -6px var(--neu-hi-in);
+  --neu-raised-sm: 6px 6px 14px -8px var(--neu-lo), -5px -5px 12px -7px var(--neu-hi),
+                   inset -4px -4px 8px -4px var(--neu-lo-in), inset 4px 4px 8px -4px var(--neu-hi-in);
+  --neu-raised-xs: 4px 4px 10px -6px var(--neu-lo), -4px -4px 9px -5px var(--neu-hi),
+                   inset -3px -3px 6px -3px var(--neu-lo-in), inset 3px 3px 6px -3px var(--neu-hi-in);
+  --neu-t2-hover:  8px 8px 18px -10px var(--neu-lo), -6px -6px 15px -9px var(--neu-hi),
+                   inset -4px -4px 8px -4px var(--neu-lo-in), inset 4px 4px 8px -4px var(--neu-hi-in);
+  --neu-t2-grp: 3px 3px 6px -3px var(--neu-lo), inset -3px -3px 6px -3px var(--neu-lo-in), inset 3px 3px 6px -3px var(--neu-hi-in);
+  --neu-knob: 4px 4px 10px -6px var(--neu-lo), inset 3px 3px 6px -3px var(--neu-hi), inset -3px -3px 6px -3px var(--neu-lo-in);
+  --neu-inset:      inset 8px 8px 18px -10px var(--neu-lo), inset -6px -6px 15px -9px var(--neu-hi);
+  --neu-inset-sm:   inset 6px 6px 14px -8px var(--neu-lo), inset -5px -5px 12px -7px var(--neu-hi);
+  --neu-inset-xs:   inset 4px 4px 9px -5px var(--neu-lo), inset -3px -3px 7px -4px var(--neu-hi);
+  --neu-inset-deep: inset 7px 7px 16px -9px var(--neu-lo), inset -6px -6px 13px -7px var(--neu-hi);
+  --neu-pressed-sm: inset 7px 7px 16px -9px var(--neu-lo), inset -4px -4px 10px -6px var(--neu-hi);
+  --neu-pressed-xs: inset 4px 4px 10px -6px var(--neu-lo), inset -3px -3px 7px -4px var(--neu-hi);
+  --neu-sel-inset:    inset 10px 10px 22px -12px var(--neu-sel-lo);
+  --neu-sel-inset-sm: inset 7px 7px 16px -9px var(--neu-sel-lo);
+  --neu-sel-inset-xs: inset 4px 4px 10px -6px var(--neu-sel-lo);
+  --neu-sel-press:    inset 9px 9px 18px -9px var(--neu-sel-lo);
+  --neu-acc-raised-sm: 7px 7px 16px -9px var(--neu-acc-lo), -6px -6px 14px -8px var(--neu-acc-hi), inset 3px 3px 6px -3px rgb(255 255 255 / .22), inset -3px -3px 6px -3px rgb(0 0 0 / .14);
+  --neu-acc-raised-xs: 5px 5px 12px -7px var(--neu-acc-lo), -4px -4px 10px -6px var(--neu-acc-hi), inset 3px 3px 6px -3px rgb(255 255 255 / .2), inset -3px -3px 6px -3px rgb(0 0 0 / .12);
+  /* selected accent = soft light only: no ring; a diagonal wash (0 on the top-left half, its 55% line runs just past the
+     top-right / bottom-left corners) + the lower-right glow, painted over the whole border box */
+  --neu-sel-ring: linear-gradient(transparent, transparent);
+  --neu-sel-glow: color-mix(in srgb, var(--accent) 20%, transparent);
+  --neu-sel-wash: color-mix(in srgb, var(--accent) 13%, transparent);
+  /* the glow peaks just INSIDE the lower-right (not on the boundary), so the edge itself stays a gentle step */
+  --neu-sel-glow-l: radial-gradient(100% 110% at 86% 74%, var(--neu-sel-glow), transparent 62%);
+  --neu-sel-bg: var(--neu-sel-glow-l) border-box, linear-gradient(to bottom right, transparent 55%, var(--neu-sel-wash) 86%, color-mix(in srgb, var(--neu-sel-wash) 50%, transparent)) border-box, var(--neu-bg);
+  /* no pixel bevels: every bevel layer is empty, so --neu-ctl & co. are the plain gradient / selected background */
+  --neu-bevel: none; --neu-bevel-in: none; --neu-bevel-lit: none; --neu-bevel-sq: none; --neu-bevel-sq-in: none;
+  --neu-ease: cubic-bezier(.22, .72, .24, 1);
+}
+/* Soft per theme: slightly lower contrast, no rims / hairline edges, wells closer to the face (a well's own colour must not
+   draw a hard outline). Specificity (0,3,0) / (0,4,0) beats the shared theme blocks above. */
+:root[data-style="soft"][data-neu] {
+  --neu-lo: rgb(2 2 8 / .62); --neu-hi: rgb(255 255 255 / .06); --neu-well: #1d1e26;
+  --neu-edge: transparent; --neu-rim-hi: transparent; --neu-rim-lo: transparent;
+}
+@media (prefers-color-scheme: light) {
+  :root[data-style="soft"][data-neu]:not([data-theme="dark"]) {
+    --neu-lo: rgb(135 95 40 / .32); --neu-hi: rgb(255 252 238 / .85); --neu-well: #e3d8bf;
+  }
+}
+:root[data-style="soft"][data-neu][data-theme="light"] {
+  --neu-lo: rgb(135 95 40 / .32); --neu-hi: rgb(255 252 238 / .85); --neu-well: #e3d8bf;
+}
+/* shared chrome with hard-coded shadows: re-pointed to the soft recipes. Nav tabs: no 1px accent rim in the border ring. */
+:root[data-style="soft"] .nav-item {
+  --nv-on-bg: radial-gradient(110% 100% at 92% 100%, color-mix(in srgb, var(--tc, var(--accent)) 28%, transparent), transparent 58%) border-box,
+              linear-gradient(to bottom right, transparent 55%, color-mix(in srgb, var(--tc, var(--accent)) 20%, transparent)) border-box, var(--neu-bg);
+}
+@media (min-width: 641px) {
+  :root[data-style="soft"] .nav-item { box-shadow: var(--neu-raised-sm); }
+  :root[data-style="soft"] .nav-item.active, :root[data-style="soft"] .nav-item:active:not(.active) { box-shadow: var(--neu-sel-inset-sm); }
+}
+:root[data-style="soft"] .toolbar .tb-btn:hover, :root[data-style="soft"] .toolbar .lang-btn:hover { box-shadow: var(--neu-t2-grp), 2px 2px 6px -2px var(--neu-lo); }
+:root[data-style="soft"] :is(.menu, .lang-list) { box-shadow: 18px 20px 44px -26px var(--neu-lo), -12px -12px 30px -18px var(--neu-hi), inset -6px -6px 12px -6px var(--neu-lo-in), inset 6px 6px 12px -6px var(--neu-hi-in); }
+:root[data-style="soft"] .th-tooltip { box-shadow: 10px 11px 26px -15px var(--neu-lo), -7px -7px 18px -11px var(--neu-hi), inset -3px -3px 6px -3px var(--neu-lo-in), inset 3px 3px 6px -3px var(--neu-hi-in); }
+:root[data-style="soft"] ::-webkit-scrollbar-thumb { box-shadow: inset 3px 3px 5px -2px rgb(255 255 255 / .18), inset -3px -3px 5px -2px rgb(0 0 0 / .18); }
+/* overview cards: the 1px feature-colour top edge becomes soft light falling in from the top (lit side) */
+:root[data-style="soft"] .ov-card, :root[data-style="soft"] .ov-card:is(:hover, :focus-visible) { border-top-color: transparent; }
+:root[data-style="soft"] .ov-card { box-shadow: var(--neu-t1), inset 0 16px 16px -16px color-mix(in srgb, var(--tc) 55%, transparent); }
+:root[data-style="soft"] .ov-card:is(:hover, :focus-visible) { box-shadow: var(--neu-t1), inset 0 16px 16px -16px color-mix(in srgb, var(--tc) 55%, transparent), -14px -14px 34px -20px color-mix(in srgb, var(--tc) 55%, transparent); }
+/* accent faces: paint under the transparent 1px border too (a padding-box gradient repeats a 1px sliver of its far end
+   into the border ring = a crisp light/dark outline) */
+:root[data-style="soft"] .btn.primary { background: linear-gradient(145deg, color-mix(in srgb, var(--accent) 88%, #fff), var(--accent) 55%, color-mix(in srgb, var(--accent) 86%, #000)) border-box; }
+:root[data-style="soft"] .btn.primary:hover { background: linear-gradient(145deg, color-mix(in srgb, var(--accent) 80%, #fff), color-mix(in srgb, var(--accent) 92%, #fff) 55%, var(--accent)) border-box; }
+:root[data-style="soft"] .btn.primary:active:not(:disabled) { background: linear-gradient(145deg, color-mix(in srgb, var(--accent) 88%, #000), var(--accent)) border-box; }
+:root[data-style="soft"] .ov-cta { background: linear-gradient(145deg, color-mix(in srgb, var(--tc) 88%, #fff), var(--tc) 55%, color-mix(in srgb, var(--tc) 86%, #000)) border-box; }
+
+/* eased motion on every control (Pixel snaps with short / stepped transitions). Listed properties only; tiles that move
+   by transform while dragging (.hc-tile) are deliberately not in this list. */
+:root[data-style="soft"] :is(.btn, .icon-btn, .tb-btn, .lang-btn, .seg button, .step, .x-btn, .foot-toggle, .lvl-chips button,
+       .hl-quick-chip, .hl-badge, .hl-lock, .hl-strip, .hl-preset, .ec-item, .ec-tile, .ec-mat, .ec-lo, .ec-ench, .ec-want,
+       .tr-tile, .tr-ico, .tr-pt, .tr-vbtn, .tr-anim, .tr-eye, .hc-btn, .menu button, .lang-opt, .swatch, .ov-cta) {
+  transition: box-shadow .26s var(--neu-ease), background-color .26s var(--neu-ease), color .2s var(--neu-ease), transform .2s var(--neu-ease), filter .2s var(--neu-ease);
+}
+
+/* top nav: smooth raised tabs, no pixel bevel; the current-tab mark is a short soft bar (rounded rect) in the feature colour */
+:root[data-style="soft"] .nav-item { border-radius: var(--neu-r-ctl); transition: color .2s var(--neu-ease), box-shadow .26s var(--neu-ease), transform .2s var(--neu-ease); }
+:root[data-style="soft"] .nav-item::before { content: none; }
+:root[data-style="soft"] .nav-item::after {
+  content: ''; position: absolute; left: 50%; right: auto; top: auto; bottom: 5px; width: 16px; height: 3px; margin-left: -8px; border-radius: 2px;
+  background: var(--tc, var(--select)); box-shadow: 0 0 9px 1px color-mix(in srgb, var(--tc, var(--select)) 55%, transparent);
+  transform: scaleX(0); opacity: 0; transition: transform .3s var(--neu-ease), opacity .2s var(--neu-ease);
+}
+:root[data-style="soft"] .nav-item:hover:not(.active)::after { transform: scaleX(.6); opacity: .5; }
+:root[data-style="soft"] .nav-item.active::after { transform: scaleX(1); opacity: 1; }
+@media (min-width: 641px) {
+  :root[data-style="soft"] .nav { border-radius: var(--neu-r-grp); }
+  :root[data-style="soft"] .nav-item:hover:not(.active) { box-shadow: 9px 10px 12px -3px var(--neu-lo), -7px -7px 10px -3px var(--neu-hi); }
+}
+@media (max-width: 640px) {
+  :root[data-style="soft"] .nav { border-radius: 26px 26px 0 0; }
+  :root[data-style="soft"] .nav-item { border-radius: 14px; }
+  :root[data-style="soft"] .nav-item::after { top: 4px; bottom: auto; }
+}
+
+/* segmented groups + strips: rounder outer corners (keys keep the 3-4px well inset, so corners stay concentric) */
+:root[data-style="soft"] :is(.toolbar, .seg, .hc-grp) { border-radius: var(--neu-r-grp); }
+:root[data-style="soft"] .hl-preset { border-radius: var(--neu-r-xl); }
+:root[data-style="soft"] .tr-bd-studio { border-radius: 5px; }
+
+/* small keys (~24px tall) keep a squircle-ish 8px so they never turn into pills; boxes/knobs 6px */
+:root[data-style="soft"] :is(.lvl-chips button, .hl-quick-chip, .hl-badge, .step, .swatch, .x-btn, .ec-want, .hl-lockrow .btn) { border-radius: var(--neu-r-sm); }
+:root[data-style="soft"] :is(.check span, .hl-preset-check, .hl-tick) { border-radius: var(--neu-r-xs); }
+
+/* module rules that hard-code shadows / lines (shared [data-neu] section): Soft recipe = outer pair + faint inner pair,
+   spread = offset - blur (rule 9 spill 0), no 1px rims */
+:root[data-style="soft"] .hl-preset { box-shadow: 8px 8px 20px -12px var(--neu-lo), -7px -7px 18px -11px var(--neu-hi), inset -4px -4px 8px -4px var(--neu-lo-in), inset 4px 4px 8px -4px var(--neu-hi-in); }
+:root[data-style="soft"] .hl-preset:not(.is-on):hover { box-shadow: 10px 10px 24px -14px var(--neu-lo), -8px -8px 20px -12px var(--neu-hi), inset -4px -4px 8px -4px var(--neu-lo-in), inset 4px 4px 8px -4px var(--neu-hi-in); }
+:root[data-style="soft"] .ec-item:not(.on):not(.na):hover, :root[data-style="soft"] .hc-tile:not(.is-selected):not(.is-needed):hover { box-shadow: var(--neu-t2-hover); }
+:root[data-style="soft"] .hl-check { box-shadow: 24px 24px 56px -32px var(--neu-lo), -14px -14px 34px -20px var(--neu-hi), inset -8px -8px 16px -8px var(--neu-lo-in), inset 8px 8px 16px -8px var(--neu-hi-in); }
+:root[data-style="soft"] .tr-dye { box-shadow: var(--neu-raised-xs); }
+:root[data-style="soft"] .hc-tile.is-perfect { border-color: transparent; }   /* gold stays as data colour: a soft inner wash + glow instead of a 1px ring */
+:root[data-style="soft"] .hc-tile.is-perfect:not(.is-selected):not(.is-dragging) {
+  box-shadow: var(--neu-raised-sm), inset 0 0 12px -5px color-mix(in srgb, var(--gold) 75%, transparent), 0 0 14px -3px color-mix(in srgb, var(--gold) 60%, transparent);
+}
+
+/* switch: smooth lever. Track = T-1 well (rounded rect, not a pill); knob = rounded-rect T2 key, no lamp pixel.
+   Checked: the track keeps its neutral inset with accent light from the lower-right; the knob's lit top-left takes the
+   accent (tinted face + accent highlight), its drop shadow stays neutral. Eased travel. */
+:root[data-style="soft"] .switch span { border: 1px solid transparent; border-radius: 10px; background: var(--neu-well); box-shadow: var(--neu-inset-sm); transition: background .26s var(--neu-ease), box-shadow .26s var(--neu-ease); }
+:root[data-style="soft"] .switch span::after {
+  top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 6px;
+  background: var(--neu-grad); box-shadow: var(--neu-raised-xs);
+  transition: transform .3s var(--neu-ease), box-shadow .26s var(--neu-ease), background .26s var(--neu-ease);
+}
+:root[data-style="soft"] .switch input:checked + span::after {
+  transform: translateX(20px);
+  background: linear-gradient(145deg, color-mix(in srgb, var(--accent) 34%, var(--neu-bg)), var(--neu-bg) 70%);
+  box-shadow: 4px 4px 10px -6px var(--neu-lo), -4px -4px 10px -6px var(--neu-acc-hi), inset 3px 3px 6px -3px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+/* no circles / full pills: thumbs, bars, eyebrow and scrollbar become rounded rectangles */
+:root[data-style="soft"] .slider::-webkit-slider-thumb { border-radius: 6px; }
+:root[data-style="soft"] .slider::-moz-range-thumb { border-radius: 6px; }
+:root[data-style="soft"] .slider::-webkit-slider-runnable-track { border-radius: 3px; }
+:root[data-style="soft"] .slider::-moz-range-track { border-radius: 3px; }
+:root[data-style="soft"] .bar, :root[data-style="soft"] .bar > span { border-radius: 3px; }
+:root[data-style="soft"] .ov-eyebrow { border-radius: var(--neu-r-md); }
+:root[data-style="soft"] ::-webkit-scrollbar-track, :root[data-style="soft"] ::-webkit-scrollbar-thumb { border-radius: 6px; }
+
+@media (prefers-reduced-motion: reduce) {
+  :root[data-style="soft"] *, :root[data-style="soft"] *::before, :root[data-style="soft"] *::after { transition-duration: .01s !important; }
+}
+
+/* scroll edge shadows (see the shared section): one smooth inset ramp, deeper at the start edge */
+:root[data-style="soft"] {
+  --sc-h: 12px;
+  --sc-g0: color-mix(in srgb, var(--neu-lo) 38%, transparent), color-mix(in srgb, var(--neu-lo) 12%, transparent) 45%, transparent;
+  --sc-g1: color-mix(in srgb, var(--neu-lo) 26%, transparent), color-mix(in srgb, var(--neu-lo) 8%, transparent) 45%, transparent;
+}
+
+/* Soft material bar ("sunken bar, active flush"): blurred insets, every one within rule 9 (spill s + B - o <= 0 per axis;
+   the cast shadow has no y offset, so its spread = -blur keeps it off the top/bottom edges) */
+:root[data-style="soft"] .ec-mats {
+  --mk-floor: inset 3px 3px 5px -2px var(--neu-lo), inset -2px -2px 3px -1px color-mix(in srgb, var(--neu-hi) 60%, transparent);
+  --mk-floor-hover: inset 2px 2px 3px -1px color-mix(in srgb, var(--neu-lo) 65%, transparent), inset -2px -2px 3px -1px color-mix(in srgb, var(--neu-hi) 60%, transparent);
+  --mk-floor-press: inset 4px 4px 6px -2px var(--neu-lo), inset -2px -2px 3px -1px color-mix(in srgb, var(--neu-hi) 40%, transparent);
+  --mk-flush: inset 4px 4px 8px -4px var(--neu-hi-in), inset -4px -4px 8px -4px var(--neu-lo-in);   /* T1 face shading, no hairline */
+  --mk-cast: inset 10px 0 8px -8px var(--neu-lo);
 }

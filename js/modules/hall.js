@@ -11,12 +11,15 @@
  *
  * state.hall = {
  *   setupDone, step, editing, migrated,
- *   books:   { [enchId]: { level, stalls: [{ id, label, done, price }] } },  // one stall = one librarian
+ *   books:   { [enchId]: { level, stalls: [{ id, label, done, price, level? }] } },  // one stall = one librarian
+ *     // book.level = level of the first copy (the default); stall.level only when a copy wants a different tier
+ *     // (absent = book.level; normLevels() drops overrides equal to book.level). stall.label = the copy's tag.
  *   archive: { [enchId]: book },             // removed books, restored with their progress if re-added
  *   trades:  [{ id, prof, purpose, target, group, note }],
  *   tradeLocked: { [tileKey 't:<tradeId>:<n>']: true },   // villagers you have traded with; per tile (replaces the old trade.have count)
- *   layout:  { v: 3, pos: { [villagerKey]: { x, y } }, pinned: [villagerKey] },   // pinned = position fixed (separate from a trade being locked in)
+ *   layout:  { v: 3, pos: { [villagerKey]: { x, y } }, pinned: [villagerKey], auto? },   // pinned = position fixed (separate from a trade being locked in)
  *     // pos = world px of each tile's top-left (tile 72, grid unit 80)
+ *     // auto = true while every position was machine-placed (never dragged / tidied); only then may a preset re-shape it
  *   check:   { open, ench, level, price, query },   // the "Check an offer" dialog
  *   ui:      { selected, multi: [keys] (2+ selected), nextSort: type|name|pos|price, search, expanded: { [enchId]: true },
  *            view: { px, py, z, snap, guides, map } | null (canvas pan / zoom / toolbar toggles) },
@@ -117,10 +120,10 @@
   }
 
   const STEPS = [
-    { t: 'Start', d: 'Pick a starting point', help: 'Start from a preset or from scratch. You can tweak everything in the next steps.' },
-    { t: 'Books', d: 'Librarian enchants', help: 'Tap a book to add it. Need the same book twice (one per armor piece)? Press + on its row to add a copy right below.' },
-    { t: 'Trades', d: 'Other villagers', help: 'Add the non-librarian villagers your hall should have, and how many of each.' },
-    { t: 'Review', d: 'Check & finish', help: 'Here’s everything you’ll build. Save it as a preset if you like, then open your hall.' },
+    { t: 'Start', d: 'Pick a preset, or start from scratch' },
+    { t: 'Books', d: 'Choose librarian enchants' },
+    { t: 'Trades', d: 'Add other traders' },
+    { t: 'Review', d: 'Final check & Finish' },
   ];
 
   const DEFAULTS = {
@@ -149,6 +152,27 @@
   const minPrice = (e, lvl) => D.bookPrice(e, lvl).min;
   const newStall = (label) => ({ id: uid('st'), label: label || '', done: false, price: null });
   const hasProgress = (st) => st.done || st.price != null;
+  /** Effective tier of one copy (librarian) of a book. */
+  const stLv = (book, st) => (st && st.level) || book.level;
+  /** Set every copy's tier from one array (index = copy); the first copy becomes book.level, others override only when different. */
+  function setLevels(book, levels, maxLevel) {
+    book.level = clamp(levels[0] || book.level, 1, maxLevel);
+    book.stalls.forEach((st, i) => {
+      const lv = clamp(levels[i] || book.level, 1, maxLevel);
+      if (lv === book.level) delete st.level; else st.level = lv;
+    });
+  }
+  /** Drop invalid / redundant per-copy overrides (migration + after edits). */
+  function normLevels(book, maxLevel) {
+    if (!book || !Array.isArray(book.stalls)) return;
+    if (!isFinite(book.level)) book.level = maxLevel || 1;
+    setLevels(book, book.stalls.map((st) => (isFinite(st.level) && st.level >= 1 ? Math.round(st.level) : null)), maxLevel || 10);
+  }
+  /**
+   * The cover shown for an enchantment on cards (Books step, Review). Today: the vanilla enchanted book.
+   * The one hook for custom covers later (e.g. per-category books in the style of a resource pack).
+   */
+  const bookCover = (enchId, o) => TH.icon('enchanted_book', Object.assign({ size: 24 }, o));
   const plural = (n, one, many) => n + ' ' + (n === 1 ? one : (many || one + 's'));
   const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -186,7 +210,7 @@
     const out = [];
     for (const id of bookIds(hall)) {
       const book = hall.books[id];
-      book.stalls.forEach((stall, i) => out.push({ key: 'b:' + stall.id, kind: 'book', ench: ENCH[id], book, stall, idx: i }));
+      book.stalls.forEach((stall, i) => out.push({ key: 'b:' + stall.id, kind: 'book', ench: ENCH[id], book, stall, idx: i, lv: stLv(book, stall) }));
     }
     for (const t of hall.trades) {
       for (let n = 0; n < t.target; n++) out.push({ key: tradeKey(t.id, n), kind: 'trade', trade: t, n, prof: profOf(t), hall });
@@ -207,7 +231,7 @@
   function status(v) {
     if (v.kind === 'trade') return tradeIsLocked(v.hall, v.trade.id, v.n) ? 'locked' : 'needed';
     const s = v.stall;
-    if (s.done) return s.price != null && s.price <= minPrice(v.ench, v.book.level) ? 'perfect' : 'locked';
+    if (s.done) return s.price != null && s.price <= minPrice(v.ench, v.lv) ? 'perfect' : 'locked';
     return 'needed';
   }
 
@@ -216,10 +240,10 @@
     const t = { stalls: 0, locked: 0, trades: 0, have: 0, perfect: 0, over: 0 };
     for (const id of bookIds(hall)) {
       const book = hall.books[id];
-      const min = minPrice(ENCH[id], book.level);
       for (const s of book.stalls) {
         t.stalls++;
         if (!s.done) continue;
+        const min = minPrice(ENCH[id], stLv(book, s));
         t.locked++;
         if (s.price != null) s.price <= min ? t.perfect++ : (t.over += s.price - min);
       }
@@ -314,8 +338,18 @@
     L.pos = L.pos || {};
     for (const k of Object.keys(L.pos)) if (!pl.byKey[k]) delete L.pos[k];
     if (L.pinned) L.pinned = L.pinned.filter((k) => pl.byKey[k]);
-    Object.assign(L.pos, TH.hallCanvas.autoPlace(autoOrder(pl.tray).map((v) => v.key), L.pos));
+    // a layout nobody has arranged yet (fresh, or only ever machine-placed) follows the active preset's starting shape
+    if (!Object.keys(L.pos).length) L.auto = true;
+    const shape = L.auto && presetShape(hall);
+    const keys = autoOrder(pl.tray).map((v) => v.key);
+    Object.assign(L.pos, shape ? TH.hallCanvas.shapePlace(keys, shape, L.pos) : TH.hallCanvas.autoPlace(keys, L.pos));
     return pl.tray.length;
+  }
+
+  /** Starting-layout shape of the active built-in preset (presets.js `layout`), or null. */
+  function presetShape(hall) {
+    const p = hall.activePreset && D.presets.find((x) => x.id === hall.activePreset);
+    return p && p.layout && TH.hallCanvas.shapes && TH.hallCanvas.shapes[p.layout] ? p.layout : null;
   }
 
   /** Silently give new villagers a spot (called on render + init; no re-render, no toast). */
@@ -353,7 +387,7 @@
       if (!e || !e.librarian) continue;
       const cfg = raw && typeof raw === 'object' ? raw : { level: raw };
       const level = cfg.level === 'max' || cfg.level == null ? e.maxLevel : clamp(+cfg.level || e.maxLevel, 1, e.maxLevel);
-      out[id] = { level, slots: cfg.slots || [] };
+      out[id] = { level, slots: cfg.slots || [], levels: Array.isArray(cfg.levels) ? cfg.levels : null };
     }
     return out;
   }
@@ -384,6 +418,7 @@
         // only trim stalls that carry no progress
         while (book.stalls.length > n && !hasProgress(book.stalls[book.stalls.length - 1])) book.stalls.pop();
         cfg.slots.forEach((l, i) => { if (!book.stalls[i].label) book.stalls[i].label = l; });
+        if (cfg.levels) setLevels(book, cfg.levels.map((l) => (l === 'max' ? ENCH[id].maxLevel : +l || cfg.level)), ENCH[id].maxLevel); else setLevels(book, [cfg.level], ENCH[id].maxLevel);
       }
       if (preset.roles) {
         const old = hall.trades;
@@ -396,6 +431,15 @@
         });
       }
       hall.activePreset = preset.id;
+      // a preset with a starting shape re-lays the hall only while the layout is still machine-made (never dragged or
+      // tidied by the user); pinned tiles stay. An arranged hall is kept as it is, new villagers are added after it.
+      const L = hall.layout;
+      if (preset.layout && L && (L.auto || !Object.keys(L.pos || {}).length)) {
+        const pins = new Set(L.pinned || []);
+        L.pos = Object.fromEntries(Object.entries(L.pos || {}).filter(([k]) => pins.has(k)));
+        L.auto = true;
+        if (hall.setupDone) placeNew(hall);
+      }
     });
     toast(`Loaded “${preset.name}”`);
   }
@@ -406,7 +450,8 @@
     for (const id of bookIds(hall)) {
       const b = hall.books[id];
       const labels = b.stalls.map((s) => s.label);
-      enchants[id] = b.stalls.length > 1 || labels[0] ? { level: b.level, slots: labels } : b.level;
+      const lvs = b.stalls.map((s) => stLv(b, s));
+      enchants[id] = b.stalls.length > 1 || labels[0] ? Object.assign({ level: b.level, slots: labels }, lvs.some((l) => l !== b.level) ? { levels: lvs } : null) : b.level;
     }
     const roles = hall.trades.map(({ prof, purpose, target, group, note }) => ({ prof, purpose, target, group, note }));
     const t = totals(hall);
@@ -473,10 +518,13 @@
     }
     const book = hall.books[e.id];
     if (!book) return { ...base, kind: 'skip', title: 'Skip it — not on your list', text: `You didn’t plan a ${nm} librarian. Reroll for the next offer.`, canAdd: true };
-    if (level < book.level) {
-      return { ...base, kind: 'skip', title: 'Skip it — level too low', text: `You want ${enchLabel(e, book.level)}; this one is only ${lvlText(level)}. Reroll.` };
+    // every copy may want its own tier: the offer fits the copies that want this level or lower
+    const pool = book.stalls.some((s) => !s.done) ? book.stalls.filter((s) => !s.done) : book.stalls;
+    const minWant = Math.min(...pool.map((s) => stLv(book, s)));
+    if (level < minWant) {
+      return { ...base, kind: 'skip', title: 'Skip it — level too low', text: `You want ${enchLabel(e, minWant)}; this one is only ${lvlText(level)}. Reroll.` };
     }
-    const open = book.stalls.filter((s) => !s.done).length;
+    const open = book.stalls.filter((s) => !s.done && stLv(book, s) <= level).length;
     if (open) {
       const tier = price == null ? 'unknown' : D.priceTier(e, level, price);
       const what = open > 1 ? `${open} ${local} librarians are still open.` : `Fills your open ${nm} spot.`;
@@ -514,7 +562,8 @@
       book = addBook(hall, e.id, level);
     }
     const order = stallsInHallOrder(hall).filter((v) => v.ench.id === e.id);
-    const open = order.find((v) => !v.stall.done);
+    // open copy that wants this tier or lower; the highest wanted tier first (a IV offer fills the IV copy before the III one)
+    const open = order.filter((v) => !v.stall.done && v.lv <= level).sort((a, b) => b.lv - a.lv)[0];
     let stall = open ? open.stall : null;
     let old = null;
     if (!stall) {
@@ -595,6 +644,7 @@
     setTimeout(() => window.scrollTo({ top: 0, behavior: reduced() ? 'auto' : 'smooth' }), 0);
   }
   function finishSetup() {
+    prevPlan = null;
     upd((hall) => { hall.setupDone = true; hall.editing = false; hall.step = 0; });
     setTimeout(() => window.scrollTo({ top: 0 }), 0);
   }
@@ -606,21 +656,41 @@
 
     root.append(
       h('div.page-head.hl-wiz-head',
-        h('div',
-          h('h2', TITLE),
-          h('p', (hall.editing ? 'Editing your plan. ' : '') + STEPS[step].help)),
+        h('h2', TITLE),
         hall.editing ? h('button.btn', { type: 'button', onclick: finishSetup }, '← Back to hall') : null,
       ),
+      // slim one-row stepper: badge + title + one-line subtext; on phones the other steps fold to their badge (hall.css)
       h('nav.hl-steps', { 'aria-label': 'Setup steps' },
         h('ol', STEPS.map((s, i) => h('li' + (i < step ? '.is-done' : i === step ? '.is-current' : ''),
-          h('button', { type: 'button', 'aria-current': i === step ? 'step' : null, 'data-focus': 'step-' + i, onclick: () => goStep(i) },
+          h('button', { type: 'button', 'aria-current': i === step ? 'step' : null, 'data-focus': 'step-' + i, title: (i + 1) + '. ' + s.t + ' — ' + s.d, onclick: () => goStep(i) },
             h('span.hl-step-dot', { 'aria-hidden': 'true' }, i < step ? '✓' : String(i + 1)),
             h('span.hl-step-text', h('b', s.t), h('small', s.d))))))),
       h('div.hl-wiz-layout',
         h('section.hl-wiz-body', { 'aria-label': STEPS[step].t }, body),
         wizardSide(hall, step)),
     );
+    queueFitSide();
   }
+
+  /**
+   * Keep the sticky wizard sidebar exactly inside the visible area: below the top bar (or its own place in the page
+   * while that is lower) and above the viewport bottom / the end of the layout. So its floating Back / Next row is
+   * always on screen on desktop, and the sidebar never slides under the top bar at the end of the page.
+   */
+  let sideRaf = 0;
+  function fitSide() {
+    sideRaf = 0;
+    const s = document.querySelector('.hl-wiz-side');
+    if (!s) return;
+    const cs = getComputedStyle(s);
+    if (cs.position !== 'sticky') { s.style.maxHeight = ''; return; }
+    const lay = s.parentElement.getBoundingClientRect();
+    const top = Math.max(parseFloat(cs.top) || 0, s.getBoundingClientRect().top);
+    const bottom = Math.min(innerHeight - 16, lay.bottom);
+    s.style.maxHeight = Math.max(200, Math.round(bottom - top)) + 'px';
+  }
+  // a 0 ms timer, not rAF (rAF stalls in background tabs); scroll events already arrive at most once per frame
+  function queueFitSide() { clearTimeout(sideRaf); sideRaf = setTimeout(fitSide, 0); }
 
   /* ---- running summary (footer + review share these) ---- */
 
@@ -640,41 +710,56 @@
   let justAdded = null;
   /** Last rendered sidebar numbers, so a changed value can play a small "bump" animation. */
   const sideSeen = {};
+  const bumpNum = (key, v, pre) => {
+    const bump = sideSeen[key] != null && sideSeen[key] !== v;
+    sideSeen[key] = v;
+    return h('b' + (bump ? '.is-bump' : ''), (pre || '') + v);
+  };
 
-  /** Sticky right column: running totals, book list, workstations and the step navigation. */
+  /**
+   * Plan grouped per workstation: one row per profession (icon once + count); librarians carry a compact
+   * text list of their books. Shared by the wizard sidebar and the Review summary. No accents, no dividers.
+   */
+  function wsList(hall, o) {
+    o = o || {};
+    const t = totals(hall);
+    const books = bookSummary(hall);
+    const key = o.key || 'ws';
+    const row = (prof, n, sub, extra) => h('li.hl-ws-row', { title: wsName(prof) + ' ×' + n + (sub ? ': ' + sub : '') },
+      TH.icon.prof(prof.id, { size: 20 }),
+      h('span.hl-ws-name', h('span', profName(prof)), sub ? h('small', sub) : null),
+      h('em.hl-ws-n', bumpNum(key + '-' + prof.id, n, '×')),
+      extra || null);
+    return h('ul.hl-ws-list',
+      t.stalls ? row(PROF.librarian, t.stalls, o.workstation ? wsName(PROF.librarian) : plural(books.length, 'book'),
+        o.books === false ? null : h('span.hl-ws-books', books.map((b) => h('span', { title: enchLabel(b.e, b.level) }, bookChipText(b), b.n > 1 ? h('small', '×' + b.n) : null)))) : null,
+      tradeSummary(hall).map((r) => row(r.prof, r.target, o.workstation ? wsName(r.prof) : tradeShorts(hall, r.prof.id))));
+  }
+
+  /** Sticky right column: plain running total, the plan per workstation, and the floating Back / Next row. */
   function wizardSide(hall, step) {
     const t = totals(hall);
+    return h('aside.hl-wiz-side', { 'aria-label': 'Total so far' },
+      h('div.panel.hl-side-panel',
+        h('div.hl-side-sum', { 'aria-live': 'polite' },
+          h('div.hl-side-title', 'Total so far'),
+          h('div.hl-side-total', bumpNum('tot', t.total), h('span', t.total === 1 ? 'villager' : 'villagers')),
+          h('div.hl-side-split', bumpNum('lib', t.stalls), t.stalls === 1 ? ' librarian · ' : ' librarians · ', bumpNum('oth', t.trades), ' other')),
+        t.total ? wsList(hall, { key: 'side' }) : h('p.hl-side-empty', 'Nothing planned yet.'),
+        wizardNav(step)));
+  }
+
+  /**
+   * Back / Next as standalone buttons (shared sticky action row, .th-act-row in styles.css): the last row of the
+   * sidebar panel, floating at the bottom of its scroll area (or the viewport when it stacks), at rest flush at the end.
+   */
+  function wizardNav(step) {
     const last = step === STEPS.length - 1;
-    const books = bookSummary(hall);
-    const profs = step >= 2 ? profCounts(hall).slice().sort((a, b) => b.target - a.target) : [];
-    const num = (key, v) => {
-      const bump = sideSeen[key] != null && sideSeen[key] !== v;
-      sideSeen[key] = v;
-      return h('b' + (bump ? '.is-bump' : ''), String(v));
-    };
-    const row = (key, icon, label, v, cls) => h('div.hl-side-row' + (cls || ''), icon, h('span.hl-side-label', label[0], label[1] ? h('span.hl-l-long', label[1]) : null), num(key, v));
-    return h('aside.hl-wiz-side.panel', { 'aria-label': 'Total so far' },
-      h('div.hl-side-sum', { 'aria-live': 'polite' },
-        h('div.hl-side-title', 'TOTAL SO FAR'),
-        row('lib', TH.icon.prof('librarian', { size: 18 }), [t.stalls === 1 ? 'Librarian' : 'Librarians'], t.stalls, '.is-lib'),
-        row('oth', TH.icon('villager', { size: 18 }), ['Other', t.trades === 1 ? ' villager' : ' villagers'], t.trades, '.is-oth'),
-        row('tot', null, [t.total === 1 ? 'Villager' : 'Villagers', ' in total'], t.total, '.is-total')),
-      books.length ? h('div.hl-side-sec.hl-side-books',
-        h('div.hl-side-h', TH.icon('enchanted_book', { size: 14, glint: true }), 'Books', h('em', String(books.length))),
-        h('ul.hl-side-ws.hl-side-bk', books.map((b) => h('li', { title: enchLabel(b.e, b.level) },
-          TH.icon('enchanted_book', { size: 18 }),
-          h('span.hl-ws-name', enchShort(b.e), b.e.maxLevel > 1 ? h('small', ' ' + lvlText(b.level)) : null),
-          h('em', '×' + b.n))))) : null,
-      profs.length ? h('div.hl-side-sec.hl-side-profs',
-        h('div.hl-side-h', 'Workstations'),
-        h('ul.hl-side-ws', profs.map((r) => h('li', { style: '--pc:' + r.prof.color, title: wsName(r.prof) + (tradeShorts(hall, r.prof.id) ? ': ' + tradeShorts(hall, r.prof.id) : '') },
-          TH.icon.prof(r.prof.id, { size: 18 }), h('span.hl-ws-name', wsName(r.prof), tradeShorts(hall, r.prof.id) ? h('small', ' ' + tradeShorts(hall, r.prof.id)) : null), h('em', '×' + r.target))))) : null,
-      h('div.hl-wiz-nav',
-        step > 0 ? h('button.btn.hl-nav-back', { type: 'button', onclick: () => goStep(step - 1) }, '← Back') : null,
-        last
-          ? h('button.btn.primary', { type: 'button', onclick: finishSetup }, 'Finish → Hall')
-          : h('button.btn.primary', { type: 'button', onclick: () => goStep(step + 1) }, h('span.hl-nav-pre', 'Next: '), STEPS[step + 1].t + ' →')),
-    );
+    return h('div.th-act-row.hl-wiz-nav', { role: 'group', 'aria-label': 'Setup steps navigation' },
+      step > 0 ? h('button.btn', { type: 'button', 'data-focus': 'wiz-back', onclick: () => goStep(step - 1) }, '← Back') : null,
+      last
+        ? h('button.btn.primary', { type: 'button', 'data-focus': 'wiz-finish', onclick: finishSetup }, 'Finish → Hall')
+        : h('button.btn.primary', { type: 'button', 'data-focus': 'wiz-next', onclick: () => goStep(step + 1) }, 'Next: ' + STEPS[step + 1].t + ' →'));
   }
 
   /**
@@ -693,74 +778,130 @@
     justAdded = o.added || null;
     try { body.replaceChildren([stepStart, stepBooks, stepTrades, stepReview][step](state)); } finally { justAdded = null; }
     const sy = side.scrollTop, ns = wizardSide(state.hall, step);
+    ns.style.maxHeight = side.style.maxHeight;
     side.replaceWith(ns);
     ns.scrollTop = sy;
     window.scrollTo(0, y);
+    fitSide();
     TH.app.refreshBadges();
     if (o.focus) { const el = document.querySelector('[data-focus="' + o.focus + '"]'); if (el) el.focus({ preventScroll: true }); }
   }
 
   /* ---- step 1: start ---- */
 
+  /* "Previous plan": the custom plan you had before picking a preset this visit, so a switch can be undone from the
+     overview itself (module memory only; cleared on Finish and by a page reload, e.g. after Reset everything). */
+  let prevPlan = null;
+  const PLAN_KEYS = ['books', 'archive', 'trades', 'tradeLocked', 'layout', 'activePreset'];
+  /** Comparable shape of a plan: books (level × librarians) and trades (prof | purpose | count). */
+  function planSig(hall) {
+    const b = bookIds(hall).map((id) => id + ':' + hall.books[id].level + 'x' + hall.books[id].stalls.length);
+    const t = hall.trades.map((x) => x.prof + '|' + (x.purpose || '') + '|' + x.target).sort();
+    return b.join(',') + '/' + t.join(',');
+  }
+  function presetSig(p, hall) {
+    const spec = resolveSpec(p);
+    const b = SORTED.filter((e) => spec[e.id]).map((e) => e.id + ':' + spec[e.id].level + 'x' + Math.max(1, spec[e.id].slots.length));
+    const t = p.roles ? p.roles.map((r) => r.prof + '|' + (r.purpose || '') + '|' + (r.target || 1)).sort() : planSig(hall).split('/')[1].split(',').filter(Boolean);
+    return b.join(',') + '/' + t.join(',');
+  }
+  /** The preset the plan currently equals (the remembered one first), else null. */
+  function matchedPreset(hall, list) {
+    if (!totals(hall).total) return list.find((p) => p.id === 'empty' && hall.activePreset === 'empty') || null;
+    const sig = planSig(hall);
+    const order = list.slice().sort((a, b) => (b.id === hall.activePreset) - (a.id === hall.activePreset));
+    return order.find((p) => p.id !== 'empty' && presetSig(p, hall) === sig) || null;
+  }
+
   function stepStart(state) {
     const hall = state.hall;
     const t = totals(hall);
     const builtIn = D.presets.filter((p) => p.id !== 'empty');
     const blank = D.presets.find((p) => p.id === 'empty') || { id: 'empty', name: 'Blank', enchants: {}, roles: [] };
-    const icons = {
-      bare: () => TH.icon('item/iron_pickaxe', { size: 32 }), blueprint: () => TH.icon('map', { size: 32 }),
-      generators: () => TH.icon('emerald', { size: 32 }), all: () => TH.icon('block/bookshelf', { size: 32 }),
-    };
+    const custom = state.customPresets;
+    const match = matchedPreset(hall, builtIn.concat(custom, [blank]));
+    const isCustomPlan = t.total > 0 && !match;
+    const showPrev = prevPlan && planSig(hall) !== prevPlan.sig;
+    const ico = (name) => TH.icon(name, { size: 30 });
+    const icons = { bare: 'item/iron_pickaxe', blueprint: 'map', generators: 'emerald', all: 'block/bookshelf' };
 
-    const card = (p, opts) => {
+    /** { stalls, trades (null = keeps yours), books: ['Mending', 'Prot IV ×3'], profs: [[profId, n]] } */
+    const sumOfPreset = (p) => {
       const info = presetInfo(p);
-      const on = hall.activePreset === p.id;
-      const names = info.ids.map((id) => {
-        const n = Math.max(1, info.spec[id].slots.length);
-        return enchLabel(ENCH[id], info.spec[id].level) + (n > 1 ? ' ×' + n : '');
-      });
-      const profAgg = {};
-      (p.roles || []).forEach((r) => { profAgg[r.prof] = (profAgg[r.prof] || 0) + (r.target || 0); });
-      return h('div.hl-preset-wrap',
-        h('button.hl-preset' + (on ? '.is-on' : ''), {
-          type: 'button', 'aria-pressed': String(on), 'data-focus': 'preset-' + p.id,
-          onclick: () => {
-            const has = Object.values(hall.books).some((b) => b.stalls.some(hasProgress)) || hall.trades.some((x) => haveOf(hall, x));
-            if (on || !has || confirm(`Switch to “${opts.title || p.name}”? Logged prices and progress are kept for books that stay.`)) applyPreset(p);
-          },
-        },
-          h('span.hl-preset-top',
-            h('span.hl-preset-icon', { 'aria-hidden': 'true' }, opts.icon),
-            h('b.hl-preset-name', opts.title || p.name),
-            h('span.hl-preset-check', { 'aria-hidden': 'true' })),
-          h('span.hl-preset-desc', opts.desc || p.desc),
-          h('span.hl-preset-chips',
-            h('span.chip', TH.icon.prof('librarian', { size: 14 }), plural(info.stalls, 'librarian')),
-            info.trades == null ? h('span.chip', 'keeps your trades') : h('span.chip', TH.icon('villager', { size: 14 }), plural(info.trades, 'other villager'))),
-          names.length ? h('span.hl-preset-tags', names.slice(0, 9).map((n) => h('span', n)), names.length > 9 ? h('span.more', '+' + (names.length - 9) + ' more') : null) : null,
-          Object.keys(profAgg).length ? h('span.hl-preset-profs', Object.entries(profAgg).map(([pid, n]) =>
-            h('span', { title: PROF[pid] ? profName(PROF[pid]) : pid }, TH.icon.prof(pid, { size: 16 }), '×' + n))) : null,
-        ),
-        p.id === 'blueprint' && !opts.custom ? TH.util.reco() : null,
-        opts.custom ? h('button.x-btn.hl-preset-del', {
-          type: 'button', title: 'Delete preset', 'aria-label': 'Delete preset ' + p.name,
-          onclick: () => { if (confirm(`Delete preset “${p.name}”?`)) TH.store.update((s) => { s.customPresets = s.customPresets.filter((x) => x.id !== p.id); }); },
-        }, '✕') : null,
-      );
+      const profs = {};
+      (p.roles || []).forEach((r) => { profs[r.prof] = (profs[r.prof] || 0) + (r.target || 1); });
+      return {
+        stalls: info.stalls, trades: info.trades,
+        books: info.ids.map((id) => { const n = Math.max(1, info.spec[id].slots.length); return bookChipText({ e: ENCH[id], level: info.spec[id].level }) + (n > 1 ? ' ×' + n : ''); }),
+        profs: Object.entries(profs).sort((a, b) => b[1] - a[1]),
+      };
+    };
+    const sumOfPlan = (pl) => {
+      const tt = totals(pl);
+      return {
+        stalls: tt.stalls, trades: tt.trades,
+        books: bookSummary(pl).map((b) => bookChipText(b) + (b.n > 1 ? ' ×' + b.n : '')),
+        profs: tradeSummary(pl).map((r) => [r.prof.id, r.target]),
+      };
     };
 
-    return h('div',
-      t.total ? h('div.hl-note', TH.icon('book', { size: 16 }),
-        h('span', 'You already have a plan (', plural(t.stalls, 'librarian'), ', ', plural(t.trades, 'other villager'),
-          '). Pick a preset to replace it — logged progress is kept — or just press ', h('b', 'Next'), ' to edit it.')) : null,
+    const pick = (p) => {
+      if (match && match.id === p.id) return;
+      if (isCustomPlan) prevPlan = { sig: planSig(hall), plan: structuredClone(Object.fromEntries(PLAN_KEYS.map((k) => [k, hall[k]]))) };
+      applyPreset(p);
+      if (isCustomPlan) toast(`Loaded “${p.name}” — “Previous plan” at the top switches back`);
+    };
+    const restore = () => {
+      const s = prevPlan;
+      prevPlan = null;
+      upd((x) => { for (const k of PLAN_KEYS) x[k] = structuredClone(s.plan[k]); });
+      toast('Switched back to your previous plan');
+    };
+
+    /** One equal-height preset strip: icon | name + description + key books | librarians / others + workstation icons | check. */
+    const strip = (o) => {
+      const s = o.sum;
+      const profs = s ? s.profs.slice(0, 5) : [];
+      return h('li.hl-preset-item',
+        h('button.hl-preset' + (o.on ? '.is-on' : '') + (s ? '' : '.is-slim'), {
+          type: 'button', 'aria-pressed': String(!!o.on), 'data-focus': 'preset-' + o.key, onclick: o.onPick,
+        },
+          h('span.hl-preset-icon', { 'aria-hidden': 'true' }, o.icon),
+          h('span.hl-preset-main',
+            h('b.hl-preset-name', o.title),
+            h('span.hl-preset-desc', o.desc),
+            s ? h('span.hl-preset-books', s.books.length ? s.books.slice(0, 6).join(' · ') + (s.books.length > 6 ? '  +' + (s.books.length - 6) : '') : 'No books') : null),
+          s ? h('span.hl-preset-meta',
+            h('span.hl-preset-counts',
+              h('span', h('b', s.stalls), s.stalls === 1 ? ' librarian' : ' librarians'),
+              s.trades == null ? h('span', 'keeps your trades') : h('span', h('b', s.trades), ' other')),
+            h('span.hl-preset-profs', { 'aria-hidden': 'true' },
+              profs.map(([pid]) => h('span', { title: PROF[pid] ? profName(PROF[pid]) : pid }, TH.icon.prof(pid, { size: 18 }))),
+              s.profs.length > 5 ? h('small', '+' + (s.profs.length - 5)) : null)) : null,
+          h('span.hl-preset-check', { 'aria-hidden': 'true' })),
+        o.reco ? TH.util.reco() : null,
+        o.del ? h('button.x-btn.hl-preset-del', {
+          type: 'button', title: 'Delete preset', 'aria-label': 'Delete preset ' + o.title, onclick: o.del,
+        }, '✕') : null);
+    };
+    const presetStrip = (p, icon, extra) => strip(Object.assign({
+      key: p.id, title: p.name, desc: p.desc, icon, sum: sumOfPreset(p), on: !!match && match.id === p.id, onPick: () => pick(p),
+    }, extra));
+
+    return h('div.hl-presets',
       h('h3.section-title.hl-sec-title', 'Presets'),
-      h('div.hl-preset-grid',
-        builtIn.map((p) => card(p, { icon: icons[p.id] ? icons[p.id]() : TH.icon('item/chest_minecart', { size: 32 }) })),
-        card(blank, { icon: TH.icon('book', { size: 32 }) })),
-      state.customPresets.length ? [
+      h('ul.hl-preset-list',
+        isCustomPlan ? strip({ key: 'current', title: 'Current plan', desc: 'Your own plan, as you left it. Press Next to edit it.', icon: ico('item/writable_book'), sum: sumOfPlan(hall), on: true, onPick: () => {} }) : null,
+        showPrev ? strip({ key: 'previous', title: 'Previous plan', desc: 'Your plan before you picked a preset. Pick it to switch back.', icon: ico('item/writable_book'), sum: sumOfPlan(prevPlan.plan), onPick: restore }) : null,
+        builtIn.map((p) => presetStrip(p, ico(icons[p.id] || 'item/chest_minecart'), { reco: p.id === 'blueprint' }))),
+      custom.length ? [
         h('h3.section-title.hl-sec-title', 'Your presets'),
-        h('div.hl-preset-grid', state.customPresets.map((p) => card(p, { icon: TH.icon('item/writable_book', { size: 32 }), custom: true }))),
+        h('ul.hl-preset-list', custom.map((p) => presetStrip(p, ico('item/writable_book'), {
+          del: () => { if (confirm(`Delete preset “${p.name}”?`)) TH.store.update((s) => { s.customPresets = s.customPresets.filter((x) => x.id !== p.id); }); },
+        }))),
       ] : null,
+      h('ul.hl-preset-list.hl-preset-scratch',
+        strip({ key: 'empty', title: 'Start from scratch', desc: 'An empty plan: pick every book and villager yourself.', icon: ico('book'), on: !!match && match.id === 'empty', onPick: () => pick(blank) })),
     );
   }
 
@@ -784,9 +925,10 @@
       nBooks ? h('button.btn.ghost.small', {
         type: 'button', onclick: () => { if (confirm('Deselect all books? Their progress is remembered if you add them back.')) upd((x) => { Object.keys(x.books).forEach((id) => removeBook(x, id)); }); },
       }, 'Clear all') : null,
-    ));
+    ), h('p.hl-hint.hl-books-hint', 'Need the same book twice, e.g. one per armor piece? Press + on its row.'));
 
     let shown = 0;
+    const groups = [];
     for (const cat of D.enchantCategories) {
       const items = SORTED.filter((e) => e.category === cat.id && enchMatches(e, q));
       if (!items.length) continue;
@@ -794,7 +936,7 @@
       const selectable = items.filter((e) => e.librarian);
       const allOn = selectable.length && selectable.every((e) => hall.books[e.id]);
       const onCount = items.filter((e) => hall.books[e.id]).length;
-      out.append(h('section.hl-group', { 'aria-label': cat.name },
+      groups.push(groupEntry(items.length, h('section.hl-group', { 'aria-label': cat.name },
         h('div.hl-group-head',
           h('h3', cat.name), h('small', cat.hint),
           onCount ? h('span.hl-group-count', onCount + ' on') : null,
@@ -803,8 +945,9 @@
             type: 'button', 'aria-label': (allOn ? 'Deselect all in ' : 'Select all in ') + cat.name, 'data-focus': 'catall-' + cat.id,
             onclick: () => upd((x) => selectable.forEach((e) => (allOn ? removeBook(x, e.id) : x.books[e.id] || addBook(x, e.id)))),
           }, allOn ? 'None' : 'All') : null),
-        h('ul.hl-strips', items.map((e) => bookStrip(hall, e)))));
+        h('ul.hl-strips', items.map((e) => bookStrip(hall, e))))));
     }
+    if (groups.length) out.append(groupColumns(groups));
     if (!shown) out.append(h('div.panel.empty', h('div.empty-icon', TH.icon('compass', { size: 36 })), 'No enchantment matches “', hall.ui.search, '”. ',
       h('button.btn.small', { type: 'button', onclick: () => upd((x) => { x.ui.search = ''; }) }, 'Clear search')));
     return out;
@@ -821,98 +964,116 @@
       }, lvlText(i + 1))));
   }
 
-  /** Duplicate controls shared by book and trade strips: "i/n" index, "+" (insert below), "✕" (only inside a group). */
-  function dupControls(i, n, o) {
-    return [
-      n > 1 ? h('span.hl-idx', { 'aria-label': `${i + 1} of ${n}` }, `${i + 1}/${n}`) : null,
-      h('button.btn.small.ghost.hl-dup', {
-        type: 'button', title: 'Add one more right below', 'data-focus': 'dup-' + o.key, 'aria-label': `Add another ${o.name} below`,
-        disabled: o.max, onclick: o.onAdd,
-      }, plusIco()),
-      o.canDel ? h('button.x-btn.hl-del', {
-        type: 'button', title: 'Remove this one', 'aria-label': `Remove ${o.name} ${i + 1} of ${n}`, 'data-focus': 'rm-' + o.key, onclick: o.onDel,
-      }, '✕') : null,
-    ];
-  }
+  /*
+   * Enchantment / trade CARDS (Books + Trades steps; read-only variant on Review). One card per catalog row:
+   *   head row:  [tick + cover + name (+ ×n count) / sub line] [tag (single copy)] [tier chips] [+]
+   *   copy rows: [i/n] [tag] [locked] [tier chips] [×]          (only with 2+ copies; books)
+   *   copy chips: [i/n  in hall  ×] …                            (only with 2+ copies; trades: copies have no own data)
+   * Every row shares one grid (main | tiers | action), so tier chips start on one line and + / × share one column.
+   */
+
+  /** "+" key: adds one more copy of this card. */
+  const plusBtn = (o) => h('button.btn.small.ghost.hl-dup', {
+    type: 'button', title: 'Add one more', 'data-focus': 'dup-' + o.key, 'aria-label': `Add another ${o.name}`,
+    disabled: o.max, onclick: o.onAdd,
+  }, plusIco());
+  /** "×" key: removes one copy. */
+  const delBtn = (o) => h('button.x-btn.hl-del', {
+    type: 'button', title: o.title || 'Remove this one', 'aria-label': o.label, 'data-focus': 'rm-' + o.key, onclick: o.onDel,
+  }, '✕');
+  /** One card row on the shared grid. */
+  const cardRow = (cls, main, lv, act, attrs) => h('div.hl-card-row' + (cls || ''), attrs || null,
+    h('div.hl-strip-main', main), h('span.hl-strip-lv', lv), h('span.hl-card-act', act));
 
   function bookStrip(hall, e) {
     const book = hall.books[e.id];
     const on = !!book;
-    const level = book ? book.level : e.maxLevel;
     const local = enchLocal(e);
     const sub = local !== e.name ? e.name : null;
 
     if (!e.librarian) {
-      return h('li.hl-strip.is-disabled', { title: 'Librarians never sell this book' },
-        h('div.hl-strip-main',
+      return h('li.hl-card-item', h('div.hl-strip.hl-card.is-disabled', { title: 'Librarians never sell this book' },
+        cardRow('.hl-card-head', [
           h('span.hl-tick', { 'aria-hidden': 'true' }),
-          TH.icon('enchanted_book', { size: 24, cls: 'hl-strip-icon' }),
-          h('span.hl-strip-text', h('b', local), h('small', TH.icon('item/barrier', { size: 12 }), NOT_LIBRARIAN[e.id] || 'Not sold by librarians'))),
-        h('span.hl-strip-lv'), h('span.hl-strip-acts'));
+          bookCover(e.id, { cls: 'hl-strip-icon' }),
+          h('span.hl-strip-text', h('b', local), h('small', TH.icon('item/barrier', { size: 12 }), NOT_LIBRARIAN[e.id] || 'Not sold by librarians'))])));
     }
 
-    const n = book ? book.stalls.length : 0;
+    const n = on ? book.stalls.length : 0;
     const multi = n > 1;
-    const lvl = () => (e.maxLevel > 1
-      ? levelChips(e, level, (lv) => upd((x) => { (x.books[e.id] || addBook(x, e.id)).level = lv; }))
-      : null);
-    const textOf = (st, i) => h('span.hl-strip-text',
-      h('b', local),
-      (sub || e.treasure || st) ? h('small',
+    const stalls = on ? book.stalls : [];
+    const fresh = () => TH.store.get().hall.books[e.id];
+
+    /** Tier chips for copy i (all levels of the enchant; max-only enchants get none). */
+    const tiers = (i) => {
+      if (e.maxLevel <= 1) return null;
+      const key = 'lvl-' + e.id + '-' + i;
+      const cur = on ? stLv(book, stalls[i]) : e.maxLevel;
+      return levelChips(e, cur, (lv) => softUpdate((x) => {
+        const b = x.books[e.id] || addBook(x, e.id);
+        const lvs = b.stalls.map((s) => stLv(b, s));
+        lvs[i] = lv;
+        setLevels(b, lvs, e.maxLevel);
+      }, { focus: key + '-' + (lv - 1) }), { key, label: local + ' level' + (multi ? ` (copy ${i + 1})` : '') });
+    };
+    /** Quiet inline tag field for copy i (stored as stall.label). */
+    const tag = (st, i) => h('input.hl-slot.hl-tag', {
+      value: st.label || '', maxlength: 24, spellcheck: false,
+      placeholder: '+ tag',
+      title: 'Optional tag, e.g. which armor piece this librarian is for',
+      'data-focus': 'lbl-' + st.id, 'aria-label': `${local} ${multi ? 'copy ' + (i + 1) + ' ' : ''}tag`,
+      oninput: (ev) => upd((x) => { const b = x.books[e.id]; const s = b && b.stalls.find((y) => y.id === st.id); if (s) s.label = ev.target.value; }, { silent: true }),
+    });
+
+    const toggle = h('button.hl-card-toggle', {
+      type: 'button', 'aria-pressed': String(on), title: e.desc, 'data-focus': 'strip-' + e.id, 'aria-label': on ? `${local}, selected` : local,
+      onclick: () => {
+        if (!on) { upd((x) => addBook(x, e.id)); return; }
+        if (book.stalls.some(hasProgress) && !confirm(`Remove ${local}? Its logged progress is remembered if you add it back.`)) return;
+        upd((x) => removeBook(x, e.id));
+      },
+    },
+    h('span.hl-tick', { 'aria-hidden': 'true' }),
+    bookCover(e.id, { cls: 'hl-strip-icon', glint: on }),
+    h('span.hl-strip-text',
+      h('span.hl-card-name', h('b', local), multi ? h('span.hl-count', { title: n + ' librarians' }, '×' + n) : null),
+      (sub || e.treasure || (on && !multi && stalls[0].done)) ? h('small',
         sub ? h('span', sub) : null,
         e.treasure ? h('span.hl-treasure', 'treasure') : null,
-        st && multi ? h('input.hl-slot', {
-          value: st.label, placeholder: 'Label, e.g. ' + (['Helmet', 'Chestplate', 'Leggings', 'Boots'][i] || 'Spare'),
-          'data-focus': 'lbl-' + st.id, 'aria-label': `${local} ${i + 1} label`,
-          oninput: (ev) => upd((x) => { const b = x.books[e.id]; if (b && b.stalls[i]) b.stalls[i].label = ev.target.value; }, { silent: true }),
-        }) : (st && st.label ? h('span', st.label) : null),
-        st && st.done ? h('span.hl-ok', 'locked') : null) : null);
+        on && !multi && stalls[0].done ? h('span.hl-ok', 'locked') : null) : null));
 
-    if (!on) {
-      return h('li.hl-strip-item', h('div.hl-strip',
-        h('button.hl-strip-main', {
-          type: 'button', 'aria-pressed': 'false', title: e.desc, 'data-focus': 'strip-' + e.id, 'aria-label': local,
-          onclick: () => upd((x) => addBook(x, e.id)),
-        },
-          h('span.hl-tick', { 'aria-hidden': 'true' }),
-          TH.icon('enchanted_book', { size: 24, cls: 'hl-strip-icon' }),
-          textOf(null, 0)),
-        h('span.hl-strip-lv', lvl()),
-        h('span.hl-strip-acts')));
+    const add = on ? plusBtn({
+      key: e.id, name: local, max: n >= 16,
+      onAdd: () => {
+        const ns = newStall();
+        softUpdate((x) => { const b = x.books[e.id]; if (b) b.stalls.push(ns); }, { added: ns.id, focus: 'dup-' + e.id });
+      },
+    }) : null;
+
+    const rows = [cardRow('.hl-card-head', [toggle, on && !multi ? tag(stalls[0], 0) : null], multi ? null : tiers(0), add)];
+    if (multi) {
+      stalls.forEach((st, i) => {
+        const onDel = () => {
+          if (hasProgress(st) && !confirm('This librarian has logged progress. Remove it anyway?')) return;
+          const b0 = fresh();
+          const rest = b0 ? b0.stalls.filter((s) => s.id !== st.id) : [];
+          softUpdate((x) => {
+            const b = x.books[e.id];
+            if (!b) return;
+            const lvs = b.stalls.filter((s) => s.id !== st.id).map((s) => stLv(b, s));
+            b.stalls = b.stalls.filter((s) => s.id !== st.id);
+            setLevels(b, lvs, e.maxLevel);
+          }, { focus: rest.length > 1 ? 'rm-' + rest[Math.min(i, rest.length - 1)].id : 'dup-' + e.id });
+        };
+        rows.push(cardRow('.hl-copy' + (st.done ? '.is-done' : '') + (justAdded === st.id ? '.is-new' : ''),
+          [h('span.hl-idx', { 'aria-label': `${i + 1} of ${n}` }, `${i + 1}/${n}`), tag(st, i), st.done ? h('span.hl-ok', 'locked') : null],
+          tiers(i),
+          delBtn({ key: st.id, label: `Remove ${local} ${i + 1} of ${n}`, onDel }),
+          { 'data-n': i }));
+      });
     }
-
-    const strips = book.stalls.map((st, i) => {
-      const inner = [
-        h('span.hl-tick', { 'aria-hidden': 'true' }),
-        TH.icon('enchanted_book', { size: 24, glint: true, cls: 'hl-strip-icon' }),
-        textOf(st, i)];
-      const main = multi
-        ? h('div.hl-strip-main', inner)
-        : h('button.hl-strip-main', {
-          type: 'button', 'aria-pressed': 'true', title: e.desc, 'data-focus': 'strip-' + e.id, 'aria-label': `${local}, selected`,
-          onclick: () => {
-            if (book.stalls.some(hasProgress) && !confirm(`Remove ${local}? Its logged progress is remembered if you add it back.`)) return;
-            upd((x) => removeBook(x, e.id));
-          },
-        }, inner);
-      return h('div.hl-strip.is-on' + (justAdded === st.id ? '.is-new' : ''), { 'data-n': i },
-        main,
-        h('span.hl-strip-lv', i === 0 ? lvl() : null),
-        h('span.hl-strip-acts', dupControls(i, n, {
-          key: st.id, name: local, canDel: multi,
-          onAdd: () => {
-            const ns = newStall();
-            softUpdate((x) => { const b = x.books[e.id]; if (b) b.stalls.splice(i + 1, 0, ns); }, { added: ns.id, focus: 'dup-' + ns.id });
-          },
-          onDel: () => {
-            if (hasProgress(st) && !confirm('This librarian has logged progress. Remove it anyway?')) return;
-            const rest = book.stalls.filter((s) => s !== st);
-            softUpdate((x) => { const b = x.books[e.id]; if (b) b.stalls = b.stalls.filter((s) => s.id !== st.id); },
-              { focus: 'dup-' + rest[Math.min(i, rest.length - 1)].id });
-          },
-        })));
-    });
-    return h('li.hl-strip-item.hl-dupgroup' + (multi ? '.is-multi' : ''), { 'data-book': e.id }, strips);
+    return h('li.hl-card-item', { 'data-book': e.id },
+      h('div.hl-strip.hl-card' + (on ? '.is-on' : '') + (multi ? '.is-multi' : ''), rows));
   }
 
   /* ---- step 3: trades (strips) ---- */
@@ -921,12 +1082,14 @@
     const hall = state.hall;
     const out = h('div.hl-books');
     const catalogKeys = new Set(CATALOG.map((c) => c.prof + '|' + c.purpose));
+    const groups = [];
 
     for (const g of GROUPS) {
       const cat = CATALOG.filter((c) => c.group === g.id);
       const custom = hall.trades.filter((t) => (t.group || 'other') === g.id && !catalogKeys.has(t.prof + '|' + t.purpose));
       const count = hall.trades.filter((t) => (t.group || 'other') === g.id).reduce((a, t) => a + t.target, 0);
-      out.append(h('section.hl-group', { 'aria-label': g.name },
+      // weight = catalog rows (+1 for the custom-trade row): adding a custom trade never reshuffles the columns
+      groups.push(groupEntry(cat.length + (g.id === 'other' ? 1 : 0), h('section.hl-group', { 'aria-label': g.name },
         h('div.hl-group-head', h('h3', g.name), h('small', g.hint), count ? h('span.hl-group-count', plural(count, 'villager')) : null),
         cat.length || custom.length ? h('ul.hl-strips',
           cat.map((c) => tradeStrip(hall, c)),
@@ -934,9 +1097,32 @@
         g.id === 'other' ? h('div.hl-add-row',
           h('button.btn.small', { type: 'button', onclick: addCustomTrade }, '+ Custom trade'),
           !custom.length ? h('span.hl-hint', 'Anything not in the lists above — pick a profession and describe what it’s for.') : null) : null,
-      ));
+      )));
     }
+    out.append(groupColumns(groups));
     return out;
+  }
+
+  /** A category section plus its layout weight (rows), for groupColumns. */
+  const groupEntry = (rows, el) => ({ w: rows + 1.5, el });
+  /**
+   * Category sections in two balanced columns (Books + Trades steps). The groups stay in catalog order and are split
+   * once, at the point where both columns hold about the same number of rows, so DOM / tab order = reading order and
+   * one stacked column (narrow content, see hall.css @container hl-groups) is still the original order.
+   * Weights count catalog rows, not selections or copies, so pressing + never moves a group to the other column.
+   */
+  function groupColumns(groups) {
+    const total = groups.reduce((a, g) => a + g.w, 0);
+    let split = groups.length, acc = 0, best = Infinity;
+    for (let i = 0; i <= groups.length; i++) {
+      const diff = Math.abs(total - 2 * acc);
+      if (diff < best) { best = diff; split = i; }
+      if (i < groups.length) acc += groups[i].w;
+    }
+    return h('div.hl-groups',
+      h('div.hl-gcols',
+        h('div.hl-gcol', groups.slice(0, split).map((g) => g.el)),
+        h('div.hl-gcol', groups.slice(split).map((g) => g.el))));
   }
 
   /** CSS-drawn plus sign for icon buttons. */
@@ -950,58 +1136,90 @@
       c && c.item ? h('span.hl-trade-item', TH.icon(c.item, { size: 16 })) : null);
   }
 
+  /** Remove copy i of a trade: later copies move up one, keeping their lock state, canvas spot and pin. */
+  function removeTradeCopy(x, id, i) {
+    const tr = x.trades.find((y) => y.id === id);
+    if (!tr) return;
+    if (tr.target <= 1) { x.trades = x.trades.filter((y) => y.id !== id); return; }
+    const tl = x.tradeLocked || (x.tradeLocked = {});
+    const L = x.layout || {};
+    const pos = L.pos || {};
+    const pins = new Set(L.pinned || []);
+    for (let j = i; j < tr.target - 1; j++) {
+      const a = tradeKey(id, j), b = tradeKey(id, j + 1);
+      if (tl[b]) tl[a] = true; else delete tl[a];
+      if (pos[b]) pos[a] = pos[b]; else delete pos[a];
+      if (pins.has(b)) pins.add(a); else pins.delete(a);
+    }
+    const last = tradeKey(id, tr.target - 1);
+    delete tl[last]; delete pos[last]; pins.delete(last);
+    if (L.pinned) L.pinned = Array.from(pins);
+    tr.target -= 1;
+  }
+
+  /** Copies of a trade as compact chips (i/n · in hall · ×), under the card head; only with 2+ copies. */
+  function tradeCopies(t, key, name) {
+    const hall = TH.store.get().hall;
+    const n = t.target;
+    return h('div.hl-card-row.hl-copychips',
+      h('div.hl-strip-main', Array.from({ length: n }, (_, i) => {
+        const locked = tradeIsLocked(hall, t.id, i);
+        return h('span.hl-copychip' + (locked ? '.is-done' : '') + (justAdded === t.id + ':' + i ? '.is-new' : ''),
+          h('span.hl-idx', { 'aria-label': `${i + 1} of ${n}` }, `${i + 1}/${n}`),
+          locked ? h('span.hl-ok', { title: 'Traded with: in your hall' }, 'in hall') : null,
+          delBtn({
+            key: key + '-' + i, label: `Remove ${name} ${i + 1} of ${n}`,
+            onDel: () => {
+              if (locked && !confirm('This villager is locked in your hall. Remove it anyway?')) return;
+              softUpdate((x) => removeTradeCopy(x, t.id, i), { focus: n > 2 ? 'rm-' + key + '-' + Math.min(i, n - 2) : 'dup-' + key });
+            },
+          }));
+      })),
+      h('span.hl-strip-lv'), h('span.hl-card-act'));
+  }
+
+  const tradePlus = (t, key, name) => plusBtn({
+    key, name, max: t.target >= 64,
+    onAdd: () => softUpdate((x) => { const tr = x.trades.find((y) => y.id === t.id); if (tr) tr.target = clamp(tr.target + 1, 1, 64); },
+      { added: t.id + ':' + t.target, focus: 'dup-' + key }),
+  });
+
   function tradeStrip(hall, c) {
     const t = findTrade(hall, c.prof, c.purpose);
     const p = PROF[c.prof];
     const on = !!t;
     const key = 'tr-' + CATALOG.indexOf(c);
-    const n = on ? t.target : 1;
+    const n = on ? t.target : 0;
     const multi = n > 1;
-    const strips = Array.from({ length: n }, (_, i) => {
-      const inner = [
-        h('span.hl-tick', { 'aria-hidden': 'true' }),
-        tradeIcons(p, c.purpose),
-        h('span.hl-strip-text', h('b', c.purpose),
-          h('small', h('span.hl-prof-dot', profName(p)), h('span', on && t.note ? t.note : c.note)))];
-      const main = on && multi ? h('div.hl-strip-main', inner) : h('button.hl-strip-main', {
-        type: 'button', 'aria-pressed': String(on), 'data-focus': key, title: c.note,
-        onclick: () => upd((x) => {
-          if (on) x.trades = x.trades.filter((tr) => tr !== findTrade(x, c.prof, c.purpose));
-          else x.trades.push({ id: uid('tr'), prof: c.prof, purpose: c.purpose, target: 1, group: c.group, note: c.note });
-        }),
-      }, inner);
-      return h('div.hl-strip.hl-strip-trade' + (on ? '.is-on' : '') + (on && justAdded === t.id + ':' + i ? '.is-new' : ''), { style: '--pc:' + p.color },
-        main,
-        h('span.hl-strip-acts',
-          on && tradeIsLocked(TH.store.get().hall, t.id, i) ? h('span.hl-ok.hl-have', 'in hall') : null,
-          on ? dupControls(i, n, tradeDupOpts(t, i, key + '-' + i, c.purpose, () => findTrade(TH.store.get().hall, c.prof, c.purpose))) : null));
-    });
-    return h('li.hl-strip-item.hl-dupgroup' + (multi ? '.is-multi' : ''), { 'data-trade': on ? t.id : null }, strips);
-  }
-
-  /** Duplicate options for a trade strip: group size = trade.target. */
-  function tradeDupOpts(t, i, key, name, find, removeAtOne) {
-    const n = t.target;
-    return {
-      key, name, max: n >= 64, canDel: n > 1 || !!removeAtOne,
-      onAdd: () => softUpdate(() => { const tr = find(); if (tr) tr.target = clamp(tr.target + 1, 1, 64); },
-        { added: t.id + ':' + (i + 1), focus: 'dup-' + key.replace(/-\d+$/, '') + '-' + (i + 1) }),
-      onDel: () => {
-        if (n <= 1) { upd((x) => { x.trades = x.trades.filter((y) => y.id !== t.id); }); return; }
-        softUpdate(() => { const tr = find(); if (tr) { tr.target = clamp(tr.target - 1, 1, 64); const tl = TH.store.get().hall.tradeLocked; if (tl) delete tl[tradeKey(tr.id, tr.target)]; } },
-          { focus: 'dup-' + key.replace(/-\d+$/, '') + '-' + Math.min(i, n - 2) });
-      },
-    };
+    const toggle = h('button.hl-card-toggle', {
+      type: 'button', 'aria-pressed': String(on), 'data-focus': key, title: c.note, 'aria-label': c.purpose + (on ? ', selected' : ''),
+      onclick: () => upd((x) => {
+        if (on) x.trades = x.trades.filter((tr) => tr !== findTrade(x, c.prof, c.purpose));
+        else x.trades.push({ id: uid('tr'), prof: c.prof, purpose: c.purpose, target: 1, group: c.group, note: c.note });
+      }),
+    },
+    h('span.hl-tick', { 'aria-hidden': 'true' }),
+    tradeIcons(p, c.purpose),
+    h('span.hl-strip-text',
+      h('span.hl-card-name', h('b', c.purpose), multi ? h('span.hl-count', { title: n + ' villagers' }, '×' + n) : null),
+      h('small', h('span.hl-prof-dot', profName(p)), h('span', on && t.note ? t.note : c.note))));
+    return h('li.hl-card-item', { 'data-trade': on ? t.id : null },
+      h('div.hl-strip.hl-card.hl-strip-trade' + (on ? '.is-on' : '') + (multi ? '.is-multi' : ''), { style: '--pc:' + p.color },
+        cardRow('.hl-card-head', toggle,
+          on && !multi && tradeIsLocked(hall, t.id, 0) ? h('span.hl-ok.hl-have', 'in hall') : null,
+          on ? tradePlus(t, key, c.purpose) : null),
+        multi ? tradeCopies(t, key, c.purpose) : null));
   }
 
   function customTradeStrip(t) {
     const p = profOf(t);
     const n = t.target;
-    const find = () => TH.store.get().hall.trades.find((y) => y.id === t.id);
+    const key = 'ct-' + t.id;
+    const name = t.purpose || 'custom trade';
     const set = (fn, opts) => upd((x) => { const tr = x.trades.find((y) => y.id === t.id); if (tr) fn(tr, x); }, opts);
-    const strips = Array.from({ length: n }, (_, i) => h('div.hl-strip.hl-strip-trade.hl-strip-custom.is-on' + (justAdded === t.id + ':' + i ? '.is-new' : ''), { style: '--pc:' + p.color },
-      i === 0
-        ? h('div.hl-strip-main.hl-custom-main',
+    return h('li.hl-card-item', { 'data-trade': t.id },
+      h('div.hl-strip.hl-card.hl-strip-trade.hl-strip-custom.is-on' + (n > 1 ? '.is-multi' : ''), { style: '--pc:' + p.color },
+        cardRow('.hl-card-head.hl-custom-main', [
           TH.icon.prof(p.id, { size: 24, cls: 'hl-strip-icon' }),
           h('select.field', { 'aria-label': 'Profession', 'data-focus': 'cprof-' + t.id, onchange: (e) => set((tr) => { tr.prof = e.target.value; }) },
             D.professions.filter((x) => x.id !== 'librarian').map((x) => h('option', { value: x.id, selected: x.id === t.prof }, profName(x)))),
@@ -1009,12 +1227,10 @@
             value: t.purpose, placeholder: 'What is it for? e.g. Glass → Emerald', 'data-focus': 'purpose-' + t.id, 'aria-label': 'Purpose',
             oninput: (e) => set((tr) => { tr.purpose = e.target.value; }, { silent: true }),
             onchange: () => TH.app.render(),
-          }))
-        : h('div.hl-strip-main.hl-custom-main',
-          TH.icon.prof(p.id, { size: 24, cls: 'hl-strip-icon' }),
-          h('span.hl-strip-text', h('b', t.purpose || 'Custom trade'), h('small', profName(p)))),
-      h('span.hl-strip-acts', dupControls(i, n, tradeDupOpts(t, i, 'ct-' + t.id + '-' + i, t.purpose || 'custom trade', find, true)))));
-    return h('li.hl-strip-item.hl-dupgroup' + (n > 1 ? '.is-multi' : ''), { 'data-trade': t.id }, strips);
+          })],
+        n === 1 ? delBtn({ key: key + '-0', title: 'Remove this trade', label: `Remove ${name}`, onDel: () => upd((x) => removeTradeCopy(x, t.id, 0)) }) : null,
+        tradePlus(t, key, name)),
+        n > 1 ? tradeCopies(t, key, name) : null));
   }
 
   function addCustomTrade() {
@@ -1037,42 +1253,47 @@
           h('button.btn', { type: 'button', onclick: () => goStep(1) }, 'Choose books')));
     }
 
-    const big = (icon, n, label, sub) => h('div.hl-rev-stat',
-      h('span.hl-rev-stat-ico', { 'aria-hidden': 'true' }, icon),
-      h('div', h('b', n), h('span', label), sub ? h('small', sub) : null));
-
     // trades grouped by profession
     const byProf = new Map();
     hall.trades.forEach((tr) => { const k = profOf(tr).id; if (!byProf.has(k)) byProf.set(k, []); byProf.get(k).push(tr); });
-    const tradeCols = [...byProf.entries()].map(([pid, list]) => {
-      const p = PROF[pid];
-      const sum = list.reduce((a, x) => a + x.target, 0);
-      return h('section.hl-rev-prof', { style: '--pc:' + p.color },
-        h('header', TH.icon.prof(p.id, { size: 22 }), h('b', profName(p)), h('span.hl-rev-n', '×' + sum)),
-        h('ul', list.map((tr) => h('li', tradeIcons(p, tr.purpose, 16), h('span.hl-rev-purpose', tr.purpose || profName(p)),
-          tr.target > 1 ? h('span.hl-rev-n', '×' + tr.target) : null))));
+    // read-only cards (same look as the Books / Trades step cards, no controls)
+    const tradeCards = [...byProf.values()].flat().map((tr) => {
+      const p = profOf(tr);
+      return h('li.hl-card-item', h('div.hl-strip.hl-card.hl-strip-trade.is-ro', { style: '--pc:' + p.color },
+        cardRow('.hl-card-head', [tradeIcons(p, tr.purpose, 22), h('span.hl-strip-text',
+          h('span.hl-card-name', h('b', tr.purpose || profName(p)), tr.target > 1 ? h('span.hl-count', { title: tr.target + ' villagers' }, '×' + tr.target) : null),
+          h('small', h('span.hl-prof-dot', profName(p)), tradeShort(tr) ? h('span', tradeShort(tr)) : null))])));
+    });
+    const bookCards = bookIds(hall).map((id) => {
+      const e = ENCH[id], b = hall.books[id], n = b.stalls.length;
+      const lvCount = new Map();
+      b.stalls.forEach((st) => { const lv = stLv(b, st); lvCount.set(lv, (lvCount.get(lv) || 0) + 1); });
+      const tags = b.stalls.map((st) => st.label).filter(Boolean);
+      return h('li.hl-card-item', h('div.hl-strip.hl-card.is-on.is-ro',
+        cardRow('.hl-card-head', [bookCover(id, { size: 22, glint: true, cls: 'hl-strip-icon' }), h('span.hl-strip-text',
+          h('span.hl-card-name', h('b', enchLocal(e)), n > 1 ? h('span.hl-count', { title: n + ' librarians' }, '×' + n) : null),
+          tags.length ? h('small', h('span', tags.join(' · '))) : null)],
+        e.maxLevel > 1 ? h('span.hl-lvpills', [...lvCount.entries()].sort((x, y) => y[0] - x[0]).map(([lv, k]) =>
+          h('span.hl-lvpill', { title: enchLabel(e, lv) + (k > 1 ? ' ×' + k : '') }, lvlText(lv), lvCount.size > 1 && k > 1 ? h('small', '×' + k) : null))) : null)));
     });
 
     return h('div.hl-review',
+      // plain totals (like the sidebar) + the plan per workstation (workstation names: what you craft)
       h('section.panel.hl-review-card.hl-rev-head',
-        h('div.hl-rev-stats',
-          big(TH.icon.prof('librarian', { size: 26 }), t.stalls, t.stalls === 1 ? 'librarian' : 'librarians', plural(books.length, 'different book')),
-          big(TH.icon('villager', { size: 26 }), t.trades, 'other villagers', plural(hall.trades.length, 'trade')),
-          big(TH.icon('block/crafting_table_front', { size: 26 }), t.total, 'villagers in total', plural(profs.length, 'profession'))),
-        h('div.hl-rev-ws', h('span.hl-rev-ws-title', 'Workstations needed'),
-          profs.map((r) => h('span.hl-fchip', { style: '--pc:' + r.prof.color, title: wsName(r.prof) },
-            TH.icon.prof(r.prof.id, { size: 16 }), wsName(r.prof), h('em', '×' + r.target))))),
+        h('div.hl-rev-total',
+          h('div.hl-side-title', 'Your plan'),
+          h('div.hl-side-total', h('b', t.total), h('span', t.total === 1 ? 'villager' : 'villagers')),
+          h('div.hl-side-split', h('b', t.stalls), t.stalls === 1 ? ' librarian' : ' librarians', ' · ', plural(books.length, 'different book'), ' · ',
+            h('b', t.trades), ' other · ', plural(profs.length, 'workstation'))),
+        h('div.hl-rev-ws', h('div.hl-side-title', 'Workstations'), wsList(hall, { key: 'rev', workstation: true, books: false }))),
       h('section.panel.hl-review-card',
         h('div.hl-review-head', h('h3.section-title', 'Books'), h('span.hl-toolbar-info', libBooks(t.stalls, books.length)), h('span.spacer'),
           h('button.btn.ghost.small', { type: 'button', onclick: () => goStep(1) }, 'Edit')),
-        books.length ? h('ul.hl-rev-books', books.map((b) => h('li.hl-rev-book',
-          TH.icon('enchanted_book', { size: 22, glint: true }),
-          h('span.hl-rev-name', enchLabel(b.e, b.level)),
-          b.n > 1 ? h('span.hl-rev-n', { title: b.n + ' librarians' }, '×' + b.n) : null))) : h('p.muted', 'No books selected.')),
+        books.length ? h('ul.hl-strips.hl-rev-cards', bookCards) : h('p.muted', 'No books selected.')),
       h('section.panel.hl-review-card',
         h('div.hl-review-head', h('h3.section-title', `Other villagers (${t.trades})`), h('span.spacer'),
           h('button.btn.ghost.small', { type: 'button', onclick: () => goStep(2) }, 'Edit')),
-        tradeCols.length ? h('div.hl-rev-profs', tradeCols) : h('p.muted', 'No other villagers.')),
+        tradeCards.length ? h('ul.hl-strips.hl-rev-cards', tradeCards) : h('p.muted', 'No other villagers.')),
       h('section.panel.hl-review-card.hl-review-actions',
         h('div', h('b', 'Happy with it?'), h('p.muted', 'Save it as a preset to reuse in another world, then press Finish → Hall to open your hall and arrange it.')),
         h('div.hl-row-btns',
@@ -1091,11 +1312,11 @@
     const preset = hall.activePreset && (D.presets.concat(state.customPresets).find((p) => p.id === hall.activePreset));
 
     const editBtn = h('button.btn', { type: 'button', onclick: () => upd((x) => { x.setupDone = false; x.editing = true; x.step = 0; setSel(x.ui, []); }) }, '✎ Edit setup');
-    const head = (sub) => h('div.page-head.hl-page-head', h('div', h('h2', TITLE), h('p', sub)));
+    const head = () => h('div.page-head.hl-page-head', h('h2', TITLE));
 
     if (!t.total) {
       root.append(
-        head('Nothing planned yet.'),
+        head(),
         h('div.panel.empty.hl-empty-hall',
           h('div.empty-icon', TH.icon('bell', { size: 36 })), h('h3', 'Your hall is empty'),
           h('p', 'Pick the books and villagers you want, and this page turns into your to-do list.'),
@@ -1108,7 +1329,7 @@
       : [toFind ? plural(toFind, 'librarian') + ' still needed' : null, toGet ? plural(toGet, 'villager') + ' to find' : null].filter(Boolean).join(' · ');
 
     root.append(
-      head('Check offers as you reroll, and arrange villagers like your real build.'),
+      head(),
       h('div.hl-dash',
         renderMap(hall, pl, t),
         h('div.hl-col', renderProgress(t, line, preset, editBtn), renderSide(hall, pl))),
@@ -1205,7 +1426,7 @@
   let lastDetail = null;
 
   function villagerName(v) {
-    if (v.kind === 'book') return enchLabel(v.ench, v.book.level) + (v.stall.label ? ' (' + v.stall.label + ')' : '');
+    if (v.kind === 'book') return enchLabel(v.ench, v.lv) + (v.stall.label ? ' (' + v.stall.label + ')' : '');
     return (v.trade.purpose || profName(v.prof)) + (v.trade.target > 1 ? ' #' + (v.n + 1) : '');
   }
 
@@ -1222,10 +1443,10 @@
     return {
       name: book ? enchShort(v.ench) : profName(v.prof),
       item: c && c.item ? c.item : null,
-      corner: book ? (v.ench.maxLevel > 1 ? lvlText(v.book.level) : null) : (v.trade.target > 1 ? '#' + (v.n + 1) : null),
+      corner: book ? (v.ench.maxLevel > 1 ? lvlText(v.lv) : null) : (v.trade.target > 1 ? '#' + (v.n + 1) : null),
       tag: book && v.stall.label ? v.stall.label.charAt(0).toUpperCase() : null,
       paid: book && v.stall.done && v.stall.price != null ? v.stall.price : null,
-      perfect: book ? minPrice(v.ench, v.book.level) : null,
+      perfect: book ? minPrice(v.ench, v.lv) : null,
     };
   }
 
@@ -1262,8 +1483,8 @@
       if (v.stall.done && v.stall.price != null) state.push('paid ' + v.stall.price);
       if (pinned) state.push('pinned');
       return {
-        title: enchLabel(v.ench, v.book.level) + (v.stall.label ? ' (' + v.stall.label + ')' : ''),
-        sub: [profName(PROF.librarian), 'perfect ' + minPrice(v.ench, v.book.level)].concat(state).join(' · '),
+        title: enchLabel(v.ench, v.lv) + (v.stall.label ? ' (' + v.stall.label + ')' : ''),
+        sub: [profName(PROF.librarian), 'perfect ' + minPrice(v.ench, v.lv)].concat(state).join(' · '),
       };
     }
     if (pinned) state.push('pinned');
@@ -1298,7 +1519,7 @@
   /** The canvas reports positions / selection / view; one store write per gesture. View-only changes are silent. */
   function onCanvasChange(ch) {
     upd((x) => {
-      if (ch.pos) x.layout.pos = ch.pos;
+      if (ch.pos) { x.layout.pos = ch.pos; x.layout.auto = false; } // the user arranged it: never re-shape it silently
       if (ch.sel) setSel(x.ui, ch.sel);
       if (ch.view) x.ui.view = ch.view;
     }, { silent: !!ch.view && !ch.pos && !ch.sel });
@@ -1410,7 +1631,7 @@
     vs.forEach((v) => { cnt[status(v)]++; });
     let perfectSum = 0, paid = 0, over = 0, noPrice = 0;
     for (const v of books) {
-      const min = minPrice(v.ench, v.book.level);
+      const min = minPrice(v.ench, v.lv);
       perfectSum += min;
       if (!v.stall.done) continue;
       if (v.stall.price == null) { noPrice++; continue; }
@@ -1419,7 +1640,7 @@
     const byBook = new Map(), byTrade = new Map();
     for (const v of vs) {
       if (v.kind === 'book') {
-        const id = v.ench.id + ':' + v.book.level;
+        const id = v.ench.id + ':' + v.lv;
         const r = byBook.get(id) || { v, n: 0, done: 0 };
         r.n++; if (v.stall.done) r.done++;
         byBook.set(id, r);
@@ -1457,8 +1678,8 @@
         noPrice ? h('div.hl-ov-note', plural(noPrice, 'locked librarian') + ' without a logged price') : null) : null,
       byBook.size ? sec('Books', byBook.size, h('ul.hl-ov-list', Array.from(byBook.values()).map((r) => row(
         TH.icon('enchanted_book', { size: 22, glint: r.done === r.n }),
-        enchLabel(r.v.ench, r.v.book.level),
-        `${r.done} of ${r.n} locked · perfect ${minPrice(r.v.ench, r.v.book.level)}`, r)))) : null,
+        enchLabel(r.v.ench, r.v.lv),
+        `${r.done} of ${r.n} locked · perfect ${minPrice(r.v.ench, r.v.lv)}`, r)))) : null,
       byTrade.size ? sec('Villagers', byTrade.size, h('ul.hl-ov-list', Array.from(byTrade.values()).map((r) => row(
         TH.icon.prof(r.v.prof.id, { size: 22 }),
         r.v.trade.purpose || profName(r.v.prof),
@@ -1520,12 +1741,12 @@
         ]);
     }
 
-    const e = v.ench, b = v.book, s = v.stall;
-    const range = D.bookPrice(e, b.level);
+    const e = v.ench, s = v.stall, lv = v.lv;
+    const range = D.bookPrice(e, lv);
     const setStall = (fn, opts) => upd((x) => { const f = findStall(x, s.id); if (f) fn(f.stall, f.book); }, opts);
-    const pill = tierPill(e, b.level, s.price);
+    const pill = tierPill(e, lv, s.price);
     return wrap(null, 'Librarian details', TH.icon('enchanted_book', { size: 32, glint: status(v) === 'perfect' }),
-      [enchLabel(e, b.level), s.label ? h('span.chip', s.label) : null],
+      [enchLabel(e, lv), s.label ? h('span.chip', s.label) : null],
       [h('span.hl-pos', where), h('span', profName(PROF.librarian) + ' · perfect'), cost(range.min), h('span', `· max ${range.max}`)],
       [
         h('div.hl-detail-grid',
@@ -1536,7 +1757,7 @@
                 oninput: (ev) => {
                   const val = ev.target.value === '' ? null : clamp(+ev.target.value, 1, 64);
                   setStall((st) => { st.price = val; }, { silent: true });
-                  const tier = D.priceTier(e, b.level, val);
+                  const tier = D.priceTier(e, lv, val);
                   pill.className = 'pill tier-' + tier; pill.textContent = TIER_LABEL[tier];
                 },
                 onchange: () => setTimeout(TH.app.render, 0),
@@ -1573,7 +1794,7 @@
     };
     if (sort === 'name') {
       return {
-        book: (a, b) => byLocale(enchLabel(a.ench, a.book.level), enchLabel(b.ench, b.book.level)) || bType(a, b),
+        book: (a, b) => byLocale(enchLabel(a.ench, a.lv), enchLabel(b.ench, b.lv)) || bType(a, b),
         trade: (a, b) => byLocale(a.purpose || profName(profOf(a)), b.purpose || profName(profOf(b))) || tType(a, b),
       };
     }
@@ -1581,20 +1802,17 @@
       return { book: (a, b) => (posRank(a.pos) - posRank(b.pos)) || bType(a, b), trade: (a, b) => (tPos(a) - tPos(b)) || tType(a, b) };
     }
     if (sort === 'price') {
-      return { book: (a, b) => (minPrice(a.ench, a.book.level) - minPrice(b.ench, b.book.level)) || bType(a, b), trade: tType };
+      return { book: (a, b) => (minPrice(a.ench, a.lv) - minPrice(b.ench, b.lv)) || bType(a, b), trade: tType };
     }
     return { book: bType, trade: tType };
   }
-
-  /** Set when the sort changed: the next render fades its rows in (same entrance as a tab switch). */
-  let revealNext = false;
 
   function renderNext(hall, pl) {
     const sort = SORT_IDS.includes(hall.ui.nextSort) ? hall.ui.nextSort : 'type';
     const cmp = sorters(sort, pl);
     const stalls = stallsInHallOrder(hall);
     const needed = stalls.filter((v) => !v.stall.done).sort(cmp.book);
-    const improve = stalls.filter((v) => v.stall.done && v.stall.price != null && v.stall.price > minPrice(v.ench, v.book.level)).sort(cmp.book);
+    const improve = stalls.filter((v) => v.stall.done && v.stall.price != null && v.stall.price > minPrice(v.ench, v.lv)).sort(cmp.book);
     const noPrice = stalls.filter((v) => v.stall.done && v.stall.price == null).sort(cmp.book);
     const toGet = hall.trades.filter((t) => haveOf(hall, t) < t.target).slice().sort(cmp.trade);
     const profs = profCounts(hall);
@@ -1602,7 +1820,7 @@
       upd((x) => { setSel(x.ui, [key]); });
       if (canvas) canvas.reveal(key);
     };
-    const stallTitle = (v) => [h('b', enchLabel(v.ench, v.book.level)), v.stall.label ? h('small', v.stall.label) : null];
+    const stallTitle = (v) => [h('b', enchLabel(v.ench, v.lv)), v.stall.label ? h('small', v.stall.label) : null];
 
     const group = (title, n, items, empty) => h('section.hl-next-group',
       h('h4', title, h('span.hl-badge.is-static', n)),
@@ -1619,19 +1837,19 @@
       h('div.seg.hl-seg', { role: 'group', 'aria-labelledby': 'hl-sort-label' },
         SORTS.map(([id, label]) => h('button' + (sort === id ? '.on' : ''), {
           type: 'button', 'aria-pressed': String(sort === id), 'data-focus': 'sort-' + id,
-          onclick: () => { if (id !== sort) revealNext = true; upd((x) => { x.ui.nextSort = id; }); },
+          onclick: () => upd((x) => { x.ui.nextSort = id; }),
         }, label))));
 
     const panel = h('div.panel.hl-next-panel', { role: 'region', 'aria-label': 'Next up' },
       h('div.hl-next-head', h('h3', 'Next up'), h('p.hl-hint', 'What’s left to do. Tap a row to find it on the canvas and open its details.')),
       sortCtl,
       group('Still needed', needed.length, needed.map((v) => row(v,
-        [v.book.stalls.length > 1 ? `${v.idx + 1} of ${v.book.stalls.length} · ` : '', 'perfect', cost(minPrice(v.ench, v.book.level))],
+        [v.book.stalls.length > 1 ? `${v.idx + 1} of ${v.book.stalls.length} · ` : '', 'perfect', cost(minPrice(v.ench, v.lv))],
         null, () => selectCell(v.key), 'Open details')),
         'All librarians locked in'),
       improve.length || noPrice.length ? group('Could improve', improve.length + noPrice.length,
         improve.map((v) => row(v,
-          [cost(v.stall.price, 'is-old'), '→', cost(minPrice(v.ench, v.book.level), 'is-new'), `save ${v.stall.price - minPrice(v.ench, v.book.level)}`],
+          [cost(v.stall.price, 'is-old'), '→', cost(minPrice(v.ench, v.lv), 'is-new'), `save ${v.stall.price - minPrice(v.ench, v.lv)}`],
           null, () => selectCell(v.key), 'Open details')).concat(
           noPrice.map((v) => row(v, 'No price logged — tap to add it', null, () => selectCell(v.key), 'Log the price'))),
         '') : null,
@@ -1654,10 +1872,6 @@
               h('span.hl-strip-text', h('b', wsName(r.prof)), h('small', profName(r.prof)))),
             h('span.hl-ws-count', h('b', '×' + r.target), left ? h('span.faint', `${left} to go`) : h('span.hl-ok', 'done')));
         }))));
-    if (revealNext) {
-      revealNext = false;
-      TH.util.reveal && TH.util.reveal(panel, { items: '.hl-strip-next:not(.hl-strip-ro), .hl-done-line', step: 0.035, max: 14 });
-    }
     return panel;
   }
 
@@ -1966,8 +2180,10 @@
       hall.ui = Object.assign(structuredClone(DEFAULTS.ui), hall.ui);
       ['arrange', 'pick', 'rearrange', 'layoutOpen'].forEach((k) => delete hall.ui[k]);
       if (!SORT_IDS.includes(hall.ui.nextSort)) hall.ui.nextSort = 'type';
-      for (const b of Object.values(hall.books || {}).concat(Object.values(hall.archive || {}))) {
-        (b && b.stalls || []).forEach((st) => { delete st.rolls; delete st.count; delete st.session; delete st.target; });
+      for (const [id, b] of Object.entries(hall.books || {}).concat(Object.entries(hall.archive || {}))) {
+        (b && b.stalls || []).forEach((st) => { delete st.rolls; delete st.count; delete st.session; delete st.target; if (typeof st.label !== 'string') st.label = ''; });
+        // per-copy tiers (Oct 2026): older saves have none (= book.level); drop invalid / redundant overrides
+        if (b && ENCH[id]) normLevels(b, ENCH[id].maxLevel);
       }
       if (!hall.ui.expanded || typeof hall.ui.expanded !== 'object') hall.ui.expanded = {};
       migrateLayout(hall);
@@ -1981,6 +2197,9 @@
       document.addEventListener('click', onDocClick, true);
       window.addEventListener('hashchange', () => document.body.classList.remove('hl-noscroll'));
       trackTopbar();
+      window.addEventListener('scroll', queueFitSide, { passive: true });
+      window.addEventListener('resize', queueFitSide);
+      if (document.fonts) document.fonts.ready.then(queueFitSide);
     },
     badge(state) {
       const t = totals(state.hall);

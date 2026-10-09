@@ -4,11 +4,11 @@
  * - Minecraft textures, wiki icons and fonts: cache-first (they never change for a given version).
  * - The page posts { type: 'warm', urls } once, and every texture the app can show is cached in the background.
  */
-const APP = 'toolbox-app-v7';
+const APP = 'toolbox-app-v10';
 const ASSETS = 'toolbox-assets-v1';
 const CORE = [
   './', 'index.html', 'manifest.webmanifest', 'icon.svg',
-  'css/styles.css', 'css/hall.css', 'css/hall-canvas.css', 'css/enchanting.css', 'css/overview.css', 'css/builds.css', 'css/trims.css', 'css/style-neu.css', 'js/vendor/three.lite.module.min.js', 'js/vendor/three.LICENSE', 'fonts/Monocraft.ttf',
+  'css/styles.css', 'css/hall.css', 'css/hall-canvas.css', 'css/enchanting.css', 'css/overview.css', 'css/builds.css', 'css/portal.css', 'css/trims.css', 'css/style-neu.css', 'js/vendor/three.lite.module.min.js', 'js/vendor/three.LICENSE', 'fonts/Monocraft.ttf',
   'js/core/icons.js', 'js/core/icon-list.js', 'js/core/i18n.js', 'js/core/util.js', 'js/core/store.js', 'js/core/app.js',
   'js/data/enchantments.js', 'js/data/villagers.js', 'js/data/trims.js', 'js/data/presets.js', 'js/data/items.js',
   'js/data/lang/index.js', 'js/data/lang/en_us.js',

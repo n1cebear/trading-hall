@@ -1,5 +1,5 @@
 /* =====================================================================
-   Trading Hall — "Obsidian & Lapis" design system. See DESIGN.md.
+   n1cebear's toolbox — "Obsidian & Lapis" design system. See DESIGN.md.
    ===================================================================== */
 
 @font-face { font-family: 'Monocraft'; src: url('../fonts/Monocraft.ttf') format('truetype'); font-display: swap; }
@@ -19,7 +19,7 @@
   /* per-feature colours (see [data-tool] block below); dark values */
   --c-hall: #17dd62; --c-ench: #b07cff; --c-trim: #4aedd9; --c-home: #f5c04a; --c-build: #ff8a3d; --c-portal: #ff5a4e;
   --on-accent: #04140a; --mix-hi: #fff;
-  --accent: #17dd62;          /* default = Trading Hall emerald; [data-tool] swaps the whole family */
+  --accent: #17dd62;          /* default = Hall emerald; [data-tool] swaps the whole family */
   --accent-2: #7af0b3;
   --accent-ink: #062014;      /* text on emerald */
   --accent-soft: #123526;
@@ -38,6 +38,7 @@
   --tier-meh: #ff6b6b;
   --edge-hi: rgb(255 255 255 / .06);
   --edge-lo: rgb(0 0 0 / .45);
+  --sel-sh: rgb(0 0 0 / .42);  /* Classic selected / pressed-in: the shadow side (top + left), always neutral */
   --shadow: 0 1px 0 var(--edge-hi) inset, 0 -2px 0 var(--edge-lo) inset, 0 10px 30px -12px rgb(0 0 0 / .6);
   --grid-line: rgb(255 255 255 / .025);
   --glow-a: rgb(91 140 255 / .16);
@@ -58,7 +59,7 @@
     --lapis: #2647b8; --lapis-soft: #dbe0f3; --gold: #9a6510;
     --enchant: #7b3fc4; --enchant-soft: #eadcf5; --select: #4a3fb8; --select-soft: #dedaf5; --danger: #b3261e;
     --tier-perfect: #12864f; --tier-great: #5b8a12; --tier-good: #9a6510; --tier-meh: #b3261e;
-    --edge-hi: rgb(255 255 255 / .6); --edge-lo: rgb(90 60 20 / .18);
+    --edge-hi: rgb(255 255 255 / .6); --edge-lo: rgb(90 60 20 / .18); --sel-sh: rgb(90 60 20 / .34);
     --shadow: 0 1px 0 var(--edge-hi) inset, 0 -2px 0 var(--edge-lo) inset, 0 8px 22px -14px rgb(70 45 10 / .45);
     --grid-line: rgb(90 60 20 / .045); --glow-a: rgb(38 71 184 / .10); --glow-b: rgb(18 134 79 / .10); --mob-op: .16;
     --c-hall: #0b7a35; --c-ench: #7b3fc4; --c-trim: #0d7d76; --c-home: #8f5f0c; --c-build: #b85a12; --c-portal: #b3261e; --on-accent: #fbf5e6; --mix-hi: #000;
@@ -72,7 +73,7 @@
   --lapis: #2647b8; --lapis-soft: #dbe0f3; --gold: #9a6510;
   --enchant: #7b3fc4; --enchant-soft: #eadcf5; --select: #4a3fb8; --select-soft: #dedaf5; --danger: #b3261e;
   --tier-perfect: #12864f; --tier-great: #5b8a12; --tier-good: #9a6510; --tier-meh: #b3261e;
-  --edge-hi: rgb(255 255 255 / .6); --edge-lo: rgb(90 60 20 / .18);
+  --edge-hi: rgb(255 255 255 / .6); --edge-lo: rgb(90 60 20 / .18); --sel-sh: rgb(90 60 20 / .34);
   --shadow: 0 1px 0 var(--edge-hi) inset, 0 -2px 0 var(--edge-lo) inset, 0 8px 22px -14px rgb(70 45 10 / .45);
   --grid-line: rgb(90 60 20 / .045); --glow-a: rgb(38 71 184 / .10); --glow-b: rgb(18 134 79 / .10); --mob-op: .16;
   --c-hall: #0b7a35; --c-ench: #7b3fc4; --c-trim: #0d7d76; --c-home: #8f5f0c; --c-build: #b85a12; --c-portal: #b3261e; --on-accent: #fbf5e6; --mix-hi: #000;
@@ -99,13 +100,26 @@
   --select-soft: color-mix(in srgb, var(--tc) 18%, var(--panel));
   --glow-b: color-mix(in srgb, var(--tc) 13%, transparent);
 }
+/* SELECTED = PRESSED-IN SLOT (Classic; DESIGN.md "Surface tiers" lighting rule). Light falls from the top-left, so a pressed
+   control is dark on its top + left edge (neutral --sel-sh) and catches the accent only on its bottom + right edge. Never a
+   full accent outline or an all-round accent glow (that reads as a focus ring; focus keeps its own outline).
+     border-color: var(--sel-edge)   box-shadow: var(--sel-slot)   (+ accent text / accent-soft fill)
+   The dark inset is listed first, so it covers the accent inset in the top-right and bottom-left 2px corners; the border
+   stays neutral (an accent right/bottom border would reach round the top-right / bottom-left corner arcs). */
+:root {
+  --sel-li: color-mix(in srgb, var(--accent) 60%, transparent);   /* lit inner edge, bottom + right only */
+  --sel-edge: var(--sel-sh) var(--line-2) var(--line-2) var(--sel-sh);
+  --sel-slot: inset 2px 2px 0 var(--sel-sh), inset -2px -2px 0 var(--sel-li);
+}
 
 /* ============ base ============ */
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; scrollbar-gutter: stable; }
 /* themed scrollbars: sunken slot track + raised block thumb (bevel like buttons), feature accent on hover/drag.
-   Chrome 121+ ignores ::-webkit-scrollbar when scrollbar-width/-color are set anywhere in the chain,
-   so the standard properties are only used where the pseudo-elements don't exist (Firefox). */
+   ONE global rule for the page and every inner scroll container (the bare pseudo-elements = *::-webkit-scrollbar).
+   Chrome 121+ drops ::-webkit-scrollbar on any element that sets scrollbar-width/-color, so NEVER set those on a
+   container (that is what gave the Trims list a native bar); the standard properties are only used where the
+   pseudo-elements don't exist (Firefox). Hidden bars on chip strips (`scrollbar-width: none`) are the one exception. */
 ::-webkit-scrollbar { width: 14px; height: 14px; background: transparent; }
 ::-webkit-scrollbar-track {
   background: var(--slot, var(--bg-2)); border-radius: 3px;
@@ -125,6 +139,73 @@ html { -webkit-text-size-adjust: 100%; scrollbar-gutter: stable; }
 @supports not selector(::-webkit-scrollbar) {
   html, * { scrollbar-width: thin; scrollbar-color: var(--line-2) transparent; }
 }
+
+/* ============ scroll edge shadows: one mechanism for every scroll container ============
+   A shade at an edge only while there is more content beyond it, like the surface being cut there. Two sticky
+   pseudo-elements per container (::before = start edge, ::after = end edge) lie over the content, take no room
+   (negative margin = own size + the container's gap, given as --sc-gap) and get their opacity from ONE of two paths,
+   never both:
+   - timeline path (default): the container's own scroll timeline (scroll-timeline: --th-sc block / --th-scx inline)
+     drives th-sc-in / th-sc-out over --sc-ramp. Not scrollable = inactive timeline = no shade.
+   - attribute path: TH.util.scrollEdges (util.js) sets :root[data-sc-js] when animation-timeline is unsupported
+     (Firefox) or reduced motion is on (module rules switch pseudo animations off there; the shade is state, not
+     motion), then toggles [data-sc-start] / [data-sc-end] on each container; animations are off on this path.
+   Opt in: add .th-scroll (vertical) or .th-scroll-x (horizontal), or list an existing class in BOTH selector groups
+   below AND in util.js SCROLL_Y / SCROLL_X. No per-container knobs: util.js sets the container's computed padding
+   (--sc-pt / --sc-pr / --sc-pb / --sc-pl) and flex/grid gap along the axis (--sc-gap) inline and keeps them current
+   (style, theme, breakpoint). The padding matters because sticky offsets are measured inside the scroller's padding:
+   without it the shade floats that far in from the edge and reads as a line, and does not span edge to edge.
+   The look is tokens on :root: --sc-h (depth), --sc-g0 / --sc-g1 (gradient stops for the start / end edge, drawn from
+   the edge inward). Classic = a short light neutral shade; Pixel / Soft redefine them in style-neu.css.
+   Neutral dark only, never accent. A rule that needs its own ::before (e.g. the .hl-detail phone grabber) overrides
+   position / opacity / animation there and keeps only the end shade. */
+:root {
+  --sc-h: 8px; --sc-ramp: 24px;
+  --sc-g0: color-mix(in srgb, var(--edge-lo) 42%, transparent), color-mix(in srgb, var(--edge-lo) 14%, transparent) 45%, transparent;
+  --sc-g1: color-mix(in srgb, var(--edge-lo) 30%, transparent), color-mix(in srgb, var(--edge-lo) 10%, transparent) 45%, transparent;
+}
+:where(.th-scroll, .tr-grid, .hl-next-panel, .hl-wiz-side, .hl-cb-list, .hc-help, .lang-list, .ec-side, .hl-detail) { scroll-timeline: --th-sc block; }
+:where(.th-scroll-x, .hl-quick, .hc-bar, .ec-mats) { scroll-timeline: --th-scx inline; }
+:where(.th-scroll, .tr-grid, .hl-next-panel, .hl-wiz-side, .hl-cb-list, .hc-help, .lang-list, .ec-side, .hl-detail)::before,
+:where(.th-scroll, .tr-grid, .hl-next-panel, .hl-wiz-side, .hl-cb-list, .hc-help, .lang-list, .ec-side, .hl-detail)::after {
+  content: ''; display: block; position: sticky; z-index: 4; flex: none; align-self: stretch; height: var(--sc-h);
+  margin-inline: calc(-1 * var(--sc-pl, 0px)) calc(-1 * var(--sc-pr, 0px)); pointer-events: none; opacity: 0; transition: opacity .15s;
+}
+:where(.th-scroll, .tr-grid, .hl-next-panel, .hl-wiz-side, .hl-cb-list, .hc-help, .lang-list, .ec-side, .hl-detail)::before {
+  top: calc(-1 * var(--sc-pt, 0px)); margin-bottom: calc(-1 * (var(--sc-h) + var(--sc-gap, 0px))); background: linear-gradient(180deg, var(--sc-g0));
+}
+:where(.th-scroll, .tr-grid, .hl-next-panel, .hl-wiz-side, .hl-cb-list, .hc-help, .lang-list, .ec-side, .hl-detail)::after {
+  bottom: calc(-1 * var(--sc-pb, 0px)); margin-top: calc(-1 * (var(--sc-h) + var(--sc-gap, 0px))); background: linear-gradient(0deg, var(--sc-g1));
+}
+:where(.th-scroll-x, .hl-quick, .hc-bar, .ec-mats)::before, :where(.th-scroll-x, .hl-quick, .hc-bar, .ec-mats)::after {
+  content: ''; display: block; position: sticky; z-index: 4; flex: none; align-self: stretch; width: var(--sc-h);
+  margin-block: calc(-1 * var(--sc-pt, 0px)) calc(-1 * var(--sc-pb, 0px)); pointer-events: none; opacity: 0; transition: opacity .15s;
+}
+:where(.th-scroll-x, .hl-quick, .hc-bar, .ec-mats)::before {
+  left: calc(-1 * var(--sc-pl, 0px)); margin-right: calc(-1 * (var(--sc-h) + var(--sc-gap, 0px))); background: linear-gradient(90deg, var(--sc-g0));
+}
+:where(.th-scroll-x, .hl-quick, .hc-bar, .ec-mats)::after {
+  right: calc(-1 * var(--sc-pr, 0px)); margin-left: calc(-1 * (var(--sc-h) + var(--sc-gap, 0px))); background: linear-gradient(270deg, var(--sc-g1));
+}
+/* timeline path (only where supported, so a browser that ignores animation-timeline never runs it as a 0s animation) */
+@supports (animation-timeline: scroll()) {
+  :root:not([data-sc-js]) :where(.th-scroll, .tr-grid, .hl-next-panel, .hl-wiz-side, .hl-cb-list, .hc-help, .lang-list, .ec-side, .hl-detail)::before {
+    animation: th-sc-in linear both; animation-timeline: --th-sc; animation-range: 0 var(--sc-ramp);
+  }
+  :root:not([data-sc-js]) :where(.th-scroll, .tr-grid, .hl-next-panel, .hl-wiz-side, .hl-cb-list, .hc-help, .lang-list, .ec-side, .hl-detail)::after {
+    animation: th-sc-out linear both; animation-timeline: --th-sc; animation-range: calc(100% - var(--sc-ramp)) 100%;
+  }
+  :root:not([data-sc-js]) :where(.th-scroll-x, .hl-quick, .hc-bar, .ec-mats)::before {
+    animation: th-sc-in linear both; animation-timeline: --th-scx; animation-range: 0 var(--sc-ramp);
+  }
+  :root:not([data-sc-js]) :where(.th-scroll-x, .hl-quick, .hc-bar, .ec-mats)::after {
+    animation: th-sc-out linear both; animation-timeline: --th-scx; animation-range: calc(100% - var(--sc-ramp)) 100%;
+  }
+}
+/* attribute path (TH.util.scrollEdges) */
+:root[data-sc-js] [data-sc-start]::before, :root[data-sc-js] [data-sc-end]::after { opacity: 1; }
+@keyframes th-sc-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes th-sc-out { from { opacity: 1; } to { opacity: 0; } }
 body {
   margin: 0; overflow-x: clip; color: var(--text); font: 14.5px/1.5 var(--font);
   background: var(--bg);
@@ -177,7 +258,6 @@ h1, h2, h3 { margin: 0; }
   content: ''; position: absolute; z-index: -1; inset: 0 calc(50% - 50vw);
   background: color-mix(in srgb, var(--bg) 88%, transparent);
   -webkit-backdrop-filter: blur(12px) saturate(1.2); backdrop-filter: blur(12px) saturate(1.2);
-  border-bottom: 1px solid var(--line);
 }
 .brand { display: flex; align-items: center; gap: 13px; flex-shrink: 0; padding: 2px 8px 2px 4px; margin-left: -4px; border-radius: var(--radius); color: inherit; text-decoration: none; transition: background .2s; }
 .brand:hover { background: color-mix(in srgb, var(--accent) 10%, transparent); }
@@ -225,8 +305,27 @@ h1, h2, h3 { margin: 0; }
 .nav-item[data-tool="trims"] { --tc: var(--c-trim); }
 .nav-item[data-tool="builds"] { --tc: var(--c-build); }
 .nav-item[data-tool="portal"] { --tc: var(--c-portal); }
+/* Nav fit (app.js fitNav, measured, not a breakpoint): #nav[data-fit] = full | short | icons (inactive tabs icon-only,
+   the active one keeps its label) | all (every tab icon-only) | tight (= all, and .topbar[data-brand="compact"] folds the brand
+   to its hourglass; name stays in its aria-label + tooltip). No data-fit yet = short names. Phones ignore it (bottom bar). */
+@media (min-width: 641px) {
+  .topbar[data-brand="compact"] { grid-template-columns: auto minmax(0, 1fr) auto; } /* nav centred between logo and toolbar */
+  .topbar[data-brand="compact"] .brand { gap: 0; padding-right: 4px; }
+  .topbar[data-brand="compact"] .brand > div { display: none; }
+}
 .nm-short { display: none; }
-@media (max-width: 1599px) { .nav-item .nm-full { display: none; } .nav-item .nm-short { display: inline; } } /* long names (Portal Calculator) shorten when the bar gets tight */
+.nav:not([data-fit="full"]) .nav-item .nm-full { display: none; }
+.nav:not([data-fit="full"]) .nav-item .nm-short { display: inline; }
+@media (min-width: 641px) {
+  .nav-item { height: 40px; padding-top: 0; padding-bottom: 0; } /* desktop tabs: 40px, same height as the toolbar strip keys */
+  .nav[data-fit="icons"] .nav-item:not(.active), .nav:is([data-fit="all"], [data-fit="tight"]) .nav-item { gap: 3px; padding-left: 10px; padding-right: 10px; }
+  .nav[data-fit="icons"] .nav-item:not(.active) .nav-name, .nav:is([data-fit="all"], [data-fit="tight"]) .nav-item .nav-name { display: none; }
+  .nav[data-fit="icons"] .nav-item:not(.active)::after, .nav:is([data-fit="all"], [data-fit="tight"]) .nav-item::after { left: 8px; right: 8px; }
+  /* badge / "soon" tag shrink to a corner tag (like the phone bar) that still reserves its own room, so it never covers the icon */
+  .nav[data-fit="icons"] .nav-item:not(.active) :is(.nav-badge, .nav-soon), .nav:is([data-fit="all"], [data-fit="tight"]) .nav-item :is(.nav-badge, .nav-soon) {
+    margin: 0 -6px 0 -1px; padding: 2px 3px; font-size: 8px; letter-spacing: .4px; transform: translateY(-8px);
+  }
+}
 .nav-item {
   --accent: var(--tc); --accent-deep: color-mix(in srgb, var(--tc) 52%, #000); --accent-ink: var(--on-accent);
   --accent-soft: color-mix(in srgb, var(--tc) 20%, var(--panel));
@@ -267,9 +366,16 @@ h1, h2, h3 { margin: 0; }
 @keyframes rise { from { opacity: 0; transform: translateY(14px); filter: blur(3px); } to { opacity: 1; transform: none; filter: none; } }
 
 /* ============ shared components ============ */
-.page-head { display: flex; align-items: center; justify-content: space-between; gap: 8px 16px; flex-wrap: wrap; margin: 12px 0 10px; }
+/* page head: the tab title is centred, no subtext. 3 columns (1fr | title | 1fr) keep it in the true centre; anything
+   after the title (a mode switch, "Back to hall") sits in the right column, and stacks under the title on narrow screens. */
+.page-head { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 10px 16px; margin: 12px 0 10px; text-align: center; }
+.page-head > :first-child { grid-column: 2; min-width: 0; }
+.page-head > :nth-child(n+2) { grid-column: 3; justify-self: end; min-width: 0; text-align: left; }
 .page-head h2 { font: 400 22px/1.1 var(--display); letter-spacing: .3px; text-shadow: 2px 2px 0 var(--edge-lo); }
-.page-head p { margin: 3px 0 0; font-size: 13px; color: var(--muted); max-width: 90ch; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 720px) {
+  .page-head { grid-template-columns: minmax(0, 1fr); }
+  .page-head > :first-child, .page-head > :nth-child(n+2) { grid-column: 1; justify-self: center; }
+}
 
 .panel {
   background: linear-gradient(180deg, color-mix(in srgb, var(--panel) 100%, white 2%), var(--panel));
@@ -297,8 +403,28 @@ h1, h2, h3 { margin: 0; }
 
 .seg { display: inline-flex; padding: 3px; gap: 2px; border-radius: calc(var(--radius) + 2px); background: var(--bg-2); border: 1px solid var(--line); }
 .seg button { border: 0; background: transparent; padding: 6px 12px; border-radius: var(--radius); cursor: pointer; color: var(--muted); font-weight: 600; transition: .15s; }
-.seg button.on { background: var(--select-soft); color: var(--text); box-shadow: var(--shadow), inset 0 -2px 0 var(--select); }
+/* .seg = one-of-N in one sunken well: inactive keys lie flat on the floor, the active key is ONE raised knob (all corners
+   rounded). It is raised, so its accent catches the lit TOP edge (never the bottom = its shadow side). */
+.seg button.on { background: var(--select-soft); color: var(--text); box-shadow: inset 0 2px 0 color-mix(in srgb, var(--select) 75%, transparent), var(--shadow); }
 .seg .count { font: 500 10.5px var(--mono); opacity: .7; margin-left: 5px; }
+/* SLIDING KNOB: once TH.util.segKnob has measured a seg (data-knob + --seg-x/-y/-w/-h = the active key's box), the knob is
+   the seg's ::before and slides between keys with the switch knob's motion (Classic: the .switch timing; Pixel: steps();
+   Soft: eased; style-neu.css). The keys sit above it; the active key itself draws no surface, only its label colour.
+   "still" = placed without motion (first paint, re-render with the same selection, resize); "none" = nothing selected.
+   Without JS (no data-knob) the .on rules above draw the knob on the key itself. */
+.seg { position: relative; isolation: isolate; }
+.seg[data-knob]::before {
+  content: ''; position: absolute; left: 0; top: 0; z-index: 0; pointer-events: none;
+  width: var(--seg-w, 0px); height: var(--seg-h, 0px); transform: translate(var(--seg-x, 0px), var(--seg-y, 0px));
+  border-radius: var(--radius); background: var(--select-soft);
+  box-shadow: inset 0 2px 0 color-mix(in srgb, var(--select) 75%, transparent), var(--shadow);
+  transition: transform .18s cubic-bezier(.3, 1.4, .5, 1), width .18s ease, height .18s ease;
+}
+.seg[data-knob="none"]::before { display: none; }
+.seg[data-knob] > * { position: relative; z-index: 1; }
+.seg[data-knob]:not([data-knob="none"]) > :is(.on, [aria-checked="true"], [aria-pressed="true"]):not(#_) { background: transparent; box-shadow: none; }
+.seg[data-knob="still"]::before { transition: none; }
+@media (prefers-reduced-motion: reduce) { .seg[data-knob]::before { transition: none; } }
 
 /* ============ form controls — "inventory slot" style ============
    Inputs are sunken slots (dark top-left inner edge, light bottom-right),
@@ -384,7 +510,7 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; }
   transition: transform .18s cubic-bezier(.3, 1.4, .5, 1), background .18s;
 }
 .switch input:checked + span { background: color-mix(in srgb, var(--accent) 22%, var(--slot)); }
-.switch input:checked + span::after { transform: translateX(20px); background: var(--accent); box-shadow: inset 1px 1px 0 rgb(255 255 255 / .4), inset -2px -2px 0 var(--accent-deep), 0 0 10px var(--accent); }
+.switch input:checked + span::after { transform: translateX(20px); background: var(--accent); box-shadow: inset 1px 1px 0 rgb(255 255 255 / .4), inset -2px -2px 0 var(--accent-deep), -3px -3px 9px -3px var(--accent); }   /* the lit knob's glow falls top-left only */
 .switch input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* slider = Minecraft options-menu slider */
@@ -409,8 +535,8 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; }
   background: var(--slot); box-shadow: var(--slot-shadow); font: 600 11px var(--mono); color: var(--faint);
 }
 .lvl-chips button.on {
-  color: var(--accent); border-color: var(--accent); background: var(--accent-soft);
-  box-shadow: inset 1px 1px 0 rgb(255 255 255 / .12), 0 0 10px -3px var(--accent);
+  color: var(--accent); border-color: var(--sel-edge); background: var(--accent-soft);
+  box-shadow: var(--sel-slot);
 }
 .x-btn { border: 0; background: transparent; color: var(--faint); cursor: pointer; width: 24px; height: 24px; border-radius: 3px; font-size: 13px; }
 .x-btn:hover { color: var(--danger); background: var(--panel-2); }
@@ -476,22 +602,21 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; }
   .search, .search .field { width: 100%; }
   .search { flex: 1 1 100%; }
   .page-head h2 { font-size: 19px; }
-  .page-head p { white-space: normal; }
 }
 
 /* ============ top-bar menu ============ */
 .topbar-actions { display: flex; align-items: center; gap: 10px; }
 .menu-wrap { position: relative; display: flex; }
 
-/* toolbar cluster: one raised inventory strip, 3px block under-shadow, 1px dividers between segments */
+/* toolbar cluster: one raised inventory strip, 3px block under-shadow; keys are told apart by their icons and
+   hover/pressed slot, never by divider lines */
 .toolbar {
-  display: inline-flex; align-items: stretch; height: 38px; margin-bottom: 3px;
+  display: inline-flex; align-items: stretch; height: 42px; margin-bottom: 3px;
   border: 1px solid var(--line-2); border-radius: var(--radius); background: var(--panel-2);
   box-shadow: 0 3px 0 var(--edge-lo), 0 1px 0 var(--edge-hi) inset;
 }
-.toolbar > * + * { border-left: 1px solid var(--line); box-shadow: -1px 0 0 var(--edge-hi); }
 .tb-btn {
-  position: relative; display: grid; place-items: center; width: 38px; height: 100%; padding: 0; border: 0; border-radius: 0;
+  position: relative; display: grid; place-items: center; width: 42px; height: 100%; padding: 0; border: 0; border-radius: 0;
   background: transparent; color: var(--text); cursor: pointer; transition: background .12s;
 }
 .toolbar > :first-child, .toolbar > :first-child.tb-btn { border-radius: calc(var(--radius) - 1px) 0 0 calc(var(--radius) - 1px); }
@@ -518,7 +643,7 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; }
   content: ''; position: absolute; right: 14px; top: -6px; width: 9px; height: 9px; transform: rotate(45deg);
   background: var(--panel); border-left: 1px solid var(--line-2); border-top: 1px solid var(--line-2);
 }
-.menu-title { font: 400 10.5px/1 var(--mono); text-transform: uppercase; letter-spacing: 1.2px; color: var(--faint); padding: 6px 8px 7px; border-bottom: 1px solid var(--line); margin-bottom: 3px; }
+.menu-title { font: 400 10.5px/1 var(--mono); text-transform: uppercase; letter-spacing: 1.2px; color: var(--faint); padding: 6px 8px 7px; margin-bottom: 1px; }
 .menu button {
   display: flex; align-items: center; gap: 10px; text-align: left; border: 1px solid transparent; background: transparent;
   padding: 7px 8px; border-radius: 4px; cursor: pointer; font-weight: 600; white-space: nowrap;
@@ -529,7 +654,16 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; }
 .menu button:active .pix { transform: translateY(1px); }
 .menu button.danger { color: var(--danger); }
 .menu button.danger .mi { color: inherit; }
-.menu hr { border: 0; border-top: 1px solid var(--line); margin: 4px 2px; width: auto; }
+/* <hr> in the menu is a spacer between groups (no divider line) */
+.menu hr { border: 0; height: 0; margin: 4px 2px; width: auto; }
+/* ⋯ menu style switcher: label row + a full-width 3-key segmented group (radio semantics, see app.js initStyleSeg) */
+.menu-style { display: flex; flex-direction: column; gap: 7px; padding: 6px 8px 7px; }
+.menu-style-lbl { display: flex; align-items: center; gap: 10px; font-weight: 600; }
+.menu-seg { display: flex; width: 100%; }
+.menu .menu-seg button { flex: 1 1 0; min-width: 0; justify-content: center; gap: 0; padding: 6px 8px; border: 0; border-radius: var(--radius); font-size: 12.5px; color: var(--muted); }
+.menu .menu-seg button:hover:not(.on) { background: color-mix(in srgb, var(--text) 7%, transparent); box-shadow: none; color: var(--text); }
+.menu .menu-seg button.on { background: var(--select-soft); color: var(--text); box-shadow: inset 0 2px 0 color-mix(in srgb, var(--select) 75%, transparent), var(--shadow); }
+.menu .menu-seg button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .module-error { padding: 16px; color: var(--danger); }
 
 /* ============ icons inside controls: one rule ============
@@ -556,16 +690,30 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; }
 .mc img { width: 100%; height: var(--mc, 16px); object-fit: cover; object-position: 50% 0; /* animated textures are frame strips: show frame 1 */ image-rendering: pixelated; image-rendering: crisp-edges; display: block; }
 .mc-missing { font: 600 calc(var(--mc, 16px) * .7)/1 var(--mono); color: var(--muted); }
 .mc-leather img { filter: sepia(1) saturate(1.6) hue-rotate(-15deg) brightness(.72); }
-/* enchantment glint: violet sheen masked to the sprite's own pixels */
-.mc-glint::after {
-  content: ''; position: absolute; inset: 0; pointer-events: none;
-  -webkit-mask: var(--mc-src) center / 100% 100% no-repeat; mask: var(--mc-src) center / 100% 100% no-repeat;
-  background: linear-gradient(115deg, transparent 20%, rgb(190 120 255 / .75) 40%, transparent 55%, rgb(150 90 255 / .5) 75%, transparent 90%);
-  /* tiled sheen moved by exactly one tile per loop, so the loop has no seam */
-  --gl: calc(var(--mc, 16px) * 3);
-  background-size: var(--gl) var(--gl); background-repeat: repeat; mix-blend-mode: screen; animation: mc-glint 3.6s linear infinite;
+/* enchantment glint = vanilla 1.21 item glint. Source: RenderType glint + TextureTransform GLINT_TEXTURING =
+   setupGlintTexturing(8): texCoord = translate(-f, g) * rotateZ(PI/18) * scale(8) * itemUV, t = millis * glintSpeed (0.5)
+   * 8, f = (t % 110000) / 110000 (one texture width per 27.5s), g = (t % 30000) / 30000 (one height per 7.5s); 1.21
+   draws ONE layer (the old -50deg / 10deg pair is the pre-1.17 GUI glint). On screen: textures/misc/enchanted_glint_item
+   (128px) tiled at 8 item widths (one glint texel = one item pixel), turned -10deg, scrolling +x / -y in its own frame.
+   Blend SRC_COLOR, ONE on 0.75 * tex adds (0.75 tex)^2: that square is baked into --mc-glint-tex (icons.js), so this is a
+   plain additive plus-lighter, masked to the sprite's alpha. The purple is the texture's own (no --enchant tint). */
+.mc-gl {
+  position: absolute; inset: 0; overflow: hidden; pointer-events: none;
+  -webkit-mask: var(--mc-src) 50% 0 / 100% auto no-repeat; mask: var(--mc-src) 50% 0 / 100% auto no-repeat;
+  mix-blend-mode: plus-lighter;
 }
-@keyframes mc-glint { from { background-position: 0 0; } to { background-position: var(--gl) var(--gl); } }
+@supports not (mix-blend-mode: plus-lighter) { .mc-gl { mix-blend-mode: screen; } }
+.mc-gl::before {
+  content: ''; position: absolute; inset: -50%;
+  --gl: calc(var(--mc, 16px) * 8);
+  background: var(--mc-glint-tex) 0 0 / var(--gl) var(--gl) repeat;
+  filter: var(--mc-glint-filter, brightness(.5));   /* raw-texture stand-in until the baked one is ready */
+  image-rendering: pixelated; transform: rotate(-10deg);
+  animation: mc-glint-u 27.5s linear infinite, mc-glint-v 7.5s linear infinite;
+}
+@keyframes mc-glint-u { to { background-position-x: var(--gl); } }
+@keyframes mc-glint-v { to { background-position-y: calc(var(--gl) * -1); } }
+@media (prefers-reduced-motion: reduce) { .mc-gl::before { animation: none !important; } }   /* static glint */
 .emerald { display: inline-grid; width: auto; height: auto; color: inherit; }
 
 @media (prefers-reduced-motion: reduce) {
@@ -596,9 +744,9 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; }
 .lang-opt-code { flex: 0 0 58px; font: 400 10.5px/1 var(--mono); letter-spacing: .4px; color: var(--faint); }
 .lang-opt-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lang-opt.active { background: var(--slot); box-shadow: var(--slot-shadow); border-color: var(--line); }
-.lang-opt[aria-selected="true"] { color: var(--accent); background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+.lang-opt[aria-selected="true"] { color: var(--accent); background: var(--accent-soft); border-color: var(--sel-edge); box-shadow: var(--sel-slot); }
 .lang-opt[aria-selected="true"] .lang-opt-code { color: var(--accent); }
-.lang-opt[aria-selected="true"].active { box-shadow: var(--slot-shadow), 0 0 0 1px var(--accent) inset; }
+.lang-opt[aria-selected="true"].active { box-shadow: var(--sel-slot); }
 @media (max-width: 640px) {
   /* phones: picker collapses to its map icon; section nav becomes a bottom tab bar */
   .lang-btn { width: 64px; gap: 5px; padding: 0 6px 0 7px; font-size: 11px; }
@@ -618,7 +766,7 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; }
     position: fixed; left: 0; right: 0; bottom: 0; z-index: 60; gap: 0; overflow: visible;
     padding: 0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
     background: color-mix(in srgb, var(--panel) 94%, transparent); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
-    border-top: 1px solid var(--line); box-shadow: 0 -10px 24px -14px rgb(0 0 0 / .5);
+    box-shadow: 0 -10px 24px -14px rgb(0 0 0 / .5);
   }
   .nav-item { flex: 1 1 0; min-width: 0; flex-direction: column; gap: 3px; padding: 8px 4px 7px; border-radius: 0; font-size: 11px; }
   .nav-item .nav-name { overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
@@ -711,8 +859,8 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; }
    Blocks with an under-shadow compress it as they sink; flat/selected ones just sink. Disabled / n.a. never press.
    Soft style re-skins the same moment (inset shadow) in style-neu.css. */
 :is(.nav-item, .seg button, .lvl-chips button, .icon-btn, .x-btn, .lang-btn, .foot-toggle, .hc-btn, .step, .tb-btn,
-    .ec-item, .ec-tile, .ec-mat, .ec-lo, .ec-gear-main, .ec-own-btn, .hl-preset, .hl-quick-chip, .hl-badge, .hl-lock,
-    .tr-tile, .tr-ico, .tr-pat, .tr-schip, .tr-vbtn, .tr-cbtn, .tr-anim, .tr-sync, .tr-eye):active:not(:disabled):not(.na):not([aria-disabled="true"]) { transform: translateY(2px); }
+    .ec-item, .ec-tile, .ec-lo, .ec-gear-main, .ec-own-btn, .hl-preset, .hl-quick-chip, .hl-badge, .hl-lock,
+    .tr-tile, .tr-ico, .tr-pat, .tr-vbtn, .tr-cbtn, .tr-anim, .tr-sync, .tr-eye):active:not(:disabled):not(.na):not([aria-disabled="true"]) { transform: translateY(2px); }
 :is(.icon-btn, .hc-btn, .step, .tr-vbtn, .ec-item, .ec-tile, .hl-preset):active:not(:disabled):not(.na):not(.on):not(.is-on) { box-shadow: 0 0 0 var(--edge-lo), inset 1px 1px 0 var(--edge-hi); }
 .btn:disabled:active, .icon-btn:disabled:active { transform: none; box-shadow: 0 2px 0 var(--edge-lo), 0 1px 0 var(--edge-hi) inset; }
 .btn.primary:disabled:active { box-shadow: 0 3px 0 var(--accent-deep), 0 0 20px -6px var(--accent); }
@@ -725,3 +873,17 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; }
   .topbar > .nav { justify-self: center; flex: none; max-width: 100%; min-width: 0; }
   .topbar > .topbar-actions { justify-self: end; }
 }
+
+/* ============ shared sticky action row (DESIGN.md rule 11) ============
+   Standalone buttons (no strip behind them), the LAST row inside a padded panel. Sticky with bottom = the panel's
+   padding (--act-pp, set by the panel; Pixel/Soft use --neu-pad), so while the content scrolls the row floats with a
+   neutral lift shadow and at the end it comes to rest exactly in place, flush with the panel's inner edge. Inside a
+   sticky scrolling sidebar it floats at the bottom of the sidebar's scroll area; when the sidebar stacks it floats over
+   the viewport, above the phone tab bar (--bottom-bar is 0 above 640px). Used by the planner wizard (.hl-wiz-nav). */
+.th-act-row {
+  position: sticky; bottom: calc(var(--bottom-bar, 0px) + var(--act-pp, 16px)); z-index: 2;
+  display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 6px;
+  filter: drop-shadow(0 8px 12px rgb(0 0 0 / .45));
+}
+.th-act-row .btn { justify-content: center; white-space: nowrap; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.th-act-row .btn.primary { padding-block: 9px; }

@@ -29,7 +29,9 @@ TH.data.presets = [
   {
     id: 'blueprint',
     name: 'Essentials',
-    desc: 'From your Trading Hall Blueprint sheet: 23 librarian stalls + 16 generator, blacksmith & utility villagers.',
+    desc: 'From your Blueprint sheet: 23 librarian stalls + 17 generator, blacksmith & utility villagers.',
+    // starting canvas shape (hall-canvas.js SHAPES): two mirrored wings around a centre corridor, 40 spots = 23 + 17
+    layout: 'wings',
     enchants: {
       // core
       mending: 'max',
@@ -56,13 +58,13 @@ TH.data.presets = [
     },
     roles: [
       { prof: 'fletcher', purpose: 'Sticks → Emerald', short: 'Sticks', target: 4, group: 'generator', note: '32 sticks → 1 emerald. Fed by log farm.' },
-      { prof: 'farmer', purpose: 'Pumpkins / Melons → Emerald', short: 'Pumpkin', target: 2, group: 'generator', note: 'Pumpkins 15 → 1, Melons 4 → 1.' },
+      { prof: 'farmer', purpose: 'Pumpkins / Melons → Emerald', short: 'Pumpkin', target: 1, group: 'generator', note: 'Pumpkins 15 → 1, Melons 4 → 1.' },
       { prof: 'cleric', purpose: 'Rotten Flesh → Emerald', short: 'Flesh', target: 2, group: 'generator', note: '32 flesh → 1 emerald. Zombie farm drops.' },
       { prof: 'mason', purpose: 'Clay / Stone → Emerald', short: 'Clay', target: 2, group: 'generator', note: '20 clay → 1 emerald. Dumps strip-mine junk.' },
-      { prof: 'armorer', purpose: 'Iron → Emerald · Diamond armor', short: 'Iron', target: 1, group: 'blacksmith', note: '4 iron → 1 emerald. Master: enchanted diamond armor.' },
+      { prof: 'armorer', purpose: 'Iron → Emerald · Diamond armor', short: 'Iron', target: 2, group: 'blacksmith', note: '4 iron → 1 emerald. Master: enchanted diamond armor.' },
       { prof: 'toolsmith', purpose: 'Diamond pickaxe / axe', short: 'Pickaxe', target: 1, group: 'blacksmith', note: 'Renewable diamond tools.' },
       { prof: 'weaponsmith', purpose: 'Diamond sword', short: 'Sword', target: 1, group: 'blacksmith', note: 'Master rolls enchanted swords — buy & disenchant.' },
-      { prof: 'farmer', purpose: 'Emerald → Golden Carrot', short: 'Gold carrot', target: 1, group: 'utility', note: 'Best food in the game.' },
+      { prof: 'farmer', purpose: 'Emerald → Golden Carrot', short: 'Gold carrot', target: 2, group: 'utility', note: 'Best food in the game.' },
       { prof: 'cleric', purpose: 'Emerald → Ender Pearl', short: 'Pearl', target: 1, group: 'utility', note: '5 emeralds → 1 pearl.' },
       { prof: 'cartographer', purpose: 'Explorer maps', short: 'Maps', target: 1, group: 'utility', note: 'Mansions, monuments, trial chambers.' },
     ],

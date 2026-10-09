@@ -11,6 +11,7 @@
  *   opts.onPin(keys): the P key asks the host to toggle "pin position" (pinned tiles never move; the host owns the set)
  *   api.reveal(key, { pulse })   api.swap(a, b) -> bool   api.busy()   api.el
  *   TH.hallCanvas.autoPlace(keys, pos) -> { key: {x, y} }  (spots for tiles without a position)
+ *   TH.hallCanvas.shapePlace(keys, shapeName, pos) -> same, filling a named starting layout (SHAPES) first
  */
 window.TH = window.TH || {};
 
@@ -68,6 +69,39 @@ TH.hallCanvas = (function () {
       }
     }
     return out;
+  }
+
+  /**
+   * Named starting layouts as [col, row] cells on the 80px grid, in fill order. `wings` (the Essentials preset):
+   * two mirrored wings around a centre corridor (col 5 stays free between the inner columns, row 4 between the halves).
+   * Each wing quarter = an outer row of 4 (cols 0-3 / 7-10), two tiles stacked in the inner column next to the corridor
+   * (col 4 / col 6), and another outer row of 4: 4 quarters x 10 = 40 tiles.
+   */
+  const SHAPES = (() => {
+    const quarter = (outer, inner, r0) => [
+      ...outer.map((c) => [c, r0]), [inner, r0 + 1], [inner, r0 + 2], ...outer.map((c) => [c, r0 + 3])];
+    const L = [0, 1, 2, 3], R = [7, 8, 9, 10];
+    return { wings: [...quarter(L, 4, 0), ...quarter(R, 6, 0), ...quarter(L, 4, 5), ...quarter(R, 6, 5)] };
+  })();
+
+  /** Spots for tiles without one, filling the free cells of a named shape first (in its order), the rest via autoPlace. */
+  function shapePlace(keys, shape, pos) {
+    const cells = SHAPES[shape];
+    if (!cells) return autoPlace(keys, pos);
+    const taken = Object.values(pos || {}).slice();
+    const out = {};
+    let ci = 0;
+    const rest = [];
+    for (const k of keys) {
+      let spot = null;
+      while (ci < cells.length && !spot) {
+        const x = cells[ci][0] * G, y = cells[ci][1] * G;
+        ci++;
+        if (!taken.some((o) => hit(x, y, o.x, o.y))) spot = { x, y };
+      }
+      if (spot) { out[k] = spot; taken.push(spot); } else rest.push(k);
+    }
+    return Object.assign(out, autoPlace(rest, Object.assign({}, pos, out)));
   }
 
   /* ---------- pixel icons (rect lists on an 11x11 grid) ---------- */
@@ -1104,5 +1138,5 @@ TH.hallCanvas = (function () {
     };
   }
 
-  return { mount, autoPlace, pinIcon };
+  return { mount, autoPlace, shapePlace, shapes: SHAPES, pinIcon };
 })();

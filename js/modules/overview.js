@@ -18,9 +18,9 @@
     { id: 'builds', icon: () => TH.icon('block/crafting_table_front', { size: 56 }), kicker: 'Build planning', soon: true, soonLabel: 'soon',
       pitch: 'Plan a build and get the materials list for it. Blocks, stacks and shulker boxes, worked out for you.',
       cta: 'See what is coming', unit: '' },
-    { id: 'portal', icon: () => TH.icon('block/crying_obsidian', { size: 56 }), kicker: 'Nether travel', soon: true, soonLabel: 'soon',
+    { id: 'portal', icon: () => TH.icon('block/crying_obsidian', { size: 56 }), kicker: 'Nether travel',
       pitch: 'Convert coordinates between the Overworld and the Nether (divide or multiply by 8) and line your portals up.',
-      cta: 'See what is coming', unit: '' },
+      cta: 'Open the calculator', unit: '' },
   ];
 
   function stat(mod, state, unit) {

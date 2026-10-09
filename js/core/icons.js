@@ -57,6 +57,46 @@ TH.icon = (function () {
     return LOCAL ? localPath(key) : remote(key);
   }
 
+  /*
+   * Enchantment glint = vanilla 1.21 item glint (geometry + motion live in styles.css `.mc-gl`). The texture is
+   * textures/misc/enchanted_glint_item.png (always from the CDN: it needs CORS to be read). Vanilla's glint.fsh outputs
+   * `tex.rgb * GlintAlpha` (Glint Strength, default 0.75) and the glint pipeline blends SRC_COLOR, ONE, so the item gains
+   * (0.75 * tex)^2 per channel. That square is baked once into a blob texture here (one 128x128 pass for the whole page,
+   * nothing per icon); CSS then adds it with `plus-lighter`. Until it is baked (or if the canvas is unreadable) the raw
+   * texture is used with a dimming filter as an approximation.
+   */
+  const GLINT_ALPHA = 0.75;
+  let glintState = 0;   // 0 = not requested, 1 = raw texture set, 2 = baked
+  function glintTex() {
+    if (glintState) return;
+    glintState = 1;
+    const raw = BASE + 'misc/enchanted_glint_item.png', root = document.documentElement.style;
+    root.setProperty('--mc-glint-tex', `url("${raw}")`);
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      try {
+        const c = document.createElement('canvas');
+        c.width = img.naturalWidth; c.height = img.naturalHeight;
+        const x = c.getContext('2d');
+        x.drawImage(img, 0, 0);
+        const im = x.getImageData(0, 0, c.width, c.height), d = im.data;
+        for (let i = 0; i < d.length; i += 4) {
+          for (let k = 0; k < 3; k++) { const v = GLINT_ALPHA * d[i + k] / 255; d[i + k] = Math.round(v * v * 255); }
+          d[i + 3] = 255;
+        }
+        x.putImageData(im, 0, 0);
+        c.toBlob((b) => {
+          if (!b) return;
+          root.setProperty('--mc-glint-tex', `url("${URL.createObjectURL(b)}")`);
+          root.setProperty('--mc-glint-filter', 'none');
+          glintState = 2;
+        }, 'image/png');
+      } catch (e) { /* tainted canvas: keep the raw approximation */ }
+    };
+    img.src = raw;
+  }
+
   function icon(key, opts) {
     opts = opts || {};
     const size = opts.size || 16;
@@ -64,7 +104,7 @@ TH.icon = (function () {
     const wrap = document.createElement('span');
     wrap.className = 'mc' + (opts.glint ? ' mc-glint' : '') + (opts.cls ? ' ' + opts.cls : '');
     wrap.style.setProperty('--mc', size + 'px');
-    if (opts.glint) wrap.style.setProperty('--mc-src', `url("${url}")`);
+    if (opts.glint) { wrap.style.setProperty('--mc-src', `url("${url}")`); glintTex(); }
     if (opts.title) wrap.title = opts.title;
     wrap.setAttribute('aria-hidden', 'true');
     const img = document.createElement('img');
@@ -80,6 +120,7 @@ TH.icon = (function () {
       wrap.textContent = FALLBACK[key] || opts.fallback || '▪';
     };
     wrap.appendChild(img);
+    if (opts.glint) { const gl = document.createElement('span'); gl.className = 'mc-gl'; wrap.appendChild(gl); }   // masked additive layer (styles.css)
     return wrap;
   }
 

@@ -1748,7 +1748,7 @@
     const tgtBtns = new Map();
     const tgtSeg = radioKeys(h('div.seg.tr-seg.tr-tgt', { role: 'radiogroup', 'aria-label': 'Trim material applies to' }, TGT.map(([id, n, tip]) => {
       const ico = id === 'all'
-        ? h('span.tr-tgt-all', PIECES.map((pc) => TH.icon.item(pc, 'diamond', { size: 12 })))
+        ? h('span.tr-tgt-all', 'All')
         : TH.icon.item(id, 'diamond', { size: 20 });
       const b = h('button', { type: 'button', role: 'radio', 'aria-checked': 'false', 'aria-label': tip, 'data-focus': 'tr-tgt-' + id, onclick: () => setTarget(id) }, ico);
       tgtBtns.set(id, b);

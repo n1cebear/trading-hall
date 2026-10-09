@@ -392,3 +392,11 @@
 .tr-grid { padding-top: 44px; margin-top: -22px; }
 .tr-stage { position: relative; }
 .tr-frametools { position: absolute; top: 10px; right: 10px; z-index: 5; display: flex; align-items: center; gap: 8px; padding: 4px; border-radius: var(--radius, 8px); background: color-mix(in srgb, var(--bg, #000) 55%, transparent); backdrop-filter: blur(6px); }
+
+.tr-tgt-all { display: block; font: 600 11.5px/1 var(--font); letter-spacing: .3px; }
+.tr-grid { margin-top: 0; padding-top: 12px; }
+/* the keys inside the (dark) preview frame: lit from the top-left with real light, deeper shadow */
+.tr-frametools { background: none; backdrop-filter: none; padding: 0; }
+:root:root .tr-frametools .btn { background: color-mix(in srgb, #fff 9%, #1b1b24); border-color: transparent; box-shadow: 3px 3px 8px rgb(0 0 0 / .65), -2px -2px 6px rgb(255 255 255 / .16); color: var(--text); }
+:root:root .tr-frametools .btn:hover { background: color-mix(in srgb, #fff 14%, #1b1b24); }
+:root:root .tr-frametools .btn:active { box-shadow: inset 2px 2px 6px rgb(0 0 0 / .6); }

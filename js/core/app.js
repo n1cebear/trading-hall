@@ -489,7 +489,7 @@ TH.app = (function () {
    * (see sw.js + js/core/icon-list.js). Shows "Offline" in the status when there is no network.
    */
   function initOffline() {
-    if (!('serviceWorker' in navigator) || !/^https?:$/.test(location.protocol)) return;
+    if (!('serviceWorker' in navigator) || !/^https?:$/.test(location.protocol) || window.TH_LOCAL_ASSETS) return;
     navigator.serviceWorker.register('sw.js').then((reg) => {
       const warm = () => {
         const sw = navigator.serviceWorker.controller || reg.active;

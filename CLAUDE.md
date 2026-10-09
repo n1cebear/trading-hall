@@ -11,3 +11,10 @@ Static, no-build PWA of Minecraft tools (Hall planner, Enchanting, Trims, Builds
 
 ## Compatibility notes
 - localStorage key `tradingHall.state` and the export `app: 'trading-hall'` stay as they are so existing saves and backups keep loading. Do not rename without a migration.
+
+## The toolbox as a claude.ai artifact
+Whole app: https://claude.ai/artifact/3LYSYQoFMVxShDjtCzdzhS (private). It runs fully offline: textures are bundled (`assets/mc/`, git-ignored) because an artifact page may only load its own files.
+- First time / new textures: `node tools/build-icon-list.js && node tools/fetch-icons.js && node tools/fetch-artifact-assets.js`.
+- Every update: `node tools/build-artifact.js`. It writes `dist-artifact/index.html` (the page) and `dist-artifact/files-N.json` (only NEW or CHANGED files vs `dist-artifact/manifest.json`, 250 per publish). Publish `dist-artifact/index.html` with the Artifact tool (`url` = the link above) and pass each `files-N.json` as `files`, one publish per file. Then `mv dist-artifact/manifest.next.json dist-artifact/manifest.json`.
+- The page sets `window.TH_LOCAL_ASSETS = true` (icons.js uses local textures, app.js skips the service worker). Not available in the artifact: username skin lookups (Trims "Player" tab) and the language files beyond the 25 most common.
+- Control room (links, commands, version log): https://claude.ai/artifact/AxRwKs5zWjUiopvcf8wppj

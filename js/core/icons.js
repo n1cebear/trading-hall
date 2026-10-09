@@ -43,7 +43,9 @@ TH.icon = (function () {
   const FALLBACK = { emerald: '◆', book: '▤', enchanted_book: '✦', xp: '✧', anvil: '⚒' };
 
   // Opened as a local file? Prefer textures downloaded by tools/fetch-icons.js (git-ignored assets/mc/).
-  const LOCAL = typeof location !== 'undefined' && location.protocol === 'file:';
+  // The claude.ai artifact build sets window.TH_LOCAL_ASSETS: its page may only load its own files, so every texture is local.
+  const BUNDLED = typeof window !== 'undefined' && !!window.TH_LOCAL_ASSETS;
+  const LOCAL = BUNDLED || (typeof location !== 'undefined' && location.protocol === 'file:');
   const LOCAL_BASE = 'assets/mc/';
 
   const path = (key) => ALIAS[key] || (key.includes('/') ? key : 'item/' + key);
@@ -70,7 +72,7 @@ TH.icon = (function () {
   function glintTex() {
     if (glintState) return;
     glintState = 1;
-    const raw = BASE + 'misc/enchanted_glint_item.png', root = document.documentElement.style;
+    const raw = (BUNDLED ? LOCAL_BASE : BASE) + 'misc/enchanted_glint_item.png', root = document.documentElement.style;
     root.setProperty('--mc-glint-tex', `url("${raw}")`);
     const img = new Image();
     img.crossOrigin = 'anonymous';
@@ -164,7 +166,7 @@ TH.icon = (function () {
     ['entity/wolf/wolf', 64, 32, 4, 4, 6, 6, 4], ['entity/illager/pillager', 64, 64, 8, 8, 8, 10, 3], ['entity/armadillo', 64, 64, 43, 17, 7, 5, 4],
   ];
   /** URL of any texture path (entity/..., item/...). Entity skins always come from the CDN mirror (cached by sw.js). */
-  icon.tex = (p) => BASE + p + '.png';
+  icon.tex = (p) => (BUNDLED ? LOCAL_BASE : BASE) + p + '.png';
 
   icon.aliases = ALIAS;
   icon.external = EXTERNAL;

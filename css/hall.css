@@ -975,3 +975,14 @@ button.hl-strip-main { cursor: pointer; }
 .hl-cb-cols span:nth-child(3), .hl-cb-cols span:nth-child(4) { text-align: left; }
 .hl-cb-st, .hl-cb-price { justify-content: flex-start; }
 :root:root .field:focus, :root:root .field:focus-visible, :root:root .hl-cb-filter.field:focus { outline: none; filter: none; border-color: color-mix(in srgb, var(--accent) 70%, transparent); box-shadow: var(--slot-shadow, none), 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent); }
+
+/* ---- details = a floating card next to the tile (desktop); Next up and the cube stay as they are ---- */
+@media (min-width: 900px) {
+  .hl-detail { position: fixed; z-index: 45; width: 340px; max-height: min(78vh, 560px); box-shadow: var(--shadow), 0 22px 60px rgb(0 0 0 / .4); border-radius: var(--radius, 8px); }
+}
+.hl-lockin { margin-left: 4px; }
+/* Check an offer: more air around the offer area */
+.hl-check-offer { gap: 10px; }
+.hl-check .hl-field-label, .hl-check-offer > .hl-field-label { margin-bottom: 4px; }
+.hl-quick { gap: 10px; margin-top: 10px; }
+.hl-check { gap: 22px; }

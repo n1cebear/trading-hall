@@ -490,8 +490,8 @@
   /** Open the dialog; enchId pre-fills the enchantment (from a Next-up row or the details panel). */
   function openCheck(enchId) {
     const e = enchId && ENCH[enchId];
-    ta.open = !e; ta.hi = 0; ta.q = ''; checkJustOpened = true;
-    TH.app.pendingFocus = e ? 'chk-price' : 'chk-filter';
+    ta.open = false; ta.hi = 0; ta.q = ''; checkJustOpened = true;
+    TH.app.pendingFocus = e ? 'chk-price' : 'chk-q';
     upd((hall) => {
       const c = hall.check;
       Object.assign(c, { open: true, ench: '', query: '', level: null, price: null });
@@ -1672,6 +1672,38 @@
 
   /* ---- right column: Next up, or the selection's details / overview ---- */
 
+  /* Desktop: the details card floats next to the tile you clicked (position: fixed, clamped to the screen); phones keep the bottom sheet. */
+  let lastTile = null;
+  document.addEventListener('pointerdown', (ev) => {
+    const t = ev.target.closest && ev.target.closest('.hc-tile');
+    if (!t) return;
+    const z = parseFloat(document.documentElement.style.zoom) || 1, r = t.getBoundingClientRect();
+    lastTile = { key: t.dataset.key, l: r.left / z, t: r.top / z, r: r.right / z, b: r.bottom / z, at: Date.now() };
+  }, true);
+  function placeDetail() {
+    const el = document.querySelector('.hl-detail');
+    if (!el || window.innerWidth < 900) return;
+    const z = parseFloat(document.documentElement.style.zoom) || 1;
+    let a = lastTile && Date.now() - lastTile.at < 1500 ? lastTile : null;
+    if (!a) {
+      const sel = (TH.store.get().hall.ui.selected || '').replace(/^b:/, 'b:');
+      const tile = document.querySelector('.hc-tile.is-selected') || document.querySelector('.hc-tile[data-key="' + sel + '"]');
+      if (tile) { const r = tile.getBoundingClientRect(); a = { l: r.left / z, t: r.top / z, r: r.right / z, b: r.bottom / z }; }
+    }
+    const vw = innerWidth / z, vh = innerHeight / z, w = el.offsetWidth || 340;
+    el.style.visibility = 'hidden';
+    const ht = el.offsetHeight;
+    let left, top;
+    if (a) {
+      left = a.r + 14; if (left + w > vw - 12) left = a.l - 14 - w;
+      top = a.t - 8;
+    } else { left = vw - w - 24; top = 120; }
+    el.style.left = Math.max(12, left) + 'px';
+    el.style.top = Math.max(12, Math.min(top, vh - ht - 12)) + 'px';
+    el.style.visibility = '';
+  }
+  window.addEventListener('resize', () => setTimeout(placeDetail, 0));
+
   function renderSide(hall, pl) {
     const keys = selKeys(hall, pl);
     const id = keys.length === 1 ? keys[0] : keys.length ? 'multi' : null;
@@ -1679,7 +1711,8 @@
     if (keys.length === 1) detail = renderDetail(hall, pl, pl.byKey[keys[0]], id !== lastDetail);
     else if (keys.length > 1) detail = renderMulti(hall, pl, keys, lastDetail !== 'multi');
     lastDetail = id;
-    return h('aside.hl-side' + (keys.length ? '.has-detail' : ''), renderNext(hall, pl), detail);
+    if (detail) setTimeout(placeDetail, 0);
+    return h('aside.hl-side' + (keys.length ? '.has-pop' : ''), renderNext(hall, pl), detail);
   }
 
   /** Pinned villager keys (position fixed on the canvas), only those that still exist. */
@@ -1847,6 +1880,7 @@
     const range = D.bookPrice(e, lv);
     const setStall = (fn, opts) => upd((x) => { const f = findStall(x, s.id); if (f) fn(f.stall, f.book); }, opts);
     const pill = tierPill(e, lv, s.price);
+    const lockIn = s.done ? null : h('button.btn.small.primary.hl-lockin', { type: 'button', disabled: s.price == null, title: 'Lock this villager in at the price you entered', 'data-focus': 'lock-in', onclick: () => bulkLock([v.key], true) }, 'Lock in');
     return wrap(null, 'Librarian details', TH.icon('enchanted_book', { size: 32, glint: status(v) === 'perfect' }),
       [enchLabel(e, lv), s.label ? h('span.chip', s.label) : null],
       [h('span', profName(PROF.librarian) + ' · perfect'), cost(range.min), h('span', `· max ${range.max}`)],
@@ -1861,10 +1895,11 @@
                   setStall((st) => { st.price = val; }, { silent: true });
                   const tier = D.priceTier(e, lv, val);
                   pill.className = 'pill tier-' + tier; pill.textContent = TIER_LABEL[tier];
+                  if (lockIn) lockIn.disabled = val == null;
                 },
                 onchange: () => setTimeout(TH.app.render, 0),
               })),
-              pill)),
+              pill, lockIn)),
           h('label.hl-field.hl-grow', h('span.hl-field-label', 'Label'),
             h('input.field', {
               value: s.label, placeholder: 'e.g. Helmet', 'data-focus': 'slabel-' + s.id,

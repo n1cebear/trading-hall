@@ -92,3 +92,20 @@
 /* ---- Builds placeholder (js/modules/builds.js) ---- */
 .bd-idea h4 { display: flex; align-items: center; gap: 10px; margin: 0 0 8px; font: 400 16px var(--display); }
 .bd-idea { padding: 16px; }
+
+/* ===== landing: five airy tiles in one row, the tool name is the button ===== */
+.ov-hero { margin: clamp(24px, 5vw, 56px) auto clamp(28px, 4vw, 48px); }
+.ov-hero h2 { margin: 0; text-transform: uppercase; letter-spacing: 3px; font-size: clamp(22px, 3.2vw, 34px); }
+.ov-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: clamp(20px, 2.4vw, 36px); max-width: 1500px; }
+.ov-grid > .ov-card, .ov-grid > .ov-card:nth-child(n), .ov-grid > .ov-card:nth-child(4):nth-last-child(2), .ov-grid > .ov-card:last-child:nth-child(odd) { grid-column: auto; }
+.ov-card { display: flex; flex-direction: column; align-items: center; justify-content: space-between; gap: 18px; padding: 8px 12px 26px; text-align: center; }
+.ov-art { height: 170px; width: 100%; }
+.ov-cta { position: static; margin: 0; display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: auto; max-width: 100%; padding: 12px 18px; text-transform: uppercase; letter-spacing: 1.2px; font-size: 13px; line-height: 1.1; white-space: normal; }
+.ov-mini { width: 70%; min-height: 26px; }
+.ov-mini .ov-stat { margin: 0; padding: 0; }
+.ov-mini .ov-stat-row { justify-content: center; }
+@media (max-width: 1100px) { .ov-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); max-width: 860px; } }
+@media (max-width: 700px) { .ov-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); max-width: 560px; } .ov-art { height: 130px; } }
+@media (max-width: 420px) { .ov-grid { grid-template-columns: minmax(0, 1fr); } }
+
+.ov-cta .ov-soon { color: var(--text); }

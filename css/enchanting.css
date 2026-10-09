@@ -805,3 +805,20 @@
 .ec-lo-list { gap: 14px; }
 :root:root .ec-modecard.on, :root:root .ec-modecard.on .ec-modecard-t, :root:root .ec-modecard.on .ec-modecard-s { color: var(--on-accent, #0b0b10) !important; }
 :root:root .ec-modecard.on { background: var(--accent) !important; }
+
+/* ===== Oct 2026 (6): compact picker: Armor + Tools (5 x 2) on one row, Other as a full-width row below ===== */
+.ec-modecards { gap: 12px; }
+:root:root .ec-modecard { min-height: 60px; padding: 8px 8px; }
+.ec-modecard-ico { height: 30px; }
+.ec-modecard-s { display: none; }
+.ec-toprow { grid-template-columns: 150px minmax(0, 1fr); }
+.ec-pickrow { grid-template-columns: 150px minmax(0, 1fr); }
+.ec-pick-other { grid-column: 1 / -1; }
+:root:root:root .ec-slots.armor { grid-template-columns: minmax(0, 1fr); gap: 16px; justify-items: stretch; }
+:root:root:root .ec-slots.tools { display: grid; grid-auto-flow: row; grid-template-rows: none; grid-template-columns: repeat(5, minmax(0, 1fr)); grid-auto-columns: auto; gap: 18px 16px; justify-items: stretch; }
+:root:root:root .ec-slots.other { display: grid; grid-auto-flow: row; grid-template-rows: none; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 18px 16px; justify-items: stretch; }
+:root:root:root .ec-picker .ec-item { width: 100%; min-width: 0; }
+/* the group that holds the chosen item picks up a slight accent */
+:root:root .ec-picker.has-sel { background: color-mix(in srgb, var(--accent) 7%, var(--neu-bg, var(--panel))); }
+:root:root .ec-picker.has-sel .ec-pick-label { color: var(--accent); }
+@media (max-width: 1100px) { .ec-pickrow { grid-template-columns: minmax(0, 1fr); } .ec-slots.tools { grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); } .ec-slots.armor { grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); } }

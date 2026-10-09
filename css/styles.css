@@ -914,3 +914,6 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; }
 .th-reco { position: absolute !important; top: -9px; right: 10px; z-index: 3; margin: 0 !important; padding: 2px 6px !important; border-radius: 3px; background: var(--neu-bg, var(--panel)) !important; box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent) !important; pointer-events: none; }
 .ec-lo { position: relative; }
 .nav-item .nav-name { -webkit-text-stroke: .45px currentColor; }
+
+/* main titles in caps */
+.page-head h2 { text-transform: uppercase; letter-spacing: 1.6px; }

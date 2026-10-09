@@ -521,7 +521,8 @@ TH.anvil = (function () {
     const rest = D.items.filter((i) => !placed.has(i.id)).map((i) => i.id);
     // three separate segments (DESIGN.md, Layout "Item picker"): each a .panel with a top-left eyebrow heading;
     // every icon is 32px (integer 2x of the 16px textures) so Material, Armor and Tools read as one family
-    const box = (key, label, body) => h('section.panel.ec-card.ec-picker.ec-pick-' + key, { 'aria-labelledby': 'ec-lbl-' + key },
+    const grp = HUD_ARMOR.includes(s.item) ? 'armor' : HUD_TOOLS.includes(s.item) ? 'tools' : 'other';
+    const box = (key, label, body) => h('section.panel.ec-card.ec-picker.ec-pick-' + key + (key === grp ? '.has-sel' : ''), { 'aria-labelledby': 'ec-lbl-' + key },
       h('h3.ec-pick-label', { id: 'ec-lbl-' + key }, label), body);
     return [
       h('div.ec-toprow', renderModeCards(s), box('mat', 'Material',
@@ -1041,7 +1042,7 @@ TH.anvil = (function () {
     const card = (mode, label, sub, icon, disabled, tip) => h('button.btn.ec-modecard' + (s.mode === mode ? '.on' : ''), {
       type: 'button', 'aria-pressed': String(s.mode === mode), 'data-focus': 'ec-mode-' + mode, disabled, title: tip || null,
       onclick: () => set((e) => { e.mode = mode; }),
-    }, h('span.ec-modecard-ico', TH.icon(icon, { size: 32 }), mode === 'plan' && total ? h('b.ec-modecard-n', total) : null), h('span.ec-modecard-t', label), h('span.ec-modecard-s', sub));
+    }, h('span.ec-modecard-ico', TH.icon(icon, { size: 28 }), mode === 'plan' && total ? h('b.ec-modecard-n', total) : null), h('span.ec-modecard-t', label));
     return h('div.ec-modecards' + (row ? '.is-row' : ''), { role: 'group', 'aria-label': 'Enchanting view' },
       card('single', 'Single item', 'One item at a time', 'enchanted_book', false),
       card('plan', 'My plan', total ? done + ' of ' + total + ' done' : 'Nothing added yet', 'item/writable_book', total === 0 && s.mode !== 'plan', total === 0 ? 'Add an item to your plan first' : null));

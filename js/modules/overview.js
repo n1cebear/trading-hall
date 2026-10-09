@@ -44,25 +44,17 @@
       if (t.id === 'trims' && trimsOwned && TH.data && TH.data.trimPatterns) {
         st = stat({ badge: () => ({ done: trimsOwned, total: TH.data.trimPatterns.length }) }, state, t.unit);
       }
-      const card = h('a.ov-card', { href: '#/' + t.id, 'data-tool': t.id, style: { '--i': i } },
+      const card = h('a.ov-card', { href: '#/' + t.id, 'data-tool': t.id, style: { '--i': i }, 'aria-label': mod.name },
         h('div.ov-art', h('span.ov-icon', t.icon())),
-        h('div.ov-body',
-          h('div.ov-kicker', t.kicker, t.soon ? h('span.ov-soon', t.soonLabel || 'preview') : null),
-          h('h3', mod.name),
-          h('p', t.pitch),
-          st),
-        h('span.ov-cta', t.cta, h('span.ov-arrow', { 'aria-hidden': 'true' }, '→')));
+        h('span.ov-cta', mod.name, t.soon ? h('span.ov-soon', t.soonLabel || 'soon') : null),
+        st ? h('div.ov-mini', st) : null);
       TH.util.tooltip(card, () => h('span', h('span.th-tooltip-title', mod.name, t.soon ? h('span.th-tooltip-tag', t.soonLabel || 'preview') : null), h('span.th-tooltip-sub', t.kicker)));
       return card;
     });
 
     root.append(
-      h('section.ov-hero',
-        h('div.ov-eyebrow', 'A Minecraft toolbox'),
-        h('h2', 'Pick a tool, ', h('em', 'start building.')),
-        h('p', 'Everything saves in this browser and works offline. Each tool has its own colour so you always know where you are.')),
-      h('div.ov-grid', cards),
-      h('p.ov-foot', 'Tip: click the logo at any time to come back here.'));
+      h('section.ov-hero', h('h2', 'Pick a tool')),
+      h('div.ov-grid', cards));
   }
 
   TH.app.register({ id: 'overview', name: 'Overview', icon: 'mc:compass', hidden: true, render });

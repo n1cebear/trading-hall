@@ -85,7 +85,7 @@
     v: 2, owned: {}, upgradeOwned: false, focus: 'chestplate', lastMaterial: 'quartz', sync: false,
     outfit: Object.fromEntries(PIECES.map((p) => [p, { armor: DEMO.armor, pattern: DEMO.pattern, material: DEMO.material, dye: null, show: true }])),
     skin: { kind: 'steve', name: '', data: null, slim: false }, player: null,
-    saved: [], savedId: null, saveName: '', renaming: null, renameText: '', backdrop: 'studio',
+    saved: [], savedId: null, saveName: '', renaming: null, renameText: '', backdrop: 'studio', studioColor: '',
   });
 
   /* Preview backdrops: a CSS sky on the stage + (except studio) an 8x8 voxel island of real blocks under the player (genTerrain, seeded per backdrop). */
@@ -133,6 +133,7 @@
     st.glint = !!st.glint;
     if (!ANIMS.some((a) => a[0] === st.anim)) st.anim = 'idle';
     if (!BACKDROPS.some((b) => b.id === st.backdrop)) st.backdrop = 'studio';
+    if (typeof st.studioColor !== 'string') st.studioColor = '';
     const sk = st.skin && typeof st.skin === 'object' ? st.skin : (st.skin = {});
     if (!['steve', 'alex', 'name', 'file'].includes(sk.kind)) sk.kind = 'steve';
     if (typeof sk.name !== 'string') sk.name = '';
@@ -905,7 +906,8 @@
     function place() {
       if (!S.camera) return;
       const B = S.bdCam || { r: 0, p: 0, y: 0 };   // a terrain island: back + up until its bounding sphere (radius r) fits the frame
-      const d = Math.max(fit(), B.r && terrFit(B.r)) * S.camK / S.zoom, pitch = S.pitch + B.p, cp = Math.cos(pitch);
+      const d = fit() * S.camK / S.zoom, pitch = S.pitch + B.p, cp = Math.cos(pitch);
+      if (S.onZoom && S.lastZ !== S.zoom) { S.lastZ = S.zoom; S.onZoom(S.zoom); }
       S.target.y = S.camY - B.y;
       S.camera.position.set(S.target.x + d * Math.sin(S.yaw) * cp, S.target.y + d * Math.sin(pitch), S.target.z + d * Math.cos(S.yaw) * cp);
       S.camera.lookAt(S.target);
@@ -1007,6 +1009,8 @@
       if (reduced()) { Object.assign(S, HOME); S.goal = null; } else S.goal = Object.assign({}, HOME, { yaw: Math.round((S.yaw - HOME.yaw) / (Math.PI * 2)) * Math.PI * 2 + HOME.yaw });
       S.dirty = true; wake();
     };
+    S.zoomTo = (z) => { S.zoom = clamp(z, ZMIN, ZMAX); S.goal = null; S.dirty = true; wake(); };
+    S.zoomBy = (f) => S.zoomTo(S.zoom * f);
     el.addEventListener('dblclick', S.reset);
     el.addEventListener('keydown', (e) => {
       const k = e.key;
@@ -1632,8 +1636,8 @@
     const glintBtn = vbtn('glint', 'Glint', { 'aria-pressed': String(!!st.glint), 'data-focus': 'tr-glint', title: 'Enchantment glint on the armor', onclick: () => upd((s) => { s.glint = !s.glint; }) });
     V.onGlint = (on) => press(glintBtn, on);
     press(autoBtn, V.auto); press(elyBtn, !!st.elytra); press(glintBtn, !!st.glint);
-    const bdIco = h('span.tr-bd-cur');
-    const bgBtn = h('button.btn.small.tr-vbtn.tr-bgbtn', { type: 'button', 'data-focus': 'tr-backdrop', 'aria-label': 'Backdrop' }, bdIco, h('span.tr-chev', { 'aria-hidden': 'true' }));
+    const bdIco = h('span.tr-bd-cur'), bdName = h('span.tr-vlabel.tr-bdname');
+    const bgBtn = h('button.btn.small.tr-vbtn.tr-bgbtn', { type: 'button', 'data-focus': 'tr-backdrop', 'aria-label': 'Backdrop' }, bdIco, bdName, h('span.tr-chev', { 'aria-hidden': 'true' }));
     withTip(bgBtn, () => ['Backdrop', (BACKDROPS.find((b) => b.id === cur().backdrop) || BACKDROPS[0]).name]);
     const bgMenu = popMenu(bgBtn, () => ({ current: cur().backdrop, items: BACKDROPS.map((b) => ({ id: b.id, label: b.name, icon: bdIcon(b) })) }), (id) => upd((s) => { s.backdrop = id; }), 'Backdrop');
     const resetBtn = vbtn('reset', null, { title: 'Reset the view (double-click the preview)', 'aria-label': 'Reset the view', onclick: () => V.reset() });
@@ -1647,15 +1651,26 @@
     const animBtns = ANIMS.map(([id, label]) => h('button.tr-anim', { type: 'button', role: 'radio', 'aria-checked': String(V.anim === id), 'data-anim': id, 'data-focus': 'tr-anim-' + id, onclick: () => V.setAnim(id, { force: true }) }, label));
     V.onAnim = (id) => animBtns.forEach((b) => sel(b, b.dataset.anim === id));
     const stage = h('div.tr-stage', { 'data-bg': st.backdrop });
+    if (st.studioColor) stage.style.setProperty('--tr-studio', st.studioColor);
+    const studioIn = h('input.tr-studio-color', { type: 'color', value: st.studioColor || '#1d1e26', 'aria-label': 'Studio colour', title: 'Studio colour',
+      oninput: (e) => { stage.style.setProperty('--tr-studio', e.target.value); studioLab.style.setProperty('--tr-studio-sw', e.target.value); upd((x) => { x.studioColor = e.target.value; }, { silent: true }); } });
+    const studioLab = h('label.btn.small.tr-vbtn.sq.tr-studio', { title: 'Studio colour' }, studioIn);
+    if (st.studioColor) studioLab.style.setProperty('--tr-studio-sw', st.studioColor);
+    const zPct = h('button.btn.small.tr-vbtn.tr-zpct', { type: 'button', title: 'Reset the zoom to 100%', 'aria-label': 'Zoom level, click for 100%', onclick: () => V.zoomTo(1) }, '100%');
+    V.onZoom = (z) => { const t = Math.round(z * 100) + '%'; if (zPct.textContent !== t) zPct.textContent = t; };
+    const zoomGrp = h('div.tr-zoom', { role: 'group', 'aria-label': 'Zoom' },
+      h('button.btn.small.tr-vbtn.sq', { type: 'button', 'aria-label': 'Zoom out', onclick: () => V.zoomBy(1 / 1.2) }, '\u2212'), zPct,
+      h('button.btn.small.tr-vbtn.sq', { type: 'button', 'aria-label': 'Zoom in', onclick: () => V.zoomBy(1.2) }, '+'));
     const hint = h('div.tr-hint', { 'aria-hidden': 'true' }, 'Drag to rotate · scroll or pinch to zoom');
     const viewer = h('section.panel.tr-card.tr-viewer', { 'aria-label': '3D preview' },
-      h('div.tr-vbar', h('div.tr-vgrp', { role: 'group', 'aria-label': 'Preview options' }, elyBtn, glintBtn, autoBtn), h('div.tr-vgrp.end', { role: 'group', 'aria-label': 'View' }, bgMenu, resetBtn, pngBtn)),
+      h('div.tr-vbar', h('div.tr-vgrp', { role: 'group', 'aria-label': 'Preview options' }, elyBtn, glintBtn, autoBtn), h('div.tr-vgrp.end', { role: 'group', 'aria-label': 'View' }, bgMenu, studioLab, zoomGrp, resetBtn, pngBtn)),
       stage,
       h('div.seg.tr-anims', { role: 'radiogroup', 'aria-label': 'Animation' }, animBtns),
       h('div.tr-drop', { 'aria-hidden': 'true' }, 'Drop the skin PNG'));
     viewer.setBd = (id) => {
       stage.dataset.bg = id;
       const b = BACKDROPS.find((x) => x.id === id) || BACKDROPS[0];
+      bdName.textContent = b.name; studioLab.hidden = id !== 'studio';
       if (bdIco.dataset.id !== b.id) { bdIco.dataset.id = b.id; bdIco.replaceChildren(bdIcon(b)); }
     };
     viewer.setBd(st.backdrop);

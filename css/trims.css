@@ -204,7 +204,7 @@
 
 /* ---------- pattern rows: [template over name] [dup cost] ....... [four pieces] ---------- */
 .tr-grid {
-  display: flex; flex-direction: column; gap: 4px; margin: 0 calc(var(--tr-pad) * -1); padding: 2px var(--tr-pad) 14px;
+  display: flex; flex-direction: column; gap: 4px; margin: 0 calc(var(--tr-pad) * -1); padding: 14px var(--tr-pad) 20px; margin-block: -12px -6px;
   max-height: 470px; overflow-y: auto;
 }
 @media (max-width: 860px) {   /* stacked: the list flows at full height, no inner scroll (after the base rule so it wins) */
@@ -259,7 +259,7 @@
    dashed "+" slot (save; the new slot opens its inline rename), then dashed empty slots. More outfits: the row scrolls
    sideways (.th-scroll-x edge shade), so the panel height never changes. */
 .tr-saved-body { display: flex; flex-direction: column; gap: 10px; }
-.tr-slots { --tr-slot-gap: 6px; position: relative; display: flex; gap: var(--tr-slot-gap); overflow-x: auto; margin: -4px calc(var(--tr-pad) * -1) -8px; padding: 4px var(--tr-pad) 8px; }
+.tr-slots { --tr-slot-gap: 6px; position: relative; display: flex; gap: var(--tr-slot-gap); overflow-x: auto; margin: -16px calc(var(--tr-pad) * -1) -16px; padding: 16px var(--tr-pad) 18px; }
 .tr-oslot, .tr-oslot-add, .tr-oslot-empty { flex: 0 0 calc((100% - 3 * var(--tr-slot-gap)) / 4); height: 54px; box-sizing: border-box; min-width: 0; }
 .tr-oslot { position: relative; display: flex; }
 .tr-oslot-main { flex: 1; min-width: 0; flex-direction: column; gap: 2px; padding: 4px 4px 3px; color: var(--muted); }
@@ -308,3 +308,12 @@
 @media (prefers-reduced-motion: reduce) {
   .tr-hint, .tr-chip-acts, .tr-vbtn, .tr-anim, .tr-ico, .tr-tile, .tr-pt { transition: none; }
 }
+
+/* saved outfits: smaller "+" / empty slots; viewer: zoom, studio colour, backdrop name */
+.tr-oslot-add, .tr-oslot-empty { flex: 0 0 44px; height: 44px; align-self: center; }
+.tr-zoom { display: inline-flex; gap: 4px; align-items: center; }
+.tr-zpct { min-width: 54px; justify-content: center; font-variant-numeric: tabular-nums; }
+.tr-studio { position: relative; overflow: hidden; cursor: pointer; padding: 0; }
+.tr-studio-color { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; border: 0; padding: 0; }
+.tr-studio::before { content: ''; position: absolute; inset: 7px; border-radius: 2px; background: var(--tr-studio-sw, var(--bg-2)); outline: 1px solid color-mix(in srgb, var(--text) 35%, transparent); }
+.tr-stage[data-bg="studio"] { --tr-studio-fill: var(--tr-studio, var(--neu-well, var(--bg-2))); }

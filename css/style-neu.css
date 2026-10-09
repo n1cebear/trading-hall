@@ -670,7 +670,7 @@
 :root[data-neu] .module-trims { --tr-pad: var(--neu-pad); }
 :root[data-neu] .module-trims .tr-head h2 { text-shadow: none; }
 :root[data-neu] .tr-stage { border: 0; border-radius: var(--neu-r-lg); box-shadow: var(--neu-inset-deep); }
-:root[data-neu] .tr-stage[data-bg="studio"] { background: radial-gradient(ellipse 60% 40% at 50% 92%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 70%), var(--neu-well); }
+:root[data-neu] .tr-stage[data-bg="studio"] { background: radial-gradient(ellipse 60% 40% at 50% 92%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 70%), var(--tr-studio, var(--neu-well)); }
 :root[data-neu] .tr-drop { border-radius: var(--neu-r-lg); }
 /* Trims controls are the shared keys: .btn (viewer keys, armor / trim material tiles, pattern pieces, outfit slots) and
    .seg (animation picker), so they take the Enchanting / Hall look. Only the selected state and tile radii are set here
@@ -1195,3 +1195,14 @@
 :root[data-style="soft"][data-neu] :is(.lvl-chips button, .step, .x-btn, .swatch, .hl-quick-chip, .hl-badge, .check span, .hl-tick, .ec-want):not(.on):not(:disabled) { box-shadow: var(--neu-raised-2xs); border-radius: 5px; }
 :root[data-style="soft"][data-neu] :is(.lvl-chips button, .step, .ec-want).on { box-shadow: var(--neu-sel-inset-2xs); border-radius: 5px; }
 :root[data-style="soft"][data-neu] :is(.panel, .ov-card, .tr-saved) { background: var(--neu-bg); }
+
+/* Soft: shadows that reach out of scroll containers get room; panel shadows stay inside the gaps; chosen keys more obvious */
+:root[data-style="soft"][data-neu] {
+  --neu-t1: 14px 14px 42px var(--neu-lo), -14px -14px 42px var(--neu-hi);
+  --neu-raised: 14px 14px 42px var(--neu-lo), -14px -14px 42px var(--neu-hi);
+  --neu-sel-glow: color-mix(in srgb, var(--accent) 34%, transparent);
+}
+:root[data-style="soft"] .ec-side { padding: 28px; margin: -28px; }
+@media (min-width: 1000.02px) { :root[data-style="soft"] .hl-wiz-side { padding: 28px; margin: -28px; } }
+:root[data-style="soft"][data-neu] .ec-side .panel { box-shadow: 10px 10px 30px var(--neu-lo), -10px -10px 30px var(--neu-hi); }
+:root[data-style="soft"][data-neu] :is(.btn, .seg button, .ec-item, .ec-matkey, .lvl-chips button, .tr-oslot-main).on { color: var(--accent); }

@@ -906,7 +906,7 @@
     function place() {
       if (!S.camera) return;
       const B = S.bdCam || { r: 0, p: 0, y: 0 };   // a terrain island: back + up until its bounding sphere (radius r) fits the frame
-      const d = fit() * S.camK / S.zoom, pitch = S.pitch + B.p, cp = Math.cos(pitch);
+      const d = fit() * S.camK / S.zoom, pitch = S.pitch, cp = Math.cos(pitch);   // the same viewing angle on every backdrop
       if (S.onZoom && S.lastZ !== S.zoom) { S.lastZ = S.zoom; S.onZoom(S.zoom); }
       S.target.y = S.camY;   // always look at the figure, whatever the backdrop (the island sits under it)
       S.camera.position.set(S.target.x + d * Math.sin(S.yaw) * cp, S.target.y + d * Math.sin(pitch), S.target.z + d * Math.cos(S.yaw) * cp);

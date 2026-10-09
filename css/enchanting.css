@@ -738,3 +738,9 @@
 @media (max-width: 760px) { .ec-slots.tools { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 
 .ec-mode button:disabled { opacity: .4; cursor: not-allowed; }
+
+/* Single item / My plan: centred content, and the active mode is a solid key */
+.ec-mode button, .ec-toprow > .ec-mode button { justify-content: center; text-align: center; }
+.ec-mode::before { display: none !important; }
+:root:root .ec-mode button.on { background: var(--accent) !important; color: var(--on-accent, #0b0b10) !important; box-shadow: inset 2px 2px 5px rgb(0 0 0 / .28) !important; }
+:root:root .ec-mode button.on .mc { filter: none; }

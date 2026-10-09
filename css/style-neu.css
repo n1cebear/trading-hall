@@ -1228,3 +1228,8 @@
   --neu-inset-2xs:  inset 2px 2px 4px var(--neu-lo), inset -2px -2px 4px var(--neu-hi);
 }
 :root[data-style="soft"][data-neu] .ec-side .panel { box-shadow: 8px 8px 20px var(--neu-lo), -8px -8px 20px var(--neu-hi); }
+
+/* Soft: the accent light of a chosen key spreads over the key (sized in percent of the key, not pixels) */
+:root[data-style="soft"][data-neu] { --neu-sel-glow-l: radial-gradient(ellipse 85% 135% at 100% 100%, var(--neu-sel-glow), transparent 80%); }
+:root[data-style="soft"] .switch span::after { box-shadow: var(--neu-raised-2xs); }
+:root[data-style="soft"] .switch input:checked + span::after { box-shadow: var(--neu-raised-2xs), inset 2px 2px 4px -2px color-mix(in srgb, var(--accent) 45%, transparent); }

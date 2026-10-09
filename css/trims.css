@@ -290,7 +290,7 @@
   .module-trims { --tr-pad: 14px; }
   .module-trims { --tr-stage-h: clamp(320px, 92vw, 440px); }
   .tr-slot { grid-template-columns: 58px minmax(0, 1fr) auto; column-gap: 10px; }
-  .tr-armors { grid-template-columns: repeat(4, minmax(0, 38px)); }
+  .tr-armors { grid-template-columns: repeat(4, minmax(0, 46px)); }
   .tr-tiles { gap: 3px; }
   .tr-tile .mc { --mc: 18px !important; }
   .tr-pr { gap: 8px; padding: 8px 2px; }
@@ -336,3 +336,10 @@
 .tr-rnd { gap: 8px; }
 .tr-rnd-ico { display: inline-grid; place-items: center; width: 24px; height: 24px; color: var(--muted); }
 .tr-rnd-seg button { min-height: 28px; padding: 4px 10px; }
+
+/* armor keys a size up, eye a size up and a little more detailed */
+.tr-armors { grid-template-columns: repeat(4, 46px); gap: 8px; }
+.tr-ico { width: 46px; height: 42px; }
+.tr-eye { width: 38px; height: 38px; }
+.tr-eyeico { width: 24px; height: 15px; -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 11 7' shape-rendering='crispEdges'%3E%3Cpath d='M3 0h5v1h-5zM2 1h2v1h-2zM7 1h2v1h-2zM1 2h1v1h-1zM4 2h3v1h-3zM9 2h1v1h-1zM0 3h2v1h-2zM4 3h3v1h-3zM9 3h2v1h-2zM1 4h1v1h-1zM4 4h3v1h-3zM9 4h1v1h-1zM2 5h2v1h-2zM7 5h2v1h-2zM3 6h5v1h-5z'/%3E%3C/svg%3E") center / 100% 100% no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 11 7' shape-rendering='crispEdges'%3E%3Cpath d='M3 0h5v1h-5zM2 1h2v1h-2zM7 1h2v1h-2zM1 2h1v1h-1zM4 2h3v1h-3zM9 2h1v1h-1zM0 3h2v1h-2zM4 3h3v1h-3zM9 3h2v1h-2zM1 4h1v1h-1zM4 4h3v1h-3zM9 4h1v1h-1zM2 5h2v1h-2zM7 5h2v1h-2zM3 6h5v1h-5z'/%3E%3C/svg%3E") center / 100% 100% no-repeat; }
+.tr-eye:not(.on) .tr-eyeico { -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 11 7' shape-rendering='crispEdges'%3E%3Cpath d='M0 2h2v1h-2zM9 2h2v1h-2zM1 3h2v1h-2zM8 3h2v1h-2zM2 4h7v1h-7zM1 5h1v1h-1zM4 5h1v1h-1zM6 5h1v1h-1zM9 5h1v1h-1z'/%3E%3C/svg%3E"); mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 11 7' shape-rendering='crispEdges'%3E%3Cpath d='M0 2h2v1h-2zM9 2h2v1h-2zM1 3h2v1h-2zM8 3h2v1h-2zM2 4h7v1h-7zM1 5h1v1h-1zM4 5h1v1h-1zM6 5h1v1h-1zM9 5h1v1h-1z'/%3E%3C/svg%3E"); }

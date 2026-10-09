@@ -899,3 +899,9 @@ button.hl-strip-main { cursor: pointer; }
 .hl-own-plus { display: grid; place-items: center; flex: none; width: 44px; height: 44px; font: 400 26px var(--display); color: var(--accent); border: 2px dashed color-mix(in srgb, var(--accent) 55%, transparent); border-radius: var(--radius, 8px); }
 .hl-own-text { display: flex; flex-direction: column; gap: 4px; min-width: 0; font-size: 12.5px; }
 .hl-own-text b { font: 400 15px var(--display); color: var(--text); }
+
+/* breathing room for the tick and the left edge of every stripe */
+.hl-card .hl-strip-main { padding-left: 16px; }
+.hl-card.hl-cols .hl-card-toggle { padding-left: 16px; }
+.hl-copychips .hl-strip-main { padding-left: 92px; }
+.hl-card .hl-tag { height: 24px; min-height: 24px; }

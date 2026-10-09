@@ -1262,3 +1262,37 @@
 .tr-rnd { gap: 14px; }
 .tr-vgrp { gap: 10px; }
 .tr-zoom { gap: 8px; }
+
+/* ===== scroll edges: a long eased fade into the surface instead of a short hard shade (every style) ===== */
+:root:root:root {
+  --sc-h: 34px;
+  --sc-fade: var(--neu-bg, var(--panel));
+  --sc-g0: color-mix(in srgb, var(--sc-fade) 96%, transparent), color-mix(in srgb, var(--sc-fade) 78%, transparent) 24%, color-mix(in srgb, var(--sc-fade) 42%, transparent) 52%, color-mix(in srgb, var(--sc-fade) 14%, transparent) 78%, transparent;
+  --sc-g1: color-mix(in srgb, var(--sc-fade) 96%, transparent), color-mix(in srgb, var(--sc-fade) 78%, transparent) 24%, color-mix(in srgb, var(--sc-fade) 42%, transparent) 52%, color-mix(in srgb, var(--sc-fade) 14%, transparent) 78%, transparent;
+}
+/* the anvil / wizard sidebars scroll without a bar of their own (it sat outside the panel) */
+.ec-side, .hl-wiz-side { scrollbar-width: none; }
+.ec-side::-webkit-scrollbar, .hl-wiz-side::-webkit-scrollbar { display: none; }
+
+/* even wider gaps between keys */
+.lvl-chips { gap: 6px; }
+.hl-card .lvl-chips, .hl-vcol .lvl-chips { gap: 8px; }
+.ec-matkeys { gap: 20px; }
+.ec-slots.tools, .ec-slots.other, .ec-slots.armor { gap: 28px 24px; }
+.ec-lo-list { gap: 22px; }
+.hl-quick { gap: 20px; }
+.hl-strips-2 { gap: 18px 28px; }
+.hl-preset-grid { gap: 32px; }
+.hl-row-btns { gap: 16px; }
+.tr-armors { gap: 18px; grid-template-columns: repeat(4, 52px); }
+.tr-ico { width: 52px; }
+.tr-tiles { gap: 14px; }
+.tr-pr-pcs { gap: 16px; }
+.tr-slots { --tr-slot-gap: 16px; }
+.tr-rnd { gap: 18px; }
+.tr-vgrp { gap: 14px; }
+
+/* picker keys: content centred in the key, the "new" badge never shifts it; stone / wooden keep the 32px icon slot */
+.ec-picker .ec-item, .ec-picker .ec-item.has-since { grid-template-rows: auto auto; align-content: center; justify-items: center; padding: 10px 4px; min-height: 84px; row-gap: 6px; }
+.ec-picker .ec-item .ec-item-name { align-items: center; justify-content: center; }
+.ec-matkey > .mc.ec-mat-block { --mc: 32px !important; margin: 0; transform: scale(.76); }

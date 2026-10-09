@@ -1678,7 +1678,7 @@
       h('button.btn.small.tr-vbtn.sq', { type: 'button', 'aria-label': 'Zoom in', onclick: () => V.zoomBy(1.2) }, '+'));
     const hint = h('div.tr-hint', { 'aria-hidden': 'true' }, 'Drag to rotate · scroll or pinch to zoom');
     const viewer = h('section.panel.tr-card.tr-viewer', { 'aria-label': '3D preview' },
-      h('div.tr-vbar', h('div.tr-vgrp', { role: 'group', 'aria-label': 'Preview options' }, elyBtn, glintBtn, autoBtn), h('div.tr-vgrp.end', { role: 'group', 'aria-label': 'View' }, bgMenu, studioLab, zoomGrp, resetBtn, pngBtn)),
+      h('div.tr-vbar', h('div.tr-vgrp', { role: 'group', 'aria-label': 'Preview options' }, elyBtn, glintBtn, autoBtn), h('div.tr-vgrp.end', { role: 'group', 'aria-label': 'View' }, bgMenu, studioLab, pngBtn)),
       stage,
       h('div.seg.tr-anims', { role: 'radiogroup', 'aria-label': 'Animation' }, animBtns),
       h('div.tr-drop', { 'aria-hidden': 'true' }, 'Drop the skin PNG'));
@@ -1691,7 +1691,7 @@
     viewer.setBd(st.backdrop);
     if (V.error) stage.append(h('div.tr-error', V.error, h('br'), h('span', 'The flat previews still work.')));
     else {
-      stage.append(V.el, hint);
+      stage.append(V.el, hint, h('div.tr-frametools', { role: 'group', 'aria-label': 'View' }, zoomGrp, resetBtn));
       if (!V.ready) stage.append(h('div.tr-loadingv', 'Loading the 3D viewer…'));
     }
     const used = () => stage.classList.add('used');
@@ -1747,7 +1747,10 @@
     const TGT = [['all', 'All', 'All pieces'], ['helmet', 'Helmet', 'Helmet only'], ['chestplate', 'Chest', 'Chestplate only'], ['leggings', 'Legs', 'Leggings only'], ['boots', 'Boots', 'Boots only']];
     const tgtBtns = new Map();
     const tgtSeg = radioKeys(h('div.seg.tr-seg.tr-tgt', { role: 'radiogroup', 'aria-label': 'Trim material applies to' }, TGT.map(([id, n, tip]) => {
-      const b = h('button', { type: 'button', role: 'radio', 'aria-checked': 'false', 'data-focus': 'tr-tgt-' + id, onclick: () => setTarget(id) }, n);
+      const ico = id === 'all'
+        ? h('span.tr-tgt-all', PIECES.map((pc) => TH.icon.item(pc, 'diamond', { size: 12 })))
+        : TH.icon.item(id, 'diamond', { size: 20 });
+      const b = h('button', { type: 'button', role: 'radio', 'aria-checked': 'false', 'aria-label': tip, 'data-focus': 'tr-tgt-' + id, onclick: () => setTarget(id) }, ico);
       tgtBtns.set(id, b);
       return withTip(b, [tip, id === 'all' ? 'A material pick sets every piece' : 'A material pick sets only this piece']);
     })));
@@ -1755,7 +1758,7 @@
       const title = p.id ? patName(p.id) : 'No trim';
       const pcs = PIECES.map((pc) => {
         const cv = h('canvas.tr-thumb', { width: THUMB_UNITS * 6, height: THUMB_UNITS * 6 });
-        const sw = h('i.tr-sw', { 'aria-hidden': 'true' });
+        const sw = h('span.tr-sw', { 'aria-hidden': 'true' });
         const b = h('button.btn.tr-pt', { type: 'button', 'aria-pressed': 'false', 'aria-label': PIECE_NAME[pc] + ': ' + title, 'data-focus': 'tr-pat-' + (p.id || 'none') + '-' + pc,
           onclick: () => setPattern(p.id, [pc]) }, cv, p.id ? sw : null);
         withTip(b, () => { const o = cur().outfit[pc]; return [PIECE_NAME[pc] + ' · ' + title, p.id && o.pattern === p.id ? matName(o.material) + ' trim' : 'Just this piece']; });
@@ -1823,7 +1826,7 @@
       pats.forEach(({ p, row, pcs, allMark }) => {
         const n = pcs.filter(({ pc, b, sw }) => {
           const on = (st.outfit[pc].pattern || null) === p.id; press(b, on);
-          if (sw) { sw.style.setProperty('--c', (TRIMM[st.outfit[pc].material] || {}).color || 'transparent'); sw.classList.toggle('on', on); }
+          if (sw) { const mm = TRIMM[st.outfit[pc].material]; if (mm && sw.dataset.m !== mm.id) { sw.dataset.m = mm.id; sw.replaceChildren(TH.icon.trimMaterial(mm.item, { size: 14 })); } sw.classList.toggle('on', on); }
           return on;
         }).length;
         row.classList.toggle('part', n > 0);

@@ -380,3 +380,15 @@
 
 .tr-vbar { flex-wrap: wrap; row-gap: 8px; }
 .tr-vgrp { flex-wrap: wrap; }
+
+/* icons in the target switch, real material icons on the piece keys, room under "Pattern", zoom + reset inside the frame */
+.tr-tgt button { padding: 4px 9px; min-width: 38px; display: inline-flex; align-items: center; justify-content: center; }
+.tr-tgt-all { display: grid; grid-template-columns: repeat(2, 12px); gap: 1px; }
+.tr-tgt-all .mc { --mc: 12px !important; }
+.tr-tgt button > .mc { --mc: 20px !important; }
+.tr-sw { width: 16px; height: 16px; right: 3px; bottom: 3px; border-radius: 0; background: none !important; box-shadow: none !important; display: grid; place-items: center; }
+.tr-sw .mc { --mc: 14px !important; filter: drop-shadow(0 1px 0 rgb(0 0 0 / .5)); }
+.tr-sub { margin-bottom: 16px; }
+.tr-grid { padding-top: 44px; margin-top: -22px; }
+.tr-stage { position: relative; }
+.tr-frametools { position: absolute; top: 10px; right: 10px; z-index: 5; display: flex; align-items: center; gap: 8px; padding: 4px; border-radius: var(--radius, 8px); background: color-mix(in srgb, var(--bg, #000) 55%, transparent); backdrop-filter: blur(6px); }

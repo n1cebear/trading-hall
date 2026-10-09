@@ -1028,3 +1028,7 @@ button.hl-strip-main { cursor: pointer; }
 .hl-group-head h3 { font-size: 15px; letter-spacing: 1.4px; color: var(--accent); }
 .hl-group-head small { color: var(--muted); }
 .hl-group-items { gap: 4px; }
+
+/* one left edge for every tick: single-slot stripes (with or without an icon) line up with the multi-slot ones */
+:root:root:root .hl-card .hl-strip-main { padding-left: 22px; }
+:root:root:root .hl-card .hl-card-toggle { gap: 12px; }

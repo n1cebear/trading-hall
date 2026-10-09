@@ -369,8 +369,6 @@
 .tr-slot.ely .tr-pn-main { display: none; }
 .tr-slot.ely .tr-pn-ely { display: inline; color: var(--accent); }
 @media (hover: hover) {
-  .tr-slot.ely:hover .tr-pn-ely { display: none; }
-  .tr-slot.ely:hover .tr-pn-main { display: inline; color: var(--text); }
   .tr-slot.ely:hover .tr-pn-x { display: inline; color: var(--accent); margin-right: 4px; }
   .tr-slot.ely:hover .tr-big-ely { opacity: .5; }
 }
@@ -397,6 +395,6 @@
 .tr-grid { margin-top: 0; padding-top: 12px; }
 /* the keys inside the (dark) preview frame: lit from the top-left with real light, deeper shadow */
 .tr-frametools { background: none; backdrop-filter: none; padding: 0; }
-/* default key colours and text (they follow the theme); only the shadow gets a touch more reach, because the frame is darker than the page */
-:root:root .tr-frametools .btn { box-shadow: 3px 3px 8px color-mix(in srgb, var(--neu-lo, rgb(0 0 0 / .5)) 100%, #000 25%), -3px -3px 7px color-mix(in srgb, var(--neu-hi, rgb(255 255 255 / .08)) 100%, #fff 14%); }
-:root:root .tr-frametools .btn:active { box-shadow: var(--neu-inset-xs, inset 2px 2px 5px rgb(0 0 0 / .5)); }
+/* keys in the preview frame: exactly the normal keys; only in the dark neumorphic styles they get a little extra light (the frame is dark) */
+:root[data-neu][data-theme="dark"] .tr-frametools .btn { box-shadow: var(--neu-raised-xs), -2px -2px 6px rgb(255 255 255 / .05); }
+@media (prefers-color-scheme: dark) { :root[data-neu]:not([data-theme="light"]) .tr-frametools .btn { box-shadow: var(--neu-raised-xs), -2px -2px 6px rgb(255 255 255 / .05); } }

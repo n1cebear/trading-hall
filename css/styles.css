@@ -887,3 +887,7 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; }
 }
 .th-act-row .btn { justify-content: center; white-space: nowrap; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .th-act-row .btn.primary { padding-block: 9px; }
+
+/* theme / style switch: cross-fade of the whole page (View Transitions); fallback mutes every transition for a moment */
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: .3s; animation-timing-function: ease; }
+:root.th-switching *, :root.th-switching *::before, :root.th-switching *::after { transition: none !important; animation-duration: .001s !important; }

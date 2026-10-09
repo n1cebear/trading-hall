@@ -1002,6 +1002,44 @@
   const cardRow = (cls, main, lv, act, attrs) => h('div.hl-card-row' + (cls || ''), attrs || null,
     h('div.hl-strip-main', main), h('span.hl-strip-lv', lv), h('span.hl-card-act', act));
 
+  /* Duplicated books: every villager column keeps its normal size; columns that do not fit are folded into a "+n" key
+     (click = show all, wrapped). Measured after every render / resize, never by shrinking the tier keys. */
+  const openCols = new Set();
+  function fitCols() {
+    document.querySelectorAll('.hl-cols-v').forEach((box) => {
+      const cols = [...box.querySelectorAll(':scope > .hl-vcol')], more = box.querySelector(':scope > .hl-vmore');
+      const card = box.closest('.hl-cols');
+      cols.forEach((c) => { if (c.hidden) c.hidden = false; });
+      if (more && !more.hidden) more.hidden = true;
+      if (!cols.length || (card && card.classList.contains('is-open'))) return;
+      const gap = 4, moreW = 46, avail = box.clientWidth, widths = cols.map((c) => c.offsetWidth);
+      if (widths.reduce((a, w) => a + w, 0) + gap * (cols.length - 1) <= avail) return;
+      let used = 0, shown = 0;
+      for (let i = 0; i < cols.length; i++) {
+        const w = widths[i] + (i ? gap : 0);
+        if (used + w + gap + moreW <= avail) { used += w; shown++; } else break;
+      }
+      shown = Math.max(1, shown);
+      cols.forEach((c, i) => { if (i >= shown) c.hidden = true; });
+      if (more) {
+        const t = '+' + (cols.length - shown);
+        if (more.textContent !== t) more.textContent = t;
+        more.title = cols.slice(shown).map((c, i) => (c.querySelector('.hl-tag') || {}).value || ('#' + (shown + i + 1))).join(', ');
+        more.hidden = false;
+      }
+    });
+  }
+  let colsMO = null, colsRO = null;
+  function watchCols(root) {
+    if (colsMO) colsMO.disconnect();
+    if (colsRO) colsRO.disconnect();
+    let raf = 0;
+    const sched = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(fitCols); };
+    colsMO = new MutationObserver(sched); colsMO.observe(root, { childList: true, subtree: true });
+    colsRO = new ResizeObserver(sched); colsRO.observe(root);
+    sched();
+  }
+
   function bookStrip(hall, e) {
     const book = hall.books[e.id];
     const on = !!book;
@@ -1092,9 +1130,10 @@
         h('div.hl-vcol-bot', tag(st, i), delBtn({ key: st.id, label: `Remove ${local} ${i + 1} of ${n}`, onDel })));
     };
     return h('li.hl-card-item', { 'data-book': e.id },
-      h('div.hl-strip.hl-card.is-on.is-multi.hl-cols',
+      h('div.hl-strip.hl-card.is-on.is-multi.hl-cols' + (openCols.has(e.id) ? '.is-open' : ''),
         h('div.hl-cols-main', toggle, add),
-        h('div.hl-cols-v', stalls.map(col))));
+        h('div.hl-cols-v', stalls.map(col), h('button.hl-vmore', { type: 'button', hidden: true, 'aria-label': 'Show all villagers',
+          onclick: (ev) => { const c = ev.currentTarget.closest('.hl-cols'); if (openCols.has(e.id)) openCols.delete(e.id); else openCols.add(e.id); c.classList.toggle('is-open', openCols.has(e.id)); fitCols(); } }))));
   }
 
   /* ---- step 3: trades (strips) ---- */
@@ -1336,7 +1375,7 @@
     const toGet = t.trades - t.have;
     const preset = hall.activePreset && (D.presets.concat(state.customPresets).find((p) => p.id === hall.activePreset));
 
-    const editBtn = h('button.btn', { type: 'button', onclick: () => upd((x) => { x.setupDone = false; x.editing = true; x.step = 0; setSel(x.ui, []); }) }, '✎ Edit setup');
+    const editBtn = h('button.btn', { type: 'button', onclick: () => upd((x) => { x.setupDone = false; x.editing = true; x.step = 1; setSel(x.ui, []); }) }, '✎ Edit setup');
     const head = () => h('div.page-head.hl-page-head', h('h2', TITLE));
 
     if (!t.total) {
@@ -2189,6 +2228,7 @@
   }
 
   function render(root, state) {
+    watchCols(root);
     if (!state.hall.setupDone) {
       document.body.classList.remove('hl-noscroll');
       renderWizard(root, state);

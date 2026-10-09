@@ -688,13 +688,13 @@ TH.anvil = (function () {
   function nodeChip(node, s) {
     const names = node.enchants.map((e) => lvlName(e.id, e.level));
     if (node.kind === 'item') {
-      return h('span.ec-node.item', { title: names.join(', ') || 'No enchantments' }, h('span', itemName(s.item, s.material)));
+      return h('span.ec-node.item', { title: names.join(', ') || 'No enchantments' }, itemIcon(s.item, s.material, 20), h('span', itemName(s.item, s.material)));
     }
     if (node.fromStep != null) {
       return h('span.ec-node.book', { title: 'Book from step ' + node.fromStep },
-        h('span', names.join(' + ') || 'Book'), h('small.ec-ref', 'step ' + node.fromStep));
+        bookIcon(20), h('span', names.join(' + ') || 'Book'), h('small.ec-ref', 'step ' + node.fromStep));
     }
-    return h('span.ec-node.book', h('span', names.join(' + ')));
+    return h('span.ec-node.book', bookIcon(20), h('span', names.join(' + ')));
   }
 
   /** The gear's own name (the name field below the plan, or the loaded saved gear). */
@@ -792,7 +792,7 @@ TH.anvil = (function () {
     const shop = plan.books.slice().sort((a, b) => byUse(a.id, b.id)).map((b) => {
       const status = hallStatus(offers, b.id, b.level);
       if (status && status.cls === 'have') { emeraldTotal += status.price || 0; fromHall++; }
-      return h('li', h('span.ec-shop-name', lvlName(b.id, b.level)), hallChip(status));
+      return h('li', bookIcon(16), h('span.ec-shop-name', lvlName(b.id, b.level)), hallChip(status));
     });
     const shopBox = h('div.ec-shop',
       h('div.ec-sub-head', 'Books needed', h('span.faint', plan.books.length)),

@@ -855,3 +855,13 @@ button.hl-strip-main { cursor: pointer; }
 .hl-vcol { background: none; box-shadow: none; padding: 2px 4px; }
 .hl-vcol.is-done { background: color-mix(in srgb, var(--accent) 9%, transparent); box-shadow: none; }
 .hl-vcol.is-done { background: none; }
+
+/* duplicate columns keep the normal key size; extras fold into +n */
+.hl-cols-v { flex-wrap: nowrap; justify-content: flex-end; overflow: hidden; }
+.hl-cols.is-open .hl-cols-v { flex-wrap: wrap; overflow: visible; }
+.hl-vcol { flex: none; }
+.hl-vcol .lvl-chips { padding: 3px; gap: 2px; }
+.hl-vcol .lvl-chips button { min-width: 26px; height: auto; padding: 0 4px; font-size: inherit; }
+.hl-vcol .hl-tag { max-width: 70px; min-width: 40px; padding: 0 6px; }
+.hl-vcol .hl-del { width: 22px; }
+.hl-vmore { flex: none; align-self: center; min-width: 40px; height: 30px; padding: 0 8px; border: 0; border-radius: var(--radius, 6px); cursor: pointer; font: 600 12px var(--mono); color: var(--accent); background: var(--accent-soft); }

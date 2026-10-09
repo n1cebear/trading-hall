@@ -285,6 +285,19 @@ TH.app = (function () {
     tb.dataset.tip = dark ? 'Night mode (click for light)' : 'Day mode (click for dark)';
   }
 
+  /** Run a theme / style change as a cross-fade (View Transitions), or with transitions muted when that is not available. */
+  function morph(fn) {
+    const el = document.documentElement;
+    if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) { fn(); return; }
+    if (document.startViewTransition) {
+      const t = document.startViewTransition(fn);
+      t.finished.catch(() => {});
+      return;
+    }
+    el.classList.add('th-switching'); fn();
+    setTimeout(() => el.classList.remove('th-switching'), 350);
+  }
+
   function applyTheme() {
     const t = TH.store.get().settings.theme;
     if (t === 'auto') delete document.documentElement.dataset.theme;
@@ -325,7 +338,7 @@ TH.app = (function () {
     };
     const pick = (key) => {
       if (styleOf(TH.store.get().settings.style) !== key) TH.store.update((st) => { st.settings.style = key; }, { silent: true });
-      applyStyle();
+      morph(applyStyle);
     };
     keys.forEach((b) => {
       const [t, sub] = tips[b.dataset.styleKey];
@@ -394,7 +407,7 @@ TH.app = (function () {
     document.getElementById('themeBtn').addEventListener('click', () => {
       const dark = isDark();
       TH.store.update((s) => { s.settings.theme = dark ? 'light' : 'dark'; });
-      applyTheme();
+      morph(applyTheme);
     });
     initMenu();
     initStyleSeg();

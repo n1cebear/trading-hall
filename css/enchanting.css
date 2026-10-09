@@ -641,9 +641,12 @@
 /* ================= Oct 2026 (2): picker, plan type rule, enchantment columns ================= */
 /* Type rule (DESIGN.md "Type"): names of things from the game (items, materials, enchantments, steps, books) and every
    panel heading are Monocraft (--display); sentences, hints and the numbers inside fields stay body sans. */
-.ec-plan .ec-card-head h3, .ec-plan .ec-sub-head, .ec-plan .ec-node, .ec-plan .ec-shop-name, .ec-plan .ec-sum-lab,
-.ec-plan .ec-step-cost, .ec-plan .ec-ref, .ec-plan .ec-compare b, .ec-plan .ec-hall-chip, .ec-plan .ec-shop-total {
+.ec-plan .ec-card-head h3, .ec-plan .ec-sub-head, .ec-plan .ec-node, .ec-plan .ec-step-cost b, .ec-plan .ec-sum-item b {
   font-family: var(--display); font-weight: 400; letter-spacing: .2px;
+}
+/* info text stays in the clean body font */
+.ec-plan .ec-shop-name, .ec-plan .ec-sum-lab, .ec-plan .ec-ref, .ec-plan .ec-compare, .ec-plan .ec-compare b, .ec-plan .ec-hall-chip, .ec-plan .ec-shop-total, .ec-plan .ec-step-cost, .ec-plan .ec-cost-unit {
+  font-family: var(--font, system-ui, sans-serif); letter-spacing: 0;
 }
 .ec-plan .ec-node { font-size: 12.5px; }
 .ec-plan .ec-shop-name { font-size: 12px; }
@@ -703,13 +706,13 @@
 
 /* Oct 2026 (4): one button rule for the pickers. Faintly raised at rest; chosen = pressed in with the tool's glow */
 :root:root .ec-picker :is(.ec-item, .ec-matkey) {
-  background: var(--neu-flat, color-mix(in srgb, var(--text) 4%, transparent)); border: 0;
-  box-shadow: 2px 2px 5px -2px var(--neu-lo, rgb(0 0 0 / .45)), -2px -2px 5px -2px var(--neu-hi, rgb(255 255 255 / .06));
+  background: var(--neu-grad, color-mix(in srgb, var(--text) 5%, transparent)); border: 0;
+  box-shadow: var(--neu-raised-xs, 2px 2px 5px -2px rgb(0 0 0 / .45), -2px -2px 5px -2px rgb(255 255 255 / .06));
 }
-:root:root .ec-picker :is(.ec-item, .ec-matkey):hover:not(.on):not(.na) { box-shadow: 3px 3px 8px -2px var(--neu-lo, rgb(0 0 0 / .5)), -3px -3px 8px -2px var(--neu-hi, rgb(255 255 255 / .08)); }
+:root:root .ec-picker :is(.ec-item, .ec-matkey):hover:not(.on):not(.na) { box-shadow: var(--neu-t2-hover, 3px 3px 8px -2px rgb(0 0 0 / .5), -3px -3px 8px -2px rgb(255 255 255 / .08)); }
 :root:root .ec-picker :is(.ec-item, .ec-matkey).on {
-  background: color-mix(in srgb, var(--accent) 7%, transparent);
-  box-shadow: inset 4px 4px 9px -3px var(--neu-lo, rgb(0 0 0 / .6)), inset -2px -2px 6px -3px color-mix(in srgb, var(--accent) 40%, transparent), 0 0 16px -4px color-mix(in srgb, var(--accent) 40%, transparent);
+  background: var(--neu-sel-bg, color-mix(in srgb, var(--accent) 9%, transparent));
+  box-shadow: var(--neu-sel-inset-sm, inset 4px 4px 9px -3px rgb(0 0 0 / .6)), 0 0 16px -4px color-mix(in srgb, var(--accent) 40%, transparent);
 }
 /* armor rows: icon + name centred as one group in the key */
 .ec-slots.armor .ec-item { grid-template-columns: 48px auto; justify-content: center; align-items: center; align-content: center; justify-items: start; column-gap: 12px; }

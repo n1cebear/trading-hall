@@ -1178,3 +1178,8 @@
 
 /* top nav: no sunken strip behind the tabs, just soft keys side by side; the active one is pressed in */
 @media (min-width: 641px) { :root[data-neu] .nav { background: none; box-shadow: none; padding: 0; } }
+
+/* more spacing parity (Classic = Pixel / Soft) */
+:root[data-style="classic"] :is(.tr-mats, .tr-saved) .tr-card-head { margin-bottom: 12px; }
+:root[data-style="classic"] .bd-filter button { min-height: 32px; }
+:root[data-style="classic"] .ec-pv-row { gap: 18px; }

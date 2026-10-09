@@ -1175,3 +1175,6 @@
 :root[data-style="classic"] .toolbar { height: 48px; }
 :root[data-style="classic"] :is(.panel, .tr-saved) { padding: 20px; }
 :root[data-style="soft"][data-neu] { --neu-sel-glow-l: radial-gradient(circle 90px at 100% 100%, var(--neu-sel-glow), transparent 100%); }
+
+/* top nav: no sunken strip behind the tabs, just soft keys side by side; the active one is pressed in */
+@media (min-width: 641px) { :root[data-neu] .nav { background: none; box-shadow: none; padding: 0; } }

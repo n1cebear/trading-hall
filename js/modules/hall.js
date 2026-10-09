@@ -1090,10 +1090,10 @@
       const main = i === 0
         ? [toggle, tag(st, 0), add, lock]
         : [h('span.hl-tick-gap', { 'aria-hidden': 'true' }), h('span.hl-copyname', { 'aria-hidden': 'true' }, local), tag(st, i), lock];
-      return h('div.hl-strip.hl-card.is-on.is-multi.hl-copyrow' + (st.done ? '.is-done' : '') + (justAdded === st.id ? '.is-new' : ''), { 'data-n': i },
-        cardRow('.hl-card-head', main, tiers(i), delBtn({ key: st.id, label: `Remove ${local} ${i + 1} of ${n}`, onDel })));
+      return cardRow('.hl-card-head.hl-copyrow' + (st.done ? '.is-done' : '') + (justAdded === st.id ? '.is-new' : ''), main, tiers(i),
+        delBtn({ key: st.id, label: `Remove ${local} ${i + 1} of ${n}`, onDel }), { 'data-n': i });
     };
-    return h('li.hl-card-item', { 'data-book': e.id }, h('div.hl-seggrp', stalls.map(copyRow)));
+    return h('li.hl-card-item', { 'data-book': e.id }, h('div.hl-strip.hl-card.is-on.is-multi.hl-divided', stalls.map(copyRow)));
   }
 
   /* ---- step 3: trades (strips) ---- */
@@ -1274,7 +1274,7 @@
     const tradeCard = (tr) => {
       const p = profOf(tr);
       return h('li.hl-card-item', h('div.hl-strip.hl-card.hl-strip-trade.is-ro',
-        cardRow('.hl-card-head', [tradeIcons(p, tr.purpose, 26), h('span.hl-strip-text',
+        cardRow('.hl-card-head', [tradeIcons(p, tr.purpose, 22), h('span.hl-strip-text',
           h('span.hl-card-name', h('b', tr.purpose || profName(p)), tr.target > 1 ? h('span.hl-count', { title: tr.target + ' villagers' }, '×' + tr.target) : null),
           h('small', h('span.hl-prof-dot', profName(p)), tradeShort(tr) ? h('span', tradeShort(tr)) : null))])));
     };
@@ -1284,7 +1284,7 @@
       return h('div.hl-rev-side',
         h('div.hl-ts-head', h('span.hl-flow', { 'aria-hidden': 'true' }, TH.icon(sd.from, { size: 24 }), h('span.hl-flow-arrow'), TH.icon(sd.to, { size: 24 })),
           h('span.hl-group-title', h('h3', sd.title)), list.length ? h('span.hl-group-count', plural(sideCount(sd.id), 'villager')) : null),
-        list.length ? h('ul.hl-strips', list.map(tradeCard)) : h('p.muted.hl-rev-none', sd.id === 'sell' ? 'Nothing sold yet.' : 'Nothing bought yet.'));
+        list.length ? h('ul.hl-strips.hl-rev-cards', list.map(tradeCard)) : h('p.muted.hl-rev-none', sd.id === 'sell' ? 'Nothing sold yet.' : 'Nothing bought yet.'));
     };
     const bookCard = (id) => {
       const e = ENCH[id], b = hall.books[id], n = b.stalls.length;
@@ -1303,20 +1303,13 @@
       const ids = bookIds(hall).filter((id) => ENCH[id].category === cat.id);
       return ids.length ? h('section.hl-group', { 'aria-label': cat.name },
         h('div.hl-group-head.hl-rev-ghead',
-          h('span.hl-group-items', { 'aria-hidden': 'true' }, (CAT_ITEMS[cat.id] || []).map((i) => TH.icon(i, { size: 28 }))),
+          h('span.hl-group-items', { 'aria-hidden': 'true' }, (CAT_ITEMS[cat.id] || []).map((i) => TH.icon(i, { size: 22 }))),
           h('span.hl-group-title', h('h3', cat.name))),
         h('ul.hl-strips.hl-strips-2.hl-rev-cards', ids.map(bookCard))) : null;
     }).filter(Boolean);
 
-    return h('div.hl-review',
+    return h('div.hl-review.is-compact',
       // plain totals (like the sidebar) + the plan per workstation (workstation names: what you craft)
-      h('section.panel.hl-review-card.hl-rev-head',
-        h('div.hl-rev-total',
-          h('div.hl-side-title', 'Your plan'),
-          h('div.hl-side-total', h('b', t.total), h('span', t.total === 1 ? 'villager' : 'villagers')),
-          h('div.hl-side-split', h('b', t.stalls), t.stalls === 1 ? ' librarian' : ' librarians', ' · ', plural(books.length, 'different book'), ' · ',
-            h('b', t.trades), ' other · ', plural(profs.length, 'workstation'))),
-        h('div.hl-rev-ws', h('div.hl-side-title', 'Workstations'), wsList(hall, { key: 'rev', workstation: true, books: false }))),
       h('section.panel.hl-review-card',
         h('div.hl-review-head', h('h3.section-title', 'Books'), h('span.hl-toolbar-info', libBooks(t.stalls, books.length)), h('span.spacer'),
           h('button.btn.ghost.small', { type: 'button', onclick: () => goStep(1) }, 'Edit')),

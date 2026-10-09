@@ -803,3 +803,25 @@ button.hl-strip-main { cursor: pointer; }
 .hl-card:hover .hl-dup, .hl-card:focus-within .hl-dup, .hl-card:hover .hl-del, .hl-card:focus-within .hl-del { opacity: 1; }
 .hl-card .hl-dup:disabled { opacity: 0 !important; }
 @media (hover: none) { .hl-card .hl-tag:placeholder-shown, .hl-card .hl-dup, .hl-card .hl-del { opacity: 1; } }
+
+/* ---- Oct 2026 (4): one divided card for duplicates, compact Review ---- */
+.hl-card.hl-divided { display: block; }
+.hl-card.hl-divided > .hl-card-row + .hl-card-row { border-top: 1px solid color-mix(in srgb, var(--text) 10%, transparent); }
+.hl-card.hl-divided > .hl-card-row { min-height: 40px; }
+.hl-review.is-compact { gap: 14px; }
+.hl-review.is-compact .hl-review-card { padding-block: 14px; }
+.hl-review.is-compact .hl-review-head { margin-bottom: 6px; }
+.hl-review.is-compact .hl-group-head { min-height: 28px; margin-bottom: 2px; }
+.hl-review.is-compact .hl-group-head h3 { font-size: 11px; }
+.hl-review.is-compact .hl-groups-stack { gap: 0; }
+.hl-review.is-compact .hl-group { margin-top: 6px; }
+.hl-rev-cards { gap: 4px 8px; }
+.hl-rev-cards .hl-card-head { min-height: 30px; }
+.hl-rev-cards .hl-card .hl-strip-main { padding-block: 1px; gap: 6px; }
+.hl-rev-cards .hl-card-name > b { font-size: 12.5px; }
+.hl-rev-cards .hl-strip-text > small { font-size: 10.5px; }
+.hl-rev-cards .hl-strip, .hl-rev-cards .hl-card { min-height: 0; }
+.hl-rev-cards .hl-lvpill { font-size: 11px; padding: 1px 5px; }
+.hl-review.is-compact .hl-ts-head { min-height: 32px; }
+.hl-review.is-compact .hl-trade-ico { width: 30px; height: 30px; }
+@container hl-groups (min-width: 900px) { .hl-rev-cards.hl-strips-2 { grid-template-columns: repeat(3, minmax(0, 1fr)); } }

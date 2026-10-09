@@ -986,3 +986,26 @@ button.hl-strip-main { cursor: pointer; }
 .hl-check .hl-field-label, .hl-check-offer > .hl-field-label { margin-bottom: 4px; }
 .hl-quick { gap: 10px; margin-top: 10px; }
 .hl-check { gap: 22px; }
+
+/* Check an offer: the closed field turns into the search input itself */
+.hl-cb .hl-cb-filter, .hl-cb .hl-cb-filter-ico { display: none; }
+.hl-cb.is-open .hl-cb-filter { display: block; position: absolute; left: 0; right: 0; top: 0; z-index: 6; width: 100%; height: 48px; margin: 0; padding: 0 14px 0 46px; font-size: 16px; }
+.hl-cb.is-open .hl-cb-filter-ico { display: grid; place-items: center; position: absolute; left: 12px; top: 0; height: 48px; z-index: 7; pointer-events: none; }
+.hl-cb.is-open .hl-cb-btn { visibility: hidden; }
+
+/* stripes: one shared height, one shared left edge for the tick, airy spacing in every stripe */
+.hl-card .hl-card-head, .hl-card.hl-cols { min-height: 62px; }
+.hl-card .hl-strip-main { padding-left: 22px; gap: 12px; }
+.hl-card.hl-cols { padding: 6px 12px 6px 0; gap: 16px; }
+.hl-card.hl-cols .hl-card-toggle { padding-left: 22px; gap: 12px; }
+.hl-card .hl-tick { align-self: center; }
+.hl-cols-v { gap: 12px; }
+.hl-vcol { padding: 2px 8px; gap: 3px; }
+.hl-vcol .lvl-chips { padding: 3px; gap: 3px; }
+.hl-vcol .lvl-chips button { height: 26px; min-width: 28px; }
+.hl-vcol-bot { gap: 10px; min-height: 16px; }
+.hl-vcol .hl-tag { height: 16px; min-height: 16px; min-width: 44px; max-width: 70px; font-size: 10.5px; padding: 0 4px; }
+:root:root .hl-vcol .hl-del { width: 16px; height: 16px; }
+.hl-cols-v { justify-content: flex-start; }
+.hl-cols-v > .hl-vcol:first-child { margin-left: auto; }
+.hl-vcol[hidden], .hl-vmore[hidden] { display: none !important; }

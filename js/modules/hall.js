@@ -1010,7 +1010,7 @@
       cols.forEach((c) => { if (c.hidden) c.hidden = false; });
       if (more && !more.hidden) more.hidden = true;
       if (!cols.length || (card && card.classList.contains('is-open'))) return;
-      const gap = 4, moreW = 46, avail = box.clientWidth, widths = cols.map((c) => c.offsetWidth);
+      const gap = parseFloat(getComputedStyle(box).columnGap) || 12, moreW = 46, avail = box.clientWidth, widths = cols.map((c) => c.offsetWidth);
       if (widths.reduce((a, w) => a + w, 0) + gap * (cols.length - 1) <= avail) return;
       let used = 0, shown = 0;
       for (let i = 0; i < cols.length; i++) {
@@ -1024,6 +1024,12 @@
         if (more.textContent !== t) more.textContent = t;
         more.title = cols.slice(shown).map((c, i) => (c.querySelector('.hl-tag') || {}).value || ('#' + (shown + i + 1))).join(', ');
         more.hidden = false;
+        // measure for real: fold one more column while the row still overflows
+        while (shown > 1 && box.scrollWidth > box.clientWidth + 1) {
+          shown--; cols[shown].hidden = true;
+          const t2 = '+' + (cols.length - shown);
+          if (more.textContent !== t2) more.textContent = t2;
+        }
       }
     });
   }
@@ -2062,7 +2068,7 @@
     e ? TH.icon('enchanted_book', { size: 22, glint: true }) : TH.icon('enchanted_book', { size: 22 }),
     e ? h('span.hl-cb-val', h('b', enchLocal(e)), enchLocal(e) !== e.name ? h('small', e.name) : null) : h('span.hl-cb-val.is-empty', 'Choose an enchantment…'),
     h('i.hl-cb-caret', { 'aria-hidden': 'true' }));
-    pop.append(filter,
+    pop.append(
       h('div.hl-cb-cols', { 'aria-hidden': 'true' }, h('span'), h('span', 'Enchantment'), h('span', 'Status'), h('span', 'Best price')),
       listbox);
 
@@ -2074,6 +2080,7 @@
       if (ta.open && opts.length) filter.setAttribute('aria-activedescendant', 'hl-opt-' + ta.hi);
       else filter.removeAttribute('aria-activedescendant');
       pop.classList.toggle('is-open', ta.open);
+      if (trigger.parentElement) trigger.parentElement.classList.toggle('is-open', ta.open);
       listbox.replaceChildren(...(opts.length ? opts.map((o, i) => {
         const b = hl.books[o.e.id];
         const lvl = b ? b.level : o.e.maxLevel;
@@ -2136,7 +2143,7 @@
         h('button.x-btn.hl-check-close', { type: 'button', 'aria-label': 'Close (Esc)', onclick: closeCheck }, '✕')),
       h('div.hl-check-offer',
         h('span.hl-field-label', 'Enchantment'),
-        h('div.hl-cb', trigger, pop),
+        h('div.hl-cb', trigger, h('span.hl-cb-filter-ico', { 'aria-hidden': 'true' }, TH.icon('enchanted_book', { size: 22 })), filter, pop),
         needed.length ? h('div.hl-quick', { role: 'group', 'aria-label': 'Still needed — tap to pick' },
           needed.map((x) => h('button.hl-quick-chip' + (c.ench === x.id ? '.on' : ''), {
             type: 'button', 'aria-pressed': String(c.ench === x.id), onclick: () => pickOffer(x.id),

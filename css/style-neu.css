@@ -1064,3 +1064,7 @@
   --mk-flush: inset 4px 4px 8px -4px var(--neu-hi-in), inset -4px -4px 8px -4px var(--neu-lo-in);   /* T1 face shading, no hairline */
   --mk-cast: inset 10px 0 8px -8px var(--neu-lo);
 }
+
+/* one accent for every strip (no per-profession colour bars) */
+:root[data-neu] .hl-strip-trade, :root[data-neu] .hl-strip-next, :root[data-neu] .hl-strip-ro, :root[data-neu] .hl-card.hl-strip-trade.is-ro { --pc: transparent; }
+:root[data-neu] .hl-trade-ico { background: transparent; box-shadow: none; border: 0; }

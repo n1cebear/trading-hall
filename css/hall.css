@@ -746,7 +746,6 @@ button.hl-strip-main { cursor: pointer; }
 .hl-strips-2 .hl-card-head { min-height: 44px; }
 .hl-strips-2 .hl-card .hl-strip-main { padding-left: 8px; }
 .hl-strips-2 .hl-card .hl-copy .hl-idx { margin-left: 0; }
-.hl-strips-2 > li:has(.hl-card.is-multi) { grid-column: 1 / -1; }
 
 /* ============ Trades step: sell / buy sides (Oct 2026) ============ */
 .hl-sides { display: grid; grid-template-columns: minmax(0, 1fr); gap: 22px 28px; align-items: start; margin-top: 12px; }
@@ -767,3 +766,20 @@ button.hl-strip-main { cursor: pointer; }
 .hl-side-head { flex-wrap: nowrap; }
 .hl-side-head .hl-group-title { flex-direction: column; align-items: flex-start; gap: 1px; flex: 1; }
 .hl-side-head .hl-group-count { flex: none; }
+
+/* ---- Oct 2026 (2): one accent for all strips, plus next to the name, item-first trade icons, block progress ---- */
+.hl-strip, .hl-card, .hl-rev-prof, .hl-strip-next { --pc: transparent; }
+.hl-prof-dot::before { background: var(--faint); }
+.hl-card .hl-card-toggle { flex: 0 1 auto; }
+.hl-card .hl-strip-main { flex-wrap: nowrap; }
+.hl-card .hl-dup { flex: none; margin-left: 2px; }
+.hl-part { display: inline-grid; place-items: center; flex: none; }
+.hl-trade-ico { width: 46px; height: 46px; border: 0; background: transparent; box-shadow: none; }
+.hl-trade-ico .mc:not(.hl-trade-item .mc) { filter: drop-shadow(0 2px 0 rgb(0 0 0 / .35)); }
+.hl-trade-item { right: -2px; bottom: -2px; }
+.hl-card.is-ro .hl-trade-ico { width: 34px; height: 34px; }
+.hl-cube-wrap { position: relative; display: inline-grid; place-items: center; flex: none; width: 112px; height: 124px; }
+.hl-cube { width: 112px; height: 124px; image-rendering: pixelated; filter: drop-shadow(0 6px 10px color-mix(in srgb, var(--accent) 28%, transparent)); }
+.hl-cube-pct { position: absolute; left: 0; right: 0; top: 56%; text-align: center; font: 400 12px var(--display); color: #fff; text-shadow: 1px 1px 0 rgb(0 0 0 / .8), -1px 1px 0 rgb(0 0 0 / .8), 1px -1px 0 rgb(0 0 0 / .8), -1px -1px 0 rgb(0 0 0 / .8); }
+.hl-prog.is-done .hl-cube { animation: hl-cube-glow 2.4s ease-in-out infinite alternate; }
+.hl-col:has(.hl-side.has-detail) .hl-cube-wrap, .hl-col:has(.hl-side.has-detail) .hl-cube { width: 76px; height: 84px; }

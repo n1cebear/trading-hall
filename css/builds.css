@@ -47,3 +47,8 @@
 .bd-foot { margin-top: auto; padding-top: 8px; display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 12.5px; }
 .bd-status-ex { background: var(--accent-soft); color: var(--accent); vertical-align: middle; margin-left: 6px; }
 @media (max-width: 640px) { .bd-examples { grid-template-columns: minmax(0, 1fr); } }
+
+/* one accent per tool: dimension pills are neutral, not data colours */
+:root .dim-overworld, :root .dim-nether, :root .dim-end,
+:root[data-theme="light"] .dim-overworld, :root[data-theme="light"] .dim-nether, :root[data-theme="light"] .dim-end { color: var(--muted); }
+@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) :is(.dim-overworld, .dim-nether, .dim-end) { color: var(--muted); } }

@@ -735,13 +735,13 @@
     const key = o.key || 'ws';
     const row = (prof, n, sub, extra) => h('li.hl-ws-row', { title: wsName(prof) + ' ×' + n + (sub ? ': ' + sub : '') },
       TH.icon.prof(prof.id, { size: 20 }),
-      h('span.hl-ws-name', h('span', profName(prof)), sub ? h('small', sub) : null),
+      h('span.hl-ws-name', h('span', wsName(prof)), sub ? h('small', sub) : null),
       h('em.hl-ws-n', bumpNum(key + '-' + prof.id, n, '×')),
       extra || null);
     return h('ul.hl-ws-list',
-      t.stalls ? row(PROF.librarian, t.stalls, o.workstation ? wsName(PROF.librarian) : plural(books.length, 'book'),
+      t.stalls ? row(PROF.librarian, t.stalls, plural(books.length, 'book'),
         o.books === false ? null : h('span.hl-ws-books', books.map((b) => h('span', { title: enchLabel(b.e, b.level) }, bookChipText(b), b.n > 1 ? h('small', '×' + b.n) : null)))) : null,
-      tradeSummary(hall).map((r) => row(r.prof, r.target, o.workstation ? wsName(r.prof) : tradeShorts(hall, r.prof.id))));
+      tradeSummary(hall).map((r) => row(r.prof, r.target, tradeShorts(hall, r.prof.id) || profName(r.prof))));
   }
 
   /** Sticky right column: plain running total, the plan per workstation, and the floating Back / Next row. */
@@ -916,6 +916,7 @@
   /* ---- step 2: books (strips) ---- */
 
   /** The items an enchant category is for, shown once in the group head instead of a book icon on every strip. */
+  const PART_ICON = { helmet: 'diamond_helmet', chestplate: 'diamond_chestplate', leggings: 'diamond_leggings', boots: 'diamond_boots' };
   const CAT_ITEMS = {
     armor: ['diamond_helmet', 'diamond_chestplate', 'diamond_leggings', 'diamond_boots'], boots: ['diamond_boots'], helmet: ['diamond_helmet'],
     melee: ['diamond_sword', 'diamond_axe', 'diamond_spear'], mace: ['mace'], tools: ['diamond_pickaxe', 'diamond_shovel', 'diamond_axe', 'diamond_hoe'],
@@ -1040,6 +1041,7 @@
       oninput: (ev) => upd((x) => { const b = x.books[e.id]; const s = b && b.stalls.find((y) => y.id === st.id); if (s) s.label = ev.target.value; }, { silent: true }),
     });
 
+    const partKey = e.appliesTo && e.appliesTo.length === 1 ? PART_ICON[e.appliesTo[0]] : null;
     const toggle = h('button.hl-card-toggle', {
       type: 'button', 'aria-pressed': String(on), title: e.desc, 'data-focus': 'strip-' + e.id, 'aria-label': on ? `${local}, selected` : local,
       onclick: () => {
@@ -1049,6 +1051,7 @@
       },
     },
     h('span.hl-tick', { 'aria-hidden': 'true' }),
+    partKey ? h('span.hl-part', { title: e.appliesTo[0] + ' only' }, TH.icon(partKey, { size: 20 })) : null,
     h('span.hl-strip-text',
       h('span.hl-card-name', h('b', local), multi ? h('span.hl-count', { title: n + ' librarians' }, '×' + n) : null),
       (sub || e.treasure || (on && !multi && stalls[0].done)) ? h('small',
@@ -1064,7 +1067,7 @@
       },
     }) : null;
 
-    const rows = [cardRow('.hl-card-head', [toggle, on && !multi ? tag(stalls[0], 0) : null], multi ? null : tiers(0), add)];
+    const rows = [cardRow('.hl-card-head', [toggle, on && !multi ? tag(stalls[0], 0) : null, add], multi ? null : tiers(0), null)];
     if (multi) {
       stalls.forEach((st, i) => {
         const onDel = () => {
@@ -1144,8 +1147,8 @@
   function tradeIcons(prof, purpose, size) {
     const c = CATALOG.find((x) => x.prof === prof.id && x.purpose === purpose);
     return h('span.hl-trade-ico' + (c && c.item ? '.has-item' : ''), { 'aria-hidden': 'true' },
-      TH.icon.prof(prof.id, { size: size || 26 }),
-      c && c.item ? h('span.hl-trade-item', TH.icon(c.item, { size: 16 })) : null);
+      c && c.item ? TH.icon(c.item, { size: size || 34 }) : TH.icon.prof(prof.id, { size: size || 30 }),
+      c && c.item ? h('span.hl-trade-item', TH.icon.prof(prof.id, { size: 14 })) : null);
   }
 
   /** Remove copy i of a trade: later copies move up one, keeping their lock state, canvas spot and pin. */
@@ -1216,10 +1219,9 @@
       h('span.hl-card-name', h('b', c.purpose), multi ? h('span.hl-count', { title: n + ' villagers' }, '×' + n) : null),
       h('small', h('span.hl-prof-dot', profName(p)), h('span', on && t.note ? t.note : c.note))));
     return h('li.hl-card-item', { 'data-trade': on ? t.id : null },
-      h('div.hl-strip.hl-card.hl-strip-trade' + (on ? '.is-on' : '') + (multi ? '.is-multi' : ''), { style: '--pc:' + p.color },
-        cardRow('.hl-card-head', toggle,
-          on && !multi && tradeIsLocked(hall, t.id, 0) ? h('span.hl-ok.hl-have', 'in hall') : null,
-          on ? tradePlus(t, key, c.purpose) : null),
+      h('div.hl-strip.hl-card.hl-strip-trade' + (on ? '.is-on' : '') + (multi ? '.is-multi' : ''),
+        cardRow('.hl-card-head', [toggle, on ? tradePlus(t, key, c.purpose) : null],
+          on && !multi && tradeIsLocked(hall, t.id, 0) ? h('span.hl-ok.hl-have', 'in hall') : null, null),
         multi ? tradeCopies(t, key, c.purpose) : null));
   }
 
@@ -1230,7 +1232,7 @@
     const name = t.purpose || 'custom trade';
     const set = (fn, opts) => upd((x) => { const tr = x.trades.find((y) => y.id === t.id); if (tr) fn(tr, x); }, opts);
     return h('li.hl-card-item', { 'data-trade': t.id },
-      h('div.hl-strip.hl-card.hl-strip-trade.hl-strip-custom.is-on' + (n > 1 ? '.is-multi' : ''), { style: '--pc:' + p.color },
+      h('div.hl-strip.hl-card.hl-strip-trade.hl-strip-custom.is-on' + (n > 1 ? '.is-multi' : ''),
         cardRow('.hl-card-head.hl-custom-main', [
           TH.icon.prof(p.id, { size: 24, cls: 'hl-strip-icon' }),
           h('select.field', { 'aria-label': 'Profession', 'data-focus': 'cprof-' + t.id, onchange: (e) => set((tr) => { tr.prof = e.target.value; }) },
@@ -1268,8 +1270,8 @@
     // read-only cards (same look as the Books / Trades step cards, no controls)
     const tradeCard = (tr) => {
       const p = profOf(tr);
-      return h('li.hl-card-item', h('div.hl-strip.hl-card.hl-strip-trade.is-ro', { style: '--pc:' + p.color },
-        cardRow('.hl-card-head', [tradeIcons(p, tr.purpose, 22), h('span.hl-strip-text',
+      return h('li.hl-card-item', h('div.hl-strip.hl-card.hl-strip-trade.is-ro',
+        cardRow('.hl-card-head', [tradeIcons(p, tr.purpose, 26), h('span.hl-strip-text',
           h('span.hl-card-name', h('b', tr.purpose || profName(p)), tr.target > 1 ? h('span.hl-count', { title: tr.target + ' villagers' }, '×' + tr.target) : null),
           h('small', h('span.hl-prof-dot', profName(p)), tradeShort(tr) ? h('span', tradeShort(tr)) : null))])));
     };
@@ -1365,31 +1367,61 @@
   }
 
   /** Pixel isometric cube that fills bottom to top (stepped layers, like stacking blocks). */
+  /**
+   * Progress block: a pixel-textured emerald-style block drawn isometrically on a canvas (texture generated in code, no
+   * network). The empty part is a dark ghost of the block, the filled part is the textured block rising from the bottom.
+   */
+  const BLOCK_TEX = {};
+  function blockTexture(accent) {
+    if (BLOCK_TEX[accent]) return BLOCK_TEX[accent];
+    const c = document.createElement('canvas'); c.width = c.height = 16;
+    const x = c.getContext('2d');
+    const pal = ['#0b6e30', '#12913f', '#17b24d', '#26d062', '#5ff08f'];
+    let seed = 11; const rnd = () => { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; };
+    for (let j = 0; j < 16; j++) for (let i = 0; i < 16; i++) {
+      let k = 2 + Math.floor(rnd() * 2);
+      const diag = (i + j) % 8;
+      if (diag === 3 || diag === 4) k = Math.min(4, k + 1);          // soft diagonal sheen like the real block
+      if (i === 0 || j === 0) k = 4;                                   // lit rim (top-left)
+      if (i === 15 || j === 15) k = 0;                                 // shadow rim (bottom-right)
+      x.fillStyle = pal[k]; x.fillRect(i, j, 1, 1);
+    }
+    return (BLOCK_TEX[accent] = c);
+  }
+
   function progressCube(done, total) {
     const pct = total ? Math.round((done / total) * 100) : 0;
-    const NS = 'http://www.w3.org/2000/svg', STEPS = 8, HH = 30; // true isometric: vertical edge = slanted edge length (30)
-    const el = (n, a) => { const e = document.createElementNS(NS, n); for (const k in a) e.setAttribute(k, a[k]); return e; };
-    const lvl = total ? Math.round((done / total) * STEPS) : 0;
-    const d = HH * (1 - lvl / STEPS);
-    const svg = el('svg', { viewBox: '0 0 64 68', width: 104, height: 110, class: 'hl-cube', preserveAspectRatio: 'xMidYMid meet', role: 'img', 'aria-label': pct + '% locked in', focusable: 'false' });
-    const poly = (cls, pts) => svg.append(el('polygon', { class: cls, points: pts.map((q) => q.join(',')).join(' '), 'shape-rendering': 'crispEdges' }));
-    poly('hl-cube-l', [[6, 19], [32, 34], [32, 64], [6, 49]]);
-    poly('hl-cube-r', [[32, 34], [58, 19], [58, 49], [32, 64]]);
-    poly('hl-cube-t', [[32, 4], [58, 19], [32, 34], [6, 19]]);
+    const STEPS = 8, lvl = total ? Math.round((done / total) * STEPS) : 0;
+    const W = 112, H = 124, k = 3.5;                                   // k = screen px per texture px
+    const dpr = 2;
+    const cv = document.createElement('canvas');
+    cv.width = W * dpr; cv.height = H * dpr; cv.className = 'hl-cube'; cv.setAttribute('role', 'img'); cv.setAttribute('aria-label', pct + '% locked in');
+    const ctx = cv.getContext('2d');
+    ctx.imageSmoothingEnabled = false;
+    const tex = blockTexture('emerald');
+    const ox = W / 2, oy = 8, hh = 16 * k;                              // top corner, vertical edge length
+    const top = (dy) => ctx.setTransform(dpr * k, dpr * k * 0.5, -dpr * k, dpr * k * 0.5, dpr * ox, dpr * (oy + dy));
+    const left = (dy) => ctx.setTransform(dpr * k, dpr * k * 0.5, 0, dpr * k, dpr * (ox - 16 * k), dpr * (oy + 8 * k + dy));
+    const right = (dy) => ctx.setTransform(dpr * k, -dpr * k * 0.5, 0, dpr * k, dpr * ox, dpr * (oy + 16 * k + dy));
+    const face = (set, dy, shade, alpha, clipPts) => {
+      ctx.save();
+      if (clipPts) { ctx.beginPath(); clipPts.forEach(([px, py], i) => (i ? ctx.lineTo(px * dpr, py * dpr) : ctx.moveTo(px * dpr, py * dpr))); ctx.closePath(); ctx.clip(); }
+      set(dy); ctx.globalAlpha = alpha; ctx.drawImage(tex, 0, 0);
+      if (shade) { ctx.fillStyle = 'rgba(0,0,0,' + shade + ')'; ctx.fillRect(0, 0, 16, 16); }
+      ctx.restore();
+    };
+    // ghost block (empty part): the same texture, flat and dark
+    ctx.save(); ctx.filter = 'grayscale(1) brightness(.35)';
+    face(left, 0, 0.12, 0.55); face(right, 0, 0.3, 0.55); face(top, 0, 0, 0.7);
+    ctx.restore();
     if (lvl > 0) {
-      poly('hl-cube-fl', [[6, 19 + d], [32, 34 + d], [32, 64], [6, 49]]);
-      poly('hl-cube-fr', [[32, 34 + d], [58, 19 + d], [58, 49], [32, 64]]);
-      poly('hl-cube-ft', [[32, 4 + d], [58, 19 + d], [32, 34 + d], [6, 19 + d]]);
-      for (let i = 1; i < lvl; i++) { // layer seams
-        const y = 64 - i * (HH / STEPS);
-        svg.append(el('path', { class: 'hl-cube-seam', d: `M6 ${y - 15}L32 ${y}L58 ${y - 15}`, 'shape-rendering': 'crispEdges' }));
-      }
+      const d = hh * (1 - lvl / STEPS);                                 // how far the surface sits below the top
+      const L = [[ox - 16 * k, oy + 8 * k + d], [ox, oy + 16 * k + d], [ox, oy + 32 * k], [ox - 16 * k, oy + 24 * k]];
+      const R = [[ox, oy + 16 * k + d], [ox + 16 * k, oy + 8 * k + d], [ox + 16 * k, oy + 24 * k], [ox, oy + 32 * k]];
+      face(left, 0, 0.12, 1, L); face(right, 0, 0.3, 1, R); face(top, d, 0, 1);
     }
-    svg.append(el('path', { class: 'hl-cube-edge', d: 'M32 4L58 19V49L32 64L6 49V19Z M6 19L32 34L58 19 M32 34V64', fill: 'none' }));
-    const txt = el('text', { class: 'hl-cube-pct', x: 32, y: 45, 'text-anchor': 'middle' });
-    txt.textContent = pct + '%';
-    svg.append(txt);
-    return svg;
+    const txt = h('span.hl-cube-pct', pct + '%');
+    return h('span.hl-cube-wrap', cv, txt);
   }
 
   /** Right column, top: overall progress as a cube + the two main actions. */
@@ -1852,11 +1884,10 @@
       h('h4', title, h('span.hl-badge.is-static', n)),
       n ? h('ul.hl-strips.hl-strips-flat', items) : h('p.hl-done-line', '✓ ', empty));
 
-    const row = (v, sub, action, onMain, title) => h('li.hl-strip.hl-strip-next' + (v.pos ? '' : '.is-unplaced'),
+    const row = (v, sub, action, onMain, title) => h('li.hl-strip.hl-strip-next',
       h('button.hl-strip-main', { type: 'button', onclick: onMain, title, 'data-focus': 'next-' + v.key },
-        h('span.hl-pos', v.pos ? posLabel(v.pos) : '–'),
         TH.icon('enchanted_book', { size: 20, cls: 'hl-strip-icon' }),
-        h('span.hl-strip-text', h('span.hl-strip-title', stallTitle(v)), h('small', sub))),
+        h('span.hl-strip-text', h('span.hl-strip-title', stallTitle(v)), sub && sub.length ? h('small', sub) : null)),
       action);
     const sortCtl = h('div.hl-sort',
       h('span.hl-field-label', { id: 'hl-sort-label' }, 'Sort'),
@@ -1870,7 +1901,7 @@
       h('div.hl-next-head', h('h3', 'Next up'), h('p.hl-hint', 'What’s left to do. Tap a row to find it on the canvas and open its details.')),
       sortCtl,
       group('Still needed', needed.length, needed.map((v) => row(v,
-        [v.book.stalls.length > 1 ? `${v.idx + 1} of ${v.book.stalls.length} · ` : '', 'perfect', cost(minPrice(v.ench, v.lv))],
+        [v.book.stalls.length > 1 ? `${v.idx + 1} of ${v.book.stalls.length}` : ''].filter(Boolean),
         null, () => selectCell(v.key), 'Open details')),
         'All librarians locked in'),
       improve.length || noPrice.length ? group('Could improve', improve.length + noPrice.length,
@@ -1879,7 +1910,7 @@
           null, () => selectCell(v.key), 'Open details')).concat(
           noPrice.map((v) => row(v, 'No price logged — tap to add it', null, () => selectCell(v.key), 'Log the price'))),
         '') : null,
-      group('Villagers to get', toGet.reduce((a, t) => a + t.target - haveOf(hall, t), 0), toGet.map((t) => h('li.hl-strip.hl-strip-next', { style: '--pc:' + profOf(t).color },
+      group('Villagers to get', toGet.reduce((a, t) => a + t.target - haveOf(hall, t), 0), toGet.map((t) => h('li.hl-strip.hl-strip-next',
         h('div.hl-strip-main',
           TH.icon.prof(profOf(t).id, { size: 20, cls: 'hl-strip-icon' }),
           h('span.hl-strip-text', h('b', profName(profOf(t)), tradeShort(t) ? ' · ' + tradeShort(t) : ''), h('small', t.purpose ? t.purpose + ' · ' : '', h('b', haveOf(hall, t)), ' / ', t.target))),
@@ -1892,7 +1923,7 @@
         h('h4', 'Workstations to place'),
         h('ul.hl-strips.hl-strips-flat', profs.map((r) => {
           const left = r.target - r.have;
-          return h('li.hl-strip.hl-strip-ro.hl-strip-next', { style: '--pc:' + r.prof.color },
+          return h('li.hl-strip.hl-strip-ro.hl-strip-next',
             h('span.hl-strip-main',
               TH.icon.prof(r.prof.id, { size: 20, cls: 'hl-strip-icon' }),
               h('span.hl-strip-text', h('b', wsName(r.prof)), h('small', profName(r.prof)))),

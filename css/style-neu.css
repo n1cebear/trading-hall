@@ -1244,3 +1244,21 @@
   :root[data-style="soft"] .nav-item.active, :root[data-neu] .nav-item.active { box-shadow: var(--neu-sel-inset-sm); }
 }
 :root[data-neu] .topbar::before { box-shadow: 0 14px 26px -16px var(--neu-lo); }
+
+/* more air between separate keys: gaps in grids and rows are about doubled (joined groups like .seg stay tight on purpose) */
+.lvl-chips { gap: 4px; }
+.hl-card .lvl-chips, .hl-vcol .lvl-chips { gap: 6px; }
+.ec-matkeys { gap: 12px; }
+.ec-slots.tools, .ec-slots.other, .ec-slots.armor { gap: 20px; }
+.ec-lo-list { gap: 16px; }
+.hl-quick { gap: 16px; }
+.hl-strips-2 { gap: 12px 20px; }
+.hl-preset-grid { gap: 24px; }
+.hl-row-btns { gap: 12px; }
+.tr-armors { gap: 14px; grid-template-columns: repeat(4, 56px); }
+.tr-tiles { gap: 12px; }
+.tr-pr-pcs { gap: 12px; }
+.tr-slots { --tr-slot-gap: 12px; }
+.tr-rnd { gap: 14px; }
+.tr-vgrp { gap: 10px; }
+.tr-zoom { gap: 8px; }

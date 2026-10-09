@@ -398,3 +398,6 @@
 /* keys in the preview frame: exactly the normal keys; only in the dark neumorphic styles they get a little extra light (the frame is dark) */
 :root[data-neu][data-theme="dark"] .tr-frametools .btn { box-shadow: var(--neu-raised-xs), -2px -2px 6px rgb(255 255 255 / .05); }
 @media (prefers-color-scheme: dark) { :root[data-neu]:not([data-theme="light"]) .tr-frametools .btn { box-shadow: var(--neu-raised-xs), -2px -2px 6px rgb(255 255 255 / .05); } }
+
+/* zoom + reset inside the frame: a bigger margin to the frame edge, airier between the keys */
+.tr-frametools { top: 18px; right: 18px; gap: 12px; }

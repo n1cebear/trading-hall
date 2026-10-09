@@ -524,7 +524,7 @@ TH.anvil = (function () {
     const box = (key, label, body) => h('section.panel.ec-card.ec-picker.ec-pick-' + key, { 'aria-labelledby': 'ec-lbl-' + key },
       h('h3.ec-pick-label', { id: 'ec-lbl-' + key }, label), body);
     return [
-      h('div.ec-toprow', renderModeSwitch(s, true), box('mat', 'Material',
+      h('div.ec-toprow', renderModeCards(s), box('mat', 'Material',
         h('div.ec-matkeys', { role: 'radiogroup', 'aria-labelledby': 'ec-lbl-mat' }, MATS.map((m) => {
           const on = s.material === m;
           const nm = matName(m);
@@ -1035,6 +1035,18 @@ TH.anvil = (function () {
 
   /* ---------- planner: view ---------- */
 
+  /** Single item / My plan as two big mode cards: icon, name, one line of status; the active one is a solid accent card. */
+  function renderModeCards(s, row) {
+    const total = s.plan.length, done = s.plan.filter((x) => x.done).length;
+    const card = (mode, label, sub, icon, disabled, tip) => h('button.btn.ec-modecard' + (s.mode === mode ? '.on' : ''), {
+      type: 'button', 'aria-pressed': String(s.mode === mode), 'data-focus': 'ec-mode-' + mode, disabled, title: tip || null,
+      onclick: () => set((e) => { e.mode = mode; }),
+    }, h('span.ec-modecard-ico', TH.icon(icon, { size: 32 }), mode === 'plan' && total ? h('b.ec-modecard-n', total) : null), h('span.ec-modecard-t', label), h('span.ec-modecard-s', sub));
+    return h('div.ec-modecards' + (row ? '.is-row' : ''), { role: 'group', 'aria-label': 'Enchanting view' },
+      card('single', 'Single item', 'One item at a time', 'enchanted_book', false),
+      card('plan', 'My plan', total ? done + ' of ' + total + ' done' : 'Nothing added yet', 'item/writable_book', total === 0 && s.mode !== 'plan', total === 0 ? 'Add an item to your plan first' : null));
+  }
+
   function renderModeSwitch(s, vertical) {
     const n = s.plan.filter((x) => !x.done).length;
     const total = s.plan.length;
@@ -1173,7 +1185,7 @@ TH.anvil = (function () {
 
   function renderPlanView(state, s) {
     if (!s.plan.length) {
-      return [h('div.ec-mode-row', renderModeSwitch(s)), h('section.panel.ec-pv-empty',
+      return [h('div.ec-mode-row', renderModeCards(s, true)), h('section.panel.ec-pv-empty',
         h('div.empty',
           h('div.empty-icon', { 'aria-hidden': 'true' }, TH.icon('item/writable_book', { size: 44 })),
           h('h3', 'Your plan is empty'),
@@ -1281,7 +1293,7 @@ TH.anvil = (function () {
     return [
       toolbar,
       h('div.ec-pv',
-        h('div.ec-mode-row', renderModeSwitch(s)),
+        h('div.ec-mode-row', renderModeCards(s, true)),
         h('div.ec-pv-side', costs, bookBox, matBox),
         h('section.ec-pv-main', { 'aria-label': 'Anvil to-do checklist' },
           h('div.ec-section-head', h('h3.section-title', 'Anvil to-do'),

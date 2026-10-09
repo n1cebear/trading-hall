@@ -778,3 +778,30 @@
 :root:root:root .ec-picker .ec-item .ec-item-ico { width: 32px; height: 32px; }
 :root:root:root .ec-picker .ec-item .ec-item-ico .mc { --mc: 32px !important; }
 :root:root:root .ec-picker .ec-item .ec-item-name > span { font-size: 9.5px; }
+
+/* ===== Single item / My plan: two big mode cards ===== */
+.ec-toprow { grid-template-columns: 176px minmax(0, 1fr); }
+.ec-modecards { display: grid; grid-template-rows: 1fr 1fr; gap: 16px; align-self: stretch; }
+.ec-modecards.is-row { grid-template-rows: none; grid-template-columns: repeat(2, minmax(0, 220px)); justify-content: center; }
+:root:root .ec-modecard {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 12px 10px; min-height: 84px; height: auto; text-align: center;
+  background: var(--neu-grad, var(--panel-2)); color: var(--muted); border: 0;
+  box-shadow: var(--neu-raised-sm, 0 2px 0 var(--edge-lo, rgb(0 0 0 / .3)));
+}
+:root:root .ec-modecard:hover:not(:disabled):not(.on) { color: var(--text); box-shadow: var(--neu-t2-hover, 0 3px 0 var(--edge-lo, rgb(0 0 0 / .3))); }
+.ec-modecard-ico { position: relative; display: grid; place-items: center; height: 36px; }
+.ec-modecard-n { position: absolute; top: -4px; right: -14px; min-width: 18px; padding: 2px 4px; border-radius: 4px; font: 600 10px/1 var(--mono); background: var(--accent); color: var(--on-accent, #0b0b10); text-align: center; }
+.ec-modecard-t { font: 400 13px/1.1 var(--display); letter-spacing: .3px; }
+.ec-modecard-s { font: 500 11px/1.2 var(--font); opacity: .85; }
+:root:root .ec-modecard.on { background: var(--accent); color: var(--on-accent, #0b0b10); box-shadow: inset 3px 3px 8px rgb(0 0 0 / .32), 0 0 18px -4px color-mix(in srgb, var(--accent) 60%, transparent); }
+:root:root .ec-modecard.on .ec-modecard-n { background: var(--on-accent, #0b0b10); color: var(--accent); }
+:root:root .ec-modecard.on .ec-modecard-s { opacity: .8; }
+:root:root .ec-modecard:disabled { opacity: .45; cursor: not-allowed; }
+@media (max-width: 760px) { .ec-toprow { grid-template-columns: minmax(0, 1fr); } .ec-modecards { grid-template-rows: none; grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* middle ground for the gaps between keys in this tab */
+:root:root:root .ec-slots.armor, :root:root:root .ec-slots.tools, :root:root:root .ec-slots.other { gap: 20px 18px; }
+.ec-matkeys { gap: 14px; }
+.ec-lo-list { gap: 14px; }
+:root:root .ec-modecard.on, :root:root .ec-modecard.on .ec-modecard-t, :root:root .ec-modecard.on .ec-modecard-s { color: var(--on-accent, #0b0b10) !important; }
+:root:root .ec-modecard.on { background: var(--accent) !important; }

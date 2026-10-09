@@ -868,3 +868,34 @@ button.hl-strip-main { cursor: pointer; }
 
 /* workbench badges: no rounding */
 .hl-trade-item, .hl-trade-ico { border-radius: 2px !important; }
+
+/* ---- Villagers step: books left, other villagers right ---- */
+.hl-combo-wrap { container: hl-combo / inline-size; }
+.hl-combo { display: grid; grid-template-columns: minmax(0, 1fr); gap: 28px; align-items: start; }
+@container hl-combo (min-width: 900px) { .hl-combo { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 32px; } }
+.hl-combo-col { min-width: 0; }
+.hl-combo .hl-books-hint { display: none; }
+
+/* ---- Presets: tiles ---- */
+.hl-preset-grid { list-style: none; margin: 0 0 22px; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 16px; align-items: stretch; }
+.hl-preset-grid > .hl-preset-item { display: flex; min-width: 0; }
+.hl-preset-grid .hl-preset { flex: 1; display: grid; grid-template-columns: 44px minmax(0, 1fr) 20px; grid-template-areas: "icon main check" "meta meta meta"; align-items: start; row-gap: 12px; padding: 14px 16px; min-height: 0; height: 100%; text-align: left; }
+.hl-preset-grid .hl-preset-icon { grid-area: icon; }
+.hl-preset-grid .hl-preset-main { grid-area: main; }
+.hl-preset-grid .hl-preset-check { grid-area: check; }
+.hl-preset-grid .hl-preset-meta { grid-area: meta; display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.hl-preset-grid .hl-preset-counts { flex-direction: row; gap: 14px; }
+.hl-preset-grid .hl-preset-desc, .hl-preset-grid .hl-preset-books { white-space: normal; overflow: visible; }
+.hl-preset-grid .hl-preset-books { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.hl-preset-grid .is-reco { grid-column: span 2; }
+.hl-preset-grid .is-reco .hl-preset { border-top: 3px solid var(--accent); padding-top: 16px; }
+.hl-preset-grid .is-reco .hl-preset-name { font-size: 17px; }
+@media (max-width: 640px) { .hl-preset-grid .is-reco { grid-column: auto; } }
+/* "Create your own": an open tile, not a preset */
+.hl-own { min-width: 0; display: flex; }
+.hl-own-btn { flex: 1; display: flex; align-items: center; gap: 14px; padding: 16px; text-align: left; color: var(--muted); cursor: pointer; background: transparent; border: 2px dashed color-mix(in srgb, var(--muted) 40%, transparent); border-radius: var(--radius, 8px); box-shadow: none; transition: color .15s, border-color .15s; }
+.hl-own-btn:hover { color: var(--text); border-color: var(--accent); }
+.hl-own-btn.is-on { color: var(--text); border-style: solid; border-color: var(--accent); }
+.hl-own-plus { display: grid; place-items: center; flex: none; width: 44px; height: 44px; font: 400 26px var(--display); color: var(--accent); border: 2px dashed color-mix(in srgb, var(--accent) 55%, transparent); border-radius: var(--radius, 8px); }
+.hl-own-text { display: flex; flex-direction: column; gap: 4px; min-width: 0; font-size: 12.5px; }
+.hl-own-text b { font: 400 15px var(--display); color: var(--text); }

@@ -129,8 +129,7 @@
 
   const STEPS = [
     { t: 'Start', d: 'Pick a preset, or start from scratch' },
-    { t: 'Books', d: 'Choose librarian enchants' },
-    { t: 'Trades', d: 'Add other traders' },
+    { t: 'Villagers', d: 'Librarian books and other traders' },
     { t: 'Review', d: 'Final check & Finish' },
   ];
 
@@ -660,7 +659,7 @@
   function renderWizard(root, state) {
     const hall = state.hall;
     const step = clamp(hall.step || 0, 0, STEPS.length - 1);
-    const body = [stepStart, stepBooks, stepTrades, stepReview][step](state);
+    const body = [stepStart, stepVillagers, stepReview][step](state);
 
     root.append(
       h('div.page-head.hl-wiz-head',
@@ -784,7 +783,7 @@
     const step = clamp(state.hall.step || 0, 0, STEPS.length - 1);
     const y = window.scrollY;
     justAdded = o.added || null;
-    try { body.replaceChildren([stepStart, stepBooks, stepTrades, stepReview][step](state)); } finally { justAdded = null; }
+    try { body.replaceChildren([stepStart, stepVillagers, stepReview][step](state)); } finally { justAdded = null; }
     const sy = side.scrollTop, ns = wizardSide(state.hall, step);
     ns.style.maxHeight = side.style.maxHeight;
     side.replaceWith(ns);
@@ -870,7 +869,7 @@
     const strip = (o) => {
       const s = o.sum;
       const profs = s ? s.profs.slice(0, 5) : [];
-      return h('li.hl-preset-item',
+      return h('li.hl-preset-item' + (o.tileCls || ''),
         h('button.hl-preset' + (o.on ? '.is-on' : '') + (s ? '' : '.is-slim'), {
           type: 'button', 'aria-pressed': String(!!o.on), 'data-focus': 'preset-' + o.key, onclick: o.onPick,
         },
@@ -896,20 +895,23 @@
       key: p.id, title: p.name, desc: p.desc, icon, sum: sumOfPreset(p), on: !!match && match.id === p.id, onPick: () => pick(p),
     }, extra));
 
+    const own = h('li.hl-preset-item.hl-own', h('button.hl-own-btn' + (match && match.id === 'empty' ? '.is-on' : ''), {
+      type: 'button', 'aria-pressed': String(!!match && match.id === 'empty'), 'data-focus': 'preset-empty', onclick: () => pick(blank),
+    }, h('span.hl-own-plus', { 'aria-hidden': 'true' }, '+'), h('span.hl-own-text', h('b', 'Create your own'), h('span', 'Start empty and pick every book and villager yourself'))));
+
     return h('div.hl-presets',
-      h('h3.section-title.hl-sec-title', 'Presets'),
-      h('ul.hl-preset-list',
+      isCustomPlan || showPrev ? h('ul.hl-preset-grid.hl-preset-current',
         isCustomPlan ? strip({ key: 'current', title: 'Current plan', desc: 'Your own plan, as you left it. Press Next to edit it.', icon: ico('item/writable_book'), sum: sumOfPlan(hall), on: true, onPick: () => {} }) : null,
-        showPrev ? strip({ key: 'previous', title: 'Previous plan', desc: 'Your plan before you picked a preset. Pick it to switch back.', icon: ico('item/writable_book'), sum: sumOfPlan(prevPlan.plan), onPick: restore }) : null,
-        builtIn.map((p) => presetStrip(p, ico(icons[p.id] || 'item/chest_minecart'), { reco: p.id === 'blueprint' }))),
+        showPrev ? strip({ key: 'previous', title: 'Previous plan', desc: 'Your plan before you picked a preset. Pick it to switch back.', icon: ico('item/writable_book'), sum: sumOfPlan(prevPlan.plan), onPick: restore }) : null) : null,
+      h('h3.section-title.hl-sec-title', 'Start here'),
+      h('ul.hl-preset-grid', own,
+        builtIn.slice().sort((a, b) => (b.id === 'blueprint') - (a.id === 'blueprint')).map((p) => presetStrip(p, ico(icons[p.id] || 'item/chest_minecart'), { reco: p.id === 'blueprint', tileCls: p.id === 'blueprint' ? '.is-reco' : '' }))),
       custom.length ? [
         h('h3.section-title.hl-sec-title', 'Your presets'),
-        h('ul.hl-preset-list', custom.map((p) => presetStrip(p, ico('item/writable_book'), {
-          del: () => { if (confirm(`Delete preset “${p.name}”?`)) TH.store.update((s) => { s.customPresets = s.customPresets.filter((x) => x.id !== p.id); }); },
+        h('ul.hl-preset-grid', custom.map((p) => presetStrip(p, ico('item/writable_book'), {
+          del: () => { if (confirm(`Delete preset “${p.name}”?`)) TH.store.update((st) => { st.customPresets = st.customPresets.filter((x) => x.id !== p.id); }); },
         }))),
       ] : null,
-      h('ul.hl-preset-list.hl-preset-scratch',
-        strip({ key: 'empty', title: 'Start from scratch', desc: 'An empty plan: pick every book and villager yourself.', icon: ico('book'), on: !!match && match.id === 'empty', onPick: () => pick(blank) })),
     );
   }
 
@@ -1143,6 +1145,13 @@
     { id: 'buy', title: 'Buy from villagers', hint: 'Spend emeralds on what you need', from: 'item/emerald', to: 'item/diamond_chestplate' },
   ];
 
+  /** Books (left) and other villagers (right) in one step; stacked when the step is narrow. */
+  function stepVillagers(state) {
+    return h('div.hl-combo-wrap', h('div.hl-combo',
+      h('section.hl-combo-col.hl-combo-books', { 'aria-label': 'Librarian books' }, h('h3.section-title.hl-sec-title', 'Librarians and books'), stepBooks(state)),
+      h('section.hl-combo-col.hl-combo-trades', { 'aria-label': 'Other villagers' }, h('h3.section-title.hl-sec-title', 'Other villagers'), stepTrades(state))));
+  }
+
   function stepTrades(state) {
     const hall = state.hall;
     const catalogKeys = new Set(CATALOG.map((c) => c.prof + '|' + c.purpose));
@@ -1356,7 +1365,7 @@
         books.length ? h('div.hl-groups.hl-groups-stack', bookGroups) : h('p.muted', 'No books selected.')),
       h('section.panel.hl-review-card',
         h('div.hl-review-head', h('h3.section-title', `Other villagers (${t.trades})`), h('span.spacer'),
-          h('button.btn.ghost.small', { type: 'button', onclick: () => goStep(2) }, 'Edit')),
+          h('button.btn.ghost.small', { type: 'button', onclick: () => goStep(1) }, 'Edit')),
         hall.trades.length ? h('div.hl-groups', h('div.hl-sides', SIDES.map(sideBlock))) : h('p.muted', 'No other villagers.')),
       h('section.panel.hl-review-card.hl-review-actions',
         h('div', h('b', 'Happy with it?'), h('p.muted', 'Save it as a preset to reuse in another world, then press Finish → Hall to open your hall and arrange it.')),
@@ -2284,6 +2293,7 @@
       hall.archive = hall.archive || {};
       if (!Array.isArray(s.customPresets)) s.customPresets = [];
       migrate(s);
+      if (!hall.stepsV2) { hall.stepsV2 = true; if (hall.step >= 2) hall.step -= 1; }
       migrateTradeLocks(hall);
       if (hall.setupDone) placeNew(hall);
       store.update(() => {}, { silent: true }); // persist migration / defaults

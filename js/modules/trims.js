@@ -1697,10 +1697,9 @@
   function randomBar() {
     return h('div.tr-rnd', { role: 'group', 'aria-label': 'Randomise' },
       h('span.tr-rnd-ico', { 'aria-hidden': 'true' }, glyph('dice')),
-      h('div.seg.tr-rnd-seg',
-        h('button.tr-surprise', { type: 'button', 'data-focus': 'tr-rnd-all', title: 'Random armor, pattern and trim material · Shift-click: every piece different', onclick: (e) => surprise(e.shiftKey) }, 'Surprise me'),
-        h('button', { type: 'button', 'data-focus': 'tr-rnd-pattern', title: 'Random pattern on every piece (keeps the material and armor)', onclick: randomPattern }, 'Pattern'),
-        h('button', { type: 'button', 'data-focus': 'tr-rnd-material', title: 'Random trim material (keeps the patterns and armor)', onclick: randomMaterial }, 'Material')));
+      h('button.btn.small.tr-surprise', { type: 'button', 'data-focus': 'tr-rnd-all', title: 'Random armor, pattern and trim material · Shift-click: every piece different', onclick: (e) => surprise(e.shiftKey) }, 'Surprise me'),
+      h('button.btn.small', { type: 'button', 'data-focus': 'tr-rnd-pattern', title: 'Random pattern on every piece (keeps the material and armor)', onclick: randomPattern }, 'Pattern'),
+      h('button.btn.small', { type: 'button', 'data-focus': 'tr-rnd-material', title: 'Random trim material (keeps the patterns and armor)', onclick: randomMaterial }, 'Material'));
   }
 
   function mount(st) {

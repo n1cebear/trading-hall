@@ -1212,3 +1212,19 @@
 :root[data-style="soft"][data-neu] :is(.lvl-chips button, .step, .x-btn, .swatch, .hl-quick-chip, .hl-badge, .check span, .hl-tick, .ec-want) { border-radius: 4px !important; }
 :root[data-style="soft"][data-neu]:not([data-theme="light"]) { --neu-lo: #101017; --neu-hi: #2d2d3b; --neu-lo-dark: #0a0a10; }
 @media (prefers-color-scheme: light) { :root[data-style="soft"][data-neu]:not([data-theme="dark"]) { --neu-lo: #c2b8a2; --neu-hi: #fff8db; --neu-lo-dark: #a69c85; } }
+
+/* Soft v4: a sharper light falloff (smaller blur), so shadows end well inside the gaps and scroll areas */
+:root[data-style="soft"][data-neu] {
+  --neu-t1:        10px 10px 26px var(--neu-lo), -10px -10px 26px var(--neu-hi);
+  --neu-raised:    10px 10px 26px var(--neu-lo), -10px -10px 26px var(--neu-hi);
+  --neu-raised-sm: 5px 5px 12px var(--neu-lo), -5px -5px 12px var(--neu-hi);
+  --neu-raised-xs: 3px 3px 7px var(--neu-lo), -3px -3px 7px var(--neu-hi);
+  --neu-raised-2xs: 2px 2px 4px var(--neu-lo), -2px -2px 4px var(--neu-hi);
+  --neu-t2-hover:  6px 6px 15px var(--neu-lo), -6px -6px 15px var(--neu-hi);
+  --neu-inset:      inset 8px 8px 18px var(--neu-lo), inset -8px -8px 18px var(--neu-hi);
+  --neu-inset-deep: inset 7px 7px 15px var(--neu-lo), inset -7px -7px 15px var(--neu-hi);
+  --neu-inset-sm:   inset 4px 4px 10px var(--neu-lo), inset -4px -4px 10px var(--neu-hi);
+  --neu-inset-xs:   inset 3px 3px 7px var(--neu-lo), inset -3px -3px 7px var(--neu-hi);
+  --neu-inset-2xs:  inset 2px 2px 4px var(--neu-lo), inset -2px -2px 4px var(--neu-hi);
+}
+:root[data-style="soft"][data-neu] .ec-side .panel { box-shadow: 8px 8px 20px var(--neu-lo), -8px -8px 20px var(--neu-hi); }

@@ -1034,6 +1034,7 @@ TH.anvil = (function () {
     const total = s.plan.length;
     const btn = (mode, label, icon, extra) => h('button' + (s.mode === mode ? '.on' : ''), {
       type: 'button', 'aria-pressed': String(s.mode === mode), 'data-focus': 'ec-mode-' + mode,
+      disabled: mode === 'plan' && total === 0 && s.mode !== 'plan', title: mode === 'plan' && total === 0 ? 'Add an item to your plan first' : null,
       onclick: () => set((e) => { e.mode = mode; }),
     }, TH.icon(icon, { size: 16 }), h('span', label), extra);
     return h('div.seg.ec-mode' + (vertical ? '.is-vertical' : ''), { role: 'group', 'aria-label': 'Enchanting view' },

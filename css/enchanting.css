@@ -736,3 +736,5 @@
 .ec-slots.armor .ec-item { grid-template-columns: 32px auto; min-height: 52px; }
 .ec-picker .ec-item .ec-item-name > span { font-size: 10px; }
 @media (max-width: 760px) { .ec-slots.tools { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+
+.ec-mode button:disabled { opacity: .4; cursor: not-allowed; }

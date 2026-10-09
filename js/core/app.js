@@ -298,21 +298,8 @@ TH.app = (function () {
     setTimeout(() => el.classList.remove('th-switching'), 350);
   }
 
-  /** Page size: 90% by default (the page reads better a notch smaller); the ⋯ menu switches to 100%. */
-  function applyZoom() {
-    const raw = TH.store.get().settings.zoom, z = raw == null ? 0.9 : Number(raw);   // never chosen = 90%
-    document.documentElement.style.zoom = z > 0 && z < 1 ? String(z) : '';
-    document.querySelectorAll('#zoomSeg [data-zoom-key]').forEach((b) => {
-      const on = Number(b.dataset.zoomKey) === (z > 0 && z < 1 ? z : 1);
-      b.classList.toggle('on', on); b.setAttribute('aria-checked', String(on));
-    });
-  }
-  function initZoomSeg() {
-    document.querySelectorAll('#zoomSeg [data-zoom-key]').forEach((b) => b.addEventListener('click', () => {
-      TH.store.update((st) => { st.settings.zoom = Number(b.dataset.zoomKey); }, { silent: true });
-      applyZoom(); fitNav(); window.dispatchEvent(new Event('resize'));
-    }));
-  }
+  /** The whole page runs at the sizing of a 90% browser zoom (a notch smaller reads better). No switch: it is just the default size. */
+  const applyZoom = () => { document.documentElement.style.zoom = '0.9'; };
 
   function applyTheme() {
     const t = TH.store.get().settings.theme;
@@ -427,7 +414,7 @@ TH.app = (function () {
     });
     initMenu();
     initStyleSeg();
-    applyZoom(); initZoomSeg();
+    applyZoom();
     initLang();
     initSaveState();
     initOffline();

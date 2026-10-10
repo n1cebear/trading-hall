@@ -1033,3 +1033,17 @@
 .ec-chiprow { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }
 .ec-plan > .ec-pv-tools { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin: 8px 16px 0; }
 @media (max-width: 700px) { :root:root .ec-pv-costs .ec-xpbox { grid-template-columns: minmax(0, 1fr); } .ec-pv-costs .ec-total-num { grid-row: auto; } }
+
+/* ===== Oct 2026 (8): PROGRESS panel details, panel title rows, steadier preview ===== */
+:root:root:root .ec-pv-costs .ec-xpbox { border: 0; }
+.ec-xp-cap { grid-column: 2; align-self: start; font-size: 12px; color: var(--muted); margin-top: -4px; }
+.ec-xp-cap b { font: 400 13px/1 var(--mono); color: var(--text); }
+.ec-pv-costs .ec-xpbox { grid-template-rows: auto auto; }
+.ec-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 14px 20px; }
+.ec-stat { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.ec-stat b { font: 400 22px/1 var(--mono); color: var(--text); font-variant-numeric: tabular-nums; }
+.ec-stat span { font-size: 12px; color: var(--muted); }
+.ec-plan > .ec-pv-tools { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 14px 18px 0; }
+.ec-plan > .ec-pv-tools .ec-pick-label { margin: 0; }
+.ec-plan > .ec-pv-tools .spacer { flex: 1; }
+:root:root:root .ec-preview { min-height: 168px; padding-top: 4px; }

@@ -286,7 +286,24 @@ TH.app = (function () {
   }
 
   /** Run a theme / style change as a cross-fade (View Transitions), or with transitions muted when that is not available. */
-  function morph(fn) {
+  /** Run a visual switch (theme / style) without the page jumping: the element under the middle of the viewport stays where it was. */
+  function keepPlace(fn) {
+    let anchor = null, top = 0;
+    try {
+      const y = Math.round(innerHeight * 0.3);
+      anchor = document.elementsFromPoint(Math.round(innerWidth * 0.5), y).find((e) => e !== document.documentElement && e !== document.body && !e.classList.contains('atmosphere')) || null;
+      if (anchor) top = anchor.getBoundingClientRect().top;
+    } catch (e) { anchor = null; }
+    const out = fn();
+    if (anchor && anchor.isConnected) {
+      const d = anchor.getBoundingClientRect().top - top;
+      if (Math.abs(d) > 1) window.scrollBy(0, d);
+    }
+    return out;
+  }
+
+  function morph(fn0) {
+    const fn = () => keepPlace(fn0);
     const el = document.documentElement;
     if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) { fn(); return; }
     if (document.startViewTransition) {

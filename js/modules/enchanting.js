@@ -759,10 +759,10 @@ TH.anvil = (function () {
     if (plan.error) return h('aside.panel.ec-plan', modeSw, editLine, head, h('p.ec-alert', plan.error));
 
     if (!plan.books.length) {
-      return h('aside.panel.ec-plan', { 'aria-live': 'polite' }, modeSw, editLine, head,
-        h('div.empty.ec-empty',
+      return h('aside.panel.ec-plan', { 'aria-live': 'polite' }, modeSw, editLine,
+        h('div.ec-plan-body', head, h('div.empty.ec-empty',
           plan.skipped.length ? 'Your item already has everything you picked.' : 'Pick enchantments and the cheapest anvil order shows up here.'),
-        renderActions(s));
+        renderActions(s)));
     }
 
     const steps = plan.steps;
@@ -1291,6 +1291,8 @@ TH.anvil = (function () {
 
     // ---- left: the same top row as Single item (mode slider + a summary panel), then the to-do list ----
     const planTools = h('div.ec-pv-tools',
+      h('h3.ec-pick-label', 'Your plan'),
+      h('span.spacer'),
       finished ? h('button.btn.small.ghost', { type: 'button', onclick: () => set((e) => { e.plan = e.plan.filter((x) => !x.done); }) }, 'Clear finished (' + finished + ')') : null,
       h('button.btn.small.ghost.danger', {
         type: 'button', onclick: () => {
@@ -1305,18 +1307,17 @@ TH.anvil = (function () {
     const naiveCount = open.filter(({ p }) => hitsNaive(p)).length;
     const hitsNaive1 = naiveCount ? oneBookWarn(naiveCount + ' of your items:') : null;
     const costs = h('section.ec-pv-sec.ec-costs', { 'aria-label': 'Costs total' },
-      h('h3.ec-pick-label', 'Your plan'),
+      h('h3.ec-pick-label', 'Progress'),
       h('div.ec-total.ec-xpbox',
         h('div.ec-total-num', h('span.ec-xp', left), h('span.ec-total-label', left === 0 && levels ? 'levels left: all spent' : 'levels left to spend')),
         h('div.ec-xpbar', { role: 'progressbar', 'aria-label': 'Levels spent', 'aria-valuemin': 0, 'aria-valuemax': levelsAll, 'aria-valuenow': spentAll },
           h('span', { style: { width: (levelsAll ? Math.round((spentAll / levelsAll) * 100) : 0) + '%' } })),
-        h('div.ec-xp-facts',
-          h('span', h('b', levelsAll), ' levels in total'),
-          h('span', '≈ ', h('b', points.toLocaleString()), ' XP points'),
-          spentAll ? h('span', h('b', spentAll), ' spent') : null,
-          h('span', h('b', stepsDoneAll + '/' + stepsAll), ' anvil steps done'),
-          h('span', h('b', open.length), open.length === 1 ? ' item to do' : ' items to do'),
-          ups ? h('span', TH.icon('item/netherite_ingot', { size: 16 }), h('b', ups), ' netherite upgrade' + (ups === 1 ? '' : 's')) : null)),
+        h('div.ec-xp-cap', h('b', spentAll), ' of ', h('b', levelsAll), ' levels spent')),
+      h('div.ec-stats',
+        h('div.ec-stat', h('b', stepsDoneAll + '/' + stepsAll), h('span', 'anvil steps done')),
+        h('div.ec-stat', h('b', open.length), h('span', open.length === 1 ? 'item to do' : 'items to do')),
+        h('div.ec-stat', h('b', points.toLocaleString()), h('span', 'XP points in total')),
+        ups ? h('div.ec-stat', h('b', ups), h('span', 'netherite upgrade' + (ups === 1 ? '' : 's'))) : null),
       (hitsNaive1 || xpHint(left)) ? h('div.ec-chiprow', hitsNaive1, xpHint(left)) : null,
       unpriced ? h('p.ec-pv-note', unpriced + ' hall book' + (unpriced > 1 ? 's have' : ' has') + ' no price yet — set it in the Trading Hall tab.') : null,
       bad ? h('p.ec-alert', TH.icon('item/barrier', { size: 14 }), h('span', bad + ' item' + (bad > 1 ? 's hit' : ' hits') + ' Too Expensive! — see the checklist.')) : null);
@@ -1399,9 +1400,10 @@ TH.anvil = (function () {
     if (!s) return;
     const cs = getComputedStyle(s);
     if (cs.position !== 'sticky') { s.style.maxHeight = ''; return; }
-    const top = Math.max(parseFloat(cs.top) || 0, s.getBoundingClientRect().top);
-    const bottom = Math.min(innerHeight - 16, s.parentElement.getBoundingClientRect().bottom);
-    const hpx = Math.max(200, Math.round(bottom - top)) + 'px';
+    const z = parseFloat(document.documentElement.style.zoom) || 1;   // the page runs at CSS zoom: rects are screen px, max-height is CSS px
+    const top = Math.max((parseFloat(cs.top) || 0) * z, s.getBoundingClientRect().top);
+    const bottom = Math.min(innerHeight - 8, s.parentElement.getBoundingClientRect().bottom);
+    const hpx = Math.max(200, Math.round((bottom - top) / z)) + 'px';
     s.style.maxHeight = hpx;
     s.style.height = '';
   }

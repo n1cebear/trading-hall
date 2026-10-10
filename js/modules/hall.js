@@ -694,9 +694,10 @@
     const cs = getComputedStyle(s);
     if (cs.position !== 'sticky') { s.style.maxHeight = ''; return; }
     const lay = s.parentElement.getBoundingClientRect();
-    const top = Math.max(parseFloat(cs.top) || 0, s.getBoundingClientRect().top);
-    const bottom = Math.min(innerHeight - 16, lay.bottom);
-    s.style.maxHeight = Math.max(200, Math.round(bottom - top)) + 'px';
+    const z = parseFloat(document.documentElement.style.zoom) || 1;   // the page runs at CSS zoom: rects are screen px, max-height is CSS px
+    const top = Math.max((parseFloat(cs.top) || 0) * z, s.getBoundingClientRect().top);
+    const bottom = Math.min(innerHeight - 8, lay.bottom);
+    s.style.maxHeight = Math.max(200, Math.round((bottom - top) / z)) + 'px';
   }
   // a 0 ms timer, not rAF (rAF stalls in background tabs); scroll events already arrive at most once per frame
   function queueFitSide() { clearTimeout(sideRaf); sideRaf = setTimeout(fitSide, 0); }

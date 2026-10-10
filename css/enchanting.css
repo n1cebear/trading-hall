@@ -1159,3 +1159,7 @@
 /* the tick box carries the state: accent when got, grey when used up (no stepper any more) */
 :root:root .ec-bk-copy.on .ec-buy-name, :root:root .ec-bk-copy.on .ec-buy-for { color: var(--accent); text-decoration: none; }
 :root:root .ec-bk-copy.spent .ec-buy-name, :root:root .ec-bk-copy.spent .ec-buy-for { color: var(--faint); text-decoration: line-through; }
+
+/* ticked step: no hard left bar in any style, a soft accent tint on the rounded row instead */
+:root:root:root .ec-todo.on, :root:root:root[data-neu] .ec-todo.on { box-shadow: none !important; background: color-mix(in srgb, var(--accent) 12%, transparent); border-radius: var(--radius); }
+:root:root:root .ec-todo.on:hover { background: color-mix(in srgb, var(--accent) 16%, transparent); }

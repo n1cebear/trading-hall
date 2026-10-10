@@ -966,3 +966,9 @@
 /* active segment: the accent as a faint shadow along the top-left of the segment itself (not the keys inside) */
 :root:root:root .ec-picker.has-sel { filter: none; position: relative; isolation: isolate; }
 .ec-picker.has-sel::before { content: ''; position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none; box-shadow: -5px -5px 12px -5px color-mix(in srgb, var(--accent) 38%, transparent); }
+
+/* the same "this step has something active" glow on any segment: material, enchantments, the plan category being edited */
+.panel.has-sel { position: relative; isolation: isolate; }
+.panel.has-sel::before { content: ''; position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none; box-shadow: -5px -5px 12px -5px color-mix(in srgb, var(--accent) 38%, transparent); }
+.ec-rowbox.has-sel .ec-pick-label { color: var(--accent); }
+.ec-pv-cat.has-sel .ec-group-name > span:first-child { color: var(--accent); }

@@ -338,6 +338,7 @@ TH.anvil = (function () {
   /** Material first: switching to a material the current item doesn't come in moves to a sibling that does. */
   function pickMaterial(m) {
     set((e) => {
+      e.matTouched = true;
       if (e.material === m) return;
       e.material = m;
       const cur = itemById[e.item];
@@ -418,9 +419,10 @@ TH.anvil = (function () {
   const ARMOR_IDS = ['helmet', 'chestplate', 'leggings', 'boots', 'elytra'];
   const isArmorItem = (id) => ARMOR_IDS.includes(id);
   function armorToolSections(entries, itemOf, render, listCls, secCls) {
+    const secOf = (l) => (typeof secCls === 'function' ? secCls(l) : secCls || '');
     const armor = entries.filter((x) => isArmorItem(itemOf(x))).sort((a, b) => ARMOR_IDS.indexOf(itemOf(a)) - ARMOR_IDS.indexOf(itemOf(b)));
     const tools = entries.filter((x) => !isArmorItem(itemOf(x)));
-    return [['Armor', armor], ['Tools', tools]].filter(([, l]) => l.length).map(([name, l]) => h('div.ec-sec' + (secCls || ''),
+    return [['Armor', armor], ['Tools', tools]].filter(([, l]) => l.length).map(([name, l]) => h('div.ec-sec' + secOf(l),
       h('div.ec-group-name', h('span', name)),
       h('div' + (listCls || ''), l.map(render))));
   }
@@ -522,7 +524,7 @@ TH.anvil = (function () {
     // three separate segments (DESIGN.md, Layout "Item picker"): each a .panel with a top-left eyebrow heading;
     // every icon is 32px (integer 2x of the 16px textures) so Material, Armor and Tools read as one family
     const grp = HUD_ARMOR.includes(s.item) ? 'armor' : HUD_TOOLS.includes(s.item) ? 'tools' : 'other';
-    const box = (key, label, body) => h('section.panel.ec-card.ec-picker.ec-pick-' + key + (key === grp ? '.has-sel' : ''), { 'aria-labelledby': 'ec-lbl-' + key },
+    const box = (key, label, body) => h('section.panel.ec-card.ec-picker.ec-pick-' + key + (key === grp || (key === 'mat' && s.matTouched) ? '.has-sel' : ''), { 'aria-labelledby': 'ec-lbl-' + key },
       h('h3.ec-pick-label', { id: 'ec-lbl-' + key }, label), body);
     return [
       h('div.ec-toprow', renderModeCards(s), box('mat', 'Material',
@@ -671,7 +673,7 @@ TH.anvil = (function () {
       h('button' + (own ? '.on' : ''), { type: 'button', 'aria-pressed': String(own), 'data-focus': 'ec-own-has', onclick: () => set((e) => { e.own = true; }) },
         'Already on it', exIds.length ? h('span.nav-badge.count', { 'aria-label': exIds.length + ' on the item' }, exIds.length) : null));
 
-    return h('section.panel.ec-card.ec-rowbox',
+    return h('section.panel.ec-card.ec-rowbox' + (selIds.length ? '.has-sel' : ''),
       h('div.ec-card-head', h('h3', 'Enchantments'),
         selIds.length ? h('button.btn.ghost.small.ec-clear', { type: 'button', onclick: () => set((e) => { e.selected = {}; e.loadout = null; }) }, 'Clear') : null),
       h('div.ec-ownbar', ownSwitch,
@@ -749,7 +751,9 @@ TH.anvil = (function () {
 
   function renderPlan(state, s, plan) {
     const offers = hallOffers(state);
-    const head = [h('div.ec-card-head', h('h3', 'Anvil plan')), renderPreview(s)];
+    const editingNow = editingEntry(s);
+    const head = [h('div.ec-card-head', h('h3', 'Anvil plan'),
+      editingNow ? h('button.btn.ghost.small.ec-clear', { type: 'button', title: 'Stop editing this plan item and start a new one', onclick: () => set((e) => { e.planEditing = null; }) }, 'Stop editing') : null), renderPreview(s)];
 
     if (plan.error) return h('aside.panel.ec-plan', head, h('p.ec-alert', plan.error));
 
@@ -1055,11 +1059,18 @@ TH.anvil = (function () {
     if (!modeEl) {
       const card = (mode, label, icon) => h('button.btn.ec-modecard', {
         type: 'button', 'data-m': mode, 'data-focus': 'ec-mode-' + mode,
-        // the switch never edits a plan item: going back to Single item leaves the last picked item as a plain editor (Edit does the linking)
-        onclick: () => set((e) => { e.mode = mode; if (mode === 'single') e.planEditing = null; }),
+        // only the Edit button links the editor to a plan item; leaving for the plan ends that session
+        onclick: () => set((e) => { e.mode = mode; if (mode === 'plan') e.planEditing = null; }),
       }, h('span.ec-modecard-ico', TH.icon(icon, { size: 28 }), h('b.ec-modecard-n')), h('span.ec-modecard-t', label));
       modeEl = h('div.ec-modecards', { role: 'group', 'aria-label': 'Enchanting view', 'data-mode': s.mode },
         h('span.ec-slide-thumb', { 'aria-hidden': 'true' }), card('single', 'Single item', 'enchanted_book'), card('plan', 'My plan', 'item/writable_book'));
+    }
+    const editing = !!editingEntry(s) && s.mode === 'single';
+    const single = modeEl.querySelector('[data-m="single"]');
+    if (single.dataset.edit !== String(editing)) {
+      single.dataset.edit = String(editing);
+      single.querySelector('.ec-modecard-t').textContent = editing ? 'Edit mode' : 'Single item';
+      single.querySelector('.ec-modecard-ico').firstChild.replaceWith(TH.icon(editing ? 'anvil' : 'enchanted_book', { size: 28 }));
     }
     modeEl.querySelectorAll('.ec-modecard').forEach((b) => {
       const on = b.dataset.m === s.mode;
@@ -1291,7 +1302,7 @@ TH.anvil = (function () {
           },
         }, 'Clear plan')));
 
-    const list = armorToolSections(rows.map((r, i) => Object.assign({ i }, r)), (r) => r.en.item, (r) => renderEntry(r.en, r.p, s, r.i), '.ec-pi-list', '.panel.ec-pv-cat');
+    const list = armorToolSections(rows.map((r, i) => Object.assign({ i }, r)), (r) => r.en.item, (r) => renderEntry(r.en, r.p, s, r.i), '.ec-pi-list', (list) => '.panel.ec-pv-cat' + (list.some((r) => r.en.id === s.planEditing) ? '.has-sel' : ''));
 
     // ---- right: shopping list in the sticky Anvil-plan style, floating actions at the foot ----
     const costs = h('section.ec-pv-sec.ec-costs', { 'aria-label': 'Costs total' },
@@ -1370,10 +1381,11 @@ TH.anvil = (function () {
         renderGear(state),
         h('div.ec-layout.ec-layout-single',
           h('div.ec-main', renderPicker(s), renderSelect(state, s)),
-          h('div.ec-side', renderLinked(s), renderPlan(state, s, plan))),
+          h('div.ec-side', renderPlan(state, s, plan))),
       ],
     ]);
     root.querySelectorAll('[title]').forEach((el) => TH.util.tooltip(el)); // app tooltip instead of native title
+    queueMicrotask(fitSide);   // right after the swap, before the first paint (no jump)
     queueFitSide();
   }
 
@@ -1388,7 +1400,9 @@ TH.anvil = (function () {
     if (cs.position !== 'sticky') { s.style.maxHeight = ''; return; }
     const top = Math.max(parseFloat(cs.top) || 0, s.getBoundingClientRect().top);
     const bottom = Math.min(innerHeight - 16, s.parentElement.getBoundingClientRect().bottom);
-    s.style.maxHeight = Math.max(200, Math.round(bottom - top)) + 'px';
+    const hpx = Math.max(200, Math.round(bottom - top)) + 'px';
+    s.style.maxHeight = hpx;
+    if (cs.position === 'sticky' && !s.querySelector('.ec-shop')) s.style.height = hpx;   // one steady size whatever the plan holds
   }
   function queueFitSide() { clearTimeout(sideTimer); sideTimer = setTimeout(fitSide, 0); }   // timer, not rAF (stalls in background tabs)
 

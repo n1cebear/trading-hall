@@ -762,7 +762,7 @@ TH.anvil = (function () {
 
     // compact summary: levels · steps · XP, with the saving as small secondary text
     let compare = null;
-    if (plan.ok && !naive.ok) compare = h('span', 'One book at a time hits ', h('b.ec-bad', 'Too Expensive!'), ' — this order doesn’t.');
+    if (plan.ok && !naive.ok) compare = h('span.ec-warn-chip', { tabindex: '0', title: 'One book at a time hits Too Expensive! Using the recommended order doesn’t.' }, TH.icon('item/barrier', { size: 14 }), h('span', 'WARNING! Too expensive'));
     else if (plan.ok && save > 0) compare = h('span', 'Saves ', h('b.ec-save-n', save), ' level' + (save === 1 ? '' : 's'), ' vs one book at a time (', naive.totalLevels, ').');
 
     // levels still to spend: ticked steps of the linked plan item no longer count, a finished item counts for nothing
@@ -1111,7 +1111,7 @@ TH.anvil = (function () {
   /** Past level 30 every level costs more XP (levels 0-15: 2n+7 points, 16-30: 5n-38, 31+: 9n-158), so big totals are best done in rounds. */
   function xpHint(levels) {
     if (levels <= 30) return null;
-    return h('p.ec-xp-hint', { tabindex: '0', title: 'More than 30 levels still to spend. Levels beyond 30 get expensive: each one costs 112 or more XP points (7–37 up to level 15, 42–107 up to level 30), so gather XP in rounds instead of banking it all at once.' }, TH.icon('xp', { size: 16 }), h('span', 'Caution: level efficiency'));
+    return h('p.ec-xp-hint', { tabindex: '0', title: 'More than 30 levels still to spend. Levels beyond 30 get expensive: each one costs 112 or more XP points (7–37 up to level 15, 42–107 up to level 30), so gather XP in rounds instead of banking it all at once.' }, TH.icon('xp', { size: 16 }), h('span', 'CAUTION: Level Efficiency'));
   }
 
   function progressBar(done, total, label) {

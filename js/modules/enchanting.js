@@ -699,7 +699,7 @@ TH.anvil = (function () {
     TH.icon('item/barrier', { size: 14 }), h('span', 'WARNING! Too expensive'));
   const hitsNaive = (p) => !!(p && p.ok && p.naive && !p.naive.ok);
 
-  function nodeChip(node, s) {
+  function nodeChip(node, s, needed) {
     const names = node.enchants.map((e) => lvlName(e.id, e.level));
     if (node.kind === 'item') {
       return h('span.ec-node.item', { title: names.join(', ') || 'No enchantments' }, itemIcon(s.item, s.material, 20), h('span', itemName(s.item, s.material)));
@@ -708,7 +708,7 @@ TH.anvil = (function () {
       return h('span.ec-node.book', { title: 'Book from step ' + node.fromStep },
         bookIcon(20), h('span', names.join(' + ') || 'Book'), h('small.ec-ref', 'BOOK FROM STEP ' + node.fromStep));
     }
-    return h('span.ec-node.book', bookIcon(20), h('span', names.join(' + ')));
+    return h('span.ec-node.book' + (needed ? '.is-needed' : ''), needed ? { title: 'You still need this book (see Books to get)' } : {}, bookIcon(20), h('span', names.join(' + ')));
   }
 
   /** The gear's own name (the name field below the plan, or the loaded saved gear). */
@@ -1152,7 +1152,8 @@ TH.anvil = (function () {
       cost);
   }
 
-  function renderEntry(en, p, s, idx) {
+  function renderEntry(en, p, s, idx, needSet) {
+    needSet = needSet || new Set();
     const name = itemName(en.item, en.material);
     const gear = en.gearId ? s.gear.find((g) => g.id === en.gearId) : null;
     const books = usedBooks(p);
@@ -1188,7 +1189,7 @@ TH.anvil = (function () {
       key: 'n' + x.n,
       bad: x.cost > 39,
       body: h('span.ec-todo-line',
-        nodeChip(x.target, en), h('span.ec-plus', { 'aria-hidden': 'true' }, '+'), nodeChip(x.sacrifice, en)),
+        nodeChip(x.target, en, needSet.has(en.id + '|' + x.n + '|t')), h('span.ec-plus', { 'aria-hidden': 'true' }, '+'), nodeChip(x.sacrifice, en, needSet.has(en.id + '|' + x.n + '|s'))),
       cost: h('span.ec-step-cost' + (x.cost > 39 ? '.bad' : x.cost >= 30 ? '.warn' : ''),
         x.cost > 39 ? 'Too Expensive!' : [h('span.ec-arrow', { 'aria-hidden': 'true' }, '→ '), h('b', x.cost), ' lvl']),
     }));
@@ -1301,24 +1302,36 @@ TH.anvil = (function () {
         },
       }, 'Clear plan'));
 
-    const list = armorToolSections(rows.map((r, i) => Object.assign({ i }, r)), (r) => r.en.item, (r) => renderEntry(r.en, r.p, s, r.i), '.ec-pi-list', (list) => '.panel.ec-pv-cat' + (list.some((r) => r.en.id === s.planEditing) ? '.has-sel' : ''));
+    // which book slots in the steps are still missing: owned copies are handed out in plan order, ticked steps are done
+    const pool = {};
+    Object.keys(s.booksOwned).forEach((k) => { pool[k] = s.booksOwned[k]; });
+    const needSet = new Set();
+    open.forEach(({ en, p }) => p.steps.forEach((x) => {
+      if (en.ticks.includes('n' + x.n)) return;
+      [['t', x.target], ['s', x.sacrifice]].forEach(([side, node]) => {
+        if (!node || node.kind !== 'book' || node.fromStep != null || !node.enchants || node.enchants.length !== 1) return;
+        const key = node.enchants[0].id + ':' + node.enchants[0].level;
+        if (pool[key] > 0) pool[key]--; else needSet.add(en.id + '|' + x.n + '|' + side);
+      });
+    }));
+    const list = armorToolSections(rows.map((r, i) => Object.assign({ i }, r)), (r) => r.en.item, (r) => renderEntry(r.en, r.p, s, r.i, needSet), '.ec-pi-list', (list) => '.panel.ec-pv-cat' + (list.some((r) => r.en.id === s.planEditing) ? '.has-sel' : ''));
 
     // ---- right: shopping list in the sticky Anvil-plan style, floating actions at the foot ----
     const naiveCount = open.filter(({ p }) => hitsNaive(p)).length;
     const hitsNaive1 = naiveCount ? oneBookWarn(naiveCount + ' of your items:') : null;
     const costs = h('section.ec-pv-sec.ec-costs', { 'aria-label': 'Costs total' },
       h('h3.ec-pick-label', 'Progress'),
-      h('div.ec-total.ec-xpbox',
-        h('div.ec-total-num', h('span.ec-xp', left), h('span.ec-total-label', left === 0 && levels ? 'levels left: all spent' : 'levels left to spend')),
+      h('div.ec-progress',
+        h('div.ec-pg-big', h('span.ec-xp', left), h('span.ec-total-label', left === 0 && levels ? 'levels left: all spent' : 'levels left to spend')),
         h('div.ec-xpbar', { role: 'progressbar', 'aria-label': 'Levels spent', 'aria-valuemin': 0, 'aria-valuemax': levelsAll, 'aria-valuenow': spentAll },
           h('span', { style: { width: (levelsAll ? Math.round((spentAll / levelsAll) * 100) : 0) + '%' } })),
-        h('div.ec-xp-cap', h('b', spentAll), ' of ', h('b', levelsAll), ' levels spent')),
-      h('div.ec-stats',
-        h('div.ec-stat', h('b', stepsDoneAll + '/' + stepsAll), h('span', 'anvil steps done')),
-        h('div.ec-stat', h('b', open.length), h('span', open.length === 1 ? 'item to do' : 'items to do')),
-        h('div.ec-stat', h('b', points.toLocaleString()), h('span', 'XP points in total')),
-        ups ? h('div.ec-stat', h('b', ups), h('span', 'netherite upgrade' + (ups === 1 ? '' : 's'))) : null),
-      (hitsNaive1 || xpHint(left)) ? h('div.ec-chiprow', hitsNaive1, xpHint(left)) : null,
+        h('div.ec-pg-spent', h('span.ec-pg-nums', h('b', spentAll), ' / ', h('b', levelsAll)), h('span', 'levels spent')),
+        h('div.ec-pg-chips', hitsNaive1, xpHint(left)),
+        h('div.ec-pg-xp', h('b', points.toLocaleString()), ' XP points in total'),
+        h('div.ec-pg-meta',
+          h('span', h('b', stepsDoneAll + '/' + stepsAll), ' anvil steps done'),
+          h('span', h('b', open.length), open.length === 1 ? ' item to do' : ' items to do'),
+          ups ? h('span', TH.icon('item/netherite_ingot', { size: 16 }), h('b', ups), ' netherite upgrade' + (ups === 1 ? '' : 's')) : null)),
       unpriced ? h('p.ec-pv-note', unpriced + ' hall book' + (unpriced > 1 ? 's have' : ' has') + ' no price yet — set it in the Trading Hall tab.') : null,
       bad ? h('p.ec-alert', TH.icon('item/barrier', { size: 14 }), h('span', bad + ' item' + (bad > 1 ? 's hit' : ' hits') + ' Too Expensive! — see the checklist.')) : null);
 

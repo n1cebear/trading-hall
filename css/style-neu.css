@@ -1296,3 +1296,8 @@
 .ec-picker .ec-item, .ec-picker .ec-item.has-since { grid-template-rows: auto auto; align-content: center; justify-items: center; padding: 10px 4px; min-height: 84px; row-gap: 6px; }
 .ec-picker .ec-item .ec-item-name { align-items: center; justify-content: center; }
 .ec-matkey > .mc.ec-mat-block { --mc: 32px !important; margin: 0; transform: scale(.76); }
+
+/* Classic = Pixel / Soft metrics for the top bar: switching styles must not resize the page */
+@media (min-width: 641px) {
+  :root:root:root[data-style="classic"] .nav { height: 58px; padding: 0; gap: 10px; align-items: center; }
+}

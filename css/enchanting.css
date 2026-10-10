@@ -1069,3 +1069,34 @@
 .ec-pi.done .ec-done-pill { display: none; }
 @media (max-width: 700px) { .ec-pi-split { grid-template-columns: minmax(0, 1fr); } .ec-pi-aside .ec-pi-actions { flex-direction: row; } .ec-pi-aside .ec-pi-actions .btn { flex: 1 1 0; width: auto; } }
 .ec-pv-list .ec-pv-cat .ec-pi.done > .ec-done-check { justify-self: center; }
+
+/* ===== Oct 2026 (9) ===== */
+/* books still missing for a step: dimmed icon + text */
+.ec-node.is-needed { opacity: .5; }
+.ec-node.is-needed .mc { filter: grayscale(1) brightness(.85); }
+.ec-todo.on .ec-node.is-needed { opacity: .5; }
+
+/* plan item buttons: only as big as their words, stacked */
+.ec-pi-aside .ec-pi-actions { align-items: flex-end; gap: 6px; }
+:root:root .ec-pi-aside .ec-pi-actions .btn, :root:root .ec-pi.done .ec-pi-actions .btn, :root:root .ec-pi-x { width: auto; min-width: 0; min-height: 0; height: auto; flex: none; padding: 3px 10px; font-size: 12px; line-height: 1.3; }
+:root:root .ec-pi-aside .ec-pi-actions .btn.ec-pi-x, :root:root .ec-pi.done .ec-pi-actions .btn.ec-pi-x { padding: 3px 8px; }
+.ec-pv-list .ec-pv-cat .ec-pi.done > .ec-pi-actions { justify-self: end; display: flex; }
+.ec-pv-list .ec-pv-cat .ec-pi.done > .ec-pi-actions .btn { width: auto; }
+
+/* PROGRESS panel: big number + cautions left, bar with its spent count right, XP in the middle below, steps / items bottom right */
+.ec-progress { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "big bar spent" "chips xp meta"; align-items: center; column-gap: 28px; row-gap: 16px; }
+.ec-pg-big { grid-area: big; display: flex; flex-direction: column; gap: 2px; }
+.ec-progress .ec-xp { font-size: 54px; line-height: 1; }
+.ec-progress .ec-xpbar { grid-area: bar; height: 16px; }
+.ec-pg-spent { grid-area: spent; display: flex; flex-direction: column; align-items: flex-end; gap: 2px; font-size: 12px; color: var(--muted); white-space: nowrap; }
+.ec-pg-spent b { font: 400 18px/1 var(--mono); color: var(--text); }
+.ec-pg-spent b:first-child { color: var(--accent); }
+.ec-pg-chips { grid-area: chips; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; align-self: start; }
+.ec-pg-chips:empty { display: none; }
+.ec-pg-xp { grid-area: xp; justify-self: center; font-size: 12.5px; color: var(--muted); align-self: start; }
+.ec-pg-xp b { font: 400 16px/1 var(--mono); color: var(--text); font-variant-numeric: tabular-nums; }
+.ec-pg-meta { grid-area: meta; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; font-size: 12.5px; color: var(--muted); align-self: start; }
+.ec-pg-meta b { font: 400 16px/1 var(--mono); color: var(--text); }
+.ec-pg-meta .mc { vertical-align: -3px; margin-right: 4px; }
+@media (max-width: 700px) { .ec-progress { grid-template-columns: minmax(0, 1fr); grid-template-areas: "big" "bar" "spent" "xp" "chips" "meta"; } .ec-pg-spent, .ec-pg-meta { align-items: flex-start; } .ec-pg-xp { justify-self: start; } }
+.ec-pg-nums { display: inline-flex; align-items: baseline; gap: 6px; white-space: nowrap; }

@@ -1301,3 +1301,23 @@
 @media (min-width: 641px) {
   :root:root:root[data-style="classic"] .nav { height: 58px; padding: 0; gap: 10px; align-items: center; }
 }
+
+/* Pixel, dark: warmer obsidian (ink-plum) instead of the cool blue-grey that read as brushed metal; softer bevel lights */
+@media (prefers-color-scheme: dark) {
+  :root[data-style="pixel"][data-neu]:not([data-theme="light"]) {
+    --neu-bg: #231f2a; --neu-well: #19151d; --neu-row: #2a2531;
+    --neu-hi: rgb(255 244 255 / .05); --neu-lo: rgb(5 0 9 / .7);
+    --neu-edge: rgb(255 244 255 / .04); --neu-px-hi: rgb(255 240 255 / .075); --neu-px-lo: rgb(0 0 0 / .3);
+    --neu-rim-hi: rgb(255 244 255 / .045); --neu-rim-lo: rgb(0 0 0 / .26);
+    --line: rgb(255 244 255 / .055); --line-2: rgb(255 244 255 / .1);
+    --muted: #b6b0bd; --faint: #9c96a4;
+  }
+}
+:root[data-style="pixel"][data-neu][data-theme="dark"] {
+  --neu-bg: #231f2a; --neu-well: #19151d; --neu-row: #2a2531;
+  --neu-hi: rgb(255 244 255 / .05); --neu-lo: rgb(5 0 9 / .7);
+  --neu-edge: rgb(255 244 255 / .04); --neu-px-hi: rgb(255 240 255 / .075); --neu-px-lo: rgb(0 0 0 / .3);
+  --neu-rim-hi: rgb(255 244 255 / .045); --neu-rim-lo: rgb(0 0 0 / .26);
+  --line: rgb(255 244 255 / .055); --line-2: rgb(255 244 255 / .1);
+  --muted: #b6b0bd; --faint: #9c96a4;
+}

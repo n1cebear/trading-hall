@@ -1207,16 +1207,8 @@ TH.anvil = (function () {
       en.uses ? en.uses + ' anvil use' + (en.uses === 1 ? '' : 's') : null].filter(Boolean).join(' · ') || 'fresh item';
     return h('article.ec-pi.ec-pi-split' + (all ? '.complete' : ''), { 'aria-label': name },
       h('div.ec-pi-id',
-        h('span.ec-pi-num', idx + 1),
         h('span.ec-pi-icon', itemIcon(en.item, en.material, 48)),
-        h('b.ec-pi-name', name),
-        h('span.faint.ec-pi-meta', meta),
-        hitsNaive(p) ? oneBookWarn() : null,
-        rows.length ? h('span.ec-pi-prog', h('b', done), '/' + rows.length + ' steps') : null,
-        h('div.ec-pi-actions',
-          h('button.btn.small', { type: 'button', title: 'Load into the editor', 'data-focus': 'ec-pi-edit-' + en.id, onclick: () => editEntry(en) }, 'Edit'),
-          h('button.btn.small' + (all ? '.primary' : ''), { type: 'button', 'data-focus': 'ec-pi-done-' + en.id, title: gear ? 'Check off and update “' + gear.name + '”' : 'Check this item off', onclick: () => setDone(en.id, true, p) }, 'Done'),
-          remove)),
+        h('b.ec-pi-name', name)),
       h('div.ec-pi-steps',
         canUpgrade(en) ? h('label.ec-tile' + (upgrade ? '.on' : ''),
           h('span.switch', h('input', {
@@ -1225,7 +1217,15 @@ TH.anvil = (function () {
           }), h('span')),
           h('span.ec-tile-text', h('b', 'Upgrading from diamond'), h('span', 'Adds the smithing step and its materials'))) : null,
         alert,
-        rows.length ? h('ol.ec-todos', rows.map((r) => todoRow(en.id, r.key, en.ticks.includes(r.key), r.body, r.cost, r.bad ? '.bad' : ''))) : null));
+        rows.length ? h('ol.ec-todos', rows.map((r) => todoRow(en.id, r.key, en.ticks.includes(r.key), r.body, r.cost, r.bad ? '.bad' : ''))) : null),
+      h('div.ec-pi-aside',
+        h('span.faint.ec-pi-meta', meta),
+        rows.length ? h('span.ec-pi-prog', h('b', done), '/' + rows.length + ' steps') : null,
+        hitsNaive(p) ? oneBookWarn() : null,
+        h('div.ec-pi-actions',
+          h('button.btn.small', { type: 'button', title: 'Load into the editor', 'data-focus': 'ec-pi-edit-' + en.id, onclick: () => editEntry(en) }, 'Edit'),
+          h('button.btn.small' + (all ? '.primary' : ''), { type: 'button', 'data-focus': 'ec-pi-done-' + en.id, title: gear ? 'Check off and update “' + gear.name + '”' : 'Check this item off', onclick: () => setDone(en.id, true, p) }, 'Done'),
+          remove)));
   }
 
   function renderPlanView(state, s) {

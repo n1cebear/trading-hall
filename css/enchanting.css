@@ -922,3 +922,5 @@
 .ec-pi-id { align-self: center; }
 .ec-pi-id .ec-pi-actions { display: flex; gap: 8px; width: 100%; }
 .ec-pi-id .ec-pi-actions .btn { flex: 1 1 0; min-width: 0; justify-content: center; padding-inline: 6px; }
+/* the item icon in a plan entry stands free, no box around it (as in Trims) */
+:root:root:root .ec-pi-icon, :root:root:root .ec-pi.done .ec-pi-icon { background: none; box-shadow: none; border: 0; border-radius: 0; }

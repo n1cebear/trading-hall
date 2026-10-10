@@ -412,3 +412,9 @@
 
 /* leather colours: 11 + 7 in two tidy rows, sized to the width of the four armour keys above */
 .tr-dyes { grid-template-columns: repeat(11, 20px); width: max-content; max-width: 100%; gap: 8px 6px; }
+
+/* segments: hover = accent glow along the top-left edge; something active = glowing accent title (as in Enchanting) */
+.module-trims .tr-card { position: relative; isolation: isolate; }
+.module-trims .tr-card:not(.tr-viewer)::before { content: ''; position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none; opacity: 0; transition: opacity .25s; box-shadow: -6px -6px 14px -6px color-mix(in srgb, var(--accent) 55%, transparent); }
+@media (hover: hover) { .module-trims .tr-card:not(.tr-viewer):hover::before { opacity: 1; } }
+.module-trims .tr-card.has-sel .tr-card-head h3 { color: var(--accent); text-shadow: 0 0 8px color-mix(in srgb, var(--accent) 75%, transparent), 0 0 18px color-mix(in srgb, var(--accent) 45%, transparent); }

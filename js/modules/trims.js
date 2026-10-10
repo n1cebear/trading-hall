@@ -1814,6 +1814,13 @@
         }
       }
       viewer.setBd(st.backdrop);
+      // segments with something active get the accent title (same language as the Enchanting segments)
+      const flag = (el, on) => { if (el) el.classList.toggle('has-sel', !!on); };
+      flag(hud, PIECES.some((pc) => st.outfit[pc].show));
+      flag(savedEl, savedBody.querySelector('.tr-oslot-main.on'));
+      flag(browser, PIECES.some((pc) => st.outfit[pc].pattern));
+      flag(matsEl, PIECES.some((pc) => st.outfit[pc].pattern && st.outfit[pc].material));
+      flag(skinHost.firstElementChild, st.skin.kind === 'name' || st.skin.kind === 'file');
       const tg = st.target;
       tgtBtns.forEach((b, id) => { sel(b, id === tg); b.tabIndex = id === tg ? 0 : -1; });
       // the piece icons wear the armor material chosen in the Armor panel

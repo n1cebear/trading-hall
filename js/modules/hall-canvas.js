@@ -320,11 +320,18 @@ TH.hallCanvas = (function () {
     }
 
     function viewFor(bb, pad, maxZ) {
-      const { w, h: hh } = S.size;
+      const { w } = S.size, top = 52, hh = S.size.h - top;   // the toolbar floats over the top edge: fit into what is below it
       const bw = Math.max(bb.x1 - bb.x0, TILE) + pad * 2, bh = Math.max(bb.y1 - bb.y0, TILE) + pad * 2;
       const z = clamp(Math.min(w / bw, hh / bh), ZMIN, Math.min(maxZ, ZMAX));
       const cx = (bb.x0 + bb.x1) / 2, cy = (bb.y0 + bb.y1) / 2;
-      return { z, px: w / 2 - cx * z, py: hh / 2 - cy * z };
+      return { z, px: w / 2 - cx * z, py: top + hh / 2 - cy * z };
+    }
+    /** Show the whole hall: refit when a tile would sit outside the viewport (the toolbar covers the top ~52px). */
+    function checkFit() {
+      const bb = bboxOf(keysArr());
+      if (!bb || !S.size.w) return;
+      const p0 = toLocal(bb.x0, bb.y0), p1 = toLocal(bb.x1, bb.y1), m = 16;
+      if (p0.x < m || p0.y < 52 || p1.x > S.size.w - m || p1.y > S.size.h - m) fit(true);
     }
     function fit(animate) {
       const bb = bboxOf(keysArr());
@@ -1077,7 +1084,8 @@ TH.hallCanvas = (function () {
         const c = { x: (old.w / 2 - S.view.px) / S.view.z, y: (old.h / 2 - S.view.py) / S.view.z };
         setView({ z: S.view.z, px: w / 2 - c.x * S.view.z, py: hh / 2 - c.y * S.view.z }, false);
       }
-      if (S.needFit && S.order.length) { S.needFit = false; S.haveView = true; initialView(); } else { S.dirty = true; S.miniDirty = true; schedule(); }
+      if (S.needFit && S.order.length) { S.needFit = false; S.haveView = true; initialView(); S.fitPending = false; } else { S.dirty = true; S.miniDirty = true; schedule(); }
+      if (S.fitPending) { S.fitPending = false; setTimeout(checkFit, 120); }
     });
     ro.observe(vp);
 
@@ -1132,6 +1140,17 @@ TH.hallCanvas = (function () {
       }
       if (!S.order.length) S.needFit = true;
       if (S.needFit && S.size.w && S.order.length) { S.needFit = false; S.haveView = true; initialView(); }
+      // the hall is always shown whole: when the villagers change in bulk (a preset, a reset) or a saved view hides tiles, refit
+      if (S.order.length) {
+        const keys = keysArr(), prev = S.keySet;
+        S.keySet = new Set(keys);
+        const changed = prev ? keys.filter((k) => !prev.has(k)).length + [...prev].filter((k) => !S.keySet.has(k)).length : 0;
+        if (!prev || changed >= 3) {   // checked once the viewport has a size and the layout has settled
+          S.fitPending = true;
+          clearTimeout(S.fitT);
+          S.fitT = setTimeout(() => { if (S.fitPending && S.size.w) { S.fitPending = false; checkFit(); } }, 300);
+        }
+      }
       updateBtns();
       S.dirty = true; S.miniDirty = true; schedule();
     }

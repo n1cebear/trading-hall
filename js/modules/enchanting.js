@@ -765,11 +765,16 @@ TH.anvil = (function () {
     if (plan.ok && !naive.ok) compare = h('span', 'One book at a time hits ', h('b.ec-bad', 'Too Expensive!'), ' — this order doesn’t.');
     else if (plan.ok && save > 0) compare = h('span', 'Saves ', h('b.ec-save-n', save), ' level' + (save === 1 ? '' : 's'), ' vs one book at a time (', naive.totalLevels, ').');
 
+    // levels still to spend: ticked steps of the linked plan item no longer count, a finished item counts for nothing
+    const linked = editingEntry(s);
+    const levelsLeft = linked && sameEntry(linked, s)
+      ? (linked.done ? 0 : steps.filter((x) => !linked.ticks.includes('n' + x.n)).reduce((n, x) => n + x.cost, 0))
+      : plan.totalLevels;
     const total = h('div.ec-sum' + (usable ? '' : '.bad'),
       h('div.ec-sum-main', { title: '≈ ' + (plan.totalXP || 0).toLocaleString() + ' XP points' },
         h('span.ec-sum-item', h('b', usable ? plan.totalLevels : '—'), h('span.ec-sum-lab', 'level' + (plan.totalLevels === 1 ? '' : 's') + (plan.partial ? ' · without left-out books' : ''))),
         h('span.ec-sum-item', h('b', steps.length), h('span.ec-sum-lab', 'anvil step' + (steps.length === 1 ? '' : 's')))),
-      compare ? h('div.ec-compare', compare) : null, xpHint(plan.totalLevels));
+      compare ? h('div.ec-compare', compare) : null, xpHint(levelsLeft));
 
     // one short warning, only when it matters
     let alert = null;
@@ -1045,7 +1050,8 @@ TH.anvil = (function () {
     if (!modeEl) {
       const card = (mode, label, icon) => h('button.btn.ec-modecard', {
         type: 'button', 'data-m': mode, 'data-focus': 'ec-mode-' + mode,
-        onclick: () => set((e) => { e.mode = mode; }),
+        // the switch never edits a plan item: going back to Single item leaves the last picked item as a plain editor (Edit does the linking)
+        onclick: () => set((e) => { e.mode = mode; if (mode === 'single') e.planEditing = null; }),
       }, h('span.ec-modecard-ico', TH.icon(icon, { size: 28 }), h('b.ec-modecard-n')), h('span.ec-modecard-t', label));
       modeEl = h('div.ec-modecards', { role: 'group', 'aria-label': 'Enchanting view', 'data-mode': s.mode },
         h('span.ec-slide-thumb', { 'aria-hidden': 'true' }), card('single', 'Single item', 'enchanted_book'), card('plan', 'My plan', 'item/writable_book'));

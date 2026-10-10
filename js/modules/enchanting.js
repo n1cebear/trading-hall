@@ -752,13 +752,14 @@ TH.anvil = (function () {
     const offers = hallOffers(state);
     const editingNow = editingEntry(s);
     const modeSw = renderModeCards(s);
-    const head = [editingNow ? h('div.ec-card-head.ec-edit-head', h('span.faint', 'Editing a plan item'),
-      h('button.btn.ghost.small.ec-clear', { type: 'button', title: 'Stop editing this plan item and start a new one', onclick: () => set((e) => { e.planEditing = null; }) }, 'Stop editing')) : null, renderPreview(s)];
+    const editLine = editingNow ? h('div.ec-edit-line', h('span', 'Editing a plan item'),
+      h('button.btn.ghost.small', { type: 'button', title: 'Stop editing this plan item and start a new one', onclick: () => set((e) => { e.planEditing = null; }) }, 'Stop editing')) : null;
+    const head = [renderPreview(s)];
 
-    if (plan.error) return h('aside.panel.ec-plan', modeSw, head, h('p.ec-alert', plan.error));
+    if (plan.error) return h('aside.panel.ec-plan', modeSw, editLine, head, h('p.ec-alert', plan.error));
 
     if (!plan.books.length) {
-      return h('aside.panel.ec-plan', { 'aria-live': 'polite' }, modeSw, head,
+      return h('aside.panel.ec-plan', { 'aria-live': 'polite' }, modeSw, editLine, head,
         h('div.empty.ec-empty',
           plan.skipped.length ? 'Your item already has everything you picked.' : 'Pick enchantments and the cheapest anvil order shows up here.'),
         renderActions(s));
@@ -822,7 +823,7 @@ TH.anvil = (function () {
         ? h('div.ec-shop-total', h('span.ec-price', h('b', emeraldTotal), emerald()), h('span', `+ ${fromHall} book${fromHall > 1 ? 's' : ''} from your hall`))
         : null);
 
-    return h('aside.panel.ec-plan', { 'aria-live': 'polite' }, modeSw,
+    return h('aside.panel.ec-plan', { 'aria-live': 'polite' }, modeSw, editLine,
       h('div.ec-plan-body',
         head, total, alert,
         stepList ? h('div.ec-plan-block', h('div.ec-sub-head', 'Anvil steps', h('span.faint', steps.length)), stepList) : null,
@@ -1405,7 +1406,7 @@ TH.anvil = (function () {
     const bottom = Math.min(innerHeight - 16, s.parentElement.getBoundingClientRect().bottom);
     const hpx = Math.max(200, Math.round(bottom - top)) + 'px';
     s.style.maxHeight = hpx;
-    if (cs.position === 'sticky' && !s.querySelector('.ec-pvshop')) s.style.height = hpx;   // one steady size whatever the plan holds
+    s.style.height = '';
   }
   function queueFitSide() { clearTimeout(sideTimer); sideTimer = setTimeout(fitSide, 0); }   // timer, not rAF (stalls in background tabs)
 

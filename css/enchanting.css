@@ -993,3 +993,29 @@
 @media (hover: hover) { .ec-picker:hover::before, .ec-rowbox:hover::before, .ec-pv-cat:hover::before, .ec-pv-head:hover::before { opacity: 1; } }
 /* a segment with something active keeps a glowing title instead */
 .ec-picker.has-sel .ec-pick-label, .ec-rowbox.has-sel .ec-card-head h3, .ec-pv-cat.has-sel .ec-group-name > span:first-child { color: var(--accent); text-shadow: 0 0 8px color-mix(in srgb, var(--accent) 75%, transparent), 0 0 18px color-mix(in srgb, var(--accent) 45%, transparent); }
+
+/* ===== Oct 2026 (7) ===== */
+/* preview: the item icon and the tooltip keep their spot (icon top-left of the tooltip); only the tooltip grows downwards */
+:root:root:root .ec-preview { align-items: stretch; justify-content: flex-start; min-height: 196px; padding: 10px 14px 6px; }
+:root:root:root .ec-pv-row { align-items: flex-start; justify-content: flex-start; flex-wrap: nowrap; gap: 22px; }
+.ec-pv-row .mct-slot { flex: none; margin-top: 2px; }
+.ec-pv-row .mct { min-width: 0; flex: 0 1 auto; }
+/* "Editing a plan item" sits right under the slider */
+.ec-edit-line { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 8px 18px 0; font-size: 12px; color: var(--muted); }
+.ec-plan > .ec-modecards { margin-bottom: 0; }
+.ec-plan-body { padding-top: 8px; }
+/* Anvil column roughly half again as wide */
+@media (min-width: 981px) {
+  .ec-layout.ec-layout-single { grid-template-columns: minmax(0, 1fr) clamp(420px, 38vw, 585px); }
+  .ec-layout-single:has(.ec-pvshop) { grid-template-columns: minmax(0, 1fr) clamp(450px, 38vw, 585px); }
+}
+/* keys of the item picker: one gap rule that no other layer may undo */
+.ec-picker .ec-slots.tools, .ec-picker .ec-slots.other { gap: 24px 22px !important; }
+.ec-picker .ec-slots.armor { gap: 20px !important; }
+.ec-matkeys { gap: 18px !important; }
+/* Classic keeps its crisp slot look (the neumorphic tokens are defined globally, so these keys had turned soft there) */
+:root:root:not([data-neu]) .ec-picker :is(.ec-item, .ec-matkey) { background: var(--panel-2); border: 1px solid var(--line-2); box-shadow: 0 2px 0 rgb(0 0 0 / .45), inset 0 1px 0 rgb(255 255 255 / .06); }
+:root:root:not([data-neu]) .ec-picker :is(.ec-item, .ec-matkey):hover:not(.on):not(.na) { transform: translateY(-1px); box-shadow: 0 3px 0 rgb(0 0 0 / .45), inset 0 1px 0 rgb(255 255 255 / .09); }
+:root:root:not([data-neu]) .ec-picker :is(.ec-item, .ec-matkey).on { background: color-mix(in srgb, var(--accent) 16%, var(--panel-2)); border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent), 0 2px 0 rgb(0 0 0 / .45); }
+:root:root:not([data-neu]) .ec-lo { background: var(--panel-2); box-shadow: 0 2px 0 rgb(0 0 0 / .45), inset 0 1px 0 rgb(255 255 255 / .06); }
+:root:root:not([data-neu]) .ec-lo.on { background: color-mix(in srgb, var(--accent) 16%, var(--panel-2)); border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent), 0 2px 0 rgb(0 0 0 / .45); }

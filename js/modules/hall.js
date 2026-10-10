@@ -478,11 +478,12 @@
   }
 
   function savePreset() {
-    const name = prompt('Name this preset', 'My hall');
-    if (!name || !name.trim()) return;
-    const p = snapshot(get(), name.trim());
-    TH.store.update((s) => { s.customPresets.push(p); s.hall.activePreset = p.id; });
-    toast(`Saved preset “${p.name}”`);
+    TH.util.ask({ text: 'Name this preset', input: 'My hall', ok: 'Save' }).then((name) => {
+      if (!name) return;
+      const p = snapshot(get(), name);
+      TH.store.update((s) => { s.customPresets.push(p); s.hall.activePreset = p.id; });
+      toast(`Saved preset “${p.name}”`);
+    });
   }
 
   function findTrade(hall, prof, purpose) { return hall.trades.find((t) => t.prof === prof && t.purpose === purpose); }
@@ -918,7 +919,7 @@
       custom.length ? [
         h('h3.section-title.hl-sec-title', 'Your presets'),
         h('ul.hl-preset-grid', custom.map((p) => presetStrip(p, ico('item/writable_book'), {
-          del: () => { if (confirm(`Delete preset “${p.name}”?`)) TH.store.update((st) => { st.customPresets = st.customPresets.filter((x) => x.id !== p.id); }); },
+          del: () => TH.util.guard(true, `Delete preset “${p.name}”?`, () => TH.store.update((st) => { st.customPresets = st.customPresets.filter((x) => x.id !== p.id); }), 'Delete'),
         }))),
       ] : null,
     );
@@ -956,7 +957,7 @@
       h('span.spacer'),
       h('button.btn.ghost.small', { type: 'button', onclick: () => goStep(0), title: 'Switch to a preset' }, 'Presets'),
       nBooks ? h('button.btn.ghost.small', {
-        type: 'button', onclick: () => { if (confirm('Deselect all books? Their progress is remembered if you add them back.')) upd((x) => { Object.keys(x.books).forEach((id) => removeBook(x, id)); }); },
+        type: 'button', onclick: () => TH.util.guard(true, 'Deselect all books? Their progress is remembered if you add them back.', () => upd((x) => { Object.keys(x.books).forEach((id) => removeBook(x, id)); }), 'Deselect all'),
       }, 'Clear all') : null,
     ), h('p.hl-hint.hl-books-hint', 'Need the same book twice, e.g. one per armor piece? Press + on its row.'));
 
@@ -1107,8 +1108,7 @@
       type: 'button', 'aria-pressed': String(on), title: e.desc, 'data-focus': 'strip-' + e.id, 'aria-label': on ? `${local}, selected` : local,
       onclick: () => {
         if (!on) { upd((x) => addBook(x, e.id)); return; }
-        if (book.stalls.some(hasProgress) && !confirm(`Remove ${local}? Its logged progress is remembered if you add it back.`)) return;
-        upd((x) => removeBook(x, e.id));
+        TH.util.guard(book.stalls.some(hasProgress), `Remove ${local}? Its logged progress is remembered if you add it back.`, () => upd((x) => removeBook(x, e.id)));
       },
     },
     h('span.hl-tick', { 'aria-hidden': 'true' }),
@@ -1136,8 +1136,7 @@
     // 2+ villagers: the one stripe is split into a column per villager (name + "+" once on the left, then one well per
     // villager: tiers on top, tag underneath, x on hover). No lines, the wells are the segments.
     const col = (st, i) => {
-      const onDel = () => {
-        if (hasProgress(st) && !confirm('This librarian has logged progress. Remove it anyway?')) return;
+      const onDel = () => TH.util.guard(hasProgress(st), 'This librarian has logged progress. Remove it anyway?', () => {
         const b0 = fresh();
         const rest = b0 ? b0.stalls.filter((s) => s.id !== st.id) : [];
         softUpdate((x) => {
@@ -1147,7 +1146,7 @@
           b.stalls = b.stalls.filter((s) => s.id !== st.id);
           setLevels(b, lvs, e.maxLevel);
         }, { focus: rest.length > 1 ? 'rm-' + rest[Math.min(i, rest.length - 1)].id : 'dup-' + e.id });
-      };
+      });
       return h('div.hl-vcol' + (st.done ? '.is-done' : '') + (justAdded === st.id ? '.is-new' : ''), { 'data-n': i },
         h('div.hl-vcol-top', tiers(i) || h('span.hl-vcol-max', 'max')),
         h('div.hl-vcol-bot', tag(st, i), delBtn({ key: st.id, label: `Remove ${local} ${i + 1} of ${n}`, onDel })));
@@ -1257,10 +1256,9 @@
           locked ? h('span.hl-ok', { title: 'Traded with: in your hall' }, 'in hall') : null,
           delBtn({
             key: key + '-' + i, label: `Remove ${name} ${i + 1} of ${n}`,
-            onDel: () => {
-              if (locked && !confirm('This villager is locked in your hall. Remove it anyway?')) return;
+            onDel: () => TH.util.guard(locked, 'This villager is locked in your hall. Remove it anyway?', () => {
               softUpdate((x) => removeTradeCopy(x, t.id, i), { focus: n > 2 ? 'rm-' + key + '-' + Math.min(i, n - 2) : 'dup-' + key });
-            },
+            }),
           }));
       })),
       h('span.hl-strip-lv'), h('span.hl-card-act'));

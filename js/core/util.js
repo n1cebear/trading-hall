@@ -57,6 +57,36 @@ TH.util = (function () {
     toastTimer = setTimeout(() => el.classList.remove('show'), 2200);
   }
 
+  /**
+   * In-page confirm / prompt (the artifact viewer swallows native confirm() and prompt()).
+   * ask({ text, ok, danger, input }) -> Promise<true|false>, or with input: Promise<string|null>.
+   */
+  function ask(o) {
+    return new Promise((resolve) => {
+      const prev = document.activeElement;
+      const field = o.input != null ? h('input.field.th-ask-input', { type: 'text', value: o.input, 'aria-label': o.text }) : null;
+      const close = (v) => { document.removeEventListener('keydown', onKey, true); wrap.remove(); if (prev && prev.focus) prev.focus(); resolve(v); };
+      const yes = () => close(field ? (field.value.trim() || null) : true);
+      const okBtn = h('button.btn' + (o.danger ? '.danger' : '.primary'), { type: 'button', onclick: yes }, o.ok || 'OK');
+      const wrap = h('div.th-ask', { role: 'dialog', 'aria-modal': 'true', 'aria-label': o.text, onclick: (e) => { if (e.target === wrap) close(field ? null : false); } },
+        h('div.th-ask-box.panel', h('p.th-ask-text', o.text), field,
+          h('div.th-ask-btns', h('button.btn', { type: 'button', onclick: () => close(field ? null : false) }, 'Cancel'), okBtn)));
+      const onKey = (e) => {
+        if (e.key === 'Escape') { e.preventDefault(); close(field ? null : false); }
+        else if (e.key === 'Enter' && document.activeElement !== okBtn.previousSibling) { e.preventDefault(); yes(); }
+      };
+      document.addEventListener('keydown', onKey, true);
+      document.body.append(wrap);
+      (field || okBtn).focus();
+      if (field) field.select();
+    });
+  }
+  /** Run fn straight away, or after the user agrees when needed is true. */
+  function guard(needed, text, fn, ok) {
+    if (!needed) { fn(); return; }
+    ask({ text, ok: ok || 'Remove', danger: true }).then((y) => { if (y) fn(); });
+  }
+
   /** Emerald icon (inline svg) used next to every price. */
   function emerald(cls) {
     return TH.icon('emerald', { size: 14, cls: 'emerald' + (cls ? ' ' + cls : '') });
@@ -352,5 +382,5 @@ TH.util = (function () {
     return { refresh: () => all(false) };
   })();
 
-  return { h, append, reco, roman, clamp, uid, debounce, toast, emerald, stepper, ring, download, reveal, tooltip, scrollEdges, segKnob };
+  return { h, append, reco, roman, clamp, uid, debounce, toast, ask, guard, emerald, stepper, ring, download, reveal, tooltip, scrollEdges, segKnob };
 })();

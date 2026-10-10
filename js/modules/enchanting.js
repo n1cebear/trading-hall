@@ -475,8 +475,7 @@ TH.anvil = (function () {
             h('button.x-btn', {
               type: 'button', title: 'Delete', 'aria-label': 'Delete ' + g.name,
               onclick: () => {
-                if (!confirm(`Delete “${g.name}”?`)) return;
-                set((e) => { e.gear = e.gear.filter((x) => x.id !== g.id); if (e.gearId === g.id) e.gearId = null; });
+                TH.util.guard(true, `Delete “${g.name}”?`, () => set((e) => { e.gear = e.gear.filter((x) => x.id !== g.id); if (e.gearId === g.id) e.gearId = null; }), 'Delete');
               },
             }, '✕')));
       }, '.ec-gear-list'));
@@ -1297,8 +1296,7 @@ TH.anvil = (function () {
       finished ? h('button.btn.small.ghost', { type: 'button', onclick: () => set((e) => { e.plan = e.plan.filter((x) => !x.done); }) }, 'Clear finished (' + finished + ')') : null,
       h('button.btn.small.ghost.danger', {
         type: 'button', onclick: () => {
-          if (!confirm('Remove every item from your plan?')) return;
-          set((e) => { e.plan = []; e.planGot = {}; e.booksOwned = {}; e.planEditing = null; });
+          TH.util.guard(true, 'Remove every item from your plan?', () => set((e) => { e.plan = []; e.planGot = {}; e.booksOwned = {}; e.planEditing = null; }), 'Clear plan');
         },
       }, 'Clear plan'));
 

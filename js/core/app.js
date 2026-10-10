@@ -401,8 +401,8 @@ TH.app = (function () {
         TH.util.download(`toolbox-${new Date().toISOString().slice(0, 10)}.json`, TH.store.exportJSON());
       } else if (act === 'import') {
         file.click();
-      } else if (act === 'reset' && confirm('Erase all progress, prices, gear and presets? This cannot be undone.')) {
-        TH.store.reset();
+      } else if (act === 'reset') {
+        TH.util.ask({ text: 'Erase all progress, prices, gear and presets? This cannot be undone.', ok: 'Erase everything', danger: true }).then((y) => { if (y) TH.store.reset(); });
       }
     });
     file.addEventListener('change', async () => {

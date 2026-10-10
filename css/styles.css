@@ -961,3 +961,9 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; }
 
 /* logo: a roomier hover box (the effect no longer sits tight against the glass and the name) */
 @media (min-width: 641px) { :root:root .brand { padding: 10px 20px 10px 16px; margin-left: -16px; gap: 14px; } }
+
+/* in-page confirm / prompt (TH.util.ask) */
+.th-ask { position: fixed; inset: 0; z-index: 9999; display: grid; place-items: center; padding: 20px; background: rgb(0 0 0 / .55); backdrop-filter: blur(3px); }
+.th-ask-box { width: min(440px, 100%); display: flex; flex-direction: column; gap: 18px; padding: 24px 26px; }
+.th-ask-text { margin: 0; font-size: 14.5px; line-height: 1.5; color: var(--text); }
+.th-ask-btns { display: flex; justify-content: flex-end; gap: 12px; }

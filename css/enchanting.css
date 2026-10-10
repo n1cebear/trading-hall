@@ -1129,3 +1129,10 @@
 /* books to get: no hard left bar in any style */
 :root:root:root[data-neu] .ec-buy-row.on, :root:root:root .ec-buy-row.on { box-shadow: none !important; }
 :root:root:root[data-neu] .ec-buy-row.on { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+
+/* Oct 2026 (12): roomier gaps between the plan item keys; the whole "got" counter in accent */
+.ec-pi-aside .ec-pi-actions { gap: 12px; }
+.ec-pv-list .ec-pv-cat .ec-pi.done { column-gap: 18px; }
+:root:root .ec-buy-row.on .ec-step { color: var(--accent); }
+:root:root .ec-buy-row.on .ec-step-n, :root:root .ec-buy-row.on .ec-step-n b, :root:root .ec-buy-row.on .ec-step-n * { color: var(--accent); }
+:root:root .ec-buy-row.on .ec-step-btn { color: var(--accent); }

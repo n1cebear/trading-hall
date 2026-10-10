@@ -424,3 +424,8 @@
 .tr-tgt button.on { color: var(--accent); text-shadow: 0 0 8px color-mix(in srgb, var(--accent) 75%, transparent); }
 .tr-tgt button.on .mc { filter: drop-shadow(0 0 5px color-mix(in srgb, var(--accent) 80%, transparent)); }
 .tr-tgt button.on, .tr-tgt button[aria-checked="true"] { position: relative; z-index: 1; box-shadow: 0 0 14px -3px color-mix(in srgb, var(--accent) 60%, transparent), inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent); }
+/* softer glow on the armor piece switch */
+.tr-tgt::before { filter: drop-shadow(0 0 4px color-mix(in srgb, var(--accent) 38%, transparent)); }
+.tr-tgt button.on { text-shadow: 0 0 5px color-mix(in srgb, var(--accent) 40%, transparent); }
+.tr-tgt button.on .mc { filter: drop-shadow(0 0 3px color-mix(in srgb, var(--accent) 45%, transparent)); }
+.tr-tgt button.on, .tr-tgt button[aria-checked="true"] { box-shadow: 0 0 8px -3px color-mix(in srgb, var(--accent) 35%, transparent), inset 0 0 0 1px color-mix(in srgb, var(--accent) 28%, transparent); }

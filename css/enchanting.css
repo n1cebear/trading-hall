@@ -1100,3 +1100,23 @@
 .ec-pg-meta .mc { vertical-align: -3px; margin-right: 4px; }
 @media (max-width: 700px) { .ec-progress { grid-template-columns: minmax(0, 1fr); grid-template-areas: "big" "bar" "spent" "xp" "chips" "meta"; } .ec-pg-spent, .ec-pg-meta { align-items: flex-start; } .ec-pg-xp { justify-self: start; } }
 .ec-pg-nums { display: inline-flex; align-items: baseline; gap: 6px; white-space: nowrap; }
+
+/* ===== Oct 2026 (10) ===== */
+/* books to get: "got it" = soft accent tint + accent counter (no hard left bar); "spent" (used up by ticked steps) = grey */
+:root:root .ec-buy-row.on { background: color-mix(in srgb, var(--accent) 11%, transparent); box-shadow: none; border-radius: var(--radius); }
+:root:root .ec-buy-row.on .ec-buy-name { text-decoration: none; color: var(--text); }
+:root:root .ec-buy-row.on .ec-step-n, :root:root .ec-buy-row.on .ec-step-n b { color: var(--accent); }
+:root:root .ec-buy-row.on .ec-step-n { font-weight: 600; }
+:root:root .ec-buy-row.spent { background: transparent; box-shadow: none; }
+.ec-buy-row.spent .ec-buy-name, .ec-buy-row.spent .ec-step-n, .ec-buy-row.spent .ec-step-n b { color: var(--faint); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--faint) 70%, transparent); }
+.ec-buy-row.spent .mc, .ec-buy-row.spent .ec-hall { opacity: .4; filter: grayscale(1); }
+.ec-buy-row.spent .ec-step-btn { opacity: .5; }
+
+/* plan item side column: Edit / Done / x share one alignment (right, centred on the item); a finished item keeps check and x side by side */
+.ec-pi-aside { align-items: flex-end; }
+.ec-pi-aside .ec-pi-actions { align-items: flex-end; }
+.ec-pv-list .ec-pv-cat .ec-pi.done { grid-template-columns: 36px minmax(110px, 170px) minmax(0, 1fr) auto auto; grid-template-rows: auto; column-gap: 14px; }
+.ec-pv-list .ec-pv-cat .ec-pi.done > .ec-pi-icon, .ec-pv-list .ec-pv-cat .ec-pi.done > .ec-pi-title, .ec-pv-list .ec-pv-cat .ec-pi.done > .ec-pi-ench { grid-row: 1; }
+.ec-pv-list .ec-pv-cat .ec-pi.done > .ec-done-check { grid-column: 4; grid-row: 1; justify-self: end; align-self: center; }
+.ec-pv-list .ec-pv-cat .ec-pi.done > .ec-pi-actions { grid-column: 5; grid-row: 1; justify-self: end; align-self: center; display: flex; }
+@media (max-width: 700px) { .ec-pv-list .ec-pv-cat .ec-pi.done { grid-template-columns: 36px minmax(0, 1fr) auto auto; } }

@@ -1306,8 +1306,17 @@ TH.anvil = (function () {
     const pool = {};
     Object.keys(s.booksOwned).forEach((k) => { pool[k] = s.booksOwned[k]; });
     const needSet = new Set();
+    const usedMap = {};   // book copies already spent by ticked steps
     open.forEach(({ en, p }) => p.steps.forEach((x) => {
-      if (en.ticks.includes('n' + x.n)) return;
+      if (en.ticks.includes('n' + x.n)) {
+        [x.target, x.sacrifice].forEach((node) => {
+          if (node && node.kind === 'book' && node.fromStep == null && node.enchants && node.enchants.length === 1) {
+            const key = node.enchants[0].id + ':' + node.enchants[0].level;
+            usedMap[key] = (usedMap[key] || 0) + 1;
+          }
+        });
+        return;
+      }
       [['t', x.target], ['s', x.sacrifice]].forEach(([side, node]) => {
         if (!node || node.kind !== 'book' || node.fromStep != null || !node.enchants || node.enchants.length !== 1) return;
         const key = node.enchants[0].id + ':' + node.enchants[0].level;
@@ -1342,9 +1351,9 @@ TH.anvil = (function () {
       bookTotal ? progressBar(gotBooks, bookTotal, 'Books obtained') : null,
       books.length
         ? h('ul.ec-buy', books.map((b) => {
-          const have = owned(s, b.key), full = have >= b.count, spare = Math.max(0, have - b.count);
+          const have = owned(s, b.key), full = have >= b.count, spare = Math.max(0, have - b.count), spent = (usedMap[b.key] || 0) >= b.count;
           const nm = lvlName(b.id, b.level);
-          return h('li.ec-buy-row' + (full ? '.on' : ''), { 'data-book': b.key },
+          return h('li.ec-buy-row' + (spent ? '.spent' : full ? '.on' : ''), { 'data-book': b.key },
             h('div.ec-step', { role: 'group', 'aria-label': nm + ' books obtained' },
               h('button.ec-step-btn', { type: 'button', 'aria-label': 'One fewer ' + nm, disabled: !have, 'data-focus': 'ec-got-dec-' + b.key, onclick: () => bumpOwned(b.key, -1) }, '−'),
               h('span.ec-step-n', { 'aria-live': 'polite' }, h('b', have), '/' + b.count),

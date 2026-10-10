@@ -1272,8 +1272,6 @@ TH.anvil = (function () {
         h('div.ec-total-num', h('span.ec-xp', levels), h('span.ec-total-label', 'levels for every anvil step')),
         h('div.ec-total-sub', '≈ ' + points.toLocaleString() + ' XP points', left !== levels ? ' · ' + left + ' levels still to spend' : '')),
       h('div.ec-cost-rows',
-        h('div.ec-cost', TH.icon('emerald', { size: 20 }), h('span.ec-cost-label', 'Emeralds for hall trades'), h('b', emeralds)),
-        h('div.ec-cost', TH.icon('book', { size: 20 }), h('span.ec-cost-label', 'Plain books for those trades'), h('b', hallBooks)),
         ups ? h('div.ec-cost', TH.icon('item/netherite_ingot', { size: 20 }), h('span.ec-cost-label', 'Netherite upgrades'), h('b', ups)) : null),
       unpriced ? h('p.ec-pv-note', unpriced + ' hall book' + (unpriced > 1 ? 's have' : ' has') + ' no price yet — set it in the Trading Hall tab.') : null,
       bad ? h('p.ec-alert', TH.icon('item/barrier', { size: 14 }), h('span', bad + ' item' + (bad > 1 ? 's hit' : ' hits') + ' Too Expensive! — see the checklist.')) : null);
@@ -1291,9 +1289,9 @@ TH.anvil = (function () {
               h('span.ec-step-n', { 'aria-live': 'polite' }, h('b', have), '/' + b.count),
               h('button.ec-step-btn', { type: 'button', 'aria-label': 'One more ' + nm, 'data-focus': 'ec-got-inc-' + b.key, onclick: () => bumpOwned(b.key, 1) }, '+')),
             bookIcon(20),
-            h('div.ec-buy-text',
+            h('div.ec-buy-text', { title: b.items.join(', ') },
               h('span.ec-buy-name', nm, b.count > 1 ? h('span.ec-x', '×' + b.count) : null, spare ? h('span.ec-spare', spare + ' spare') : null),
-              h('span.ec-buy-for', b.items.join(', '))),
+            ),
             sourceChip(offers, b.id, b.level, b.count));
         }))
         : h('p.ec-pv-note', 'Nothing to buy — every open item is done or has no books.'));

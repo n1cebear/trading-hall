@@ -924,3 +924,16 @@
 .ec-pi-id .ec-pi-actions .btn { flex: 1 1 0; min-width: 0; justify-content: center; padding-inline: 6px; }
 /* the item icon in a plan entry stands free, no box around it (as in Trims) */
 :root:root:root .ec-pi-icon, :root:root:root .ec-pi.done .ec-pi-icon { background: none; box-shadow: none; border: 0; border-radius: 0; }
+
+/* My plan, right column: wider; books as slim rows (the emerald / plain-book cost lines are gone) */
+@media (min-width: 981px) { .ec-layout-single:has(.ec-shop) { grid-template-columns: minmax(0, 1fr) minmax(400px, 470px); } }
+.ec-shop .ec-cost-rows:empty { display: none; }
+.ec-shop .ec-buy { gap: 2px; }
+.ec-shop .ec-buy-row { min-height: 34px; padding: 3px 6px; gap: 8px; }
+.ec-shop .ec-buy-row .ec-step { gap: 2px; }
+.ec-shop .ec-buy-row .ec-step-btn { width: 22px; height: 22px; min-width: 0; font-size: 13px; padding: 0; }
+.ec-shop .ec-buy-row .ec-step-n { min-width: 2.4em; text-align: center; font-size: 12px; }
+.ec-shop .ec-buy-row .mc { --mc: 16px !important; }
+.ec-shop .ec-buy-name { font-size: 12.5px; flex-wrap: nowrap; white-space: nowrap; }
+.ec-shop .ec-buy-row .ec-hall { margin-left: auto; font-size: 10.5px; padding: 1px 6px; min-height: 0; height: auto; white-space: nowrap; }
+.ec-shop .ec-buy-text { flex-direction: row; align-items: center; }

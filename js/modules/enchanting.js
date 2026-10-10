@@ -527,7 +527,7 @@ TH.anvil = (function () {
     const box = (key, label, body) => h('section.panel.ec-card.ec-picker.ec-pick-' + key + (key === grp || (key === 'mat' && s.matTouched) ? '.has-sel' : ''), { 'aria-labelledby': 'ec-lbl-' + key },
       h('h3.ec-pick-label', { id: 'ec-lbl-' + key }, label), body);
     return [
-      h('div.ec-toprow', renderModeCards(s), box('mat', 'Material',
+      h('div.ec-toprow', box('mat', 'Material',
         h('div.ec-matkeys', { role: 'radiogroup', 'aria-labelledby': 'ec-lbl-mat' }, MATS.map((m) => {
           const on = s.material === m;
           const nm = matName(m);
@@ -742,8 +742,7 @@ TH.anvil = (function () {
     });
     // first section of the Anvil plan panel (flat, no box of its own); the tooltip itself stays Minecraft-styled
     return h('div.ec-pv-sec',
-      h('div.ec-sub-head', { id: 'ec-lbl-preview' }, 'Preview'),
-      h('div.ec-preview', { role: 'group', 'aria-labelledby': 'ec-lbl-preview', 'aria-live': 'polite' },
+      h('div.ec-preview', { role: 'group', 'aria-label': 'Preview', 'aria-live': 'polite' },
         h('div.ec-pv-row',
           h('div.mct-slot', TH.icon.item(s.item, effMat(s.item, s.material), { size: 32, glint: ench })),
           h('div.mct', h('div.mct-name' + (ench ? '.ench' : '') + (custom ? '.custom' : ''), custom || itemName(s.item, s.material)), lines))));
@@ -752,13 +751,14 @@ TH.anvil = (function () {
   function renderPlan(state, s, plan) {
     const offers = hallOffers(state);
     const editingNow = editingEntry(s);
-    const head = [h('div.ec-card-head', h('h3', 'Anvil plan'),
-      editingNow ? h('button.btn.ghost.small.ec-clear', { type: 'button', title: 'Stop editing this plan item and start a new one', onclick: () => set((e) => { e.planEditing = null; }) }, 'Stop editing') : null), renderPreview(s)];
+    const modeSw = renderModeCards(s);
+    const head = [editingNow ? h('div.ec-card-head.ec-edit-head', h('span.faint', 'Editing a plan item'),
+      h('button.btn.ghost.small.ec-clear', { type: 'button', title: 'Stop editing this plan item and start a new one', onclick: () => set((e) => { e.planEditing = null; }) }, 'Stop editing')) : null, renderPreview(s)];
 
-    if (plan.error) return h('aside.panel.ec-plan', head, h('p.ec-alert', plan.error));
+    if (plan.error) return h('aside.panel.ec-plan', modeSw, head, h('p.ec-alert', plan.error));
 
     if (!plan.books.length) {
-      return h('aside.panel.ec-plan', { 'aria-live': 'polite' }, head,
+      return h('aside.panel.ec-plan', { 'aria-live': 'polite' }, modeSw, head,
         h('div.empty.ec-empty',
           plan.skipped.length ? 'Your item already has everything you picked.' : 'Pick enchantments and the cheapest anvil order shows up here.'),
         renderActions(s));
@@ -822,7 +822,7 @@ TH.anvil = (function () {
         ? h('div.ec-shop-total', h('span.ec-price', h('b', emeraldTotal), emerald()), h('span', `+ ${fromHall} book${fromHall > 1 ? 's' : ''} from your hall`))
         : null);
 
-    return h('aside.panel.ec-plan', { 'aria-live': 'polite' },
+    return h('aside.panel.ec-plan', { 'aria-live': 'polite' }, modeSw,
       h('div.ec-plan-body',
         head, total, alert,
         stepList ? h('div.ec-plan-block', h('div.ec-sub-head', 'Anvil steps', h('span.faint', steps.length)), stepList) : null,
@@ -1081,6 +1081,7 @@ TH.anvil = (function () {
         const n = b.querySelector('.ec-modecard-n'); n.textContent = total || ''; n.hidden = !total;
       }
     });
+    modeEl.dataset.editing = editing ? '1' : '';
     if (modeEl.dataset.mode !== s.mode) setTimeout(() => { void modeEl.offsetWidth; modeEl.dataset.mode = s.mode; }, 0);
     return modeEl;
   }
@@ -1226,7 +1227,7 @@ TH.anvil = (function () {
 
   function renderPlanView(state, s) {
     if (!s.plan.length) {
-      return h('div.ec-layout.ec-layout-single.is-empty', h('div.ec-main', h('div.ec-toprow', renderModeCards(s), h('section.panel.ec-card.ec-pv-empty',
+      return h('div.ec-layout.ec-layout-single.is-empty', h('div.ec-main', h('div.ec-modewrap', renderModeCards(s)), h('div.ec-toprow', h('section.panel.ec-card.ec-pv-empty',
         h('div.empty',
           h('div.empty-icon', { 'aria-hidden': 'true' }, TH.icon('item/writable_book', { size: 44 })),
           h('h3', 'Your plan is empty'),
@@ -1358,8 +1359,8 @@ TH.anvil = (function () {
       h('button.btn', { type: 'button', onclick: () => window.print() }, 'Print'));
 
     return h('div.ec-layout.ec-layout-single',
-      h('div.ec-main', h('div.ec-toprow', renderModeCards(s), head), h('section.ec-pv-list', { 'aria-label': 'Anvil to-do checklist' }, list)),
-      h('div.ec-side', h('aside.panel.ec-plan.ec-shop', { 'aria-label': 'Shopping list' }, h('div.ec-plan-body', costs, bookBox, matBox), actions)));
+      h('div.ec-main', h('div.ec-toprow', head), h('section.ec-pv-list', { 'aria-label': 'Anvil to-do checklist' }, list)),
+      h('div.ec-side', h('aside.panel.ec-plan.ec-shop', { 'aria-label': 'Shopping list' }, renderModeCards(s), h('div.ec-plan-body', costs, bookBox, matBox), actions)));
   }
 
   /* ---------- page ---------- */

@@ -972,3 +972,22 @@
 .panel.has-sel::before { content: ''; position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none; box-shadow: -5px -5px 12px -5px color-mix(in srgb, var(--accent) 38%, transparent); }
 .ec-rowbox.has-sel .ec-pick-label { color: var(--accent); }
 .ec-pv-cat.has-sel .ec-group-name > span:first-child { color: var(--accent); }
+
+/* ===== the mode slider heads the right panel: two keys side by side ===== */
+:root:root:root .ec-toprow { grid-template-columns: minmax(0, 1fr); }
+:root:root:root .ec-modecards { align-self: auto; grid-template-rows: none; grid-template-columns: 1fr 1fr; min-height: 58px; flex: none; margin-bottom: 14px; }
+.ec-plan > .ec-modecards { margin: 14px 16px 0; }
+.ec-slide-thumb { height: calc(100% - 10px); width: calc((100% - 10px) / 2); right: auto; }
+.ec-modecards[data-mode="plan"] .ec-slide-thumb { transform: translateX(100%); }
+:root:root:root .ec-modecard { flex-direction: row; gap: 10px; min-height: 48px; padding: 6px 10px; }
+.ec-modewrap { display: flex; justify-content: center; }
+.ec-modewrap .ec-modecards { width: min(420px, 100%); margin: 0; }
+/* edit mode: not filled, a dashed outline instead */
+.ec-modecards[data-editing="1"] .ec-slide-thumb { background: transparent; box-shadow: none; outline: 2px dashed var(--accent); outline-offset: -2px; }
+:root:root:root .ec-modecards[data-editing="1"] .ec-modecard[data-m="single"][aria-pressed="true"], :root:root:root .ec-modecards[data-editing="1"] .ec-modecard[data-m="single"][aria-pressed="true"] .ec-modecard-t { color: var(--accent); }
+/* the side column keeps one width whatever the plan holds (it used to be slimmer until a first enchantment was picked) */
+@media (min-width: 981px) {
+  .ec-layout.ec-layout-single { grid-template-columns: minmax(0, 1fr) 390px; }
+  .ec-layout-single:has(.ec-shop) { grid-template-columns: minmax(0, 1fr) 450px; }
+}
+.ec-edit-head { margin: 0 0 6px; }

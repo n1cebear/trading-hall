@@ -1335,8 +1335,8 @@ TH.anvil = (function () {
       planMode ? renderPlanView(state, s) : [
         renderGear(state),
         h('div.ec-layout.ec-layout-single',
-          h('div.ec-main', renderLinked(s), renderPicker(s), renderSelect(state, s)),
-          h('div.ec-side', renderPlan(state, s, plan))),
+          h('div.ec-main', renderPicker(s), renderSelect(state, s)),
+          h('div.ec-side', renderLinked(s), renderPlan(state, s, plan))),
       ],
     ]);
     root.querySelectorAll('[title]').forEach((el) => TH.util.tooltip(el)); // app tooltip instead of native title

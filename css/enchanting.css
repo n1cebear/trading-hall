@@ -895,3 +895,7 @@
 }
 .ec-modecards::before, .ec-modecards::after, .ec-modecard::before, .ec-modecard::after { content: none !important; display: none !important; }
 .ec-modecard-n { display: none !important; }
+
+/* "Editing plan item" sits above the Anvil plan panel */
+.ec-side > .ec-linked { flex: none; flex-wrap: wrap; margin: 0 0 var(--ec-gap); row-gap: 8px; }
+.ec-side > .ec-linked .ec-linked-text { flex: 1 1 100%; min-width: 0; }

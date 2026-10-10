@@ -699,7 +699,7 @@ TH.anvil = (function () {
     }
     if (node.fromStep != null) {
       return h('span.ec-node.book', { title: 'Book from step ' + node.fromStep },
-        bookIcon(20), h('span', names.join(' + ') || 'Book'), h('small.ec-ref', 'step ' + node.fromStep));
+        bookIcon(20), h('span', names.join(' + ') || 'Book'), h('small.ec-ref', 'BOOK FROM STEP ' + node.fromStep));
     }
     return h('span.ec-node.book', bookIcon(20), h('span', names.join(' + ')));
   }

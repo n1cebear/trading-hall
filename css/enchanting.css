@@ -958,3 +958,7 @@
 .ec-xp-hint { text-transform: none; }
 .ec-warn-chip { display: inline-flex; align-items: center; gap: 6px; width: fit-content; padding: 4px 10px 4px 8px; border-radius: var(--radius); font: 700 11px/1.2 var(--font); letter-spacing: .4px; color: #ff6b6b; background: color-mix(in srgb, #ff4d4d 14%, transparent); cursor: help; }
 .ec-warn-chip .mc { margin-top: 0; }
+
+/* the group holding the chosen item: no tinted fill, the accent lives in the top-left shadow only */
+:root:root:root .ec-picker.has-sel { background: unset; filter: drop-shadow(-5px -5px 7px color-mix(in srgb, var(--accent) 60%, transparent)); }
+.ec-ref { white-space: nowrap; text-transform: uppercase; letter-spacing: .4px; }

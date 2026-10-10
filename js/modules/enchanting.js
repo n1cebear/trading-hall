@@ -417,10 +417,10 @@ TH.anvil = (function () {
   /** Armor section = the four armor pieces plus elytra and shield; everything else is Tools. Armor is listed first. */
   const ARMOR_IDS = ['helmet', 'chestplate', 'leggings', 'boots', 'elytra'];
   const isArmorItem = (id) => ARMOR_IDS.includes(id);
-  function armorToolSections(entries, itemOf, render, listCls) {
+  function armorToolSections(entries, itemOf, render, listCls, secCls) {
     const armor = entries.filter((x) => isArmorItem(itemOf(x))).sort((a, b) => ARMOR_IDS.indexOf(itemOf(a)) - ARMOR_IDS.indexOf(itemOf(b)));
     const tools = entries.filter((x) => !isArmorItem(itemOf(x)));
-    return [['Armor', armor], ['Tools', tools]].filter(([, l]) => l.length).map(([name, l]) => h('div.ec-sec',
+    return [['Armor', armor], ['Tools', tools]].filter(([, l]) => l.length).map(([name, l]) => h('div.ec-sec' + (secCls || ''),
       h('div.ec-group-name', h('span', name)),
       h('div' + (listCls || ''), l.map(render))));
   }
@@ -769,7 +769,7 @@ TH.anvil = (function () {
       h('div.ec-sum-main', { title: '≈ ' + (plan.totalXP || 0).toLocaleString() + ' XP points' },
         h('span.ec-sum-item', h('b', usable ? plan.totalLevels : '—'), h('span.ec-sum-lab', 'level' + (plan.totalLevels === 1 ? '' : 's') + (plan.partial ? ' · without left-out books' : ''))),
         h('span.ec-sum-item', h('b', steps.length), h('span.ec-sum-lab', 'anvil step' + (steps.length === 1 ? '' : 's')))),
-      compare ? h('div.ec-compare', compare) : null);
+      compare ? h('div.ec-compare', compare) : null, xpHint(plan.totalLevels));
 
     // one short warning, only when it matters
     let alert = null;
@@ -1102,6 +1102,12 @@ TH.anvil = (function () {
       o.perfect ? h('span.ec-star', { 'aria-label': 'perfect price' }, '★') : null);
   }
 
+  /** Past level 30 every level costs more XP (levels 0-15: 2n+7 points, 16-30: 5n-38, 31+: 9n-158), so big totals are best done in rounds. */
+  function xpHint(levels) {
+    if (levels <= 30) return null;
+    return h('p.ec-xp-hint', TH.icon('xp', { size: 16 }), h('span', 'More than 30 levels in total. Levels beyond 30 get expensive: each one costs 112 or more XP points (7–37 up to level 15, 42–107 up to level 30), so gather XP in rounds instead of banking it all at once.'));
+  }
+
   function progressBar(done, total, label) {
     const pct = total ? Math.round((done / total) * 100) : 0;
     return h('div.ec-prog' + (total && done === total ? '.full' : ''),
@@ -1128,7 +1134,7 @@ TH.anvil = (function () {
 
     if (en.done) {
       const fin = p.final ? p.final.enchants : {};
-      return h('article.panel.ec-pi.done',
+      return h('article.ec-pi.done',
         h('div.ec-pi-head',
           h('span.ec-pi-icon', itemIcon(en.item, en.material, 28)),
           h('div.ec-pi-title', h('b', name), gear ? h('span.faint', gear.name) : null),
@@ -1174,7 +1180,7 @@ TH.anvil = (function () {
     const meta = [rows.length ? (p.totalLevels || 0) + ' levels' : null, gear ? gear.name : null,
       Object.keys(en.existing).length ? 'has ' + Object.keys(en.existing).length + ' enchant' + (Object.keys(en.existing).length > 1 ? 's' : '') : null,
       en.uses ? en.uses + ' anvil use' + (en.uses === 1 ? '' : 's') : null].filter(Boolean).join(' · ') || 'fresh item';
-    return h('article.panel.ec-pi.ec-pi-split' + (all ? '.complete' : ''), { 'aria-label': name },
+    return h('article.ec-pi.ec-pi-split' + (all ? '.complete' : ''), { 'aria-label': name },
       h('div.ec-pi-id',
         h('span.ec-pi-num', idx + 1),
         h('span.ec-pi-icon', itemIcon(en.item, en.material, 48)),
@@ -1263,7 +1269,7 @@ TH.anvil = (function () {
           },
         }, 'Clear plan')));
 
-    const list = armorToolSections(rows.map((r, i) => Object.assign({ i }, r)), (r) => r.en.item, (r) => renderEntry(r.en, r.p, s, r.i), '.ec-pi-list');
+    const list = armorToolSections(rows.map((r, i) => Object.assign({ i }, r)), (r) => r.en.item, (r) => renderEntry(r.en, r.p, s, r.i), '.ec-pi-list', '.panel.ec-pv-cat');
 
     // ---- right: shopping list in the sticky Anvil-plan style, floating actions at the foot ----
     const costs = h('section.ec-pv-sec.ec-costs', { 'aria-label': 'Costs total' },
@@ -1273,6 +1279,7 @@ TH.anvil = (function () {
         h('div.ec-total-sub', '≈ ' + points.toLocaleString() + ' XP points', left !== levels ? ' · ' + left + ' levels still to spend' : '')),
       h('div.ec-cost-rows',
         ups ? h('div.ec-cost', TH.icon('item/netherite_ingot', { size: 20 }), h('span.ec-cost-label', 'Netherite upgrades'), h('b', ups)) : null),
+      xpHint(levels),
       unpriced ? h('p.ec-pv-note', unpriced + ' hall book' + (unpriced > 1 ? 's have' : ' has') + ' no price yet — set it in the Trading Hall tab.') : null,
       bad ? h('p.ec-alert', TH.icon('item/barrier', { size: 14 }), h('span', bad + ' item' + (bad > 1 ? 's hit' : ' hits') + ' Too Expensive! — see the checklist.')) : null);
 

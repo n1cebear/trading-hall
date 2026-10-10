@@ -937,3 +937,12 @@
 .ec-shop .ec-buy-name { font-size: 12.5px; flex-wrap: nowrap; white-space: nowrap; }
 .ec-shop .ec-buy-row .ec-hall { margin-left: auto; font-size: 10.5px; padding: 1px 6px; min-height: 0; height: auto; white-space: nowrap; }
 .ec-shop .ec-buy-text { flex-direction: row; align-items: center; }
+
+/* Costs total: levels LEFT in big green, a classic Minecraft experience bar for the spent share, the totals as facts below */
+.ec-xpbox { gap: 10px; }
+.ec-xpbox .ec-xp { font-size: 38px; color: #7efc20; text-shadow: 2px 2px 0 #1b3a06, -1px -1px 0 #1b3a06, 1px -1px 0 #1b3a06, -1px 1px 0 #1b3a06; }
+.ec-xpbar { position: relative; height: 12px; background: #2b2b2b; border: 2px solid #000; box-shadow: inset 0 2px 0 #4a4a4a, inset 0 -2px 0 #1a1a1a, 0 0 0 1px rgb(255 255 255 / .08); image-rendering: pixelated; }
+.ec-xpbar > span { position: absolute; left: 0; top: 0; bottom: 0; background: linear-gradient(180deg, #c8ff82 0 25%, #80ff20 25% 70%, #3fa000 70% 100%); transition: width .3s steps(8, end); }
+.ec-xpbar::after { content: ''; position: absolute; inset: 0; background: repeating-linear-gradient(90deg, transparent 0 calc(10% - 2px), rgb(0 0 0 / .55) calc(10% - 2px) 10%); pointer-events: none; }
+.ec-xp-facts { display: flex; flex-wrap: wrap; gap: 4px 18px; font-size: 12px; color: var(--muted); }
+.ec-xp-facts b { font: 400 14px/1 var(--mono); color: var(--text); font-variant-numeric: tabular-nums; }

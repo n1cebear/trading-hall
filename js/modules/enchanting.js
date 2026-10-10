@@ -839,7 +839,10 @@ TH.anvil = (function () {
     const hasBooks = !!(plan && !plan.error && usedBooks(plan).length);
     const entryDirty = en && !sameEntry(en, s);
 
-    const left = !en
+    const dup = !en && s.plan.some((x) => !x.done && sameEntry(x, s));
+    const left = dup
+      ? h('button.btn.ec-inplan', { type: 'button', disabled: true }, '✓ In your plan')
+      : !en
       ? h('button.btn.ec-add', { type: 'button', disabled: !hasBooks, 'data-focus': 'ec-plan-add', onclick: addToPlan,
         title: hasBooks ? 'Add this item to your plan' : 'Pick enchantments first' }, 'Add to plan')
       : entryDirty
@@ -927,8 +930,7 @@ TH.anvil = (function () {
     let name = '';
     set((e) => {
       const en = Object.assign({ id: uid('plan'), upgrade: false, gearId: e.gearId || null, ticks: [], done: false, added: Date.now() }, snapshot(e));
-      e.plan.push(en);
-      e.planEditing = en.id;
+      e.plan.push(en);   // stays a plain editor: only the Edit button links the editor to a plan item
       name = itemName(en.item, en.material);
     });
     toast(`Added ${name} to your plan`);
@@ -1360,7 +1362,7 @@ TH.anvil = (function () {
 
     return h('div.ec-layout.ec-layout-single',
       h('div.ec-main', h('div.ec-toprow', head), h('section.ec-pv-list', { 'aria-label': 'Anvil to-do checklist' }, list)),
-      h('div.ec-side', h('aside.panel.ec-plan.ec-shop', { 'aria-label': 'Shopping list' }, renderModeCards(s), h('div.ec-plan-body', costs, bookBox, matBox), actions)));
+      h('div.ec-side', h('aside.panel.ec-plan.ec-pvshop', { 'aria-label': 'Shopping list' }, renderModeCards(s), h('div.ec-plan-body', costs, bookBox, matBox), actions)));
   }
 
   /* ---------- page ---------- */
@@ -1403,7 +1405,7 @@ TH.anvil = (function () {
     const bottom = Math.min(innerHeight - 16, s.parentElement.getBoundingClientRect().bottom);
     const hpx = Math.max(200, Math.round(bottom - top)) + 'px';
     s.style.maxHeight = hpx;
-    if (cs.position === 'sticky' && !s.querySelector('.ec-shop')) s.style.height = hpx;   // one steady size whatever the plan holds
+    if (cs.position === 'sticky' && !s.querySelector('.ec-pvshop')) s.style.height = hpx;   // one steady size whatever the plan holds
   }
   function queueFitSide() { clearTimeout(sideTimer); sideTimer = setTimeout(fitSide, 0); }   // timer, not rAF (stalls in background tabs)
 

@@ -819,7 +819,6 @@
 :root:root:root .ec-slots.other { display: grid; grid-auto-flow: row; grid-template-rows: none; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 18px 16px; justify-items: stretch; }
 :root:root:root .ec-picker .ec-item { width: 100%; min-width: 0; }
 /* the group that holds the chosen item picks up a slight accent */
-:root:root .ec-picker.has-sel { background: color-mix(in srgb, var(--accent) 7%, var(--neu-bg, var(--panel))); }
 :root:root .ec-picker.has-sel .ec-pick-label { color: var(--accent); }
 @media (max-width: 1100px) { .ec-pickrow { grid-template-columns: minmax(0, 1fr); } .ec-slots.tools { grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); } .ec-slots.armor { grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); } }
 
@@ -873,9 +872,9 @@
 .ec-pi-prog b { color: var(--accent); }
 .ec-pi.complete .ec-pi-prog b { color: var(--accent); }
 :root:root .ec-todos { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 4px 16px; background: none; box-shadow: none; padding: 0; border-radius: 0; }
-.ec-shop .ec-pv-sec { display: flex; flex-direction: column; gap: 10px; }
-:root:root .ec-shop .ec-buy { background: none; box-shadow: none; padding: 0; border-radius: 0; }
-.ec-shop .ec-total { padding: 12px 14px; }
+.ec-pvshop .ec-pv-sec { display: flex; flex-direction: column; gap: 10px; }
+:root:root .ec-pvshop .ec-buy { background: none; box-shadow: none; padding: 0; border-radius: 0; }
+.ec-pvshop .ec-total { padding: 12px 14px; }
 
 /* ===== small screens: one column, nothing clipped ===== */
 @media (max-width: 980px) {
@@ -926,17 +925,17 @@
 :root:root:root .ec-pi-icon, :root:root:root .ec-pi.done .ec-pi-icon { background: none; box-shadow: none; border: 0; border-radius: 0; }
 
 /* My plan, right column: wider; books as slim rows (the emerald / plain-book cost lines are gone) */
-@media (min-width: 981px) { .ec-layout-single:has(.ec-shop) { grid-template-columns: minmax(0, 1fr) minmax(400px, 470px); } }
-.ec-shop .ec-cost-rows:empty { display: none; }
-.ec-shop .ec-buy { gap: 2px; }
-.ec-shop .ec-buy-row { min-height: 34px; padding: 3px 6px; gap: 8px; }
-.ec-shop .ec-buy-row .ec-step { gap: 2px; }
-.ec-shop .ec-buy-row .ec-step-btn { width: 22px; height: 22px; min-width: 0; font-size: 13px; padding: 0; }
-.ec-shop .ec-buy-row .ec-step-n { min-width: 2.4em; text-align: center; font-size: 12px; }
-.ec-shop .ec-buy-row .mc { --mc: 16px !important; }
-.ec-shop .ec-buy-name { font-size: 12.5px; flex-wrap: nowrap; white-space: nowrap; }
-.ec-shop .ec-buy-row .ec-hall { margin-left: auto; font-size: 10.5px; padding: 1px 6px; min-height: 0; height: auto; white-space: nowrap; }
-.ec-shop .ec-buy-text { flex-direction: row; align-items: center; }
+@media (min-width: 981px) { .ec-layout-single:has(.ec-pvshop) { grid-template-columns: minmax(0, 1fr) minmax(400px, 470px); } }
+.ec-pvshop .ec-cost-rows:empty { display: none; }
+.ec-pvshop .ec-buy { gap: 2px; }
+.ec-pvshop .ec-buy-row { min-height: 34px; padding: 3px 6px; gap: 8px; }
+.ec-pvshop .ec-buy-row .ec-step { gap: 2px; }
+.ec-pvshop .ec-buy-row .ec-step-btn { width: 22px; height: 22px; min-width: 0; font-size: 13px; padding: 0; }
+.ec-pvshop .ec-buy-row .ec-step-n { min-width: 2.4em; text-align: center; font-size: 12px; }
+.ec-pvshop .ec-buy-row .mc { --mc: 16px !important; }
+.ec-pvshop .ec-buy-name { font-size: 12.5px; flex-wrap: nowrap; white-space: nowrap; }
+.ec-pvshop .ec-buy-row .ec-hall { margin-left: auto; font-size: 10.5px; padding: 1px 6px; min-height: 0; height: auto; white-space: nowrap; }
+.ec-pvshop .ec-buy-text { flex-direction: row; align-items: center; }
 
 /* Costs total: levels LEFT in big green, a classic Minecraft experience bar for the spent share, the totals as facts below */
 .ec-xpbox { gap: 10px; }
@@ -960,16 +959,12 @@
 .ec-warn-chip .mc { margin-top: 0; }
 
 /* the group holding the chosen item: no tinted fill, the accent lives in the top-left shadow only */
-:root:root:root .ec-picker.has-sel { background: unset; filter: drop-shadow(-5px -5px 7px color-mix(in srgb, var(--accent) 60%, transparent)); }
 .ec-ref { white-space: nowrap; text-transform: uppercase; letter-spacing: .4px; }
 
 /* active segment: the accent as a faint shadow along the top-left of the segment itself (not the keys inside) */
-:root:root:root .ec-picker.has-sel { filter: none; position: relative; isolation: isolate; }
-.ec-picker.has-sel::before { content: ''; position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none; box-shadow: -5px -5px 12px -5px color-mix(in srgb, var(--accent) 38%, transparent); }
 
 /* the same "this step has something active" glow on any segment: material, enchantments, the plan category being edited */
 .panel.has-sel { position: relative; isolation: isolate; }
-.panel.has-sel::before { content: ''; position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none; box-shadow: -5px -5px 12px -5px color-mix(in srgb, var(--accent) 38%, transparent); }
 .ec-rowbox.has-sel .ec-pick-label { color: var(--accent); }
 .ec-pv-cat.has-sel .ec-group-name > span:first-child { color: var(--accent); }
 
@@ -988,6 +983,13 @@
 /* the side column keeps one width whatever the plan holds (it used to be slimmer until a first enchantment was picked) */
 @media (min-width: 981px) {
   .ec-layout.ec-layout-single { grid-template-columns: minmax(0, 1fr) 390px; }
-  .ec-layout-single:has(.ec-shop) { grid-template-columns: minmax(0, 1fr) 450px; }
+  .ec-layout-single:has(.ec-pvshop) { grid-template-columns: minmax(0, 1fr) 450px; }
 }
 .ec-edit-head { margin: 0 0 6px; }
+
+/* ===== segments light up on hover: the accent in the top-left shadow (the segment-level cousin of a key lifting on hover) ===== */
+.ec-picker, .ec-rowbox, .ec-pv-cat, .ec-pv-head { position: relative; isolation: isolate; }
+.ec-picker::before, .ec-rowbox::before, .ec-pv-cat::before, .ec-pv-head::before { content: ''; position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none; opacity: 0; transition: opacity .25s; box-shadow: -6px -6px 14px -6px color-mix(in srgb, var(--accent) 55%, transparent); }
+@media (hover: hover) { .ec-picker:hover::before, .ec-rowbox:hover::before, .ec-pv-cat:hover::before, .ec-pv-head:hover::before { opacity: 1; } }
+/* a segment with something active keeps a glowing title instead */
+.ec-picker.has-sel .ec-pick-label, .ec-rowbox.has-sel .ec-card-head h3, .ec-pv-cat.has-sel .ec-group-name > span:first-child { color: var(--accent); text-shadow: 0 0 8px color-mix(in srgb, var(--accent) 75%, transparent), 0 0 18px color-mix(in srgb, var(--accent) 45%, transparent); }

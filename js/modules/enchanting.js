@@ -1115,7 +1115,7 @@ TH.anvil = (function () {
       h('label.check', h('input', {
         type: 'checkbox', id: inputId, checked, 'data-focus': inputId,
         onchange: (ev) => tick(id, key, ev.target.checked),
-      }), h('span')),
+      }), h('span', key === 's' ? '↑' : key.slice(1))),
       h('label.ec-todo-body', { for: inputId }, body),
       cost);
   }
@@ -1124,7 +1124,7 @@ TH.anvil = (function () {
     const name = itemName(en.item, en.material);
     const gear = en.gearId ? s.gear.find((g) => g.id === en.gearId) : null;
     const books = usedBooks(p);
-    const remove = h('button.x-btn', { type: 'button', title: 'Remove from plan', 'aria-label': 'Remove ' + name + ' from plan', 'data-focus': 'ec-pi-rm-' + en.id, onclick: () => removeEntry(en) }, '✕');
+    const remove = h('button.btn.small.ec-pi-x', { type: 'button', title: 'Remove from plan', 'aria-label': 'Remove ' + name + ' from plan', 'data-focus': 'ec-pi-rm-' + en.id, onclick: () => removeEntry(en) }, '✕');
 
     if (en.done) {
       const fin = p.final ? p.final.enchants : {};
@@ -1157,7 +1157,6 @@ TH.anvil = (function () {
       key: 'n' + x.n,
       bad: x.cost > 39,
       body: h('span.ec-todo-line',
-        h('span.ec-step-num', { 'aria-label': 'Step ' + x.n }, x.n),
         nodeChip(x.target, en), h('span.ec-plus', { 'aria-hidden': 'true' }, '+'), nodeChip(x.sacrifice, en)),
       cost: h('span.ec-step-cost' + (x.cost > 39 ? '.bad' : x.cost >= 30 ? '.warn' : ''),
         x.cost > 39 ? 'Too Expensive!' : [h('span.ec-arrow', { 'aria-hidden': 'true' }, '→ '), h('b', x.cost), ' lvl']),
@@ -1172,7 +1171,7 @@ TH.anvil = (function () {
         p.partial ? ['leave out ', h('b', p.partial.dropped.map((b) => lvlName(b.id, b.level)).join(', ')), '. Steps below skip it.'] : 'no order works. Edit this item.'));
     }
 
-    const meta = [rows.length ? (p.totalLevels || 0) + ' levels · ' + rows.length + ' step' + (rows.length === 1 ? '' : 's') : null, gear ? gear.name : null,
+    const meta = [rows.length ? (p.totalLevels || 0) + ' levels' : null, gear ? gear.name : null,
       Object.keys(en.existing).length ? 'has ' + Object.keys(en.existing).length + ' enchant' + (Object.keys(en.existing).length > 1 ? 's' : '') : null,
       en.uses ? en.uses + ' anvil use' + (en.uses === 1 ? '' : 's') : null].filter(Boolean).join(' · ') || 'fresh item';
     return h('article.panel.ec-pi.ec-pi-split' + (all ? '.complete' : ''), { 'aria-label': name },

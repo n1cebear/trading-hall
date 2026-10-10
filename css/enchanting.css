@@ -903,7 +903,7 @@
 /* ===== plan item = identity on the left (icon over name, as in Trims), its steps on the right: one step, one row ===== */
 .ec-pi-split { display: grid; grid-template-columns: 190px minmax(0, 1fr); gap: 8px 24px; align-items: start; padding: 18px 20px; }
 .ec-pi-id { position: relative; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 6px; min-width: 0; }
-.ec-pi-id .ec-pi-num { position: absolute; top: 0; left: 0; width: auto; font: 400 13px/1 var(--mono); color: var(--faint); }
+.ec-pi-id .ec-pi-num { display: none; position: absolute; top: 0; left: 0; width: auto; font: 400 13px/1 var(--mono); color: var(--faint); }
 :root:root .ec-pi-id .ec-pi-icon { width: 64px; height: 64px; }
 .ec-pi-name { font: 400 14px/1.25 var(--display); color: var(--text); overflow-wrap: anywhere; }
 .ec-pi-meta { font-size: 12px; line-height: 1.35; }
@@ -912,3 +912,13 @@
 .ec-pi-steps { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 :root:root .ec-pi-steps .ec-todos { display: flex; flex-direction: column; gap: 4px; }
 @media (max-width: 700px) { .ec-pi-split { grid-template-columns: minmax(0, 1fr); } .ec-pi-id { flex-direction: row; flex-wrap: wrap; justify-content: flex-start; text-align: left; align-items: center; } .ec-pi-id .ec-pi-num { position: static; } .ec-pi-id .ec-pi-actions { margin: 0 0 0 auto; } }
+
+/* the number lives in the tick box: shows the step, turns into the tick when done */
+.ec-todo .check span { display: grid; place-items: center; font: 600 11px/1 var(--mono); color: var(--muted); }
+.ec-todo .check input:checked + span { font-size: 0; color: transparent; }
+.ec-todo .ec-step-num { display: none; }
+/* identity column centred against its steps; Edit / Done / x are equal keys with the normal 8px button gap */
+.ec-pi-split { align-items: center; }
+.ec-pi-id { align-self: center; }
+.ec-pi-id .ec-pi-actions { display: flex; gap: 8px; width: 100%; }
+.ec-pi-id .ec-pi-actions .btn { flex: 1 1 0; min-width: 0; justify-content: center; padding-inline: 6px; }

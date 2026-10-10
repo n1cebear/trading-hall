@@ -1136,3 +1136,26 @@
 :root:root .ec-buy-row.on .ec-step { color: var(--accent); }
 :root:root .ec-buy-row.on .ec-step-n, :root:root .ec-buy-row.on .ec-step-n b, :root:root .ec-buy-row.on .ec-step-n * { color: var(--accent); }
 :root:root .ec-buy-row.on .ec-step-btn { color: var(--accent); }
+
+/* ===== Oct 2026 (13): plan item keys, TOTAL under the steps, books as tickable copies ===== */
+.ec-pi-aside { align-items: center; justify-content: center; gap: 12px; }
+.ec-pi-aside .ec-pi-actions { display: flex; flex-direction: column; align-items: stretch; width: fit-content; gap: 14px; margin: 0; }
+.ec-pi-aside .ec-pi-row { display: flex; align-items: center; justify-content: center; gap: 14px; }
+:root:root .ec-pi-aside .ec-pi-actions > .btn { width: 100%; justify-content: center; }
+.ec-pi-id .ec-pi-meta { font-size: 11.5px; line-height: 1.35; text-align: center; }
+.ec-pi-total { display: flex; align-items: baseline; justify-content: flex-end; gap: 8px; padding: 6px 10px 0 0; color: var(--muted); }
+.ec-pi-total span:first-child { font: 600 10.5px/1 var(--font); letter-spacing: 1.2px; }
+.ec-pi-total b { font: 400 20px/1 var(--mono); color: var(--text); font-variant-numeric: tabular-nums; }
+.ec-pi-total span:last-child { font-size: 11px; text-transform: uppercase; letter-spacing: .6px; }
+
+.ec-bk { gap: 4px; }
+.ec-bk-group { display: flex; flex-direction: column; gap: 2px; list-style: none; }
+.ec-bk-head { display: flex; align-items: center; gap: 10px; padding: 8px 10px 4px; min-height: 30px; }
+.ec-bk-head .ec-buy-name { flex: 1 1 auto; }
+.ec-bk-copies { list-style: none; margin: 0 0 6px; padding: 0 0 0 30px; display: flex; flex-direction: column; gap: 2px; }
+.ec-bk-copy { min-height: 32px; }
+.ec-buy-for { font-size: 11.5px; color: var(--faint); }
+.ec-bk-single .ec-buy-text { flex-direction: column; align-items: flex-start; gap: 1px; }
+/* the tick box carries the state: accent when got, grey when used up (no stepper any more) */
+:root:root .ec-bk-copy.on .ec-buy-name, :root:root .ec-bk-copy.on .ec-buy-for { color: var(--accent); text-decoration: none; }
+:root:root .ec-bk-copy.spent .ec-buy-name, :root:root .ec-bk-copy.spent .ec-buy-for { color: var(--faint); text-decoration: line-through; }

@@ -1047,6 +1047,7 @@ TH.anvil = (function () {
   const setGot = (key, need, on) => set((e) => { if (on) e.planGot[key] = need; else delete e.planGot[key]; });
   /** Books in hand per enchant:level; changes by delta, never below 0. */
   const owned = (s, key) => s.booksOwned[key] || 0;
+  const setOwned = (key, n) => set((e) => { if (n > 0) e.booksOwned[key] = n; else delete e.booksOwned[key]; });
   const bumpOwned = (key, delta) => set((e) => {
     const n = Math.max(0, (e.booksOwned[key] || 0) + delta);
     if (n) e.booksOwned[key] = n; else delete e.booksOwned[key];
@@ -1202,13 +1203,14 @@ TH.anvil = (function () {
         p.partial ? ['leave out ', h('b', p.partial.dropped.map((b) => lvlName(b.id, b.level)).join(', ')), '. Steps below skip it.'] : 'no order works. Edit this item.'));
     }
 
-    const meta = [rows.length ? (p.totalLevels || 0) + ' levels' : null, gear ? gear.name : null,
+    const meta = [gear ? gear.name : null,
       Object.keys(en.existing).length ? 'has ' + Object.keys(en.existing).length + ' enchant' + (Object.keys(en.existing).length > 1 ? 's' : '') : null,
-      en.uses ? en.uses + ' anvil use' + (en.uses === 1 ? '' : 's') : null].filter(Boolean).join(' · ') || 'fresh item';
+      en.uses ? en.uses + ' anvil use' + (en.uses === 1 ? '' : 's') : null].filter(Boolean).join(' · ');
     return h('article.ec-pi.ec-pi-split' + (all ? '.complete' : ''), { 'aria-label': name },
       h('div.ec-pi-id',
         h('span.ec-pi-icon', itemIcon(en.item, en.material, 48)),
-        h('b.ec-pi-name', name)),
+        h('b.ec-pi-name', name),
+        meta ? h('span.faint.ec-pi-meta', meta) : null),
       h('div.ec-pi-steps',
         canUpgrade(en) ? h('label.ec-tile' + (upgrade ? '.on' : ''),
           h('span.switch', h('input', {
@@ -1217,15 +1219,15 @@ TH.anvil = (function () {
           }), h('span')),
           h('span.ec-tile-text', h('b', 'Upgrading from diamond'), h('span', 'Adds the smithing step and its materials'))) : null,
         alert,
-        rows.length ? h('ol.ec-todos', rows.map((r) => todoRow(en.id, r.key, en.ticks.includes(r.key), r.body, r.cost, r.bad ? '.bad' : ''))) : null),
+        rows.length ? h('ol.ec-todos', rows.map((r) => todoRow(en.id, r.key, en.ticks.includes(r.key), r.body, r.cost, r.bad ? '.bad' : ''))) : null,
+        rows.length ? h('div.ec-pi-total', h('span', 'TOTAL'), h('b', p.totalLevels || 0), h('span', 'lvl')) : null),
       h('div.ec-pi-aside',
-        h('span.faint.ec-pi-meta', meta),
-        rows.length ? h('span.ec-pi-prog', h('b', done), '/' + rows.length + ' steps') : null,
         hitsNaive(p) ? oneBookWarn() : null,
         h('div.ec-pi-actions',
-          h('button.btn.small', { type: 'button', title: 'Load into the editor', 'data-focus': 'ec-pi-edit-' + en.id, onclick: () => editEntry(en) }, 'Edit'),
-          h('button.btn.small' + (all ? '.primary' : ''), { type: 'button', 'data-focus': 'ec-pi-done-' + en.id, title: gear ? 'Check off and update “' + gear.name + '”' : 'Check this item off', onclick: () => setDone(en.id, true, p) }, 'Done'),
-          remove)));
+          h('div.ec-pi-row',
+            h('button.btn.small', { type: 'button', title: 'Load into the editor', 'data-focus': 'ec-pi-edit-' + en.id, onclick: () => editEntry(en) }, 'Edit'),
+            remove),
+          h('button.btn.small' + (all ? '.primary' : ''), { type: 'button', 'data-focus': 'ec-pi-done-' + en.id, title: gear ? 'Check off and update “' + gear.name + '”' : 'Check this item off', onclick: () => setDone(en.id, true, p) }, 'Done'))));
   }
 
   function renderPlanView(state, s) {
@@ -1348,19 +1350,27 @@ TH.anvil = (function () {
       h('div.ec-sub-head', 'Books to get', h('span.faint', bookTotal)),
       bookTotal ? progressBar(gotBooks, bookTotal, 'Books obtained') : null,
       books.length
-        ? h('ul.ec-buy', books.map((b) => {
-          const have = owned(s, b.key), full = have >= b.count, spare = Math.max(0, have - b.count), spent = (usedMap[b.key] || 0) >= b.count;
-          const nm = lvlName(b.id, b.level);
-          return h('li.ec-buy-row' + (spent ? '.spent' : full ? '.on' : ''), { 'data-book': b.key },
-            h('div.ec-step', { role: 'group', 'aria-label': nm + ' books obtained' },
-              h('button.ec-step-btn', { type: 'button', 'aria-label': 'One fewer ' + nm, disabled: !have, 'data-focus': 'ec-got-dec-' + b.key, onclick: () => bumpOwned(b.key, -1) }, '−'),
-              h('span.ec-step-n', { 'aria-live': 'polite' }, h('b', have), '/' + b.count),
-              h('button.ec-step-btn', { type: 'button', 'aria-label': 'One more ' + nm, 'data-focus': 'ec-got-inc-' + b.key, onclick: () => bumpOwned(b.key, 1) }, '+')),
-            bookIcon(20),
-            h('div.ec-buy-text', { title: b.items.join(', ') },
-              h('span.ec-buy-name', nm, b.count > 1 ? h('span.ec-x', '×' + b.count) : null, spare ? h('span.ec-spare', spare + ' spare') : null),
-            ),
-            sourceChip(offers, b.id, b.level, b.count));
+        ? h('ul.ec-buy.ec-bk', books.map((b) => {
+          const have = owned(s, b.key), usedN = usedMap[b.key] || 0, nm = lvlName(b.id, b.level);
+          const slug = b.key.replace(/[^a-z0-9]/gi, '-');
+          // one tickable copy per place the book is needed; the i-th copy is "got" while i < books owned
+          const copy = (i, extra) => {
+            const got = i < have, id = 'ec-bk-' + slug + '-' + i;
+            return h('li.ec-buy-row.ec-bk-copy' + (i < usedN ? '.spent' : got ? '.on' : ''), { 'data-book': b.key },
+              h('label.check', h('input', { type: 'checkbox', id, checked: got, 'data-focus': id, 'aria-label': nm + (b.items[i] ? ' for ' + b.items[i] : ''), onchange: () => setOwned(b.key, got ? i : i + 1) }), h('span')),
+              extra || h('label.ec-buy-text', { for: id }, h('span.ec-buy-name', 'for ' + (b.items[i] || 'your plan'))));
+          };
+          if (b.count === 1) {
+            const got = have >= 1, id = 'ec-bk-' + slug + '-0';
+            return h('li.ec-buy-row.ec-bk-copy.ec-bk-single' + (usedN >= 1 ? '.spent' : got ? '.on' : ''), { 'data-book': b.key },
+              h('label.check', h('input', { type: 'checkbox', id, checked: got, 'data-focus': id, 'aria-label': nm, onchange: () => setOwned(b.key, got ? 0 : 1) }), h('span')),
+              bookIcon(20),
+              h('label.ec-buy-text', { for: id }, h('span.ec-buy-name', nm), h('span.ec-buy-for', 'for ' + (b.items[0] || 'your plan'))),
+              sourceChip(offers, b.id, b.level, 1));
+          }
+          return h('li.ec-bk-group', { 'data-book': b.key },
+            h('div.ec-bk-head', bookIcon(20), h('span.ec-buy-name', nm, h('span.ec-x', '×' + b.count)), sourceChip(offers, b.id, b.level, b.count)),
+            h('ul.ec-bk-copies', Array.from({ length: b.count }, (_, i) => copy(i))));
         }))
         : h('p.ec-pv-note', 'Nothing to buy — every open item is done or has no books.'));
 

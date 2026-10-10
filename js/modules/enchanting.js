@@ -1290,27 +1290,22 @@ TH.anvil = (function () {
     const doneSteps = open.reduce((n, { en, p }) => n + en.ticks.filter((k) => k === 's' ? en.upgrade && canUpgrade(en) : p.steps.some((x) => 'n' + x.n === k)).length, 0);
 
     // ---- left: the same top row as Single item (mode slider + a summary panel), then the to-do list ----
-    const head = h('section.panel.ec-card.ec-pv-head', { 'aria-label': 'Plan summary' },
-      h('h3.ec-pick-label', 'Your plan'),
-      h('div.ec-pv-stats',
-        h('span.ec-pv-stat', h('b', open.length), open.length === 1 ? ' item to do' : ' items to do'),
-        h('span.ec-pv-stat', h('b', stepsDoneAll + '/' + stepsAll), ' anvil steps done'),
-        finished ? h('span.ec-pv-stat', h('b', finished), ' finished') : null),
-      stepsAll ? progressBar(stepsDoneAll, stepsAll, 'Plan progress') : null,
-      h('div.ec-pv-tools',
-        finished ? h('button.btn.small.ghost', { type: 'button', onclick: () => set((e) => { e.plan = e.plan.filter((x) => !x.done); }) }, 'Clear finished (' + finished + ')') : null,
-        h('button.btn.small.ghost.danger', {
-          type: 'button', onclick: () => {
-            if (!confirm('Remove every item from your plan?')) return;
-            set((e) => { e.plan = []; e.planGot = {}; e.booksOwned = {}; e.planEditing = null; });
-          },
-        }, 'Clear plan')));
+    const planTools = h('div.ec-pv-tools',
+      finished ? h('button.btn.small.ghost', { type: 'button', onclick: () => set((e) => { e.plan = e.plan.filter((x) => !x.done); }) }, 'Clear finished (' + finished + ')') : null,
+      h('button.btn.small.ghost.danger', {
+        type: 'button', onclick: () => {
+          if (!confirm('Remove every item from your plan?')) return;
+          set((e) => { e.plan = []; e.planGot = {}; e.booksOwned = {}; e.planEditing = null; });
+        },
+      }, 'Clear plan'));
 
     const list = armorToolSections(rows.map((r, i) => Object.assign({ i }, r)), (r) => r.en.item, (r) => renderEntry(r.en, r.p, s, r.i), '.ec-pi-list', (list) => '.panel.ec-pv-cat' + (list.some((r) => r.en.id === s.planEditing) ? '.has-sel' : ''));
 
     // ---- right: shopping list in the sticky Anvil-plan style, floating actions at the foot ----
+    const naiveCount = open.filter(({ p }) => hitsNaive(p)).length;
+    const hitsNaive1 = naiveCount ? oneBookWarn(naiveCount + ' of your items:') : null;
     const costs = h('section.ec-pv-sec.ec-costs', { 'aria-label': 'Costs total' },
-      h('div.ec-sub-head', 'Costs total', h('span.faint', open.length + ' item' + (open.length === 1 ? '' : 's'))),
+      h('h3.ec-pick-label', 'Your plan'),
       h('div.ec-total.ec-xpbox',
         h('div.ec-total-num', h('span.ec-xp', left), h('span.ec-total-label', left === 0 && levels ? 'levels left: all spent' : 'levels left to spend')),
         h('div.ec-xpbar', { role: 'progressbar', 'aria-label': 'Levels spent', 'aria-valuemin': 0, 'aria-valuemax': levelsAll, 'aria-valuenow': spentAll },
@@ -1318,13 +1313,15 @@ TH.anvil = (function () {
         h('div.ec-xp-facts',
           h('span', h('b', levelsAll), ' levels in total'),
           h('span', '≈ ', h('b', points.toLocaleString()), ' XP points'),
-          spentAll ? h('span', h('b', spentAll), ' spent') : null)),
-      h('div.ec-cost-rows',
-        ups ? h('div.ec-cost', TH.icon('item/netherite_ingot', { size: 20 }), h('span.ec-cost-label', 'Netherite upgrades'), h('b', ups)) : null),
-      open.filter(({ p }) => hitsNaive(p)).length ? oneBookWarn(open.filter(({ p }) => hitsNaive(p)).length + ' of your items:') : null,
-      xpHint(left),
+          spentAll ? h('span', h('b', spentAll), ' spent') : null,
+          h('span', h('b', stepsDoneAll + '/' + stepsAll), ' anvil steps done'),
+          h('span', h('b', open.length), open.length === 1 ? ' item to do' : ' items to do'),
+          ups ? h('span', TH.icon('item/netherite_ingot', { size: 16 }), h('b', ups), ' netherite upgrade' + (ups === 1 ? '' : 's')) : null)),
+      (hitsNaive1 || xpHint(left)) ? h('div.ec-chiprow', hitsNaive1, xpHint(left)) : null,
       unpriced ? h('p.ec-pv-note', unpriced + ' hall book' + (unpriced > 1 ? 's have' : ' has') + ' no price yet — set it in the Trading Hall tab.') : null,
       bad ? h('p.ec-alert', TH.icon('item/barrier', { size: 14 }), h('span', bad + ' item' + (bad > 1 ? 's hit' : ' hits') + ' Too Expensive! — see the checklist.')) : null);
+
+    const head = h('section.panel.ec-card.ec-pv-head.ec-pv-costs', { 'aria-label': 'Plan progress' }, costs);
 
     const bookBox = h('section.ec-pv-sec', { 'aria-label': 'Books to get' },
       h('div.ec-sub-head', 'Books to get', h('span.faint', bookTotal)),
@@ -1363,7 +1360,7 @@ TH.anvil = (function () {
 
     return h('div.ec-layout.ec-layout-single',
       h('div.ec-main', h('div.ec-toprow', head), h('section.ec-pv-list', { 'aria-label': 'Anvil to-do checklist' }, list)),
-      h('div.ec-side', h('aside.panel.ec-plan.ec-pvshop', { 'aria-label': 'Shopping list' }, renderModeCards(s), h('div.ec-plan-body', costs, bookBox, matBox), actions)));
+      h('div.ec-side', h('aside.panel.ec-plan.ec-pvshop', { 'aria-label': 'Shopping list' }, renderModeCards(s), planTools, h('div.ec-plan-body', bookBox, matBox), actions)));
   }
 
   /* ---------- page ---------- */

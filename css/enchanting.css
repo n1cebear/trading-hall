@@ -1120,3 +1120,12 @@
 .ec-pv-list .ec-pv-cat .ec-pi.done > .ec-done-check { grid-column: 4; grid-row: 1; justify-self: end; align-self: center; }
 .ec-pv-list .ec-pv-cat .ec-pi.done > .ec-pi-actions { grid-column: 5; grid-row: 1; justify-self: end; align-self: center; display: flex; }
 @media (max-width: 700px) { .ec-pv-list .ec-pv-cat .ec-pi.done { grid-template-columns: 36px minmax(0, 1fr) auto auto; } }
+
+/* ===== Oct 2026 (11) ===== */
+/* plan item side column: everything centred on one axis; Edit / Done / x share it */
+.ec-pi-aside { align-items: center; text-align: center; }
+.ec-pi-aside .ec-pi-actions { align-items: center; }
+.ec-pi-aside .ec-pi-meta, .ec-pi-aside .ec-pi-prog { text-align: center; }
+/* books to get: no hard left bar in any style */
+:root:root:root[data-neu] .ec-buy-row.on, :root:root:root .ec-buy-row.on { box-shadow: none !important; }
+:root:root:root[data-neu] .ec-buy-row.on { background: color-mix(in srgb, var(--accent) 12%, transparent); }

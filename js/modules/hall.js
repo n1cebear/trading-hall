@@ -811,7 +811,7 @@
   }
   function presetSig(p, hall) {
     const spec = resolveSpec(p);
-    const b = SORTED.filter((e) => spec[e.id]).map((e) => e.id + ':' + spec[e.id].level + 'x' + Math.max(1, spec[e.id].slots.length));
+    const b = POP_ALL.filter((e) => spec[e.id]).map((e) => e.id + ':' + spec[e.id].level + 'x' + Math.max(1, spec[e.id].slots.length));
     const t = p.roles ? p.roles.map((r) => r.prof + '|' + (r.purpose || '') + '|' + (r.target || 1)).sort() : planSig(hall).split('/')[1].split(',').filter(Boolean);
     return b.join(',') + '/' + t.join(',');
   }
@@ -829,7 +829,13 @@
     const builtIn = D.presets.filter((p) => p.id !== 'empty');
     const blank = D.presets.find((p) => p.id === 'empty') || { id: 'empty', name: 'Blank', enchants: {}, roles: [] };
     const custom = state.customPresets;
-    const match = matchedPreset(hall, builtIn.concat(custom, [blank]));
+    const allPresets = builtIn.concat(custom, [blank]);
+    let match = matchedPreset(hall, allPresets);
+    let edited = false;
+    if (!match && t.total > 0) {
+      const origin = allPresets.find((p) => p.id === hall.activePreset && p.id !== 'empty');
+      if (origin) { match = origin; edited = true; }
+    }
     const isCustomPlan = t.total > 0 && !match;
     const showPrev = prevPlan && planSig(hall) !== prevPlan.sig;
     const ico = (name) => TH.icon(name, { size: 30 });
@@ -856,7 +862,7 @@
     };
 
     const pick = (p) => {
-      if (match && match.id === p.id) return;
+      if (match && match.id === p.id && !edited) return;
       if (isCustomPlan) prevPlan = { sig: planSig(hall), plan: structuredClone(Object.fromEntries(PLAN_KEYS.map((k) => [k, hall[k]]))) };
       applyPreset(p);
       if (isCustomPlan) toast(`Loaded “${p.name}” — “Previous plan” at the top switches back`);
@@ -895,7 +901,7 @@
         }, '✕') : null);
     };
     const presetStrip = (p, icon, extra) => strip(Object.assign({
-      key: p.id, title: p.name, desc: p.desc, icon, sum: sumOfPreset(p), on: !!match && match.id === p.id, onPick: () => pick(p),
+      key: p.id, title: p.name, desc: p.desc + (edited && match && match.id === p.id ? ' · you changed it since' : ''), icon, sum: sumOfPreset(p), on: !!match && match.id === p.id, onPick: () => pick(p),
     }, extra));
 
     const own = h('li.hl-preset-item.hl-own', h('button.hl-own-btn' + (match && match.id === 'empty' ? '.is-on' : ''), {
@@ -904,10 +910,10 @@
 
     return h('div.hl-presets',
             h('ul.hl-preset-grid',
-        isCustomPlan ? strip({ key: 'current', title: 'Current plan', desc: 'Your own plan, as you left it. Press Next to edit it.', icon: ico('item/writable_book'), sum: sumOfPlan(hall), on: true, onPick: () => {} }) : null,
-        showPrev ? strip({ key: 'previous', title: 'Previous plan', desc: 'Your plan before you picked a preset. Pick it to switch back.', icon: ico('item/writable_book'), sum: sumOfPlan(prevPlan.plan), onPick: restore }) : null,
         own,
-        builtIn.slice().sort((a, b) => (b.id === 'blueprint') - (a.id === 'blueprint')).map((p) => presetStrip(p, ico(icons[p.id] || 'item/chest_minecart'), { reco: p.id === 'blueprint', tileCls: p.id === 'blueprint' ? '.is-reco' : '' }))),
+        builtIn.slice().sort((a, b) => (b.id === 'blueprint') - (a.id === 'blueprint')).map((p) => presetStrip(p, ico(icons[p.id] || 'item/chest_minecart'), { reco: p.id === 'blueprint', tileCls: p.id === 'blueprint' ? '.is-reco' : '' })),
+        isCustomPlan ? strip({ key: 'current', title: 'Current plan', desc: 'Your own plan, as you left it. Press Next to edit it.', icon: ico('item/writable_book'), sum: sumOfPlan(hall), on: true, onPick: () => {} }) : null,
+        showPrev ? strip({ key: 'previous', title: 'Previous plan', desc: 'Your plan before you picked a preset. Pick it to switch back.', icon: ico('item/writable_book'), sum: sumOfPlan(prevPlan.plan), onPick: restore }) : null),
       custom.length ? [
         h('h3.section-title.hl-sec-title', 'Your presets'),
         h('ul.hl-preset-grid', custom.map((p) => presetStrip(p, ico('item/writable_book'), {

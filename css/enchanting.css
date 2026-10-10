@@ -1056,3 +1056,16 @@
 .ec-pi-aside .ec-pi-actions { display: flex; gap: 8px; width: 100%; margin-top: 4px; }
 .ec-pi-aside .ec-pi-actions .btn { flex: 1 1 0; min-width: 0; justify-content: center; padding-inline: 4px; }
 @media (max-width: 700px) { .ec-pi-split { grid-template-columns: minmax(0, 1fr); } .ec-pi-aside { align-items: flex-start; text-align: left; } }
+
+/* Edit / Done / x stacked; a finished item swaps "Done" for a checkmark key above its x */
+.ec-pi-split { grid-template-columns: 130px minmax(0, 1fr) 118px; }
+.ec-pi-aside .ec-pi-actions { flex-direction: column; align-items: stretch; gap: 8px; }
+.ec-pi-aside .ec-pi-actions .btn { flex: none; width: 100%; }
+.ec-pv-list .ec-pv-cat .ec-pi.done { grid-template-columns: 36px minmax(110px, 170px) minmax(0, 1fr) 118px; grid-template-rows: auto auto; row-gap: 8px; }
+.ec-pv-list .ec-pv-cat .ec-pi.done > .ec-pi-icon, .ec-pv-list .ec-pv-cat .ec-pi.done > .ec-pi-title, .ec-pv-list .ec-pv-cat .ec-pi.done > .ec-pi-ench { grid-row: 1 / span 2; align-self: center; }
+.ec-pv-list .ec-pv-cat .ec-pi.done > .ec-done-check { grid-column: 4; grid-row: 1; justify-self: end; }
+.ec-pv-list .ec-pv-cat .ec-pi.done > .ec-pi-actions { grid-column: 4; grid-row: 2; justify-self: stretch; display: flex; }
+.ec-pv-list .ec-pv-cat .ec-pi.done > .ec-pi-actions .btn { width: 100%; justify-content: center; }
+.ec-pi.done .ec-done-pill { display: none; }
+@media (max-width: 700px) { .ec-pi-split { grid-template-columns: minmax(0, 1fr); } .ec-pi-aside .ec-pi-actions { flex-direction: row; } .ec-pi-aside .ec-pi-actions .btn { flex: 1 1 0; width: auto; } }
+.ec-pv-list .ec-pv-cat .ec-pi.done > .ec-done-check { justify-self: center; }

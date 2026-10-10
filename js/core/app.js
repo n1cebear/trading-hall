@@ -414,7 +414,7 @@ TH.app = (function () {
     });
     initMenu();
     initStyleSeg();
-    applyZoom();
+    applyZoom(); if (window.TH_LOCAL_ASSETS) document.documentElement.dataset.artifact = "1";
     initLang();
     initSaveState();
     initOffline();

@@ -692,6 +692,11 @@ TH.anvil = (function () {
 
   /* ---------- plan panel ---------- */
 
+  /** Red chip: adding the books one at a time would hit Too Expensive!, the recommended order does not. */
+  const oneBookWarn = (extra) => h('span.ec-warn-chip', { tabindex: '0', title: (extra ? extra + ' ' : '') + 'One book at a time hits Too Expensive! Using the recommended order doesn’t.' },
+    TH.icon('item/barrier', { size: 14 }), h('span', 'WARNING! Too expensive'));
+  const hitsNaive = (p) => !!(p && p.ok && p.naive && !p.naive.ok);
+
   function nodeChip(node, s) {
     const names = node.enchants.map((e) => lvlName(e.id, e.level));
     if (node.kind === 'item') {
@@ -762,7 +767,7 @@ TH.anvil = (function () {
 
     // compact summary: levels · steps · XP, with the saving as small secondary text
     let compare = null;
-    if (plan.ok && !naive.ok) compare = h('span.ec-warn-chip', { tabindex: '0', title: 'One book at a time hits Too Expensive! Using the recommended order doesn’t.' }, TH.icon('item/barrier', { size: 14 }), h('span', 'WARNING! Too expensive'));
+    if (plan.ok && !naive.ok) compare = oneBookWarn();
     else if (plan.ok && save > 0) compare = h('span', 'Saves ', h('b.ec-save-n', save), ' level' + (save === 1 ? '' : 's'), ' vs one book at a time (', naive.totalLevels, ').');
 
     // levels still to spend: ticked steps of the linked plan item no longer count, a finished item counts for nothing
@@ -1191,6 +1196,7 @@ TH.anvil = (function () {
         h('span.ec-pi-icon', itemIcon(en.item, en.material, 48)),
         h('b.ec-pi-name', name),
         h('span.faint.ec-pi-meta', meta),
+        hitsNaive(p) ? oneBookWarn() : null,
         rows.length ? h('span.ec-pi-prog', h('b', done), '/' + rows.length + ' steps') : null,
         h('div.ec-pi-actions',
           h('button.btn.small', { type: 'button', title: 'Load into the editor', 'data-focus': 'ec-pi-edit-' + en.id, onclick: () => editEntry(en) }, 'Edit'),
@@ -1300,6 +1306,7 @@ TH.anvil = (function () {
           spentAll ? h('span', h('b', spentAll), ' spent') : null)),
       h('div.ec-cost-rows',
         ups ? h('div.ec-cost', TH.icon('item/netherite_ingot', { size: 20 }), h('span.ec-cost-label', 'Netherite upgrades'), h('b', ups)) : null),
+      open.filter(({ p }) => hitsNaive(p)).length ? oneBookWarn(open.filter(({ p }) => hitsNaive(p)).length + ' of your items:') : null,
       xpHint(left),
       unpriced ? h('p.ec-pv-note', unpriced + ' hall book' + (unpriced > 1 ? 's have' : ' has') + ' no price yet — set it in the Trading Hall tab.') : null,
       bad ? h('p.ec-alert', TH.icon('item/barrier', { size: 14 }), h('span', bad + ' item' + (bad > 1 ? 's hit' : ' hits') + ' Too Expensive! — see the checklist.')) : null);

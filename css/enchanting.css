@@ -962,3 +962,7 @@
 /* the group holding the chosen item: no tinted fill, the accent lives in the top-left shadow only */
 :root:root:root .ec-picker.has-sel { background: unset; filter: drop-shadow(-5px -5px 7px color-mix(in srgb, var(--accent) 60%, transparent)); }
 .ec-ref { white-space: nowrap; text-transform: uppercase; letter-spacing: .4px; }
+
+/* active segment: the accent as a faint shadow along the top-left of the segment itself (not the keys inside) */
+:root:root:root .ec-picker.has-sel { filter: none; position: relative; isolation: isolate; }
+.ec-picker.has-sel::before { content: ''; position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none; box-shadow: -5px -5px 12px -5px color-mix(in srgb, var(--accent) 38%, transparent); }

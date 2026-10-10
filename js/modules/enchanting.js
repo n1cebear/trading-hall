@@ -1141,14 +1141,13 @@ TH.anvil = (function () {
     if (en.done) {
       const fin = p.final ? p.final.enchants : {};
       return h('article.ec-pi.done',
-        h('div.ec-pi-head',
-          h('span.ec-pi-icon', itemIcon(en.item, en.material, 28)),
-          h('div.ec-pi-title', h('b', name), gear ? h('span.faint', gear.name) : null),
-          h('label.ec-done-check', { title: 'Uncheck to put it back on your to-do list' },
-            h('span.check', h('input', { type: 'checkbox', checked: true, 'aria-label': name + ' is done', 'data-focus': 'ec-pi-done-' + en.id, onchange: () => setDone(en.id, false) }), h('span')),
-            h('span.ec-done-pill', 'Done')),
-          h('div.ec-pi-actions', remove)),
-        h('div.ec-final-ench.ec-pi-ench', sortIds(Object.keys(fin)).map((id) => h('span.ec-ench-pill', lvlName(id, fin[id])))));
+        h('span.ec-pi-icon', itemIcon(en.item, en.material, 32)),
+        h('div.ec-pi-title', h('b', name), gear ? h('span.faint', gear.name) : null),
+        h('div.ec-final-ench.ec-pi-ench', sortIds(Object.keys(fin)).map((id) => h('span.ec-ench-pill', lvlName(id, fin[id])))),
+        h('label.ec-done-check', { title: 'Uncheck to put it back on your to-do list' },
+          h('span.check', h('input', { type: 'checkbox', checked: true, 'aria-label': name + ' is done', 'data-focus': 'ec-pi-done-' + en.id, onchange: () => setDone(en.id, false) }), h('span')),
+          h('span.ec-done-pill', 'Done')),
+        h('div.ec-pi-actions', remove));
     }
 
     // to-do rows: optional smithing upgrade, then the anvil steps
@@ -1255,6 +1254,17 @@ TH.anvil = (function () {
     });
     const ups = open.filter(({ en }) => en.upgrade && canUpgrade(en)).length;
 
+    // progress always covers the whole plan: finished items count as fully done
+    let levelsAll = 0, spentAll = 0, stepsAll = 0, stepsDoneAll = 0;
+    rows.forEach(({ en, p }) => {
+      const upg = en.upgrade && canUpgrade(en);
+      const n = p.steps.length + (upg ? 1 : 0);
+      const lv = p.steps.reduce((a, x) => a + x.cost, 0);
+      stepsAll += n; levelsAll += lv;
+      if (en.done) { stepsDoneAll += n; spentAll += lv; return; }
+      p.steps.forEach((x) => { if (en.ticks.includes('n' + x.n)) { stepsDoneAll++; spentAll += x.cost; } });
+      if (upg && en.ticks.includes('s')) stepsDoneAll++;
+    });
     const allSteps = open.reduce((n, { en, p }) => n + p.steps.length + (en.upgrade && canUpgrade(en) ? 1 : 0), 0);
     const doneSteps = open.reduce((n, { en, p }) => n + en.ticks.filter((k) => k === 's' ? en.upgrade && canUpgrade(en) : p.steps.some((x) => 'n' + x.n === k)).length, 0);
 
@@ -1263,9 +1273,9 @@ TH.anvil = (function () {
       h('h3.ec-pick-label', 'Your plan'),
       h('div.ec-pv-stats',
         h('span.ec-pv-stat', h('b', open.length), open.length === 1 ? ' item to do' : ' items to do'),
-        h('span.ec-pv-stat', h('b', doneSteps + '/' + allSteps), ' anvil steps done'),
+        h('span.ec-pv-stat', h('b', stepsDoneAll + '/' + stepsAll), ' anvil steps done'),
         finished ? h('span.ec-pv-stat', h('b', finished), ' finished') : null),
-      allSteps ? progressBar(doneSteps, allSteps, 'Plan progress') : null,
+      stepsAll ? progressBar(stepsDoneAll, stepsAll, 'Plan progress') : null,
       h('div.ec-pv-tools',
         finished ? h('button.btn.small.ghost', { type: 'button', onclick: () => set((e) => { e.plan = e.plan.filter((x) => !x.done); }) }, 'Clear finished (' + finished + ')') : null,
         h('button.btn.small.ghost.danger', {
@@ -1282,12 +1292,12 @@ TH.anvil = (function () {
       h('div.ec-sub-head', 'Costs total', h('span.faint', open.length + ' item' + (open.length === 1 ? '' : 's'))),
       h('div.ec-total.ec-xpbox',
         h('div.ec-total-num', h('span.ec-xp', left), h('span.ec-total-label', left === 0 && levels ? 'levels left: all spent' : 'levels left to spend')),
-        h('div.ec-xpbar', { role: 'progressbar', 'aria-label': 'Levels spent', 'aria-valuemin': 0, 'aria-valuemax': levels, 'aria-valuenow': levels - left },
-          h('span', { style: { width: (levels ? Math.round(((levels - left) / levels) * 100) : 0) + '%' } })),
+        h('div.ec-xpbar', { role: 'progressbar', 'aria-label': 'Levels spent', 'aria-valuemin': 0, 'aria-valuemax': levelsAll, 'aria-valuenow': spentAll },
+          h('span', { style: { width: (levelsAll ? Math.round((spentAll / levelsAll) * 100) : 0) + '%' } })),
         h('div.ec-xp-facts',
-          h('span', h('b', levels), ' levels in total'),
+          h('span', h('b', levelsAll), ' levels in total'),
           h('span', '≈ ', h('b', points.toLocaleString()), ' XP points'),
-          levels - left ? h('span', h('b', levels - left), ' spent') : null)),
+          spentAll ? h('span', h('b', spentAll), ' spent') : null)),
       h('div.ec-cost-rows',
         ups ? h('div.ec-cost', TH.icon('item/netherite_ingot', { size: 20 }), h('span.ec-cost-label', 'Netherite upgrades'), h('b', ups)) : null),
       xpHint(left),

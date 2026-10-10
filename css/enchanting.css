@@ -948,3 +948,10 @@
 .ec-xp-facts b { font: 400 14px/1 var(--mono); color: var(--text); font-variant-numeric: tabular-nums; }
 .ec-xp-hint { align-items: center; width: fit-content; padding: 4px 10px 4px 8px; border-radius: var(--radius); font: 600 11px/1.2 var(--font); letter-spacing: .4px; text-transform: uppercase; color: var(--gold, #e8b84a); background: color-mix(in srgb, var(--gold, #e8b84a) 12%, transparent); cursor: help; }
 .ec-xp-hint .mc { margin-top: 0; }
+
+/* finished item: one compact row, its enchants right next to the icon (wrapping to a second row when needed) */
+.ec-pv-list .ec-pv-cat .ec-pi.done { display: grid; grid-template-columns: 36px minmax(110px, 170px) minmax(0, 1fr) auto auto; align-items: center; gap: 6px 14px; }
+.ec-pv-list .ec-pv-cat .ec-pi.done .ec-pi-icon { width: 36px; height: 36px; }
+.ec-pv-list .ec-pv-cat .ec-pi.done .ec-pi-ench { display: flex; flex-wrap: wrap; gap: 4px; min-width: 0; }
+.ec-pv-list .ec-pv-cat .ec-pi.done .ec-pi-title b { font-size: 13px; }
+@media (max-width: 700px) { .ec-pv-list .ec-pv-cat .ec-pi.done { grid-template-columns: 36px minmax(0, 1fr) auto auto; } .ec-pv-list .ec-pv-cat .ec-pi.done .ec-pi-ench { grid-column: 1 / -1; } }

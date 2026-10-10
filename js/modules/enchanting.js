@@ -1105,7 +1105,7 @@ TH.anvil = (function () {
   /** Past level 30 every level costs more XP (levels 0-15: 2n+7 points, 16-30: 5n-38, 31+: 9n-158), so big totals are best done in rounds. */
   function xpHint(levels) {
     if (levels <= 30) return null;
-    return h('p.ec-xp-hint', TH.icon('xp', { size: 16 }), h('span', 'More than 30 levels in total. Levels beyond 30 get expensive: each one costs 112 or more XP points (7–37 up to level 15, 42–107 up to level 30), so gather XP in rounds instead of banking it all at once.'));
+    return h('p.ec-xp-hint', { tabindex: '0', title: 'More than 30 levels in total. Levels beyond 30 get expensive: each one costs 112 or more XP points (7–37 up to level 15, 42–107 up to level 30), so gather XP in rounds instead of banking it all at once.' }, TH.icon('xp', { size: 16 }), h('span', 'Caution: level efficiency'));
   }
 
   function progressBar(done, total, label) {

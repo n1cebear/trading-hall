@@ -48,7 +48,9 @@
   const popRank = (e) => (e.id in POP_IDX ? POP_IDX[e.id] : 500);
   const SORTED = D.enchantments.slice().sort((a, b) =>
     (CAT_IDX[a.category] - CAT_IDX[b.category]) || ((b.librarian ? 1 : 0) - (a.librarian ? 1 : 0)) || (popRank(a) - popRank(b)) || (D.enchantments.indexOf(a) - D.enchantments.indexOf(b)));
-  const LIB_ENCH = SORTED.filter((e) => e.librarian);
+  // across every category: librarian books first, most used first
+  const POP_ALL = D.enchantments.slice().sort((a, b) => ((b.librarian ? 1 : 0) - (a.librarian ? 1 : 0)) || (popRank(a) - popRank(b)) || (D.enchantments.indexOf(a) - D.enchantments.indexOf(b)));
+  const LIB_ENCH = POP_ALL.filter((e) => e.librarian);
   const GROUPS = D.roleGroups.concat([{ id: 'other', name: 'Other', hint: 'Anything else you want' }]);
   const TIER_LABEL = { perfect: 'Perfect', great: 'Great', good: 'Okay', meh: 'Pricey', unknown: 'No price' };
   const STATUS_LABEL = { needed: 'needed', locked: 'locked in', perfect: 'perfect price' };
@@ -216,7 +218,7 @@
   }
 
   /** Book ids in category order. */
-  function bookIds(hall) { return SORTED.filter((e) => hall.books[e.id]).map((e) => e.id); }
+  function bookIds(hall) { return POP_ALL.filter((e) => hall.books[e.id]).map((e) => e.id); }
 
   /** Flat list of every villager in the plan: book stalls first (by category), then trade instances. */
   function villagerList(hall) {
@@ -408,7 +410,7 @@
   /** What a preset contains (for the preset cards). */
   function presetInfo(preset) {
     const spec = resolveSpec(preset);
-    const ids = SORTED.filter((e) => spec[e.id]).map((e) => e.id);
+    const ids = POP_ALL.filter((e) => spec[e.id]).map((e) => e.id);
     const stalls = ids.reduce((a, id) => a + Math.max(1, spec[id].slots.length), 0);
     const trades = preset.roles ? preset.roles.reduce((a, r) => a + (r.target || 0), 0) : null;
     return { ids, spec, stalls, trades };
@@ -635,7 +637,7 @@
     return LIB_ENCH
       .filter((e) => !q || enchLocal(e).toLowerCase().includes(q) || e.name.toLowerCase().includes(q) || (ABBR[e.id] || '').toLowerCase().startsWith(q))
       .map((e) => ({ e, rank: rank(e), pre: q && starts(e) ? 0 : 1 }))
-      .sort((a, b) => a.rank - b.rank || a.pre - b.pre || enchLocal(a.e).localeCompare(enchLocal(b.e)));
+      .sort((a, b) => a.rank - b.rank || a.pre - b.pre || (popRank(a.e) - popRank(b.e)) || enchLocal(a.e).localeCompare(enchLocal(b.e)));
   }
 
   function pickOffer(id) {
@@ -1847,7 +1849,7 @@
 
   const SORTS = [['type', 'Type'], ['name', 'Name'], ['pos', 'Position'], ['price', 'Price']];
   const SORT_IDS = SORTS.map((s) => s[0]);
-  const ENCH_ORDER = Object.fromEntries(SORTED.map((e, i) => [e.id, i]));
+  const ENCH_ORDER = Object.fromEntries(POP_ALL.map((e, i) => [e.id, i]));
   const GROUP_ORDER = Object.fromEntries(GROUPS.map((g, i) => [g.id, i]));
     const byLocale = (a, b) => a.localeCompare(b, (I18.lang || 'en_us').replace('_', '-'), { sensitivity: 'base' });
 

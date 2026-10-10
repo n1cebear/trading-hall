@@ -1175,24 +1175,26 @@ TH.anvil = (function () {
     const meta = [rows.length ? (p.totalLevels || 0) + ' levels · ' + rows.length + ' step' + (rows.length === 1 ? '' : 's') : null, gear ? gear.name : null,
       Object.keys(en.existing).length ? 'has ' + Object.keys(en.existing).length + ' enchant' + (Object.keys(en.existing).length > 1 ? 's' : '') : null,
       en.uses ? en.uses + ' anvil use' + (en.uses === 1 ? '' : 's') : null].filter(Boolean).join(' · ') || 'fresh item';
-    return h('article.panel.ec-pi' + (all ? '.complete' : ''), { 'aria-label': name },
-      h('div.ec-pi-head',
+    return h('article.panel.ec-pi.ec-pi-split' + (all ? '.complete' : ''), { 'aria-label': name },
+      h('div.ec-pi-id',
         h('span.ec-pi-num', idx + 1),
-        h('span.ec-pi-icon', itemIcon(en.item, en.material, 32)),
-        h('div.ec-pi-title', h('b', name), h('span.faint', meta)),
-        rows.length ? h('span.ec-pi-prog', h('b', done), '/' + rows.length) : null,
+        h('span.ec-pi-icon', itemIcon(en.item, en.material, 48)),
+        h('b.ec-pi-name', name),
+        h('span.faint.ec-pi-meta', meta),
+        rows.length ? h('span.ec-pi-prog', h('b', done), '/' + rows.length + ' steps') : null,
         h('div.ec-pi-actions',
           h('button.btn.small', { type: 'button', title: 'Load into the editor', 'data-focus': 'ec-pi-edit-' + en.id, onclick: () => editEntry(en) }, 'Edit'),
           h('button.btn.small' + (all ? '.primary' : ''), { type: 'button', 'data-focus': 'ec-pi-done-' + en.id, title: gear ? 'Check off and update “' + gear.name + '”' : 'Check this item off', onclick: () => setDone(en.id, true, p) }, 'Done'),
           remove)),
-      canUpgrade(en) ? h('label.ec-tile' + (upgrade ? '.on' : ''),
-        h('span.switch', h('input', {
-          type: 'checkbox', checked: upgrade, 'data-focus': 'ec-pi-up-' + en.id,
-          onchange: (ev) => withEntry(en.id, (x) => { x.upgrade = ev.target.checked; x.ticks = x.ticks.filter((k) => k !== 's'); }),
-        }), h('span')),
-        h('span.ec-tile-text', h('b', 'Upgrading from diamond'), h('span', 'Adds the smithing step and its materials'))) : null,
-      alert,
-      rows.length ? h('ol.ec-todos', rows.map((r) => todoRow(en.id, r.key, en.ticks.includes(r.key), r.body, r.cost, r.bad ? '.bad' : ''))) : null);
+      h('div.ec-pi-steps',
+        canUpgrade(en) ? h('label.ec-tile' + (upgrade ? '.on' : ''),
+          h('span.switch', h('input', {
+            type: 'checkbox', checked: upgrade, 'data-focus': 'ec-pi-up-' + en.id,
+            onchange: (ev) => withEntry(en.id, (x) => { x.upgrade = ev.target.checked; x.ticks = x.ticks.filter((k) => k !== 's'); }),
+          }), h('span')),
+          h('span.ec-tile-text', h('b', 'Upgrading from diamond'), h('span', 'Adds the smithing step and its materials'))) : null,
+        alert,
+        rows.length ? h('ol.ec-todos', rows.map((r) => todoRow(en.id, r.key, en.ticks.includes(r.key), r.body, r.cost, r.bad ? '.bad' : ''))) : null));
   }
 
   function renderPlanView(state, s) {

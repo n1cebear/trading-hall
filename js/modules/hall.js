@@ -39,8 +39,15 @@
   const PROF = Object.fromEntries(D.professions.map((p) => [p.id, p]));
   const CAT_IDX = Object.fromEntries(D.enchantCategories.map((c, i) => [c.id, i]));
   // enchantments ordered by category, then by data order
+  // most used first (Mending / Unbreaking / Protection ... down to the rarely needed ones), then data order
+  const POPULAR = ['mending', 'unbreaking', 'efficiency', 'protection', 'sharpness', 'fortune', 'silk_touch', 'feather_falling', 'looting', 'power', 'infinity',
+    'respiration', 'aqua_affinity', 'depth_strider', 'swift_sneak', 'soul_speed', 'fire_aspect', 'sweeping_edge', 'knockback', 'density', 'breach', 'wind_burst', 'lunge',
+    'punch', 'flame', 'quick_charge', 'multishot', 'piercing', 'riptide', 'loyalty', 'channeling', 'impaling', 'luck_of_the_sea', 'lure', 'frost_walker',
+    'blast_protection', 'fire_protection', 'projectile_protection', 'thorns', 'smite', 'bane_of_arthropods', 'vanishing_curse', 'binding_curse'];
+  const POP_IDX = Object.fromEntries(POPULAR.map((id, i) => [id, i]));
+  const popRank = (e) => (e.id in POP_IDX ? POP_IDX[e.id] : 500);
   const SORTED = D.enchantments.slice().sort((a, b) =>
-    (CAT_IDX[a.category] - CAT_IDX[b.category]) || (D.enchantments.indexOf(a) - D.enchantments.indexOf(b)));
+    (CAT_IDX[a.category] - CAT_IDX[b.category]) || ((b.librarian ? 1 : 0) - (a.librarian ? 1 : 0)) || (popRank(a) - popRank(b)) || (D.enchantments.indexOf(a) - D.enchantments.indexOf(b)));
   const LIB_ENCH = SORTED.filter((e) => e.librarian);
   const GROUPS = D.roleGroups.concat([{ id: 'other', name: 'Other', hint: 'Anything else you want' }]);
   const TIER_LABEL = { perfect: 'Perfect', great: 'Great', good: 'Okay', meh: 'Pricey', unknown: 'No price' };

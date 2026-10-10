@@ -941,3 +941,14 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; }
   :root:root:root .nav-item .nav-icon .mc { --mc: 24px !important; }
   :root:root:root .nav-item.active::after { top: -5px; bottom: auto; left: 28%; right: 28%; height: 4px; border-radius: 0 0 4px 4px; }
 }
+
+/* no pips / lamps anywhere on the tool switcher */
+:root:root:root .nav-item::after, :root:root:root .nav-item::before, :root:root:root .nav-item.active::after, :root:root:root .nav-item:hover::after, :root:root:root .nav-item.active::before { content: none !important; display: none !important; }
+@media (max-width: 640px) { :root[data-artifact] { --bottom-bar: calc(58px + 22px + env(safe-area-inset-bottom)); } :root[data-artifact] .nav { bottom: 22px !important; } }
+@media (max-width: 640px) {
+  :root:root:root .nav { height: auto; min-height: 58px; align-items: stretch; }
+  :root:root:root .nav-item { height: auto; min-height: 50px; }
+  :root:root:root .nav .nav-item .nav-name { display: block !important; }
+}
+.mc-zoom img { transform: scale(1.32); transform-origin: 50% 55%; }
+.mc-grind svg { width: 100%; height: 100%; display: block; }

@@ -401,3 +401,11 @@
 
 /* zoom + reset inside the frame: a bigger margin to the frame edge, airier between the keys */
 .tr-frametools { top: 18px; right: 18px; gap: 12px; }
+
+/* taking the elytra off: a red x emerging at the top right of the elytra icon (hover / focus, always on touch) */
+.tr-slot-id { position: relative; }
+:root:root .tr-slot.ely:hover .tr-pn-x { margin: 0; }
+.tr-pn-x { display: none; position: absolute; top: -5px; left: calc(50% + 10px); z-index: 3; width: 18px; height: 18px; place-items: center; font: 700 11px/1 var(--font); color: #fff; background: #e5484d; border-radius: 3px; box-shadow: 0 2px 5px rgb(0 0 0 / .45), inset 0 1px 0 rgb(255 255 255 / .35); pointer-events: none; }
+@media (hover: hover) { :root:root .tr-slot.ely:hover .tr-pn-x { display: grid; color: #fff; } }
+:root:root .tr-slot.ely:focus-within .tr-pn-x { display: grid; }
+@media (hover: none) { .tr-slot.ely .tr-pn-x { display: grid; } }

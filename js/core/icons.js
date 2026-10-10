@@ -171,7 +171,24 @@ TH.icon = (function () {
   icon.aliases = ALIAS;
   icon.external = EXTERNAL;
 
-  icon.prof = (profId, opts) => icon(PROF[profId] || 'item/villager_spawn_egg', opts);
+  /** Grindstone has no flat texture, so it is drawn as a 16x16 pixel icon (stone wheel between two wooden posts). */
+  const GRIND_SVG = "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' shape-rendering='crispEdges' width='100%' height='100%'>"
+    + "<path fill='#6b4423' d='M0 13h16v3H0z'/><path fill='#8b5a2b' d='M1 5h3v8H1zM12 5h3v8h-3z'/><path fill='#a8743c' d='M1 5h1v8H1zM12 5h1v8h-1z'/>"
+    + "<path fill='#7d7d7d' d='M5 0h6v1H5zM3 1h10v1H3zM2 2h12v9H2zM3 11h10v1H3zM5 12h6v1H5z'/>"
+    + "<path fill='#b4b4b4' d='M5 1h6v1H5zM3 2h10v8H3zM5 10h6v1H5z'/><path fill='#cfcfcf' d='M4 3h3v1H4zM9 6h2v1H9z'/>"
+    + "<path fill='#8f8f8f' d='M6 4h4v4H6z'/><path fill='#5c3a1c' d='M7 5h2v2H7z'/></svg>";
+  icon.prof = (profId, opts) => {
+    if (profId === 'weaponsmith') {
+      const size = (opts && opts.size) || 16;
+      const el = document.createElement('span');
+      el.className = 'mc mc-grind'; el.setAttribute('aria-hidden', 'true'); el.style.setProperty('--mc', size + 'px');
+      el.innerHTML = GRIND_SVG;
+      return el;
+    }
+    const el = icon(PROF[profId] || 'item/villager_spawn_egg', opts);
+    if (profId === 'leatherworker') el.classList.add('mc-zoom');
+    return el;
+  };
   icon.trim = (patternId, opts) => icon(`item/${patternId}_armor_trim_smithing_template`, opts);
   const ITEM_NAME_FIX = { nether_quartz: 'quartz', redstone_dust: 'redstone' };
   icon.trimMaterial = (itemName, opts) => {

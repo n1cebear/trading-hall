@@ -1528,9 +1528,9 @@
     const big = h('canvas.tr-big', { width: 16, height: 16 });
     const elyIco = p === 'chestplate' ? TH.icon('item/elytra', { size: 40, cls: 'tr-big-ely' }) : null;
     const pname = p === 'chestplate'
-      ? h('b.tr-pname', h('span.tr-pn-main', PIECE_NAME[p]), h('span.tr-pn-ely', 'Elytra'), h('span.tr-pn-x', '\u2715'))
+      ? h('b.tr-pname', h('span.tr-pn-main', PIECE_NAME[p]), h('span.tr-pn-ely', 'Elytra'))
       : h('b.tr-pname', PIECE_NAME[p]);
-    const id = h('div.tr-slot-id', big, elyIco, pname);
+    const id = h('div.tr-slot-id', big, elyIco, pname, p === 'chestplate' ? h('span.tr-pn-x', { 'aria-hidden': 'true' }, '✕') : null);
     withTip(id, () => pieceTipLines(cur(), p));
     const mats = h('div.tr-armors', { role: 'radiogroup', 'aria-label': 'Armor material for the ' + PIECE_NAME[p].toLowerCase() },
       D.armorMaterials.filter((m) => !m.pieces || m.pieces.includes(p)).map((m) => {

@@ -1034,3 +1034,10 @@ button.hl-strip-main { cursor: pointer; }
 :root:root:root .hl-card .hl-card-toggle { gap: 12px; }
 :root:root:root .hl-card .hl-strip-main { padding-left: 30px; }
 :root:root:root .hl-card.hl-cols .hl-card-toggle { padding-left: 30px; }
+
+/* categories read as the real headings: taller than a stripe, bigger type, stronger tint */
+:root:root:root .hl-group-head { min-height: 76px; padding: 12px 20px; margin-bottom: 14px; background: color-mix(in srgb, var(--accent) 15%, var(--neu-bg, var(--panel))); }
+:root:root:root .hl-group-head h3 { font-size: 20px; letter-spacing: 1.8px; }
+:root:root:root .hl-group-head small { font-size: 13px; }
+:root:root:root .hl-group-items { gap: 6px; }
+:root:root:root .hl-group-items .mc { --mc: 36px !important; }

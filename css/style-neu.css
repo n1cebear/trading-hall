@@ -1302,19 +1302,8 @@
   :root:root:root[data-style="classic"] .nav { height: 58px; padding: 0; gap: 10px; align-items: center; }
 }
 
-/* ===== Tinted surfaces: every dark / light surface leans a little towards a neighbour of the active tool accent (analogous: hue shifted by --tint-shift, desaturated); +180 would be the complement. Subtle but apparent. ===== */
-@supports (color: hsl(from red h s l)) {
-  :root { --tint-shift: -28; --comp: hsl(from var(--tc, #f5c04a) calc(h + var(--tint-shift)) 48% 48%); }
-  @media (prefers-color-scheme: dark) { :root:not([data-neu]):not([data-theme="light"]) { --bg: color-mix(in oklab, #0e0e12, var(--comp) 5%); --bg-2: color-mix(in oklab, #15151b, var(--comp) 5%); --panel: color-mix(in oklab, #1a1a21, var(--comp) 5%); --panel-2: color-mix(in oklab, #23232c, var(--comp) 5%); } }
-  :root:not([data-neu])[data-theme="dark"] { --bg: color-mix(in oklab, #0e0e12, var(--comp) 5%); --bg-2: color-mix(in oklab, #15151b, var(--comp) 5%); --panel: color-mix(in oklab, #1a1a21, var(--comp) 5%); --panel-2: color-mix(in oklab, #23232c, var(--comp) 5%); }
-  @media (prefers-color-scheme: light) { :root:not([data-neu]):not([data-theme="dark"]) { --bg: color-mix(in oklab, #e4d8be, var(--comp) 6%); --bg-2: color-mix(in oklab, #d8caad, var(--comp) 6%); --panel: color-mix(in oklab, #ece0c6, var(--comp) 6%); --panel-2: color-mix(in oklab, #e1d4b8, var(--comp) 6%); } }
-  :root:not([data-neu])[data-theme="light"] { --bg: color-mix(in oklab, #e4d8be, var(--comp) 6%); --bg-2: color-mix(in oklab, #d8caad, var(--comp) 6%); --panel: color-mix(in oklab, #ece0c6, var(--comp) 6%); --panel-2: color-mix(in oklab, #e1d4b8, var(--comp) 6%); }
-  @media (prefers-color-scheme: dark) { :root[data-style="pixel"][data-neu]:not([data-theme="light"]) { --neu-bg: color-mix(in oklab, #212126, var(--comp) 5%); --neu-well: color-mix(in oklab, #18181c, var(--comp) 5%); --neu-row: color-mix(in oklab, #28282e, var(--comp) 5%); } }
-  :root[data-style="pixel"][data-neu][data-theme="dark"] { --neu-bg: color-mix(in oklab, #212126, var(--comp) 5%); --neu-well: color-mix(in oklab, #18181c, var(--comp) 5%); --neu-row: color-mix(in oklab, #28282e, var(--comp) 5%); }
-  @media (prefers-color-scheme: light) { :root[data-style="pixel"][data-neu]:not([data-theme="dark"]) { --neu-bg: color-mix(in oklab, #eadfc7, var(--comp) 6%); --neu-well: color-mix(in oklab, #dfd3b6, var(--comp) 6%); --neu-row: color-mix(in oklab, #e2d6bb, var(--comp) 6%); } }
-  :root[data-style="pixel"][data-neu][data-theme="light"] { --neu-bg: color-mix(in oklab, #eadfc7, var(--comp) 6%); --neu-well: color-mix(in oklab, #dfd3b6, var(--comp) 6%); --neu-row: color-mix(in oklab, #e2d6bb, var(--comp) 6%); }
-  @media (prefers-color-scheme: dark) { :root[data-style="soft"][data-neu]:not([data-theme="light"]) { --neu-bg: color-mix(in oklab, #1f1f29, var(--comp) 5%); --neu-well: color-mix(in oklab, #1f1f29, var(--comp) 5%); --neu-row: color-mix(in oklab, #232330, var(--comp) 5%); } }
-  :root[data-style="soft"][data-neu][data-theme="dark"] { --neu-bg: color-mix(in oklab, #1f1f29, var(--comp) 5%); --neu-well: color-mix(in oklab, #1f1f29, var(--comp) 5%); --neu-row: color-mix(in oklab, #232330, var(--comp) 5%); }
-  @media (prefers-color-scheme: light) { :root[data-style="soft"][data-neu]:not([data-theme="dark"]) { --neu-bg: color-mix(in oklab, #e4d8be, var(--comp) 6%); --neu-well: color-mix(in oklab, #e4d8be, var(--comp) 6%); --neu-row: color-mix(in oklab, #e8dcc2, var(--comp) 6%); } }
-  :root[data-style="soft"][data-neu][data-theme="light"] { --neu-bg: color-mix(in oklab, #e4d8be, var(--comp) 6%); --neu-well: color-mix(in oklab, #e4d8be, var(--comp) 6%); --neu-row: color-mix(in oklab, #e8dcc2, var(--comp) 6%); }
+/* Pixel, dark: a neutral, slightly warm charcoal (the cool blue-grey read as brushed metal); no per-tool tint */
+@media (prefers-color-scheme: dark) {
+  :root[data-style="pixel"][data-neu]:not([data-theme="light"]) { --neu-bg: #232224; --neu-well: #1a191b; --neu-row: #2a292c; }
 }
+:root[data-style="pixel"][data-neu][data-theme="dark"] { --neu-bg: #232224; --neu-well: #1a191b; --neu-row: #2a292c; }

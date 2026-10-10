@@ -409,3 +409,6 @@
 @media (hover: hover) { :root:root .tr-slot.ely:hover .tr-pn-x { display: grid; color: #fff; } }
 :root:root .tr-slot.ely:focus-within .tr-pn-x { display: grid; }
 @media (hover: none) { .tr-slot.ely .tr-pn-x { display: grid; } }
+
+/* leather colours: 11 + 7 in two tidy rows, sized to the width of the four armour keys above */
+.tr-dyes { grid-template-columns: repeat(11, 20px); width: max-content; max-width: 100%; gap: 8px 6px; }

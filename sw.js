@@ -4,7 +4,7 @@
  * - Minecraft textures, wiki icons and fonts: cache-first (they never change for a given version).
  * - The page posts { type: 'warm', urls } once, and every texture the app can show is cached in the background.
  */
-const APP = 'toolbox-app-v102';
+const APP = 'toolbox-app-v103';
 const ASSETS = 'toolbox-assets-v1';
 const CORE = [
   './', 'index.html', 'manifest.webmanifest', 'icon.svg',

@@ -1196,3 +1196,18 @@
   .ec-pvshop .ec-buy-row.on .check, .ec-pvshop .ec-buy-row.spent .check { opacity: 1; }
 }
 :root:root .ec-bk-copy.ec-bk-single .ec-buy-text { flex-direction: column; align-items: flex-start; gap: 2px; }
+
+/* LEFT / TOTAL under a plan item */
+.ec-pi-total .ec-pi-left { color: var(--accent); }
+.ec-pi-total .ec-pi-all { font-size: 16px; color: var(--muted); }
+.ec-pi-total .ec-pi-slash { font-size: 14px; color: var(--faint); letter-spacing: 0; text-transform: none; }
+
+/* slimmer PROGRESS panel */
+.ec-pv-costs { padding: 12px 20px 14px; }
+.ec-pv-costs .ec-costs { gap: 8px; }
+.ec-progress { row-gap: 8px; column-gap: 22px; }
+.ec-progress .ec-xp { font-size: 38px; }
+.ec-progress .ec-xpbar { height: 12px; }
+.ec-pg-spent b { font-size: 15px; }
+.ec-pg-xp b, .ec-pg-meta b { font-size: 14px; }
+.ec-pg-meta { gap: 3px; }

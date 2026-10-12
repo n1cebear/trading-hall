@@ -1,179 +1,272 @@
 /**
  * Overview — the landing page (route "#/" or no hash). A hidden module: reachable via the logo, not a nav tab.
- * The screen is split into one tall pane per tool (Enchanting first). The pane under the pointer swells open and shows the
- * detailed view: an animated particle scene, the tool's icon, what it does and a little live mock-up of it. Keys 1-5 jump to a tool.
+ *
+ * One fixed-height stage (no page scroll) split into five equal panes, one per tool (Enchanting first). Every pane
+ * carries its own little living diorama built from real Minecraft textures (TH.icon / TH.icon.tex) plus CSS:
+ *   Enchanting = enchanting table between bookshelves, a floating glinting book, a rune ring orbiting it and
+ *                galactic glyphs streaming from the shelves into the book (like the real table particles).
+ *   Trading Hall = a villager watching emeralds arc from an emerald block over to an enchanted book on a shelf.
+ *   Trims = a hand of smithing templates fanned behind a diamond chestplate, trim materials gliding past below.
+ *   Builds = a little house that assembles itself block by block on a blueprint grid, then dissolves and rebuilds.
+ *   Portal = an obsidian frame with the real animated portal texture, tilting with the pointer, between two
+ *            coordinate readouts (Overworld / Nether) that keep converting.
+ * Everything is DOM built once + CSS keyframes on transform / opacity (GPU), so the stage paints and moves at once.
+ * The pane under the pointer (or focused / tapped) swells open (flex-grow) and shows the pitch, a live stat and the CTA;
+ * its diorama slides to the right and grows; the pointer drives a soft light and per-layer parallax.
+ * Touch: tap focuses a pane, tap again opens the tool. Keys 1-5 jump to a tool, arrows move between panes.
  * Live stats come from each module's badge(state).
  */
 (function () {
-  const { h } = TH.util;
+  /** TH.util.h, but its style object may also carry custom properties ('--x'), which Object.assign would drop */
+  const h = (sel, attrs, ...kids) => {
+    const st = attrs && typeof attrs === 'object' && !(attrs instanceof Node) && !Array.isArray(attrs) && attrs.style;
+    if (!st || typeof st !== 'object') return TH.util.h(sel, attrs, ...kids);
+    const el = TH.util.h(sel, Object.assign({}, attrs, { style: undefined }), ...kids);
+    for (const k in st) { if (st[k] == null) continue; if (k.startsWith('--')) el.style.setProperty(k, String(st[k])); else el.style[k] = st[k]; }
+    return el;
+  };
+  const tex = (p) => TH.icon.tex(p);
+  // Standard Galactic Alphabet look-alikes (the enchanting table script); kept to widely available glyphs
+  const SGA = Array.from('ᔑʖᓵ↸ᒷ⎓⊣⍑╎⋮ᒲリ∷ᓭℸ⚍⍊∴');
 
   const TOOLS = [
-    { id: 'enchanting', icon: (n) => TH.icon('enchanted_book', { size: n, glint: true }), kicker: 'Gear & books', fx: 'glyphs',
+    { id: 'enchanting', line: 'Books, anvil order and XP for every item.', kicker: 'Gear & books', wall: 'block/bookshelf',
       pitch: 'Plan every enchanted item. See exactly which books you still need and tick the anvil steps off one by one.',
-      points: ['Cheapest anvil order', 'Books to get, per item', 'Plans sorted the smart way', 'Level and XP costs'], unit: 'items done' },
-    { id: 'hall', icon: (n) => TH.icon('emerald', { size: n }), kicker: 'Villager trading', fx: 'emeralds',
+      points: ['Cheapest anvil order', 'Books to get, per item', 'Level and XP costs'], unit: 'items done' },
+    { id: 'hall', line: 'Plan the hall and price every librarian.', kicker: 'Villager trading', wall: 'block/spruce_planks',
       pitch: 'Lay out your trading hall, price the emeralds and lock in every librarian.',
-      points: ['Hall planner canvas', 'Book lists per librarian', 'Offer checker', 'Emerald totals'], unit: 'librarians' },
-    { id: 'trims', icon: (n) => TH.icon.trim('sentry', { size: n }), kicker: 'Armor trims', fx: 'sparkle',
+      points: ['Hall planner canvas', 'Book lists per librarian', 'Emerald totals'], unit: 'librarians' },
+    { id: 'trims', line: 'Every armor trim, live in 3D.', kicker: 'Armor trims', wall: 'block/deepslate_tiles',
       pitch: 'Dress a 3D character in any armor and trim, piece by piece, then get the shopping list.',
-      points: ['Live 3D preview', 'Every pattern and material', 'Per-piece armor', 'Skins and saved outfits'], unit: 'templates' },
-    { id: 'builds', icon: (n) => TH.icon('block/crafting_table_front', { size: n }), kicker: 'Build planning', fx: 'blocks', soon: true,
+      points: ['Live 3D preview', 'Every pattern and material', 'Skins and saved outfits'], unit: 'templates' },
+    { id: 'builds', line: 'Materials and stacks for any build.', kicker: 'Build planning', soon: true, wall: 'block/bricks',
       pitch: 'Blocks, stacks and shulker boxes for any build, worked out for you.',
       points: ['Material lists', 'Stacks and shulker boxes', 'Example builds'], unit: '' },
-    { id: 'portal', icon: (n) => TH.icon('block/crying_obsidian', { size: n }), kicker: 'Nether travel', fx: 'vortex',
+    { id: 'portal', line: 'Overworld and Nether, lined up.', kicker: 'Nether travel', wall: 'block/netherrack',
       pitch: 'Convert coordinates between the Overworld and the Nether and line your portals up.',
-      points: ['Overworld and Nether', 'Linked portal finder', 'Seed preview links'], unit: '' },
+      points: ['Overworld and Nether', 'Linked portal finder', 'Portal map'], unit: '' },
   ];
 
-  function stat(mod, state, unit) {
+  function readStat(mod, state) {
     let b = null;
     try { b = mod && mod.badge && mod.badge(state); } catch (e) { /* stats are a bonus */ }
     if (b && typeof b === 'string') { const m = b.match(/^(\d+)\s*\/\s*(\d+)$/); b = m ? { done: +m[1], total: +m[2] } : null; }
-    if (!b || typeof b !== 'object' || !b.total) return null;
-    return h('div.lp-stat',
-      h('div.lp-bar', h('span', { style: { width: Math.min(100, (b.done / b.total) * 100) + '%' } })),
-      h('span.lp-stat-n', h('b', b.done), '/' + b.total + (unit ? ' ' + unit : '')));
+    return b && typeof b === 'object' && b.total ? b : null;
+  }
+  const statEl = (b, unit) => h('div.lp-stat',
+    h('span.lp-bar', h('span', { style: { width: Math.min(100, (b.done / b.total) * 100) + '%' } })),
+    h('span.lp-stat-n', h('b', b.done), ' / ' + b.total + (unit ? ' ' + unit : '')));
+
+  /* ---------------- diorama helpers (scene box = 360 x 360 css px, scaled as a whole) ---------------- */
+  const px = (n) => n + 'px';
+  /** a parallax layer: --d = how far it drifts with the pointer (px) */
+  const layer = (d, ...kids) => h('div.lp-l', { style: { '--d': d } }, ...kids);
+  /** absolutely placed wrapper */
+  const at = (x, y, cls, kids, style) => h('div.lp-at' + (cls || ''), { style: Object.assign({ left: px(x), top: px(y) }, style) }, kids);
+  /**
+   * Isometric block made of three textured faces (2D matrices, no 3D context needed).
+   * s = edge length, hgt = height as a share of s (the enchanting table is 12/16 tall); x,y = top-left of its box.
+   */
+  function cube(s, faces, x, y, o) {
+    o = o || {};
+    const face = (cls, key) => h('i.lp-face.' + cls, { style: { backgroundImage: `url("${tex(key)}")` } });
+    return h('span.lp-cube' + (o.cls || ''), { style: Object.assign({ '--cs': px(s), '--ch': o.hgt || 1, left: px(x), top: px(y) }, o.style) },
+      face('ft', faces.top), face('fl', faces.left || faces.side), face('fr', faces.right || faces.side));
   }
 
-  /** a tiny decorative mock-up of the tool, drawn from real icons */
-  function mock(id) {
-    if (id === 'enchanting') {
-      return h('div.lp-mock.lp-mc', h('b', 'Diamond Sword'), h('span', 'Mending'), h('span', 'Unbreaking III'), h('span', 'Sharpness V'), h('span', 'Looting III'),
-        h('div.lp-mc-cost', TH.icon('xp', { size: 14 }), '6 steps · 44 lvl'));
-    }
-    if (id === 'hall') {
-      const row = (ico, text, price) => h('div.lp-trade', TH.icon(ico, { size: 22 }), h('span', text), h('b', price, TH.util.emerald()));
-      return h('div.lp-mock.lp-trades', row('enchanted_book', 'Mending', '14'), row('enchanted_book', 'Unbreaking III', '9'), row('enchanted_book', 'Efficiency V', '17'));
-    }
-    if (id === 'trims') {
-      return h('div.lp-mock.lp-tiles', ['sentry', 'dune', 'coast', 'wild'].map((p) => h('span.lp-tile-k', TH.icon.trim(p, { size: 30 }))));
-    }
-    if (id === 'builds') {
-      return h('div.lp-mock.lp-stack', h('b', '3'), h('span', '× 64'), h('i', '+'), h('b', '12'), h('small', 'oak planks · 1 shulker box'));
-    }
-    return h('div.lp-mock.lp-coords', h('div', h('small', 'Overworld'), h('b', '1024 · -512')), h('span.lp-arrow', '⇄'), h('div', h('small', 'Nether'), h('b', '128 · -64')));
+  function sceneEnchanting() {
+    const ring = SGA.slice(0, 14).map((g, i) => h('span.lp-orb', { style: { '--o': (-(i / 14) * 18).toFixed(2) + 's' } }, h('span.lp-orb-y', g)));
+    const flow = Array.from({ length: 10 }, (_, i) => {
+      const left = i % 2 === 0;
+      return h('span.lp-flow', { style: { '--x0': px(left ? 52 : 308), '--y0': px(178 + (i % 5) * 12), '--x1': px(176 + (i % 3) * 4), '--y1': px(158),
+        '--t': (2.8 + (i % 4) * 0.45).toFixed(2) + 's', '--o': (-i * 0.62).toFixed(2) + 's' } }, h('span', SGA[(i * 7) % SGA.length]));
+    });
+    const shelf = (x, y) => cube(36, { top: 'block/oak_planks', side: 'block/bookshelf' }, x, y, { cls: '.lp-dim' });
+    return [
+      layer(4, h('div.lp-rays')),
+      layer(8, shelf(14, 196), shelf(14, 160), shelf(284, 196), shelf(284, 160)),
+      layer(14, cube(80, { top: 'block/enchanting_table_top', side: 'block/enchanting_table_side' }, 111, 200, { hgt: 0.75 })),
+      layer(20, h('div.lp-ring', ring), h('div.lp-flows', flow),
+        at(132, 92, '.lp-book', h('div.lp-bob', TH.icon('enchanted_book', { size: 96, glint: true })))),
+    ];
   }
 
-  const fine = () => !(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
-  const hovers = () => !!(window.matchMedia && matchMedia('(hover: hover)').matches);
+  function sceneHall() {
+    const happy = [[96, 66], [262, 52], [250, 128], [110, 140], [180, 22], [296, 92]].map(([x, y], i) =>
+      at(x, y, '.lp-happy', null, { '--o': (-i * 0.55).toFixed(2) + 's' }));
+    const coins = [0, 1, 2].map((i) => h('span.lp-coin', { style: { '--o': (-i * 0.9).toFixed(2) + 's' } }, h('span.lp-coin-y', h('span.lp-coin-r', TH.icon('emerald', { size: 30 })))));
+    return [
+      layer(5, h('div.lp-halo')),
+      layer(9, at(134, 34, '.lp-vil', [h('span.lp-tag', 'Librarian'), h('span.lp-face-vil', { style: { backgroundImage: `url("${tex('entity/villager/villager')}")` } })]), ...happy),
+      layer(15, cube(56, { top: 'block/emerald_block', side: 'block/emerald_block' }, 24, 224), cube(56, { top: 'block/oak_planks', side: 'block/bookshelf' }, 239, 224)),
+      layer(22, at(42, 158, '.lp-stack', [h('div.lp-bob', TH.icon('emerald', { size: 56 })), h('b.lp-count', '24')]),
+        at(256, 150, '.lp-tradebook', h('div.lp-pulse', TH.icon('enchanted_book', { size: 64, glint: true }))),
+        h('div.lp-coins', coins)),
+    ];
+  }
 
-  /* ---------- particle scenes: one canvas per pane, only the open pane is animated ---------- */
-  function scene(cv, kind, color) {
-    const ctx = cv.getContext('2d');
-    const N = kind === 'blocks' ? 0 : kind === 'vortex' ? 90 : kind === 'sparkle' ? 36 : 70;
-    const ps = Array.from({ length: N }, (_, i) => ({ a: Math.random(), b: Math.random(), s: 0.3 + Math.random() * 0.9, p: Math.random() * 6.28, z: 2 + Math.floor(Math.random() * 3), i }));
+  function sceneTrims() {
+    const fan = ['wild', 'coast', 'sentry', 'dune', 'spire'].map((p, i) => h('span.lp-card', { style: { '--r': ((i - 2) * 19) + 'deg', '--i': i } },
+      TH.icon.trim(p, { size: 76 }), p === 'sentry' ? h('span.lp-sheen', { style: { '--mask': `url("${TH.icon.src('item/sentry_armor_trim_smithing_template')}")` } }) : null));
+    const mats = ['Iron Ingot', 'Copper Ingot', 'Gold Ingot', 'Lapis Lazuli', 'Emerald', 'Diamond', 'Netherite Ingot', 'Redstone Dust', 'Amethyst Shard', 'Nether Quartz', 'Resin Brick'];
+    const run = () => mats.map((m) => h('span.lp-mat', TH.icon.trimMaterial(m, { size: 30 })));
+    const twinkles = [[60, 70], [292, 60], [318, 196], [40, 214], [214, 30]].map(([x, y], i) => at(x, y, '.lp-twinkle', null, { '--o': (-i * 0.8).toFixed(2) + 's' }));
+    return [
+      layer(4, h('div.lp-halo'), ...twinkles),
+      layer(10, h('div.lp-fan', fan)),
+      layer(18, at(130, 166, '.lp-chest', h('div.lp-bob', TH.icon('diamond_chestplate', { size: 100 })))),
+      layer(26, h('div.lp-mats', h('div.lp-mats-run', run(), run()))),
+    ];
+  }
+
+  function sceneBuilds() {
+    const s = 34, ox = 180, oy = 132;   // iso origin of grid corner (0,0,0) inside the scene box
+    const P = 'block/oak_planks', L = { top: 'block/oak_log_top', side: 'block/oak_log' }, G = 'block/glass', C = 'block/cobblestone';
+    const plan = [];
+    for (let gy = 0; gy < 3; gy++) for (let gx = 0; gx < 3; gx++) plan.push([gx, gy, 0, C]);
+    [[0, 0, L], [1, 0, P], [2, 0, L], [0, 1, P], [0, 2, L]].forEach(([gx, gy, t]) => plan.push([gx, gy, 1, t]));
+    [[0, 0, L], [1, 0, G], [2, 0, L], [0, 1, G], [0, 2, L]].forEach(([gx, gy, t]) => plan.push([gx, gy, 2, t]));
+    [[0, 0, P], [1, 0, P], [2, 0, P], [0, 1, P], [0, 2, P]].forEach(([gx, gy, t]) => plan.push([gx, gy, 3, t]));
+    plan.push([2, 2, 1, { top: 'block/crafting_table_top', left: 'block/crafting_table_front', right: 'block/crafting_table_side' }]);
+    const blocks = plan.map(([gx, gy, gz, t], i) => {
+      const faces = typeof t === 'string' ? { top: t, side: t } : t;
+      const x = ox + (gx - gy) * 0.866 * s - 0.866 * s, y = oy + (gx + gy) * 0.5 * s - gz * s - s;
+      return cube(s, faces, Math.round(x * 10) / 10, Math.round(y * 10) / 10, { cls: '.lp-drop' + (i === plan.length - 1 ? '.lp-last' : ''), style: { zIndex: gx + gy + gz, '--i': i } });
+    });
+    return [
+      layer(4, h('div.lp-blueprint')),
+      layer(14, h('div.lp-house', blocks)),
+    ];
+  }
+
+  const COORDS = [[1024, -512], [-2400, 880], [312, 4096], [-60, -1600], [7777, 256]];
+  function scenePortal() {
+    const B = 40, fx = 100, fy = 22;   // obsidian block size and frame position (4 x 5 blocks)
+    const frame = [];
+    for (let r = 0; r < 5; r++) for (let c = 0; c < 4; c++) {
+      if (r > 0 && r < 4 && c > 0 && c < 3) continue;
+      const crying = (r === 4 && c === 2) || (r === 0 && c === 0) || (r === 2 && c === 3);
+      frame.push(h('i.lp-obs', { style: { left: px(c * B), top: px(r * B), backgroundImage: `url("${tex(crying ? 'block/crying_obsidian' : 'block/obsidian')}")` } }));
+    }
     const cells = [];
-    return function draw(t, dt) {
-      const W = cv.width, H = cv.height;
-      ctx.clearRect(0, 0, W, H);
-      if (!W) return;
-      ctx.fillStyle = color;
-      if (kind === 'glyphs' || kind === 'emeralds') {
-        ps.forEach((q) => {
-          q.b -= dt * 0.00006 * (0.6 + q.s * 1.2);
-          if (q.b < -0.05) { q.b = 1.05; q.a = Math.random(); }
-          const x = (q.a + Math.sin(t * 0.0006 * q.s + q.p) * 0.03) * W, y = q.b * H, z = q.z * 2 + 2;
-          ctx.globalAlpha = (0.25 + 0.55 * Math.abs(Math.sin(t * 0.002 * q.s + q.p))) * Math.min(1, q.b * 2.2, (1.05 - q.b) * 6 + 0.2);
-          if (kind === 'emeralds') { ctx.save(); ctx.translate(x, y); ctx.rotate(Math.PI / 4); ctx.fillRect(-z / 2, -z / 2, z, z); ctx.restore(); }
-          else { ctx.fillRect(x, y, z, z); if (q.i % 5 === 0) { ctx.fillRect(x - z, y + z, z, z); ctx.fillRect(x + z, y + z, z, z); } }
-        });
-      } else if (kind === 'sparkle') {
-        ps.forEach((q) => {
-          const x = q.a * W, y = q.b * H, k = Math.max(0, Math.sin(t * 0.0015 * q.s + q.p)), z = 1 + Math.round(k * 3);
-          ctx.globalAlpha = 0.15 + k * 0.7;
-          ctx.fillRect(x - z * 2, y, z * 4 + 1, z); ctx.fillRect(x, y - z * 2, z, z * 4 + 1);
-        });
-      } else if (kind === 'blocks') {
-        const g = 34, cols = Math.ceil(W / g), rows = Math.ceil(H / g);
-        if (!cells.length || cells.cols !== cols) { cells.length = 0; cells.cols = cols; for (let i = 0; i < cols * rows; i++) cells.push({ t0: Math.random() * 9000 }); }
-        cells.forEach((c, i) => {
-          const k = (Math.sin((t + c.t0) * 0.0007) + 1) / 2; if (k < 0.72) return;
-          const x = (i % cols) * g + 3, y = Math.floor(i / cols) * g + 3;
-          ctx.globalAlpha = (k - 0.72) * 1.3; ctx.fillRect(x, y, g - 6, g - 6);
-        });
-      } else {
-        const cx = W * 0.62, cy = H * 0.5, R = Math.min(W, H) * 0.55;
-        const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, R * 0.9); g.addColorStop(0, 'rgba(140,60,255,.35)'); g.addColorStop(1, 'rgba(140,60,255,0)');
-        ctx.globalAlpha = 1; ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
-        ps.forEach((q) => {
-          const r = (0.08 + q.a * 0.92) * R, ang = q.p + t * 0.0004 * (1.6 / (0.25 + q.a)) * q.s;
-          const x = cx + Math.cos(ang) * r * 1.15, y = cy + Math.sin(ang) * r * 0.62 - q.a * 8;
-          ctx.globalAlpha = 0.25 + 0.6 * (1 - q.a); ctx.fillStyle = q.i % 3 === 0 ? '#ff5a4e' : q.i % 3 === 1 ? '#b57bff' : '#e9d5ff';
-          ctx.fillRect(x, y, q.z, q.z);
-        });
-      }
-      ctx.globalAlpha = 1;
-    };
+    for (let r = 0; r < 3; r++) for (let c = 0; c < 2; c++) cells.push(h('i.lp-pcell', { style: { left: px(B + c * B), top: px(B + r * B) } }, h('img', { src: tex('block/nether_portal'), alt: '', draggable: false })));
+    const ember = Array.from({ length: 12 }, (_, i) => at(40 + ((i * 53) % 280), 300, '.lp-ember', null, { '--o': (-i * 0.47).toFixed(2) + 's', '--dx': px(((i * 37) % 40) - 20), '--t': (3.4 + (i % 4) * 0.6).toFixed(1) + 's' }));
+    const read = (cls, label, key) => at(cls === '.lp-ow' ? 30 : 242, 244, '.lp-read' + cls, [
+      h('span.lp-read-k', TH.icon(key, { size: 18 }), label), h('b.lp-x', 'X'), h('b.lp-z', 'Z')]);
+    return [
+      layer(4, h('div.lp-halo'), ...ember),
+      layer(16, h('div.lp-frame-wrap', h('div.lp-frame', { style: { left: px(fx), top: px(fy) } }, frame, cells, h('i.lp-swirl')))),
+      layer(24, read('.lp-ow', 'Overworld', 'block/grass_block_side'), read('.lp-ne', 'Nether', 'block/netherrack'),
+        at(152, 268, '.lp-ratio', [h('b', '÷8'), h('span', '×8')])),
+    ];
   }
+
+  const SCENES = { enchanting: sceneEnchanting, hall: sceneHall, trims: sceneTrims, builds: sceneBuilds, portal: scenePortal };
+
+  const reduced = () => !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const hovers = () => !!(window.matchMedia && matchMedia('(hover: hover)').matches);
+  let keepOpen = -1;   // survives a same-route re-render (no animation), reset on a fresh entry
 
   function render(root, state) {
     const mods = TH.app.modules;
+    const fresh = root.classList.contains('enter');
+    if (fresh) keepOpen = -1;
     const trimsOwned = state.trims ? Object.values(state.trims.owned || {}).filter(Boolean).length : 0;
     const items = TOOLS.map((t) => ({ t, mod: mods.find((m) => m.id === t.id) })).filter((x) => x.mod);
     const panes = [];
-    let open = -1, raf = 0, last = 0, openTimer = 0;   // all panes are equals: none is open until you point at one
-    const draws = new Map();
+    let open = -1, hoverTimer = 0;
 
-    const sync = () => {
-      panes.forEach((p, i) => { p.classList.toggle('is-open', i === open); p.setAttribute('aria-expanded', String(i === open)); });
-      const cvs = root.querySelectorAll('.lp-fx');
-      cvs.forEach((cv, i) => { if (i !== open) cv.getContext('2d').clearRect(0, 0, cv.width, cv.height); });
-    };
-    const setOpen = (i) => { if (i === open) return; open = i; sync(); };
-
-    const tick = (t) => {
-      if (!root.isConnected) { cancelAnimationFrame(raf); return; }
-      const dt = Math.min(64, t - last); last = t;
-      const d = draws.get(open); if (d) d(t, dt);
-      raf = requestAnimationFrame(tick);
+    const stage = h('div.lp-stage', { role: 'group', 'aria-label': 'Tools' });
+    const setOpen = (i) => {
+      if (i === open) return;
+      open = keepOpen = i;
+      stage.classList.toggle('has-open', i >= 0);
+      panes.forEach((p, j) => p.classList.toggle('is-open', j === i));
     };
 
-    const el = items.map(({ t, mod }, i) => {
-      let st = stat(mod, state, t.unit);
-      if (t.id === 'trims' && trimsOwned && TH.data && TH.data.trimPatterns) st = stat({ badge: () => ({ done: trimsOwned, total: TH.data.trimPatterns.length }) }, state, t.unit);
-      const cv = h('canvas.lp-fx', { 'aria-hidden': 'true' });
-      const pane = h('a.lp-pane', { href: '#/' + t.id, 'data-tool': t.id, style: { '--i': i }, 'aria-label': mod.name + (t.soon ? ' (coming soon)' : ''), 'aria-expanded': 'false' },
-        h('span.lp-bg', { 'aria-hidden': 'true' }), cv,
-        h('div.lp-rail', { 'aria-hidden': 'true' }, h('span.lp-rn', String(i + 1)), h('span.lp-rico', t.icon(44)), h('span.lp-rname', mod.name)),
-        h('div.lp-open',
-          h('span.lp-num', { style: { '--k': 0 } }, String(i + 1).padStart(2, '0') + ' / ' + String(items.length).padStart(2, '0')),
-          h('div.lp-cols',
-            h('div.lp-text',
-              h('span.lp-kick', { style: { '--k': 1 } }, t.kicker, t.soon ? h('em', 'soon') : null),
-              h('h3.lp-name', { style: { '--k': 2 } }, mod.name),
-              h('p.lp-pitch', { style: { '--k': 3 } }, t.pitch),
-              h('ul.lp-points', { style: { '--k': 4 } }, t.points.map((p, j) => h('li', { style: { '--j': j } }, p))),
-              st ? h('div', { style: { '--k': 5 } }, st) : null,
-              h('span.lp-cta', { style: { '--k': 6 } }, t.soon ? 'Take a look' : 'Open', h('i', '→'))),
-            h('div.lp-art',
-              h('div.lp-ico', { style: { '--k': 2 } }, t.icon(176)),
-              h('div', { style: { '--k': 4 } }, mock(t.id))))));
-      // the pane under the pointer swells open (a short delay avoids flicker while crossing panes)
-      pane.addEventListener('pointerenter', () => { if (!hovers()) return; clearTimeout(openTimer); openTimer = setTimeout(() => setOpen(i), 70); });
-      pane.addEventListener('focus', () => setOpen(i));
-      pane.addEventListener('click', (e) => { if (!hovers() && i !== open) { e.preventDefault(); setOpen(i); } });
-      if (fine() && hovers()) {
-        pane.addEventListener('pointermove', (e) => {
-          const r = pane.getBoundingClientRect();
-          pane.style.setProperty('--px', (((e.clientX - r.left) / r.width - 0.5) * 22).toFixed(1) + 'px');
-          pane.style.setProperty('--py', (((e.clientY - r.top) / r.height - 0.5) * 18).toFixed(1) + 'px');
-          pane.style.setProperty('--mx', (((e.clientX - r.left) / r.width) * 100).toFixed(1) + '%');
-          pane.style.setProperty('--my', (((e.clientY - r.top) / r.height) * 100).toFixed(1) + '%');
-        });
-      }
+    items.forEach(({ t, mod }, i) => {
+      let b = readStat(mod, state);
+      if (t.id === 'trims' && trimsOwned && TH.data && TH.data.trimPatterns) b = { done: trimsOwned, total: TH.data.trimPatterns.length };
+      const soon = t.soon ? h('em.lp-soon', 'soon') : null;
+      const pane = h('a.lp-pane.panel', { href: '#/' + t.id, 'data-tool': t.id, style: { '--i': i }, 'aria-label': mod.name + (t.soon ? ' (coming soon)' : '') + ' - ' + t.kicker },
+        h('span.lp-wall', { 'aria-hidden': 'true', style: { backgroundImage: `url("${tex(t.wall)}")` } }),
+        h('span.lp-glow', { 'aria-hidden': 'true' }),
+        h('div.lp-place', { 'aria-hidden': 'true' }, h('div.lp-scene.lp-scene-' + t.id, SCENES[t.id]())),
+        h('kbd.lp-key', { 'aria-hidden': 'true' }, String(i + 1)),
+        h('div.lp-label', { 'aria-hidden': 'true' },
+          h('span.lp-kick', t.kicker, soon),
+          h('span.lp-title', mod.name),
+          h('span.lp-line', t.line),
+          b ? statEl(b, '') : null),
+        h('div.lp-detail',
+          h('span.lp-kick', { style: { '--k': 0 } }, t.kicker, t.soon ? h('em.lp-soon', 'soon') : null),
+          h('h3.lp-name', { style: { '--k': 1 } }, mod.name),
+          h('p.lp-pitch', { style: { '--k': 2 } }, t.pitch),
+          h('ul.lp-points', { style: { '--k': 3 } }, t.points.map((p) => h('li', p))),
+          b ? h('div', { style: { '--k': 4 } }, statEl(b, t.unit)) : null,
+          h('span.lp-cta', { style: { '--k': 5 } }, t.soon ? 'Take a look' : 'Open ' + (mod.short || mod.name), h('i', { 'aria-hidden': 'true' }, '→'))));
+      pane.addEventListener('pointerenter', (e) => {
+        if (e.pointerType === 'touch' || !hovers()) return;
+        clearTimeout(hoverTimer); hoverTimer = setTimeout(() => setOpen(i), open < 0 ? 40 : 90);
+      });
+      pane.addEventListener('focus', () => { if (pane.matches(':focus-visible')) setOpen(i); });
+      // touch: the first tap focuses the pane, the second one opens the tool (a mouse click always goes straight in)
+      pane.addEventListener('click', (e) => { if (i !== open && (e.pointerType === 'touch' || e.pointerType === 'pen' || !hovers())) { e.preventDefault(); setOpen(i); } });
       panes.push(pane);
-      return { pane, cv, t };
+    });
+    stage.append(...panes);
+
+    stage.addEventListener('pointerleave', (e) => {
+      if (e.pointerType === 'touch' || !hovers()) return;
+      clearTimeout(hoverTimer); hoverTimer = setTimeout(() => { if (!stage.contains(document.activeElement)) setOpen(-1); }, 260);
+    });
+    stage.addEventListener('focusout', (e) => { if (!stage.contains(e.relatedTarget) && !stage.matches(':hover')) setOpen(-1); });
+    stage.addEventListener('keydown', (e) => {
+      const k = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
+      const at0 = panes.indexOf(document.activeElement);
+      if (!k || at0 < 0) return;
+      e.preventDefault();
+      panes[(at0 + k + panes.length) % panes.length].focus();
     });
 
-    root.append(
-      h('div.lp-split', { role: 'group', 'aria-label': 'Tools', onpointerleave: () => { if (hovers()) { clearTimeout(openTimer); openTimer = setTimeout(() => setOpen(-1), 200); } } }, el.map((x) => x.pane)),
-      h('p.lp-hint', 'hover a tool to open it · click to go · ', h('kbd', '1'), '–', h('kbd', String(items.length)), ' to jump'));
+    // pointer light + parallax: one rAF-throttled write of four custom properties on the pane under the pointer
+    if (!reduced()) {
+      let ev = null, raf = 0;
+      const apply = () => {
+        raf = 0;
+        const p = ev && ev.target.closest && ev.target.closest('.lp-pane');
+        if (!p) return;
+        const r = p.getBoundingClientRect(), x = (ev.clientX - r.left) / r.width, y = (ev.clientY - r.top) / r.height;
+        p.style.setProperty('--mx', (x * 100).toFixed(1) + '%');
+        p.style.setProperty('--my', (y * 100).toFixed(1) + '%');
+        p.style.setProperty('--px', ((x - 0.5) * 2).toFixed(3));
+        p.style.setProperty('--py', ((y - 0.5) * 2).toFixed(3));
+      };
+      stage.addEventListener('pointermove', (e) => { if (e.pointerType === 'touch') return; ev = e; if (!raf) raf = requestAnimationFrame(apply); });
+      stage.addEventListener('pointerout', (e) => {
+        const p = e.target.closest && e.target.closest('.lp-pane');
+        if (p && !p.contains(e.relatedTarget)) ['--px', '--py'].forEach((v) => p.style.setProperty(v, '0'));
+      });
+    }
 
-    // size the canvases to their panes and start the scenes
-    const ro = new ResizeObserver(() => el.forEach(({ cv }) => { const r = cv.getBoundingClientRect(); const z = parseFloat(document.documentElement.style.zoom) || 1; cv.width = Math.max(1, Math.round(r.width / z)); cv.height = Math.max(1, Math.round(r.height / z)); }));
-    el.forEach(({ cv, t }) => { ro.observe(cv); const col = getComputedStyle(cv.parentElement).getPropertyValue('--tc').trim() || '#b07cff'; draws.set(el.findIndex((x) => x.cv === cv), scene(cv, t.fx, col)); });
-    sync();
-    if (fine()) raf = requestAnimationFrame((t) => { last = t; tick(t); });
+    // portal readouts keep converting (a text swap every few seconds, no layout work beyond two short strings)
+    const ow = stage.querySelector('.lp-ow'), ne = stage.querySelector('.lp-ne');
+    if (ow && ne) {
+      let k = 0;
+      const show = () => {
+        const [x, z] = COORDS[k % COORDS.length];
+        ow.querySelector('.lp-x').textContent = 'X ' + x; ow.querySelector('.lp-z').textContent = 'Z ' + z;
+        ne.querySelector('.lp-x').textContent = 'X ' + Math.floor(x / 8); ne.querySelector('.lp-z').textContent = 'Z ' + Math.floor(z / 8);
+        stage.querySelector('.lp-scene-portal').dataset.flip = String(k % 2);
+      };
+      show();
+      if (!reduced()) {
+        const iv = setInterval(() => { if (!root.isConnected) { clearInterval(iv); return; } k++; show(); }, 2800);
+      }
+    }
+
+    if (!fresh && keepOpen >= 0 && keepOpen < panes.length) setOpen(keepOpen);
+    root.append(stage);
   }
 
   // number keys 1-5 open the tools while the landing page is showing

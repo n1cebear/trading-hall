@@ -1323,9 +1323,18 @@ TH.anvil = (function () {
       });
     }));
     const doneRows = rows.map((r, i) => Object.assign({ i }, r)).filter((r) => r.en.done);
-    const doneBox = doneRows.length ? h('section.panel.ec-pv-cat.ec-pv-donebox', { 'aria-label': 'Done' },
-      h('div.ec-sec', h('div.ec-group-name', h('span', 'Done'), h('span.faint', doneRows.length + ' of ' + rows.length)),
-        h('div.ec-pi-list', doneRows.map((r) => renderEntry(r.en, r.p, s, r.i, needSet))))) : null;
+    // finished items: a quiet, minimal list at the bottom of the "Your plan" overview
+    const doneList = doneRows.length ? h('section.ec-pv-sec.ec-donelist', { 'aria-label': 'Done' },
+      h('div.ec-sub-head', 'Done', h('span.faint', doneRows.length)),
+      h('ul.ec-dl', doneRows.map(({ en, p }) => {
+        const nm = itemName(en.item, en.material), fin = p.final ? p.final.enchants : {};
+        const rid = 'ec-dl-' + en.id;
+        return h('li.ec-dl-row', { title: sortIds(Object.keys(fin)).map((id) => lvlName(id, fin[id])).join(', ') },
+          itemIcon(en.item, en.material, 20),
+          h('span.ec-dl-name', nm),
+          h('label.check', { title: 'Back on your to-do list' }, h('input', { type: 'checkbox', id: rid, checked: true, 'aria-label': nm + ' is done', 'data-focus': rid, onchange: () => setDone(en.id, false) }), h('span')),
+          h('button.x-btn', { type: 'button', title: 'Remove from plan', 'aria-label': 'Remove ' + nm + ' from plan', 'data-focus': 'ec-dl-rm-' + en.id, onclick: () => removeEntry(en) }, '✕'));
+      }))) : null;
     const list = armorToolSections(rows.map((r, i) => Object.assign({ i }, r)).filter((r) => !r.en.done), (r) => r.en.item, (r) => renderEntry(r.en, r.p, s, r.i, needSet), '.ec-pi-list', (list) => '.panel.ec-pv-cat' + (list.some((r) => r.en.id === s.planEditing) ? '.has-sel' : ''));
 
     // ---- right: shopping list in the sticky Anvil-plan style, floating actions at the foot ----
@@ -1393,8 +1402,8 @@ TH.anvil = (function () {
       h('button.btn', { type: 'button', onclick: () => window.print() }, 'Print'));
 
     return h('div.ec-layout.ec-layout-single',
-      h('div.ec-main', h('div.ec-toprow', head), h('section.ec-pv-list', { 'aria-label': 'Anvil to-do checklist' }, doneBox, list)),
-      h('div.ec-side', h('aside.panel.ec-plan.ec-pvshop', { 'aria-label': 'Shopping list' }, renderModeCards(s), planTools, h('div.ec-plan-body', bookBox, matBox), actions)));
+      h('div.ec-main', h('div.ec-toprow', head), h('section.ec-pv-list', { 'aria-label': 'Anvil to-do checklist' }, list)),
+      h('div.ec-side', h('aside.panel.ec-plan.ec-pvshop', { 'aria-label': 'Shopping list' }, renderModeCards(s), planTools, h('div.ec-plan-body', bookBox, matBox, doneList), actions)));
   }
 
   /* ---------- page ---------- */

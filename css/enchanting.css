@@ -1236,3 +1236,4 @@
 .ec-pi-ready { display: inline-flex; align-items: center; gap: 5px; margin-top: 2px; font: 600 10.5px/1 var(--font); letter-spacing: .6px; text-transform: uppercase; color: var(--accent); opacity: .9; }
 .ec-pi.is-ready .ec-pi-name { color: var(--accent); }
 .ec-pi.is-ready .ec-pi-icon .mc { filter: drop-shadow(0 0 5px color-mix(in srgb, var(--accent) 45%, transparent)); }
+.ec-pi-ready.off { visibility: hidden; }

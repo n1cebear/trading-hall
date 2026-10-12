@@ -1252,7 +1252,7 @@ TH.anvil = (function () {
       h('div.ec-pi-id',
         h('span.ec-pi-icon', itemIcon(en.item, en.material, 48)),
         h('b.ec-pi-name', name),
-        ready ? h('span.ec-pi-ready', { title: 'Every book this item still needs is ticked off' }, bookIcon(14), 'Books ready') : null,
+        h('span.ec-pi-ready' + (ready ? '' : '.off'), ready ? { title: 'Every book this item still needs is ticked off' } : { 'aria-hidden': 'true' }, bookIcon(14), 'Books ready'),
         meta ? h('span.faint.ec-pi-meta', meta) : null),
       h('div.ec-pi-steps',
         canUpgrade(en) ? h('label.ec-tile' + (upgrade ? '.on' : ''),

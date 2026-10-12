@@ -1237,3 +1237,62 @@
 .ec-pi.is-ready .ec-pi-name { color: var(--accent); }
 .ec-pi.is-ready .ec-pi-icon .mc { filter: drop-shadow(0 0 5px color-mix(in srgb, var(--accent) 45%, transparent)); }
 .ec-pi-ready.off { visibility: hidden; }
+
+/* ===== Oct 2026 (14): the picker shrinks to the chosen material + item ===== */
+/* State lives in the store (enchanting.matOpen / itemOpen). Shrunk (the default) = one slim segment per picker holding
+   only the chosen tile, a quiet caption and a "Show all" chip (hover / focus; always shown on touch). Both shrunk = the
+   two segments share one row, so the Enchantments panel moves up. Open = the full layout as before, with a quiet
+   "Show less" chip in the head (Esc or picking any tile shrinks it again). The wrapper glides between heights (JS) and the
+   part that changed fades in. */
+.ec-pickers { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--ec-gap); min-width: 0; container: ec-pickers / inline-size; }
+.ec-pickers.is-slim { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.ec-pickers.is-moving { overflow: clip; overflow-clip-margin: 32px; }
+.ec-pickers > .is-new { animation: ec-pick-in .3s cubic-bezier(.2, .8, .25, 1) both; }
+@keyframes ec-pick-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+
+/* eyebrow row: label left, an optional quiet chip right */
+.ec-pick-head { display: flex; align-items: center; gap: 12px; min-height: 24px; margin: 0 0 14px; }
+:root:root:root .ec-pick-head > .ec-pick-label { margin: 0 0 0 2px; }
+
+/* the shrunk picker: ONE button = chosen tile + caption + "Show all" */
+.ec-pick-slim { display: flex; flex-direction: column; }
+.ec-pick-one {
+  display: flex; align-items: center; gap: 20px; width: fit-content; max-width: 100%; margin: 0; padding: 0;
+  border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; border-radius: var(--radius);
+}
+:root:root:root .ec-pick-one > :is(.ec-item, .ec-matkey) { flex: none; width: 124px; height: 84px; min-height: 0; margin: 0; cursor: pointer; }   /* both tiles one size */
+:root:root:root .ec-pick-one > .ec-matkey { display: flex; padding: 8px 4px; }
+:root:root:root .ec-pick-one > .ec-matkey > .mc { --mc: 32px !important; }
+:root:root:root .ec-pick-one > .ec-matkey > .mc.ec-mat-block { --mc: 24px !important; margin: 4px; transform: none; }
+.ec-pick-one > :is(.ec-item, .ec-matkey) { transition: filter .18s, transform .18s; }
+@media (hover: hover) { .ec-pick-one:hover > :is(.ec-item, .ec-matkey) { filter: brightness(1.1); } }
+:root:root:root .module-enchanting .ec-pick-one:focus-visible { outline: 2px solid var(--accent); outline-offset: 5px; }
+.ec-pick-meta { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; min-width: 0; }
+.ec-pick-cap { font: 500 12.5px/1.3 var(--font); color: var(--muted); }
+
+/* chips: small accent rounded rectangles in the body font (UI text, not a game name) */
+.ec-showall, .ec-less {
+  display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px 4px 8px; border-radius: 5px;
+  font: 600 11px/1.25 var(--font); letter-spacing: .3px; white-space: nowrap;
+  color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+.ec-chip-glyph { font-size: 10px; line-height: 1; }
+.ec-showall { opacity: 0; transform: translateX(-4px); transition: opacity .18s, transform .18s, background-color .18s; }
+.ec-pick-one:hover .ec-showall, .ec-pick-one:focus-visible .ec-showall { opacity: 1; transform: none; }
+.ec-pick-one:hover .ec-showall { background: color-mix(in srgb, var(--accent) 20%, transparent); }
+@media (hover: none) { .ec-showall { opacity: 1; transform: none; } }
+.ec-less { margin-left: auto; border: 0; cursor: pointer; opacity: .8; transition: opacity .15s, background-color .15s; }
+.ec-less:hover { opacity: 1; background: color-mix(in srgb, var(--accent) 20%, transparent); }
+:root:root:root .module-enchanting .ec-less:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; opacity: 1; }
+
+/* narrow row (phones, the squeeze): tile on top, caption and chip under it, centred */
+@container ec-pickers (max-width: 560px) {
+  .is-slim .ec-pick-one { flex-direction: column; align-items: stretch; gap: 10px; width: 100%; }
+  :root:root:root .is-slim .ec-pick-one > :is(.ec-item, .ec-matkey) { width: 100%; }
+  .is-slim .ec-pick-meta { align-items: center; text-align: center; gap: 8px; }
+  .is-slim .ec-pick-cap { font-size: 12px; }
+}
+
+/* ===== edit mode: a dashed accent frame around the whole Anvil plan panel (outline: follows the radius, takes no room) ===== */
+.ec-plan.is-editing { outline: 2px dashed color-mix(in srgb, var(--accent) 85%, transparent); outline-offset: 5px; }
+:root[data-style="pixel"] .ec-plan.is-editing { outline-offset: 6px; }

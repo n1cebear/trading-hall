@@ -257,6 +257,7 @@ TH.anvil = (function () {
     item: 'sword', material: 'diamond', existing: {}, uses: 0, own: false,
     selected: {}, loadout: null, gearId: null, gear: [], saveName: '', renaming: null, renameText: '',
     mode: 'single', planSort: 'rec', planEditing: null, plan: [], planGot: {}, booksOwned: {}, bookCopies: {}, renameCost: '', anvilName: '',
+    matOpen: false, itemOpen: false,   // picker: false = shrunk to the chosen material / item, true = every option shown
   };
 
   const st = () => TH.store.get().enchanting;
@@ -325,10 +326,12 @@ TH.anvil = (function () {
 
   function resetPlan(e) {
     e.existing = {}; e.selected = {}; e.uses = 0; e.loadout = null; e.gearId = null; e.planEditing = null; e.anvilName = ''; e.saveName = '';
+    e.matOpen = false; e.itemOpen = false;   // a fresh start shows only the chosen material + item
   }
 
   function pickItem(id) {
     set((e) => {
+      e.itemOpen = false;   // picking (even the current one) shrinks the picker to that single item
       if (e.item === id) return;
       e.item = id;
       resetPlan(e);
@@ -339,6 +342,7 @@ TH.anvil = (function () {
   function pickMaterial(m) {
     set((e) => {
       e.matTouched = true;
+      e.matOpen = false;
       if (e.material === m) return;
       e.material = m;
       const cur = itemById[e.item];
@@ -529,21 +533,56 @@ TH.anvil = (function () {
   /** Material-less name for greyed-out tiles ("Sword", "Fishing Rod"). */
   const genericName = (id) => id.split('_').map((w) => w[0].toUpperCase() + w.slice(1)).join(' ');
 
+  /** Inside of an item tile (icon, name, version tag): shared by the full grid and the shrunk picker. */
+  function itemTileBody(it, s, ok) {
+    const name = ok ? itemName(it.id, s.material) : genericName(it.id);
+    return [
+      h('span.ec-item-ico', ok ? itemIcon(it.id, s.material, 32) : itemIcon(it.id, it.materials.includes('iron') ? 'iron' : it.defaultMaterial, 32)),
+      h('span.ec-item-name', h('span', name)),
+      it.since ? h('span.ec-new', it.since) : null,
+    ];
+  }
+
   function itemButton(itemId, s, extraCls) {
     const it = itemById[itemId];
     if (!it) return null;
     const ok = fits(it, s.material);
     const on = ok && it.id === s.item;
     const name = ok ? itemName(it.id, s.material) : genericName(it.id);
-    const tip = ok ? name : 'Not available in ' + matName(s.material);
+    const tip = !ok ? 'Not available in ' + matName(s.material) : on ? name + ' · picked, click to show only this' : name;
     return h('button.ec-item' + (on ? '.on' : '') + (ok ? '' : '.na') + (it.since ? '.has-since' : '') + (extraCls || ''), {
       type: 'button', 'aria-pressed': String(on), 'data-focus': 'ec-item-' + it.id, title: tip, disabled: !ok,
       onclick: () => pickItem(it.id),
-    },
-    h('span.ec-item-ico', ok ? itemIcon(it.id, s.material, 32) : itemIcon(it.id, it.materials.includes('iron') ? 'iron' : it.defaultMaterial, 32)),
-    h('span.ec-item-name', h('span', name)),
-    it.since ? h('span.ec-new', it.since) : null);
+    }, itemTileBody(it, s, ok));
   }
+
+  const matIconEl = (m) => { const ic = matIcon(m, 32); if (m === 'wooden' || m === 'stone') ic.classList.add('ec-mat-block'); return ic; };
+
+  /** What a material makes, as a quiet caption under the shrunk material tile ("Armor & tools", "Helmet only"). */
+  function matCaption(m) {
+    const armor = HUD_ARMOR.filter((id) => itemById[id] && itemById[id].materials.includes(m));
+    const tools = D.items.filter((i) => !isPlain(i) && !HUD_ARMOR.includes(i.id) && i.materials.includes(m));
+    if (armor.length === 1 && !tools.length) return genericName(armor[0]) + ' only';
+    if (armor.length && tools.length) return 'Armor & tools';
+    if (armor.length) return 'Armor only';
+    return 'Tools & weapons only';
+  }
+
+  /* Picker open / shrunk: s.matOpen / s.itemOpen (store, so they survive the full re-render on every change).
+     Shrunk = only the chosen tile; a click on it (or its "Show all" chip) opens every option, picking one shrinks again. */
+  const PICK_GROUPS = { armor: 'Armor', tools: 'Tools & weapons', other: 'Other' };
+  let pickAnim = null;   // height of the picker before an open / shrink, so the page below glides instead of jumping
+  let lastOpen = null;
+  function setOpen(key, open) {
+    set((e) => { e[key] = open; });
+  }
+  /** Escape inside an open picker shrinks it back to the chosen tile (and keeps the keyboard focus there). */
+  const escShrink = (key, focus) => (ev) => {
+    if (ev.key !== 'Escape') return;
+    ev.preventDefault(); ev.stopPropagation();
+    TH.app.pendingFocus = focus;
+    setOpen(key, false);
+  };
 
   function renderPicker(s) {
     const placed = new Set(HUD_ARMOR.concat(HUD_TOOLS));
@@ -551,26 +590,84 @@ TH.anvil = (function () {
     // three separate segments (DESIGN.md, Layout "Item picker"): each a .panel with a top-left eyebrow heading;
     // every icon is 32px (integer 2x of the 16px textures) so Material, Armor and Tools read as one family
     const grp = HUD_ARMOR.includes(s.item) ? 'armor' : HUD_TOOLS.includes(s.item) ? 'tools' : 'other';
-    const box = (key, label, body) => h('section.panel.ec-card.ec-picker.ec-pick-' + key + (key === grp || (key === 'mat' && s.matTouched) ? '.has-sel' : ''), { 'aria-labelledby': 'ec-lbl-' + key },
-      h('h3.ec-pick-label', { id: 'ec-lbl-' + key }, label), body);
-    return [
-      h('div.ec-toprow', box('mat', 'Material',
+    const box = (key, label, body, extra) => h('section.panel.ec-card.ec-picker.ec-pick-' + key + (key === grp || (key === 'mat' && s.matTouched) ? '.has-sel' : ''), { 'aria-labelledby': 'ec-lbl-' + key },
+      h('div.ec-pick-head', h('h3.ec-pick-label', { id: 'ec-lbl-' + key }, label), extra || null), body);
+    const lessChip = (key, what) => h('button.ec-less', {
+      type: 'button', title: 'Show only the picked ' + what + ' (Esc)', 'aria-label': 'Show only the picked ' + what,
+      onclick: () => { TH.app.pendingFocus = key === 'matOpen' ? 'ec-mat-' + s.material : 'ec-item-' + s.item; setOpen(key, false); },
+    }, h('span.ec-chip-glyph', { 'aria-hidden': 'true' }, '▴'), 'Show less');
+
+    /** The shrunk picker: one button = the chosen tile + caption + "Show all" chip (always shown on touch). */
+    const slim = (key, label, what, tile, caption, focus) => h('section.panel.ec-card.ec-picker.ec-pick-slim.ec-pick-' + (key === 'matOpen' ? 'mat' : 'item') + (key === 'itemOpen' || s.matTouched ? '.has-sel' : ''), { 'aria-labelledby': 'ec-lbl-' + label.toLowerCase() },
+      h('div.ec-pick-head', h('h3.ec-pick-label', { id: 'ec-lbl-' + label.toLowerCase() }, label)),
+      h('button.ec-pick-one', {
+        type: 'button', 'aria-expanded': 'false', 'data-focus': focus,
+        'aria-label': caption.label + ', picked. Show all ' + what,
+        onclick: () => setOpen(key, true),
+      },
+      tile,
+      h('span.ec-pick-meta', { 'aria-hidden': 'true' },
+        h('span.ec-pick-cap', caption.text),
+        h('span.ec-showall', h('span.ec-chip-glyph', '▾'), 'Show all'))));
+
+    const it = itemById[s.item];
+    const matPart = s.matOpen
+      ? h('div.ec-toprow', { onkeydown: escShrink('matOpen', 'ec-mat-' + s.material) }, box('mat', 'Material',
         h('div.ec-matkeys', { role: 'radiogroup', 'aria-labelledby': 'ec-lbl-mat' }, MATS.map((m) => {
           const on = s.material === m;
           const nm = matName(m);
           return h('button.btn.ec-matkey' + (on ? '.on' : ''), {
             type: 'button', role: 'radio', 'aria-checked': String(on), 'aria-label': nm, 'data-focus': 'ec-mat-' + m,
-            title: materialHint(m) ? nm + ' — ' + materialHint(m) : nm, onclick: () => pickMaterial(m),
-          }, (() => { const ic = matIcon(m, 32); if (m === 'wooden' || m === 'stone') ic.classList.add('ec-mat-block'); return ic; })(), h('span.ec-mat-name', nm));
-        })))),
-      h('div.ec-pickrow',
+            title: (materialHint(m) ? nm + ' — ' + materialHint(m) : nm) + (on ? ' · picked, click to show only this' : ''), onclick: () => pickMaterial(m),
+          }, matIconEl(m), h('span.ec-mat-name', nm));
+        })), lessChip('matOpen', 'material')))
+      : slim('matOpen', 'Material', 'materials',
+        h('span.btn.ec-matkey.on', matIconEl(s.material), h('span.ec-mat-name', matName(s.material))),
+        { label: matName(s.material), text: matCaption(s.material) }, 'ec-mat-' + s.material);
+    const itemPart = s.itemOpen
+      ? h('div.ec-pickrow', { onkeydown: escShrink('itemOpen', 'ec-item-' + s.item) },
         box('armor', 'Armor',
           h('div.ec-slots.armor', { role: 'group', 'aria-labelledby': 'ec-lbl-armor' }, HUD_ARMOR.map((id) => itemButton(id, s)))),
         box('tools', 'Tools & weapons',
-          h('div.ec-slots.tools', { role: 'group', 'aria-labelledby': 'ec-lbl-tools' }, HUD_TOOLS.map((id) => itemButton(id, s)))),
+          h('div.ec-slots.tools', { role: 'group', 'aria-labelledby': 'ec-lbl-tools' }, HUD_TOOLS.map((id) => itemButton(id, s))), lessChip('itemOpen', 'item')),
         box('other', 'Other',
-          h('div.ec-slots.other', { role: 'group', 'aria-labelledby': 'ec-lbl-other' }, rest.map((id) => itemButton(id, s))))),
-    ];
+          h('div.ec-slots.other', { role: 'group', 'aria-labelledby': 'ec-lbl-other' }, rest.map((id) => itemButton(id, s)))))
+      : slim('itemOpen', 'Item', 'items',
+        h('span.ec-item.on' + (it.since ? '.has-since' : ''), itemTileBody(it, s, true)),
+        { label: itemName(it.id, s.material), text: PICK_GROUPS[grp] }, 'ec-item-' + s.item);
+
+    const state = (s.matOpen ? 'm' : '') + (s.itemOpen ? 'i' : '');
+    if (lastOpen !== null && lastOpen !== state) {
+      const old = document.querySelector('.module-enchanting .ec-pickers');
+      if (old) {
+        pickAnim = { h: old.offsetHeight };
+        // the part that opened / shrank fades in; when the row layout itself changes, both do
+        const relayout = (lastOpen === '') !== (state === '');
+        if (relayout || lastOpen.includes('m') !== s.matOpen) matPart.classList.add('is-new');
+        if (relayout || lastOpen.includes('i') !== s.itemOpen) itemPart.classList.add('is-new');
+      }
+    }
+    lastOpen = state;
+    return h('div.ec-pickers' + (!s.matOpen && !s.itemOpen ? '.is-slim' : ''), { 'data-open': state || 'none' }, matPart, itemPart);
+  }
+
+  /** Glide the picker from its old height to the new one (the page below follows smoothly); new tiles fade in. */
+  function runPickAnim() {
+    const a = pickAnim; pickAnim = null;
+    const el = document.querySelector('.module-enchanting .ec-pickers');
+    if (!a || !el || !el.isConnected) return;
+    if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const to = el.offsetHeight;
+    el.classList.add('is-moving');
+    if (Math.abs(to - a.h) < 2) { setTimeout(() => el.classList.remove('is-moving'), 320); return; }
+    el.style.height = a.h + 'px';
+    void el.offsetHeight;
+    el.style.transition = 'height .3s cubic-bezier(.2, .8, .25, 1)';
+    el.style.height = to + 'px';
+    let done = false;
+    const end = () => { if (done) return; done = true; el.style.height = ''; el.style.transition = ''; el.classList.remove('is-moving'); queueFitSide(); };
+    el.addEventListener('transitionend', (ev) => { if (ev.target === el) end(); });
+    setTimeout(end, 420);
   }
 
   /* ---------- 2. current item ---------- */
@@ -709,7 +806,7 @@ TH.anvil = (function () {
         h('span.ec-row-label', { id: 'ec-lbl-presets' }, 'Presets'),
         h('div.ec-lo-list', { role: 'group', 'aria-labelledby': 'ec-lbl-presets' }, it.loadouts.map((l) => h('button.btn.small.ec-lo' + (s.loadout === l.id ? '.on' : ''), {
           type: 'button', title: l.desc, 'aria-pressed': String(s.loadout === l.id), 'data-focus': 'ec-lo-' + l.id, onclick: () => applyLoadout(l),
-        }, l.id === 'best' ? bookIcon(26) : itemIcon(s.item, s.material, 26), h('span.ec-lo-name', l.name), l.id === 'best' ? TH.util.reco() : null)).concat(s.loadout || selIds.length ? [h('button.btn.small.ec-lo.ec-lo-reset', {
+        }, (l.reco || l.id === 'best') ? bookIcon(26) : itemIcon(s.item, s.material, 26), h('span.ec-lo-name', l.name), (l.reco || l.id === 'best') ? TH.util.reco() : null)).concat(s.loadout || selIds.length ? [h('button.btn.small.ec-lo.ec-lo-reset', {
           type: 'button', title: 'Back to nothing picked', 'data-focus': 'ec-lo-reset', onclick: () => set((e) => { e.selected = {}; e.loadout = null; }),
         }, '\u2715 Reset')] : []))),
       own || exIds.length ? renderUsesRow(s) : null,
@@ -780,13 +877,14 @@ TH.anvil = (function () {
     const editingNow = editingEntry(s);
     const modeSw = renderModeCards(s);
     const editLine = editingNow ? h('div.ec-edit-line', h('span', 'Editing a plan item'),
-      h('button.btn.ghost.small', { type: 'button', title: 'Stop editing this plan item and start a new one', onclick: () => set((e) => { e.planEditing = null; }) }, 'Stop editing')) : null;
+      h('button.btn.ghost.small', { type: 'button', title: 'Stop editing this plan item and start a new one', onclick: () => set((e) => { e.planEditing = null; e.matOpen = false; e.itemOpen = false; }) }, 'Stop editing')) : null;
     const head = [renderPreview(s)];
+    const planCls = editingNow ? '.is-editing' : '';   // edit mode: dashed accent frame around the whole Anvil plan panel
 
-    if (plan.error) return h('aside.panel.ec-plan', modeSw, editLine, head, h('p.ec-alert', plan.error));
+    if (plan.error) return h('aside.panel.ec-plan' + planCls, modeSw, editLine, head, h('p.ec-alert', plan.error));
 
     if (!plan.books.length) {
-      return h('aside.panel.ec-plan', { 'aria-live': 'polite' }, modeSw, editLine,
+      return h('aside.panel.ec-plan' + planCls, { 'aria-live': 'polite' }, modeSw, editLine,
         h('div.ec-plan-body', head, h('div.empty.ec-empty',
           plan.skipped.length ? 'Your item already has everything you picked.' : 'Pick enchantments and the cheapest anvil order shows up here.'),
         renderActions(s)));
@@ -850,7 +948,7 @@ TH.anvil = (function () {
         ? h('div.ec-shop-total', h('span.ec-price', h('b', emeraldTotal), emerald()), h('span', `+ ${fromHall} book${fromHall > 1 ? 's' : ''} from your hall`))
         : null);
 
-    return h('aside.panel.ec-plan', { 'aria-live': 'polite' }, modeSw, editLine,
+    return h('aside.panel.ec-plan' + planCls, { 'aria-live': 'polite' }, modeSw, editLine,
       h('div.ec-plan-body',
         head, total, alert,
         stepList ? h('div.ec-plan-block', h('div.ec-sub-head', 'Anvil steps', h('span.faint', steps.length)), stepList) : null,
@@ -858,7 +956,8 @@ TH.anvil = (function () {
       renderActionBar(s, plan));
   }
 
-  /** "Add to plan" / "Done": last row of the Anvil plan panel, sticky so it stays reachable while the plan scrolls. */
+  /** Action row, last row of the Anvil plan panel, sticky so it stays reachable while the plan scrolls.
+   *  Editing a plan item: [Save changes | Saved] + [Mark finished]; otherwise: [Add to plan | In your plan] + [Mark finished]. */
   function renderActionBar(s, plan) {
     const g = s.gear.find((x) => x.id === s.gearId);
     const en = editingEntry(s);
@@ -874,13 +973,13 @@ TH.anvil = (function () {
       ? h('button.btn.ec-add', { type: 'button', disabled: !hasBooks, 'data-focus': 'ec-plan-add', onclick: addToPlan,
         title: hasBooks ? 'Add this item to your plan' : 'Pick enchantments first' }, 'Add to plan')
       : entryDirty
-        ? h('button.btn.primary', { type: 'button', disabled: !hasBooks, 'data-focus': 'ec-plan-update', onclick: updateEntry }, 'Update plan item')
-        : h('button.btn.ec-inplan', { type: 'button', disabled: true }, '✓ In your plan');
-    const right = canApply || isDone ? h('button.btn' + (isDone ? '.ec-undone' : '.primary'), {
+        ? h('button.btn.primary', { type: 'button', disabled: !hasBooks, 'data-focus': 'ec-plan-update', title: 'Save your changes to this plan item', onclick: updateEntry }, 'Save changes')
+        : h('button.btn.ec-inplan', { type: 'button', disabled: true, title: 'No unsaved changes' }, '✓ Saved');
+    const right = canApply || isDone ? h('button.btn' + (isDone ? '.ec-undone' : entryDirty ? '' : '.primary'), {   // one primary at a time: unsaved changes put Save first
       type: 'button', 'aria-pressed': String(isDone), 'data-focus': 'ec-done',
-      title: isDone ? 'Mark as not done again' : 'Check this item off in your plan' + (g ? ' and update the saved gear' : ''),
+      title: isDone ? 'Back on your to-do list' : 'Mark this item as enchanted' + (g ? ' and update the saved gear' : ''),
       onclick: () => doneFromEditor(plan),
-    }, isDone ? '✓ Done — undo' : 'Done') : null;
+    }, isDone ? '✓ Finished · undo' : 'Mark finished') : null;
 
     return h('div.th-act-row', { role: 'group', 'aria-label': 'Plan actions' }, left, right);
   }
@@ -899,7 +998,7 @@ TH.anvil = (function () {
             set((e) => { const x = e.gear.find((y) => y.id === e.gearId); if (x) Object.assign(x, { item: e.item, material: e.material, enchants: Object.assign({}, e.existing), uses: e.uses, updated: Date.now() }); });
             toast('Saved');
           },
-        }, 'Save changes') : null,
+        }, 'Save gear') : null,
         h('button.btn.small.ghost', { type: 'button', onclick: () => set((e) => { e.gearId = null; }) }, 'Close'))
         : h('form.ec-save', {
           onsubmit: (ev) => {
@@ -983,7 +1082,7 @@ TH.anvil = (function () {
       Object.assign(en, snapshot(e), { ticks: [], done: false, gearId: e.gearId || en.gearId || null });
       if (!canUpgrade(en)) en.upgrade = false;
     });
-    toast('Plan item updated');
+    toast('Changes saved');
   }
 
   /** Load a planned item into the single-item editor. */
@@ -996,6 +1095,7 @@ TH.anvil = (function () {
       e.loadout = null;
       e.gearId = en.gearId && e.gear.some((g) => g.id === en.gearId) ? en.gearId : null;
       e.planEditing = en.id;
+      e.matOpen = false; e.itemOpen = false;
     });
     requestAnimationFrame(() => window.scrollTo(0, 0));
   }
@@ -1044,10 +1144,10 @@ TH.anvil = (function () {
         x.done = false;
       }
     });
-    if (on) toast(gearName ? `Done — “${gearName}” updated` : 'Item done');
+    if (on) toast(gearName ? `Finished — “${gearName}” updated` : 'Marked as finished');
   }
 
-  /** The editor's Done button: adds the item to the plan if needed, then checks it off / back on. */
+  /** The editor's "Mark finished" button: adds the item to the plan if needed, then checks it off / back on. */
   function doneFromEditor(plan) {
     const cur = st();
     let en = editingEntry(cur);
@@ -1138,7 +1238,7 @@ TH.anvil = (function () {
     }, TH.icon(icon, { size: 16 }), h('span', label), extra);
     return h('div.seg.ec-mode' + (vertical ? '.is-vertical' : ''), { role: 'group', 'aria-label': 'Enchanting view' },
       btn('single', 'Single item', 'enchanted_book'),
-      btn('plan', 'My plan', 'item/writable_book', total ? h('span.nav-badge.count', { 'aria-label': (total - n) + ' of ' + total + ' items done' }, (total - n) + '/' + total) : null));
+      btn('plan', 'My plan', 'item/writable_book', total ? h('span.nav-badge.count', { 'aria-label': (total - n) + ' of ' + total + ' items finished' }, (total - n) + '/' + total) : null));
   }
 
   /** Banner above the editor while it is linked to a plan entry. */
@@ -1150,7 +1250,7 @@ TH.anvil = (function () {
     return h('div.ec-linked',
       TH.icon('item/writable_book', { size: 18 }),
       h('span.ec-linked-text', 'Editing plan item ', h('b', idx + ' of ' + s.plan.length), ' · ', itemName(en.item, en.material),
-        dirty ? h('span.ec-linked-dirty', ' — press “Update plan item” to keep changes') : null),
+        dirty ? h('span.ec-linked-dirty', ' — press “Save changes” to keep them') : null),
       h('button.btn.small.ghost', { type: 'button', 'data-focus': 'ec-linked-back', onclick: () => set((e) => { e.mode = 'plan'; }) }, 'Back to plan'),
       h('button.btn.small.ghost', { type: 'button', title: 'Unlink the editor from this plan item', onclick: () => set((e) => { e.planEditing = null; }) }, 'Detach'));
   }
@@ -1204,9 +1304,9 @@ TH.anvil = (function () {
         h('span.ec-pi-icon', itemIcon(en.item, en.material, 32)),
         h('div.ec-pi-title', h('b', name), gear ? h('span.faint', gear.name) : null),
         h('div.ec-final-ench.ec-pi-ench', sortIds(Object.keys(fin)).map((id) => h('span.ec-ench-pill', lvlName(id, fin[id])))),
-        h('label.ec-done-check', { title: 'Uncheck to put it back on your to-do list' },
-          h('span.check', h('input', { type: 'checkbox', checked: true, 'aria-label': name + ' is done', 'data-focus': 'ec-pi-done-' + en.id, onchange: () => setDone(en.id, false) }), h('span')),
-          h('span.ec-done-pill', 'Done')),
+        h('label.ec-done-check', { title: 'Back on your to-do list' },
+          h('span.check', h('input', { type: 'checkbox', checked: true, 'aria-label': name + ' is finished', 'data-focus': 'ec-pi-done-' + en.id, onchange: () => setDone(en.id, false) }), h('span')),
+          h('span.ec-done-pill', 'Finished')),
         h('div.ec-pi-actions', remove));
     }
 
@@ -1272,7 +1372,7 @@ TH.anvil = (function () {
           h('div.ec-pi-row',
             h('button.btn.small', { type: 'button', title: 'Load into the editor', 'data-focus': 'ec-pi-edit-' + en.id, onclick: () => editEntry(en) }, 'Edit'),
             remove),
-          h('button.btn.small' + (all ? '.primary' : ''), { type: 'button', 'data-focus': 'ec-pi-done-' + en.id, title: gear ? 'Check off and update “' + gear.name + '”' : 'Check this item off', onclick: () => setDone(en.id, true, p) }, 'Done'))));
+          h('button.btn.small' + (all ? '.primary' : ''), { type: 'button', 'data-focus': 'ec-pi-done-' + en.id, title: gear ? 'Mark this item as enchanted and update “' + gear.name + '”' : 'Mark this item as enchanted', onclick: () => setDone(en.id, true, p) }, 'Finished'))));
   }
 
   function renderPlanView(state, s) {
@@ -1374,15 +1474,15 @@ TH.anvil = (function () {
     }));
     const doneRows = rows.map((r, i) => Object.assign({ i }, r)).filter((r) => r.en.done);
     // finished items: a quiet, minimal list at the bottom of the "Your plan" overview
-    const doneList = doneRows.length ? h('section.ec-pv-sec.ec-donelist', { 'aria-label': 'Done' },
-      h('div.ec-sub-head', 'Done', h('span.faint', doneRows.length)),
+    const doneList = doneRows.length ? h('section.ec-pv-sec.ec-donelist', { 'aria-label': 'Finished' },
+      h('div.ec-sub-head', 'Finished', h('span.faint', doneRows.length)),
       h('ul.ec-dl', doneRows.map(({ en, p }) => {
         const nm = itemName(en.item, en.material), fin = p.final ? p.final.enchants : {};
         const rid = 'ec-dl-' + en.id;
         return h('li.ec-dl-row', { title: sortIds(Object.keys(fin)).map((id) => lvlName(id, fin[id])).join(', ') },
           itemIcon(en.item, en.material, 20),
           h('span.ec-dl-name', nm),
-          h('label.check', { title: 'Back on your to-do list' }, h('input', { type: 'checkbox', id: rid, checked: true, 'aria-label': nm + ' is done', 'data-focus': rid, onchange: () => setDone(en.id, false) }), h('span')),
+          h('label.check', { title: 'Back on your to-do list' }, h('input', { type: 'checkbox', id: rid, checked: true, 'aria-label': nm + ' is finished', 'data-focus': rid, onchange: () => setDone(en.id, false) }), h('span')),
           h('button.x-btn', { type: 'button', title: 'Remove from plan', 'aria-label': 'Remove ' + nm + ' from plan', 'data-focus': 'ec-dl-rm-' + en.id, onclick: () => removeEntry(en) }, '✕'));
       }))) : null;
     const openRows = rows.map((r, i) => Object.assign({ i }, r)).filter((r) => !r.en.done);
@@ -1442,7 +1542,7 @@ TH.anvil = (function () {
             h('div.ec-bk-head', bookIcon(20), h('span.ec-buy-name', nm, h('span.ec-x', '×' + b.count)), sourceChip(offers, b.id, b.level, b.count)),
             h('ul.ec-bk-copies', Array.from({ length: b.count }, (_, i) => copy(i))));
         }))
-        : h('p.ec-pv-note', 'Nothing to buy — every open item is done or has no books.'));
+        : h('p.ec-pv-note', 'Nothing to buy — your open items need no books.'));
 
     const matBox = ups ? h('section.ec-pv-sec', { 'aria-label': 'Base item materials' },
       h('div.ec-sub-head', 'Base item materials', h('span.faint', 'diamond → netherite')),
@@ -1487,7 +1587,7 @@ TH.anvil = (function () {
       ],
     ]);
     root.querySelectorAll('[title]').forEach((el) => TH.util.tooltip(el)); // app tooltip instead of native title
-    queueMicrotask(fitSide);   // right after the swap, before the first paint (no jump)
+    queueMicrotask(() => { runPickAnim(); fitSide(); });   // right after the swap, before the first paint (no jump)
     queueFitSide();
   }
 
@@ -1513,6 +1613,7 @@ TH.anvil = (function () {
     if (!Array.isArray(s.gear)) s.gear = [];
     s.renaming = null;
     s.own = !!s.own;
+    s.matOpen = false; s.itemOpen = false;   // every visit starts with the picker shrunk to the chosen material + item
     if (typeof s.renameCost !== 'string') s.renameCost = '';
     if (typeof s.anvilName !== 'string') s.anvilName = '';
     s.uses = clamp(s.uses | 0, 0, MAX_USES + 4);

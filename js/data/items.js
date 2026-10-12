@@ -360,4 +360,12 @@ TH.data.netheriteUpgrade = [
     }
   ];
 
+  // One loadout per item is flagged as the recommended one (the "Recommended!" tag in the picker): the explicit "best" where an item has it,
+  // else the sensible default for the item (Fortune pickaxe, Loyalty trident, Piercing crossbow, Mending bow ...).
+  var RECO = { pickaxe: 'fortune', axe: 'lumber', mace: 'smash', shovel: 'dig', hoe: 'farm', bow: 'mending', crossbow: 'piercing', trident: 'loyalty' };
+  TH.data.items.forEach(function (it) {
+    var pick = (RECO[it.id] && it.loadouts.filter(function (l) { return l.id === RECO[it.id]; })[0]) || it.loadouts.filter(function (l) { return l.id === 'best'; })[0] || it.loadouts[0];
+    if (pick) pick.reco = true;
+  });
+
 })();

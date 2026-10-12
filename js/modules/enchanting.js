@@ -422,10 +422,19 @@ TH.anvil = (function () {
    * then the sword, then armour by protection points - chestplate, leggings, helmet, boots - then the axe, bow, shield, shovel ...). */
   const REC_ORDER = ['pickaxe', 'sword', 'chestplate', 'leggings', 'helmet', 'boots', 'axe', 'bow', 'shield', 'shovel', 'elytra', 'trident', 'crossbow', 'mace', 'spear', 'fishing_rod', 'hoe', 'shears', 'flint_and_steel', 'brush', 'carrot_on_a_stick', 'warped_fungus_on_a_stick'];
   const recRank = (id) => { const i = REC_ORDER.indexOf(id); return i < 0 ? 99 : i; };
+  /** How much an enchantment is worth in survival play (higher = earlier). Fortune beats Silk Touch on purpose: Fortune multiplies the diamonds / ores
+   * that build everything else, Silk Touch is the situational second pick. Used to order two items of the same kind (e.g. two pickaxes). */
+  const ENCH_VALUE = {
+    mending: 10, fortune: 9, protection: 8, sharpness: 8, power: 8, efficiency: 7, unbreaking: 6, feather_falling: 5, looting: 4, infinity: 4,
+    silk_touch: 3, respiration: 3, aqua_affinity: 2, depth_strider: 2, sweeping_edge: 3, fire_aspect: 2, quick_charge: 3, luck_of_the_sea: 3, lure: 3, loyalty: 3,
+    density: 3, breach: 3, blast_protection: 3, fire_protection: 3, projectile_protection: 3, flame: 2, multishot: 2, piercing: 2, riptide: 2, impaling: 2,
+    wind_burst: 2, lunge: 2, smite: 2, soul_speed: 1, swift_sneak: 1, bane_of_arthropods: 1, knockback: 1, punch: 1, channeling: 1, thorns: 0.5,
+  };
+  const enchScore = (en) => Object.keys(en.selected || {}).reduce((n, id) => n + (en.selected[id] > 0 ? (ENCH_VALUE[id] || 0) : 0), 0);
   function sortPlanRows(list, mode, nameOf) {
     const out = list.slice();
     if (mode === 'az') out.sort((a, b) => nameOf(a).localeCompare(nameOf(b)) || a.i - b.i);
-    else out.sort((a, b) => recRank(a.en.item) - recRank(b.en.item) || a.i - b.i);
+    else out.sort((a, b) => recRank(a.en.item) - recRank(b.en.item) || enchScore(b.en) - enchScore(a.en) || a.i - b.i);
     return out;
   }
 
@@ -1350,7 +1359,7 @@ TH.anvil = (function () {
     const openRows = rows.map((r, i) => Object.assign({ i }, r)).filter((r) => !r.en.done);
     const renderRow = (r) => renderEntry(r.en, r.p, s, r.i, needSet);
     const sortBar = openRows.length > 1 ? h('div.ec-pv-sortbar', h('span.ec-label', 'Order'),
-      h('div.seg.ec-sortseg', { role: 'group', 'aria-label': 'Order of your plan' }, [['rec', 'Recommended'], ['az', 'A → Z'], ['cat', 'Category']].map(([k, label]) => h('button' + (s.planSort === k ? '.on' : ''), {
+      h('div.seg.ec-sortseg', { role: 'group', 'aria-label': 'Order of your plan' }, [['rec', 'Recommended'], ['cat', 'Category'], ['az', 'A → Z']].map(([k, label]) => h('button' + (s.planSort === k ? '.on' : ''), {
         type: 'button', 'aria-pressed': String(s.planSort === k), 'data-focus': 'ec-sort-' + k, onclick: () => set((e) => { e.planSort = k; }),
       }, label)))) : null;
     const list = s.planSort !== 'cat' ? (openRows.length ? h('div.ec-sec.panel.ec-pv-cat' + (openRows.some((r) => r.en.id === s.planEditing) ? '.has-sel' : ''),

@@ -1186,3 +1186,13 @@
 /* plan order switch */
 .ec-pv-sortbar { display: flex; align-items: center; justify-content: flex-end; gap: 12px; margin-bottom: 4px; }
 .ec-sortseg button { font-size: 12px; padding: 5px 12px; }
+
+/* overview checklists: tick boxes appear on hover / focus (or while ticked); icons carry the rows the rest of the time */
+.ec-bk-copy .ec-buy-text { display: flex; align-items: center; gap: 8px; }
+.ec-bk-single .ec-buy-for { display: flex; align-items: center; gap: 5px; }
+@media (hover: hover) {
+  .ec-pvshop .ec-buy-row .check, .ec-pvshop .ec-dl-row .check { opacity: 0; transition: opacity .15s; }
+  .ec-pvshop .ec-buy-row:hover .check, .ec-pvshop .ec-buy-row:focus-within .check, .ec-pvshop .ec-dl-row:hover .check, .ec-pvshop .ec-dl-row:focus-within .check { opacity: 1; }
+  .ec-pvshop .ec-buy-row.on .check, .ec-pvshop .ec-buy-row.spent .check { opacity: 1; }
+}
+:root:root .ec-bk-copy.ec-bk-single .ec-buy-text { flex-direction: column; align-items: flex-start; gap: 2px; }

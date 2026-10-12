@@ -1264,10 +1264,11 @@ TH.anvil = (function () {
     const need = new Map();
     open.forEach(({ en, p }) => usedBooks(p).forEach((b) => {
       const key = b.id + ':' + b.level;
-      if (!need.has(key)) need.set(key, { key, id: b.id, level: b.level, count: 0, items: [] });
+      if (!need.has(key)) need.set(key, { key, id: b.id, level: b.level, count: 0, items: [], refs: [] });
       const x = need.get(key);
       x.count++;
       x.items.push(itemName(en.item, en.material));
+      x.refs.push(en);
     }));
     const books = [...need.values()].sort((a, b) => b.count - a.count || enchName(a.id).localeCompare(enchName(b.id)));
     const bookTotal = books.reduce((n, b) => n + b.count, 0);
@@ -1389,14 +1390,14 @@ TH.anvil = (function () {
             const got = i < have, id = 'ec-bk-' + slug + '-' + i;
             return h('li.ec-buy-row.ec-bk-copy' + (uses[i] ? '.spent' : got ? '.on' : ''), { 'data-book': b.key },
               h('label.check', h('input', { type: 'checkbox', id, checked: got, 'data-focus': id, 'aria-label': nm + (b.items[i] ? ' for ' + b.items[i] : ''), onchange: () => setOwned(b.key, got ? i : i + 1) }), h('span')),
-              extra || h('label.ec-buy-text', { for: id }, h('span.ec-buy-name', 'for ' + (b.items[i] || 'your plan'))));
+              extra || h('label.ec-buy-text', { for: id }, b.refs[i] ? itemIcon(b.refs[i].item, b.refs[i].material, 18) : null, h('span.ec-buy-name', 'for ' + (b.items[i] || 'your plan'))));
           };
           if (b.count === 1) {
             const got = have >= 1, id = 'ec-bk-' + slug + '-0';
             return h('li.ec-buy-row.ec-bk-copy.ec-bk-single' + (uses[0] ? '.spent' : got ? '.on' : ''), { 'data-book': b.key },
               h('label.check', h('input', { type: 'checkbox', id, checked: got, 'data-focus': id, 'aria-label': nm, onchange: () => setOwned(b.key, got ? 0 : 1) }), h('span')),
               bookIcon(20),
-              h('label.ec-buy-text', { for: id }, h('span.ec-buy-name', nm), h('span.ec-buy-for', 'for ' + (b.items[0] || 'your plan'))),
+              h('label.ec-buy-text', { for: id }, h('span.ec-buy-name', nm), h('span.ec-buy-for', b.refs[0] ? itemIcon(b.refs[0].item, b.refs[0].material, 14) : null, 'for ' + (b.items[0] || 'your plan'))),
               sourceChip(offers, b.id, b.level, 1));
           }
           return h('li.ec-bk-group', { 'data-book': b.key },

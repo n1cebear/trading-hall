@@ -256,7 +256,7 @@ TH.anvil = (function () {
   const DEFAULTS = {
     item: 'sword', material: 'diamond', existing: {}, uses: 0, own: false,
     selected: {}, loadout: null, gearId: null, gear: [], saveName: '', renaming: null, renameText: '',
-    mode: 'single', planSort: 'rec', planEditing: null, plan: [], planGot: {}, booksOwned: {}, renameCost: '', anvilName: '',
+    mode: 'single', planSort: 'rec', planEditing: null, plan: [], planGot: {}, booksOwned: {}, bookCopies: {}, renameCost: '', anvilName: '',
   };
 
   const st = () => TH.store.get().enchanting;
@@ -434,7 +434,15 @@ TH.anvil = (function () {
   function sortPlanRows(list, mode, nameOf) {
     const out = list.slice();
     if (mode === 'az') out.sort((a, b) => nameOf(a).localeCompare(nameOf(b)) || a.i - b.i);
-    else out.sort((a, b) => recRank(a.en.item) - recRank(b.en.item) || enchScore(b.en) - enchScore(a.en) || a.i - b.i);
+    else {
+      // best item of each kind first (pickaxe, sword, chestplate ...), then the second best of each kind, and so on
+      const kinds = new Map();
+      out.sort((a, b) => enchScore(b.en) - enchScore(a.en) || a.i - b.i).forEach((r) => { (kinds.get(r.en.item) || kinds.set(r.en.item, []).get(r.en.item)).push(r); });
+      const order = [...kinds.keys()].sort((a, b) => recRank(a) - recRank(b));
+      const res = [];
+      for (let round = 0; res.length < out.length; round++) order.forEach((k) => { const r = kinds.get(k)[round]; if (r) res.push(r); });
+      return res;
+    }
     return out;
   }
 
@@ -1068,6 +1076,17 @@ TH.anvil = (function () {
   /** Books in hand per enchant:level; changes by delta, never below 0. */
   const owned = (s, key) => s.booksOwned[key] || 0;
   const setOwned = (key, n) => set((e) => { if (n > 0) e.booksOwned[key] = n; else delete e.booksOwned[key]; });
+  /** Tick one copy of a book (the one for a given plan item) without touching the others. Old saves only knew a count: the first N copies count as ticked until the first click. */
+  function toggleCopy(key, enId, refIds) {
+    set((e) => {
+      const had = e.bookCopies[key], cur = {};
+      refIds.forEach((id, i) => { cur[id] = had ? !!had[id] : i < (e.booksOwned[key] || 0); });
+      cur[enId] = !cur[enId];
+      e.bookCopies[key] = cur;
+      const n = Object.keys(cur).filter((id) => cur[id]).length;
+      if (n) e.booksOwned[key] = n; else delete e.booksOwned[key];
+    });
+  }
   const bumpOwned = (key, delta) => set((e) => {
     const n = Math.max(0, (e.booksOwned[key] || 0) + delta);
     if (n) e.booksOwned[key] = n; else delete e.booksOwned[key];
@@ -1271,7 +1290,8 @@ TH.anvil = (function () {
 
     // books, merged over every open item
     const need = new Map();
-    open.forEach(({ en, p }) => usedBooks(p).forEach((b) => {
+    const openOrdered = sortPlanRows(open.map((r0) => Object.assign({ i: rows.indexOf(r0) }, r0)), 'rec', () => '');   // books list follows the recommended order of the items
+    openOrdered.forEach(({ en, p }) => usedBooks(p).forEach((b) => {
       const key = b.id + ':' + b.level;
       if (!need.has(key)) need.set(key, { key, id: b.id, level: b.level, count: 0, items: [], refs: [] });
       const x = need.get(key);
@@ -1279,9 +1299,14 @@ TH.anvil = (function () {
       x.items.push(itemName(en.item, en.material));
       x.refs.push(en);
     }));
+    const gotCopy = (key, enId) => {
+      const b = need.get(key), c = s.bookCopies[key];
+      if (c) return !!c[enId];
+      return b ? b.refs.findIndex((e) => e.id === enId) < owned(s, key) : false;
+    };
     const books = [...need.values()].sort((a, b) => b.count - a.count || enchName(a.id).localeCompare(enchName(b.id)));
     const bookTotal = books.reduce((n, b) => n + b.count, 0);
-    const gotBooks = books.reduce((n, b) => n + Math.min(owned(s, b.key), b.count), 0);
+    const gotBooks = books.reduce((n, b) => n + b.refs.filter((e) => gotCopy(b.key, e.id)).length, 0);
 
     // costs
     let levels = 0, points = 0, left = 0, emeralds = 0, hallBooks = 0, unpriced = 0, bad = 0;
@@ -1319,16 +1344,14 @@ TH.anvil = (function () {
       finished ? h('button.btn.small.ghost', { type: 'button', onclick: () => set((e) => { e.plan = e.plan.filter((x) => !x.done); }) }, 'Clear finished (' + finished + ')') : null,
       h('button.btn.small.ghost.danger', {
         type: 'button', onclick: () => {
-          TH.util.guard(true, 'Remove every item from your plan?', () => set((e) => { e.plan = []; e.planGot = {}; e.booksOwned = {}; e.planEditing = null; }), 'Clear plan');
+          TH.util.guard(true, 'Remove every item from your plan?', () => set((e) => { e.plan = []; e.planGot = {}; e.booksOwned = {}; e.bookCopies = {}; e.planEditing = null; }), 'Clear plan');
         },
       }, 'Clear plan'));
 
     // which book slots in the steps are still missing: owned copies are handed out in plan order, ticked steps are done
-    const pool = {};
-    Object.keys(s.booksOwned).forEach((k) => { pool[k] = s.booksOwned[k]; });
     const needSet = new Set();
     const copyUses = {};   // per book: one entry per place it is needed (plan order), true once that step is ticked
-    open.forEach(({ en, p }) => p.steps.forEach((x) => {
+    openOrdered.forEach(({ en, p }) => p.steps.forEach((x) => {
       const ticked = en.ticks.includes('n' + x.n);
       [x.target, x.sacrifice].forEach((node) => {
         if (node && node.kind === 'book' && node.fromStep == null && node.enchants && node.enchants.length === 1) {
@@ -1340,7 +1363,7 @@ TH.anvil = (function () {
       [['t', x.target], ['s', x.sacrifice]].forEach(([side, node]) => {
         if (!node || node.kind !== 'book' || node.fromStep != null || !node.enchants || node.enchants.length !== 1) return;
         const key = node.enchants[0].id + ':' + node.enchants[0].level;
-        if (pool[key] > 0) pool[key]--; else needSet.add(en.id + '|' + x.n + '|' + side);
+        if (!gotCopy(key, en.id)) needSet.add(en.id + '|' + x.n + '|' + side);
       });
     }));
     const doneRows = rows.map((r, i) => Object.assign({ i }, r)).filter((r) => r.en.done);
@@ -1392,19 +1415,19 @@ TH.anvil = (function () {
       bookTotal ? progressBar(gotBooks, bookTotal, 'Books obtained') : null,
       books.length
         ? h('ul.ec-buy.ec-bk', books.map((b) => {
-          const have = owned(s, b.key), uses = copyUses[b.key] || [], nm = lvlName(b.id, b.level);
+          const uses = copyUses[b.key] || [], nm = lvlName(b.id, b.level), refIds = b.refs.map((e) => e.id);
           const slug = b.key.replace(/[^a-z0-9]/gi, '-');
           // one tickable copy per place the book is needed; the i-th copy is "got" while i < books owned
           const copy = (i, extra) => {
-            const got = i < have, id = 'ec-bk-' + slug + '-' + i;
+            const got = gotCopy(b.key, b.refs[i].id), id = 'ec-bk-' + slug + '-' + i;
             return h('li.ec-buy-row.ec-bk-copy' + (uses[i] ? '.spent' : got ? '.on' : ''), { 'data-book': b.key },
-              h('label.check', h('input', { type: 'checkbox', id, checked: got, 'data-focus': id, 'aria-label': nm + (b.items[i] ? ' for ' + b.items[i] : ''), onchange: () => setOwned(b.key, got ? i : i + 1) }), h('span')),
+              h('label.check', h('input', { type: 'checkbox', id, checked: got, 'data-focus': id, 'aria-label': nm + (b.items[i] ? ' for ' + b.items[i] : ''), onchange: () => toggleCopy(b.key, b.refs[i].id, refIds) }), h('span')),
               extra || h('label.ec-buy-text', { for: id }, b.refs[i] ? itemIcon(b.refs[i].item, b.refs[i].material, 18) : null, h('span.ec-buy-name', 'for ' + (b.items[i] || 'your plan'))));
           };
           if (b.count === 1) {
-            const got = have >= 1, id = 'ec-bk-' + slug + '-0';
+            const got = gotCopy(b.key, b.refs[0].id), id = 'ec-bk-' + slug + '-0';
             return h('li.ec-buy-row.ec-bk-copy.ec-bk-single' + (uses[0] ? '.spent' : got ? '.on' : ''), { 'data-book': b.key },
-              h('label.check', h('input', { type: 'checkbox', id, checked: got, 'data-focus': id, 'aria-label': nm, onchange: () => setOwned(b.key, got ? 0 : 1) }), h('span')),
+              h('label.check', h('input', { type: 'checkbox', id, checked: got, 'data-focus': id, 'aria-label': nm, onchange: () => toggleCopy(b.key, b.refs[0].id, refIds) }), h('span')),
               bookIcon(20),
               h('label.ec-buy-text', { for: id }, h('span.ec-buy-name', nm), h('span.ec-buy-for', b.refs[0] ? itemIcon(b.refs[0].item, b.refs[0].material, 14) : null, 'for ' + (b.items[0] || 'your plan'))),
               sourceChip(offers, b.id, b.level, 1));
@@ -1492,6 +1515,7 @@ TH.anvil = (function () {
     if (!['rec', 'az', 'cat'].includes(s.planSort)) s.planSort = 'rec';
     if (!s.planGot || typeof s.planGot !== 'object' || Array.isArray(s.planGot)) s.planGot = {};
     if (!s.booksOwned || typeof s.booksOwned !== 'object' || Array.isArray(s.booksOwned)) s.booksOwned = {};
+    if (!s.bookCopies || typeof s.bookCopies !== 'object' || Array.isArray(s.bookCopies)) s.bookCopies = {};
     Object.keys(s.booksOwned).forEach((k) => { const n = Math.floor(Number(s.booksOwned[k])); if (n > 0) s.booksOwned[k] = n; else delete s.booksOwned[k]; });
     // old shape: planGot['ench:level'] = count needed when ticked (true) -> books owned
     Object.keys(s.planGot).forEach((k) => {

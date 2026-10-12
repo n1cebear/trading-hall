@@ -1167,3 +1167,10 @@
 /* the floating action row has no band of its own (its backdrop differed from the panel in Pixel and cast a box around the key); only where it overlaps the list on small screens */
 :root:root:root .ec-plan > .th-act-row { background: transparent; }
 @media (max-width: 1099px) { :root:root:root .ec-plan > .th-act-row { background: var(--neu-bg, var(--panel)); } }
+
+/* finished items live in their own compact "Done" segment above Armor / Tools */
+.ec-pv-list .ec-pv-donebox { padding: 16px 20px 18px; }
+.ec-pv-list .ec-pv-donebox .ec-sec { display: flex; flex-direction: column; gap: 0; }
+.ec-pv-list .ec-pv-donebox .ec-group-name { margin: 0 0 12px; display: flex; align-items: baseline; gap: 10px; }
+.ec-pv-list .ec-pv-donebox .ec-pi-list { gap: 10px; }
+.ec-pv-list .ec-pv-donebox .ec-pi.done { opacity: .9; }

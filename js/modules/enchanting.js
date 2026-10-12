@@ -1306,24 +1306,27 @@ TH.anvil = (function () {
     const pool = {};
     Object.keys(s.booksOwned).forEach((k) => { pool[k] = s.booksOwned[k]; });
     const needSet = new Set();
-    const usedMap = {};   // book copies already spent by ticked steps
+    const copyUses = {};   // per book: one entry per place it is needed (plan order), true once that step is ticked
     open.forEach(({ en, p }) => p.steps.forEach((x) => {
-      if (en.ticks.includes('n' + x.n)) {
-        [x.target, x.sacrifice].forEach((node) => {
-          if (node && node.kind === 'book' && node.fromStep == null && node.enchants && node.enchants.length === 1) {
-            const key = node.enchants[0].id + ':' + node.enchants[0].level;
-            usedMap[key] = (usedMap[key] || 0) + 1;
-          }
-        });
-        return;
-      }
+      const ticked = en.ticks.includes('n' + x.n);
+      [x.target, x.sacrifice].forEach((node) => {
+        if (node && node.kind === 'book' && node.fromStep == null && node.enchants && node.enchants.length === 1) {
+          const key = node.enchants[0].id + ':' + node.enchants[0].level;
+          (copyUses[key] = copyUses[key] || []).push(ticked);
+        }
+      });
+      if (ticked) return;
       [['t', x.target], ['s', x.sacrifice]].forEach(([side, node]) => {
         if (!node || node.kind !== 'book' || node.fromStep != null || !node.enchants || node.enchants.length !== 1) return;
         const key = node.enchants[0].id + ':' + node.enchants[0].level;
         if (pool[key] > 0) pool[key]--; else needSet.add(en.id + '|' + x.n + '|' + side);
       });
     }));
-    const list = armorToolSections(rows.map((r, i) => Object.assign({ i }, r)), (r) => r.en.item, (r) => renderEntry(r.en, r.p, s, r.i, needSet), '.ec-pi-list', (list) => '.panel.ec-pv-cat' + (list.some((r) => r.en.id === s.planEditing) ? '.has-sel' : ''));
+    const doneRows = rows.map((r, i) => Object.assign({ i }, r)).filter((r) => r.en.done);
+    const doneBox = doneRows.length ? h('section.panel.ec-pv-cat.ec-pv-donebox', { 'aria-label': 'Done' },
+      h('div.ec-sec', h('div.ec-group-name', h('span', 'Done'), h('span.faint', doneRows.length + ' of ' + rows.length)),
+        h('div.ec-pi-list', doneRows.map((r) => renderEntry(r.en, r.p, s, r.i, needSet))))) : null;
+    const list = armorToolSections(rows.map((r, i) => Object.assign({ i }, r)).filter((r) => !r.en.done), (r) => r.en.item, (r) => renderEntry(r.en, r.p, s, r.i, needSet), '.ec-pi-list', (list) => '.panel.ec-pv-cat' + (list.some((r) => r.en.id === s.planEditing) ? '.has-sel' : ''));
 
     // ---- right: shopping list in the sticky Anvil-plan style, floating actions at the foot ----
     const naiveCount = open.filter(({ p }) => hitsNaive(p)).length;
@@ -1351,18 +1354,18 @@ TH.anvil = (function () {
       bookTotal ? progressBar(gotBooks, bookTotal, 'Books obtained') : null,
       books.length
         ? h('ul.ec-buy.ec-bk', books.map((b) => {
-          const have = owned(s, b.key), usedN = usedMap[b.key] || 0, nm = lvlName(b.id, b.level);
+          const have = owned(s, b.key), uses = copyUses[b.key] || [], nm = lvlName(b.id, b.level);
           const slug = b.key.replace(/[^a-z0-9]/gi, '-');
           // one tickable copy per place the book is needed; the i-th copy is "got" while i < books owned
           const copy = (i, extra) => {
             const got = i < have, id = 'ec-bk-' + slug + '-' + i;
-            return h('li.ec-buy-row.ec-bk-copy' + (i < usedN ? '.spent' : got ? '.on' : ''), { 'data-book': b.key },
+            return h('li.ec-buy-row.ec-bk-copy' + (uses[i] ? '.spent' : got ? '.on' : ''), { 'data-book': b.key },
               h('label.check', h('input', { type: 'checkbox', id, checked: got, 'data-focus': id, 'aria-label': nm + (b.items[i] ? ' for ' + b.items[i] : ''), onchange: () => setOwned(b.key, got ? i : i + 1) }), h('span')),
               extra || h('label.ec-buy-text', { for: id }, h('span.ec-buy-name', 'for ' + (b.items[i] || 'your plan'))));
           };
           if (b.count === 1) {
             const got = have >= 1, id = 'ec-bk-' + slug + '-0';
-            return h('li.ec-buy-row.ec-bk-copy.ec-bk-single' + (usedN >= 1 ? '.spent' : got ? '.on' : ''), { 'data-book': b.key },
+            return h('li.ec-buy-row.ec-bk-copy.ec-bk-single' + (uses[0] ? '.spent' : got ? '.on' : ''), { 'data-book': b.key },
               h('label.check', h('input', { type: 'checkbox', id, checked: got, 'data-focus': id, 'aria-label': nm, onchange: () => setOwned(b.key, got ? 0 : 1) }), h('span')),
               bookIcon(20),
               h('label.ec-buy-text', { for: id }, h('span.ec-buy-name', nm), h('span.ec-buy-for', 'for ' + (b.items[0] || 'your plan'))),
@@ -1390,7 +1393,7 @@ TH.anvil = (function () {
       h('button.btn', { type: 'button', onclick: () => window.print() }, 'Print'));
 
     return h('div.ec-layout.ec-layout-single',
-      h('div.ec-main', h('div.ec-toprow', head), h('section.ec-pv-list', { 'aria-label': 'Anvil to-do checklist' }, list)),
+      h('div.ec-main', h('div.ec-toprow', head), h('section.ec-pv-list', { 'aria-label': 'Anvil to-do checklist' }, doneBox, list)),
       h('div.ec-side', h('aside.panel.ec-plan.ec-pvshop', { 'aria-label': 'Shopping list' }, renderModeCards(s), planTools, h('div.ec-plan-body', bookBox, matBox), actions)));
   }
 

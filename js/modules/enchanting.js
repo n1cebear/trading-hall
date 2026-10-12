@@ -1245,10 +1245,14 @@ TH.anvil = (function () {
     const meta = [gear ? gear.name : null,
       Object.keys(en.existing).length ? 'has ' + Object.keys(en.existing).length + ' enchant' + (Object.keys(en.existing).length > 1 ? 's' : '') : null,
       en.uses ? en.uses + ' anvil use' + (en.uses === 1 ? '' : 's') : null].filter(Boolean).join(' · ');
-    return h('article.ec-pi.ec-pi-split' + (all ? '.complete' : ''), { 'aria-label': name },
+    // every book this item still needs is in hand: shown quietly under its name
+    const bookSteps = p.steps.filter((x) => !en.ticks.includes('n' + x.n) && [x.target, x.sacrifice].some((nd) => nd && nd.kind === 'book' && nd.fromStep == null));
+    const ready = bookSteps.length > 0 && ![...needSet].some((k) => k.indexOf(en.id + '|') === 0);
+    return h('article.ec-pi.ec-pi-split' + (all ? '.complete' : '') + (ready ? '.is-ready' : ''), { 'aria-label': name },
       h('div.ec-pi-id',
         h('span.ec-pi-icon', itemIcon(en.item, en.material, 48)),
         h('b.ec-pi-name', name),
+        ready ? h('span.ec-pi-ready', { title: 'Every book this item still needs is ticked off' }, bookIcon(14), 'Books ready') : null,
         meta ? h('span.faint.ec-pi-meta', meta) : null),
       h('div.ec-pi-steps',
         canUpgrade(en) ? h('label.ec-tile' + (upgrade ? '.on' : ''),

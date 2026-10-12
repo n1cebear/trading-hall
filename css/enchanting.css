@@ -1226,3 +1226,8 @@
 .ec-pg-chips { flex-direction: row; flex-wrap: wrap; gap: 6px; align-items: center; align-self: center; }
 .ec-pg-xp { align-self: center; font-size: 12px; }
 .ec-pg-meta { flex-direction: row; align-items: center; gap: 4px 16px; align-self: center; justify-content: flex-end; flex-wrap: wrap; font-size: 12px; }
+
+/* tighter spacing between items in the plan list */
+.ec-pv-list .ec-pv-cat .ec-pi-list { gap: 18px; }
+.ec-pv-list { gap: 10px; }
+.ec-pv-list .ec-sec.ec-pv-cat { padding: 14px 20px 16px; }

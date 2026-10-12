@@ -1259,7 +1259,9 @@ TH.anvil = (function () {
           h('span.ec-tile-text', h('b', 'Upgrading from diamond'), h('span', 'Adds the smithing step and its materials'))) : null,
         alert,
         rows.length ? h('ol.ec-todos', rows.map((r) => todoRow(en.id, r.key, en.ticks.includes(r.key), r.body, r.cost, r.bad ? '.bad' : ''))) : null,
-        rows.length ? h('div.ec-pi-total', h('span', 'LEFT / TOTAL'), h('b.ec-pi-left', p.steps.filter((x) => !en.ticks.includes('n' + x.n)).reduce((n, x) => n + x.cost, 0)), h('span.ec-pi-slash', '/'), h('b.ec-pi-all', p.totalLevels || 0), h('span', 'lvl')) : null),
+        rows.length ? (en.ticks.length
+          ? h('div.ec-pi-total.is-going', h('b.ec-pi-left', p.steps.filter((x) => !en.ticks.includes('n' + x.n)).reduce((n, x) => n + x.cost, 0)), h('span.ec-pi-slash', '/'), h('b.ec-pi-all', p.totalLevels || 0), h('span', 'lvl'))
+          : h('div.ec-pi-total', h('span', 'TOTAL'), h('b', p.totalLevels || 0), h('span', 'lvl'))) : null),
       h('div.ec-pi-aside',
         hitsNaive(p) ? oneBookWarn() : null,
         h('div.ec-pi-actions',

@@ -334,7 +334,9 @@ TH.anvil = (function () {
       e.itemOpen = false;   // picking (even the current one) shrinks the picker to that single item
       if (e.item === id) return;
       e.item = id;
+      const keep = e.matOpen;
       resetPlan(e);
+      e.matOpen = keep;   // only the area you picked from folds; an open material grid stays open
     });
   }
 
@@ -349,7 +351,7 @@ TH.anvil = (function () {
       if (fits(cur, m)) return;
       const options = D.items.filter((i) => !isPlain(i) && i.materials.includes(m));
       const next = options.find((i) => i.group === cur.group) || options[0];
-      if (next) { e.item = next.id; resetPlan(e); }
+      if (next) { const keep = e.itemOpen; e.item = next.id; resetPlan(e); e.itemOpen = keep; }   // an open item grid stays open
     });
   }
 
@@ -543,22 +545,9 @@ TH.anvil = (function () {
     ];
   }
 
-  function itemButton(itemId, s, extraCls) {
-    const it = itemById[itemId];
-    if (!it) return null;
-    const ok = fits(it, s.material);
-    const on = ok && it.id === s.item;
-    const name = ok ? itemName(it.id, s.material) : genericName(it.id);
-    const tip = !ok ? 'Not available in ' + matName(s.material) : on ? name + ' · picked, click to show only this' : name;
-    return h('button.ec-item' + (on ? '.on' : '') + (ok ? '' : '.na') + (it.since ? '.has-since' : '') + (extraCls || ''), {
-      type: 'button', 'aria-pressed': String(on), 'data-focus': 'ec-item-' + it.id, title: tip, disabled: !ok,
-      onclick: () => pickItem(it.id),
-    }, itemTileBody(it, s, ok));
-  }
-
   const matIconEl = (m) => { const ic = matIcon(m, 32); if (m === 'wooden' || m === 'stone') ic.classList.add('ec-mat-block'); return ic; };
 
-  /** What a material makes, as a quiet caption under the shrunk material tile ("Armor & tools", "Helmet only"). */
+  /** What a material makes, as a quiet caption beside the compact material tile ("Armor & tools", "Helmet only"). */
   function matCaption(m) {
     const armor = HUD_ARMOR.filter((id) => itemById[id] && itemById[id].materials.includes(m));
     const tools = D.items.filter((i) => !isPlain(i) && !HUD_ARMOR.includes(i.id) && i.materials.includes(m));
@@ -568,106 +557,243 @@ TH.anvil = (function () {
     return 'Tools & weapons only';
   }
 
-  /* Picker open / shrunk: s.matOpen / s.itemOpen (store, so they survive the full re-render on every change).
-     Shrunk = only the chosen tile; a click on it (or its "Show all" chip) opens every option, picking one shrinks again. */
+  /* ---------- the picker: ONE persistent panel ----------
+     Top row (never moves): two compact slots, [MATERIAL tile + caption + Show all] and [ITEM tile + caption + Show all].
+     "Show all" unfolds that slot's full grid in an area BELOW the row (both may be open); picking a tile folds it again
+     and the compact tile cross-fades to the new pick. The panel is built once and updated in place on every render
+     (as the mode slider), so the row is never rebuilt, nothing jumps and hover / focus stay native. Open state lives
+     in the store (enchanting.matOpen / itemOpen) so the other flows (new item, edit entry ...) can fold it. The areas
+     glide with a measured height + opacity animation (Web Animations, interruptible), the tiles fade in staggered. */
   const PICK_GROUPS = { armor: 'Armor', tools: 'Tools & weapons', other: 'Other' };
-  let pickAnim = null;   // height of the picker before an open / shrink, so the page below glides instead of jumping
-  let lastOpen = null;
-  function setOpen(key, open) {
-    set((e) => { e[key] = open; });
-  }
-  /** Escape inside an open picker shrinks it back to the chosen tile (and keeps the keyboard focus there). */
-  const escShrink = (key, focus) => (ev) => {
-    if (ev.key !== 'Escape') return;
-    ev.preventDefault(); ev.stopPropagation();
-    TH.app.pendingFocus = focus;
-    setOpen(key, false);
-  };
+  const PICK_EASE = 'cubic-bezier(.2, .8, .25, 1)';   // tiles + cross-fade
+  const GLIDE_EASE = 'cubic-bezier(.45, 0, .2, 1)';   // height: soft start AND soft landing, so the page below never lurches
+  // a hidden tab has a paused animation clock: no glide there, the area would wait at height 0 until the tab shows
+  const reduceMotion = () => document.hidden || !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
+  let pick = null;
 
-  function renderPicker(s) {
+  /** While an area glides, scroll anchoring is off: the page keeps its scroll position and the content below just follows. */
+  let anchorHolds = 0;
+  function holdAnchor(d) {
+    anchorHolds = Math.max(0, anchorHolds + d);
+    document.documentElement.style.overflowAnchor = anchorHolds ? 'none' : '';
+  }
+
+  function buildPicker() {
+    const slot = (k, label) => {
+      const tile = h('span.ec-cur' + (k === 'mat' ? '.btn.ec-matkey' : '.ec-item'), { 'aria-hidden': 'true' });
+      const cap = h('span.ec-pick-cap');
+      const glyph = h('span.ec-chip-glyph', '▾');
+      const chip = h('span.ec-showall-t', 'Show all');
+      const btn = h('button.ec-pick-one', {
+        type: 'button', id: 'ec-pick-' + k, 'data-focus': 'ec-pick-' + k, 'aria-expanded': 'false', 'aria-controls': 'ec-area-' + k,
+        onclick: (ev) => toggleArea(k, ev),
+      }, tile, h('span.ec-pick-meta', { 'aria-hidden': 'true' }, cap, h('span.ec-showall', glyph, chip)));
+      const wrap = h('div.ec-cslot.ec-cslot-' + k, h('h3.ec-pick-label', { id: 'ec-lbl-' + k }, label), btn);
+      return { k, wrap, btn, tile, cap, glyph, chip, key: null, open: undefined, area: null, btns: new Map() };
+    };
+    const mat = slot('mat', 'Material');
+    const item = slot('item', 'Item');
+    const tipped = (b) => { TH.util.tooltip(b, () => b._tip); return b; };
+
+    MATS.forEach((m) => mat.btns.set(m, tipped(h('button.btn.ec-matkey', {
+      type: 'button', role: 'radio', 'aria-checked': 'false', 'data-focus': 'ec-mat-' + m, onclick: (ev) => pickFrom('mat', m, ev),
+    }))));
+    mat.area = h('div.ec-area.ec-area-mat', { id: 'ec-area-mat', hidden: true },
+      h('div.ec-area-in', h('div.ec-matkeys', { role: 'radiogroup', 'aria-label': 'All materials' }, [...mat.btns.values()])));
+
     const placed = new Set(HUD_ARMOR.concat(HUD_TOOLS));
     const rest = D.items.filter((i) => !placed.has(i.id)).map((i) => i.id);
-    // three separate segments (DESIGN.md, Layout "Item picker"): each a .panel with a top-left eyebrow heading;
-    // every icon is 32px (integer 2x of the 16px textures) so Material, Armor and Tools read as one family
-    const grp = HUD_ARMOR.includes(s.item) ? 'armor' : HUD_TOOLS.includes(s.item) ? 'tools' : 'other';
-    const box = (key, label, body, extra) => h('section.panel.ec-card.ec-picker.ec-pick-' + key + (key === grp || (key === 'mat' && s.matTouched) ? '.has-sel' : ''), { 'aria-labelledby': 'ec-lbl-' + key },
-      h('div.ec-pick-head', h('h3.ec-pick-label', { id: 'ec-lbl-' + key }, label), extra || null), body);
-    const lessChip = (key, what) => h('button.ec-less', {
-      type: 'button', title: 'Show only the picked ' + what + ' (Esc)', 'aria-label': 'Show only the picked ' + what,
-      onclick: () => { TH.app.pendingFocus = key === 'matOpen' ? 'ec-mat-' + s.material : 'ec-item-' + s.item; setOpen(key, false); },
-    }, h('span.ec-chip-glyph', { 'aria-hidden': 'true' }, '▴'), 'Show less');
+    const grp = (g, ids) => h('div.ec-grp.ec-grp-' + g, { role: 'group', 'aria-labelledby': 'ec-lbl-' + g },
+      h('h4.ec-pick-label', { id: 'ec-lbl-' + g }, PICK_GROUPS[g]),
+      h('div.ec-slots.' + g, ids.filter((id) => itemById[id]).map((id) => {
+        const b = tipped(h('button.ec-item', { type: 'button', 'aria-pressed': 'false', 'data-focus': 'ec-item-' + id, onclick: (ev) => pickFrom('item', id, ev) }));
+        item.btns.set(id, b);
+        return b;
+      })));
+    item.grps = { armor: grp('armor', HUD_ARMOR), tools: grp('tools', HUD_TOOLS), other: grp('other', rest) };
+    item.area = h('div.ec-area.ec-area-item', { id: 'ec-area-item', hidden: true },
+      h('div.ec-area-in.ec-items-all', item.grps.armor, item.grps.tools, item.grps.other));
 
-    /** The shrunk picker: one button = the chosen tile + caption + "Show all" chip (always shown on touch). */
-    const slim = (key, label, what, tile, caption, focus) => h('section.panel.ec-card.ec-picker.ec-pick-slim.ec-pick-' + (key === 'matOpen' ? 'mat' : 'item') + (key === 'itemOpen' || s.matTouched ? '.has-sel' : ''), { 'aria-labelledby': 'ec-lbl-' + label.toLowerCase() },
-      h('div.ec-pick-head', h('h3.ec-pick-label', { id: 'ec-lbl-' + label.toLowerCase() }, label)),
-      h('button.ec-pick-one', {
-        type: 'button', 'aria-expanded': 'false', 'data-focus': focus,
-        'aria-label': caption.label + ', picked. Show all ' + what,
-        onclick: () => setOpen(key, true),
-      },
-      tile,
-      h('span.ec-pick-meta', { 'aria-hidden': 'true' },
-        h('span.ec-pick-cap', caption.text),
-        h('span.ec-showall', h('span.ec-chip-glyph', '▾'), 'Show all'))));
-
-    const it = itemById[s.item];
-    const matPart = s.matOpen
-      ? h('div.ec-toprow', { onkeydown: escShrink('matOpen', 'ec-mat-' + s.material) }, box('mat', 'Material',
-        h('div.ec-matkeys', { role: 'radiogroup', 'aria-labelledby': 'ec-lbl-mat' }, MATS.map((m) => {
-          const on = s.material === m;
-          const nm = matName(m);
-          return h('button.btn.ec-matkey' + (on ? '.on' : ''), {
-            type: 'button', role: 'radio', 'aria-checked': String(on), 'aria-label': nm, 'data-focus': 'ec-mat-' + m,
-            title: (materialHint(m) ? nm + ' — ' + materialHint(m) : nm) + (on ? ' · picked, click to show only this' : ''), onclick: () => pickMaterial(m),
-          }, matIconEl(m), h('span.ec-mat-name', nm));
-        })), lessChip('matOpen', 'material')))
-      : slim('matOpen', 'Material', 'materials',
-        h('span.btn.ec-matkey.on', matIconEl(s.material), h('span.ec-mat-name', matName(s.material))),
-        { label: matName(s.material), text: matCaption(s.material) }, 'ec-mat-' + s.material);
-    const itemPart = s.itemOpen
-      ? h('div.ec-pickrow', { onkeydown: escShrink('itemOpen', 'ec-item-' + s.item) },
-        box('armor', 'Armor',
-          h('div.ec-slots.armor', { role: 'group', 'aria-labelledby': 'ec-lbl-armor' }, HUD_ARMOR.map((id) => itemButton(id, s)))),
-        box('tools', 'Tools & weapons',
-          h('div.ec-slots.tools', { role: 'group', 'aria-labelledby': 'ec-lbl-tools' }, HUD_TOOLS.map((id) => itemButton(id, s))), lessChip('itemOpen', 'item')),
-        box('other', 'Other',
-          h('div.ec-slots.other', { role: 'group', 'aria-labelledby': 'ec-lbl-other' }, rest.map((id) => itemButton(id, s)))))
-      : slim('itemOpen', 'Item', 'items',
-        h('span.ec-item.on' + (it.since ? '.has-since' : ''), itemTileBody(it, s, true)),
-        { label: itemName(it.id, s.material), text: PICK_GROUPS[grp] }, 'ec-item-' + s.item);
-
-    const state = (s.matOpen ? 'm' : '') + (s.itemOpen ? 'i' : '');
-    if (lastOpen !== null && lastOpen !== state) {
-      const old = document.querySelector('.module-enchanting .ec-pickers');
-      if (old) {
-        pickAnim = { h: old.offsetHeight };
-        // the part that opened / shrank fades in; when the row layout itself changes, both do
-        const relayout = (lastOpen === '') !== (state === '');
-        if (relayout || lastOpen.includes('m') !== s.matOpen) matPart.classList.add('is-new');
-        if (relayout || lastOpen.includes('i') !== s.itemOpen) itemPart.classList.add('is-new');
-      }
-    }
-    lastOpen = state;
-    return h('div.ec-pickers' + (!s.matOpen && !s.itemOpen ? '.is-slim' : ''), { 'data-open': state || 'none' }, matPart, itemPart);
+    const el = h('section.panel.ec-card.ec-picker.ec-pickpanel', { 'aria-label': 'Material and item', onkeydown: pickerKeys },
+      h('div.ec-crow', mat.wrap, item.wrap), mat.area, item.area);
+    return { el, mat, item, changed: new Set() };
   }
 
-  /** Glide the picker from its old height to the new one (the page below follows smoothly); new tiles fade in. */
-  function runPickAnim() {
-    const a = pickAnim; pickAnim = null;
-    const el = document.querySelector('.module-enchanting .ec-pickers');
-    if (!a || !el || !el.isConnected) return;
-    if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    const to = el.offsetHeight;
-    el.classList.add('is-moving');
-    if (Math.abs(to - a.h) < 2) { setTimeout(() => el.classList.remove('is-moving'), 320); return; }
-    el.style.height = a.h + 'px';
-    void el.offsetHeight;
-    el.style.transition = 'height .3s cubic-bezier(.2, .8, .25, 1)';
-    el.style.height = to + 'px';
+  /** Update the persistent panel in place (contents only; open / close and the tile cross-fade run after the swap). */
+  function syncPicker(s) {
+    const P = pick || (pick = buildPicker());
+    const it = itemById[s.item];
+    const grp = HUD_ARMOR.includes(s.item) ? 'armor' : HUD_TOOLS.includes(s.item) ? 'tools' : 'other';
+    const lang = T.lang;
+
+    // compact material tile
+    const mKey = s.material + '|' + lang;
+    if (P.mat.key !== mKey) {
+      P.mat.tile.replaceChildren(matIconEl(s.material), h('span.ec-mat-name', matName(s.material)));
+      if (P.mat.key) P.changed.add('mat');
+      P.mat.key = mKey;
+    }
+    P.mat.cap.textContent = matCaption(s.material);
+    P.mat.wrap.classList.toggle('has-sel', !!s.matTouched);
+    P.mat.btn.setAttribute('aria-label', 'Material: ' + matName(s.material) + '. ' + (s.matOpen ? 'Hide the materials' : 'Show all materials'));
+
+    // compact item tile
+    const iKey = s.item + '|' + effMat(s.item, s.material) + '|' + lang;
+    if (P.item.key !== iKey) {
+      P.item.tile.className = 'ec-cur ec-item' + (it.since ? ' has-since' : '');
+      P.item.tile.replaceChildren(...itemTileBody(it, s, true).filter(Boolean));
+      if (P.item.key) P.changed.add('item');
+      P.item.key = iKey;
+    }
+    P.item.cap.textContent = PICK_GROUPS[grp];
+    P.item.wrap.classList.add('has-sel');
+    P.item.btn.setAttribute('aria-label', 'Item: ' + itemName(it.id, s.material) + '. ' + (s.itemOpen ? 'Hide the items' : 'Show all items'));
+
+    // full material grid
+    P.mat.btns.forEach((b, m) => {
+      const on = s.material === m;
+      const nm = matName(m);
+      if (b._lang !== lang) { b._lang = lang; b.replaceChildren(matIconEl(m), h('span.ec-mat-name', nm)); b.setAttribute('aria-label', nm); }
+      b.classList.toggle('on', on);
+      b.setAttribute('aria-checked', String(on));
+      b._tip = (materialHint(m) ? nm + ' — ' + materialHint(m) : nm) + (on ? ' · picked' : '');
+    });
+
+    // full item grid (names and icons follow the material)
+    const gridKey = s.material + '|' + lang;
+    P.item.btns.forEach((b, id) => {
+      const x = itemById[id];
+      const ok = fits(x, s.material);
+      const on = ok && id === s.item;
+      if (b._key !== gridKey) { b._key = gridKey; b.replaceChildren(...itemTileBody(x, s, ok).filter(Boolean)); }
+      b.className = 'ec-item' + (on ? ' on' : '') + (ok ? '' : ' na') + (x.since ? ' has-since' : '');
+      b.disabled = !ok;
+      b.setAttribute('aria-pressed', String(on));
+      const name = ok ? itemName(id, s.material) : genericName(id);
+      b.setAttribute('aria-label', name);
+      b._tip = !ok ? 'Not available in ' + matName(s.material) : on ? name + ' · picked' : name;
+    });
+    Object.keys(P.item.grps).forEach((g) => P.item.grps[g].classList.toggle('has-sel', g === grp));
+    return P.el;
+  }
+
+  /** After the DOM swap: fold / unfold the areas to the store state and cross-fade a compact tile that changed. */
+  function settlePicker(focusInto) {
+    if (!pick || !pick.el.isConnected) return;
+    const s = st();
+    [pick.mat, pick.item].forEach((A) => {
+      const want = !!(A.k === 'mat' ? s.matOpen : s.itemOpen);
+      A.btn.setAttribute('aria-expanded', String(want));
+      A.wrap.classList.toggle('is-open', want);
+      A.chip.textContent = want ? 'Close' : 'Show all';
+      A.glyph.textContent = want ? '▴' : '▾';
+      if (A.open === want) return;
+      const first = A.open === undefined;
+      A.open = want;
+      if (first) { A.area.hidden = !want; return; }
+      foldArea(A.area, want);
+    });
+    const motion = !reduceMotion();
+    pick.changed.forEach((k) => {
+      if (motion) pick[k].tile.animate([{ opacity: 0.2, transform: 'scale(.9)' }, { opacity: 1, transform: 'none' }], { duration: 260, easing: PICK_EASE });
+    });
+    pick.changed.clear();
+    if (focusInto) {
+      const A = pick[focusInto];
+      const t = A.area.querySelector('.on:not(:disabled)') || A.area.querySelector('button:not(:disabled)');
+      if (t) t.focus({ preventScroll: true });
+    }
+  }
+
+  /** Glide an area open / shut from wherever it is now (a reversal mid-way starts from the current height). */
+  function foldArea(area, open) {
+    const cur = area.hidden ? null : { hgt: area.offsetHeight, op: parseFloat(getComputedStyle(area).opacity) };
+    if (area._end) area._end(false);   // settle the old glide's bookkeeping now (its cancel event may come late)
+    area.getAnimations({ subtree: true }).forEach((a) => a.cancel());
+    area.inert = !open;   // a folding area takes no clicks or focus
+    if (reduceMotion()) { area.hidden = !open; area.inert = false; area.classList.remove('is-anim'); queueFitSide(); return; }
+    area.hidden = false;
+    const from = cur ? cur.hgt : 0;
+    const to = open ? area.offsetHeight : 0;
+    const fromOp = cur ? cur.op : 0;
+    const dur = Math.round(Math.min(580, Math.max(280, 260 + Math.abs(to - from) * 0.6)));
+    area.classList.add('is-anim');
+    holdAnchor(1);
+    const a = area.animate([{ height: from + 'px', opacity: fromOp }, { height: to + 'px', opacity: open ? 1 : 0 }], { duration: dur, easing: GLIDE_EASE, fill: 'forwards' });
+    area._anim = a;   // 'forwards' holds the last frame until the area is hidden / released (no one-frame flash at the end)
+    if (open && !cur) {
+      // a fresh open: the tiles drift in one after another (short, capped)
+      area.querySelectorAll('.ec-matkey, .ec-item').forEach((t, i) => t.animate(
+        [{ opacity: 0, transform: 'translateY(-6px)' }, { opacity: 1, transform: 'none' }],
+        { duration: 240, delay: 40 + Math.min(i * 12, 200), easing: PICK_EASE, fill: 'backwards' }));
+    }
     let done = false;
-    const end = () => { if (done) return; done = true; el.style.height = ''; el.style.transition = ''; el.classList.remove('is-moving'); queueFitSide(); };
-    el.addEventListener('transitionend', (ev) => { if (ev.target === el) end(); });
-    setTimeout(end, 420);
+    const end = (finished) => {
+      if (done) return; done = true;
+      if (area._anim === a) { area._anim = null; area._end = null; }
+      holdAnchor(-1);
+      if (!finished) return;   // cancelled by a reversal: the next animation owns the area
+      area.classList.remove('is-anim');
+      if (!open) { area.hidden = true; area.inert = false; }
+      a.cancel();   // drop the held frame: an open area goes back to its natural (auto) height, the same value
+      queueFitSide();
+    };
+    area._end = end;
+    a.onfinish = () => end(true);
+    a.oncancel = () => end(false);
+  }
+
+  /** Compact tile: open / close its area. Mouse: no focus left behind; keyboard: focus moves into the grid. */
+  function toggleArea(k, ev) {
+    const kb = !!ev && ev.detail === 0;
+    if (!kb && ev) ev.currentTarget.blur();
+    const key = k === 'mat' ? 'matOpen' : 'itemOpen';
+    const open = !st()[key];
+    set((e) => { e[key] = open; }, { silent: true });   // no full re-render: only the panel changes
+    settlePicker(kb && open ? k : null);
+  }
+
+  /** A tile in a full grid: pick it (the area folds). Mouse: nothing stays focused (no "pending" look); keyboard: focus returns to the compact tile. */
+  function pickFrom(k, val, ev) {
+    const kb = !!ev && ev.detail === 0;
+    if (kb) TH.app.pendingFocus = 'ec-pick-' + k;
+    else if (ev) ev.currentTarget.blur();
+    if (k === 'mat') pickMaterial(val); else pickItem(val);
+  }
+
+  /** Keyboard inside the panel: Esc folds the area you are in (focus back on its compact tile), arrows move between tiles. */
+  function pickerKeys(ev) {
+    if (!pick) return;
+    const A = [pick.mat, pick.item].find((x) => x.area.contains(ev.target) || x.btn === ev.target);
+    if (!A) return;
+    if (ev.key === 'Escape') {
+      if (!A.open) return;
+      ev.preventDefault(); ev.stopPropagation();
+      set((e) => { e[A.k === 'mat' ? 'matOpen' : 'itemOpen'] = false; }, { silent: true });
+      A.btn.focus({ preventScroll: true });
+      settlePicker(null);
+      return;
+    }
+    const dir = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[ev.key];
+    if (!dir || !A.area.contains(ev.target)) return;
+    const c = (r) => [r.left + r.width / 2, r.top + r.height / 2];
+    const [x0, y0] = c(ev.target.getBoundingClientRect());
+    let best = null, bd = Infinity;
+    A.area.querySelectorAll('button:not(:disabled)').forEach((b) => {
+      if (b === ev.target) return;
+      const [x, y] = c(b.getBoundingClientRect());
+      const along = dir[0] ? (x - x0) * dir[0] : (y - y0) * dir[1];
+      if (along <= 4) return;
+      const d = along + 3 * (dir[0] ? Math.abs(y - y0) : Math.abs(x - x0));
+      if (d < bd) { bd = d; best = b; }
+    });
+    if (best) { ev.preventDefault(); best.focus(); }
+  }
+
+  function renderPicker(s) {
+    const el = syncPicker(s);
+    queueMicrotask(() => settlePicker(null));   // after app.js has put the module into the page
+    return el;
   }
 
   /* ---------- 2. current item ---------- */
@@ -1587,7 +1713,7 @@ TH.anvil = (function () {
       ],
     ]);
     root.querySelectorAll('[title]').forEach((el) => TH.util.tooltip(el)); // app tooltip instead of native title
-    queueMicrotask(() => { runPickAnim(); fitSide(); });   // right after the swap, before the first paint (no jump)
+    queueMicrotask(fitSide);   // right after the swap, before the first paint (no jump)
     queueFitSide();
   }
 

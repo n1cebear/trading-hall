@@ -1182,3 +1182,7 @@
 .ec-dl-name { flex: 1; min-width: 0; font-size: 12.5px; text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--faint) 70%, transparent); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ec-dl-row .mc { filter: grayscale(.6); opacity: .8; }
 .ec-dl-row .x-btn { width: 24px; height: 24px; }
+
+/* plan order switch */
+.ec-pv-sortbar { display: flex; align-items: center; justify-content: flex-end; gap: 12px; margin-bottom: 4px; }
+.ec-sortseg button { font-size: 12px; padding: 5px 12px; }

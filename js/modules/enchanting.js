@@ -256,7 +256,7 @@ TH.anvil = (function () {
   const DEFAULTS = {
     item: 'sword', material: 'diamond', existing: {}, uses: 0, own: false,
     selected: {}, loadout: null, gearId: null, gear: [], saveName: '', renaming: null, renameText: '',
-    mode: 'single', planEditing: null, plan: [], planGot: {}, booksOwned: {}, renameCost: '', anvilName: '',
+    mode: 'single', planSort: 'rec', planEditing: null, plan: [], planGot: {}, booksOwned: {}, renameCost: '', anvilName: '',
   };
 
   const st = () => TH.store.get().enchanting;
@@ -418,6 +418,17 @@ TH.anvil = (function () {
   /** Armor section = the four armor pieces plus elytra and shield; everything else is Tools. Armor is listed first. */
   const ARMOR_IDS = ['helmet', 'chestplate', 'leggings', 'boots', 'elytra'];
   const isArmorItem = (id) => ARMOR_IDS.includes(id);
+  /** Recommended order for the plan: what pays off most in a survival world comes first (pickaxe: efficiency / fortune / mending drive everything;
+   * then the sword, then armour by protection points - chestplate, leggings, helmet, boots - then the axe, bow, shield, shovel ...). */
+  const REC_ORDER = ['pickaxe', 'sword', 'chestplate', 'leggings', 'helmet', 'boots', 'axe', 'bow', 'shield', 'shovel', 'elytra', 'trident', 'crossbow', 'mace', 'spear', 'fishing_rod', 'hoe', 'shears', 'flint_and_steel', 'brush', 'carrot_on_a_stick', 'warped_fungus_on_a_stick'];
+  const recRank = (id) => { const i = REC_ORDER.indexOf(id); return i < 0 ? 99 : i; };
+  function sortPlanRows(list, mode, nameOf) {
+    const out = list.slice();
+    if (mode === 'az') out.sort((a, b) => nameOf(a).localeCompare(nameOf(b)) || a.i - b.i);
+    else out.sort((a, b) => recRank(a.en.item) - recRank(b.en.item) || a.i - b.i);
+    return out;
+  }
+
   function armorToolSections(entries, itemOf, render, listCls, secCls) {
     const secOf = (l) => (typeof secCls === 'function' ? secCls(l) : secCls || '');
     const armor = entries.filter((x) => isArmorItem(itemOf(x))).sort((a, b) => ARMOR_IDS.indexOf(itemOf(a)) - ARMOR_IDS.indexOf(itemOf(b)));
@@ -1335,7 +1346,15 @@ TH.anvil = (function () {
           h('label.check', { title: 'Back on your to-do list' }, h('input', { type: 'checkbox', id: rid, checked: true, 'aria-label': nm + ' is done', 'data-focus': rid, onchange: () => setDone(en.id, false) }), h('span')),
           h('button.x-btn', { type: 'button', title: 'Remove from plan', 'aria-label': 'Remove ' + nm + ' from plan', 'data-focus': 'ec-dl-rm-' + en.id, onclick: () => removeEntry(en) }, '✕'));
       }))) : null;
-    const list = armorToolSections(rows.map((r, i) => Object.assign({ i }, r)).filter((r) => !r.en.done), (r) => r.en.item, (r) => renderEntry(r.en, r.p, s, r.i, needSet), '.ec-pi-list', (list) => '.panel.ec-pv-cat' + (list.some((r) => r.en.id === s.planEditing) ? '.has-sel' : ''));
+    const openRows = rows.map((r, i) => Object.assign({ i }, r)).filter((r) => !r.en.done);
+    const renderRow = (r) => renderEntry(r.en, r.p, s, r.i, needSet);
+    const sortBar = openRows.length > 1 ? h('div.ec-pv-sortbar', h('span.ec-label', 'Order'),
+      h('div.seg.ec-sortseg', { role: 'group', 'aria-label': 'Order of your plan' }, [['rec', 'Recommended'], ['az', 'A → Z'], ['cat', 'Category']].map(([k, label]) => h('button' + (s.planSort === k ? '.on' : ''), {
+        type: 'button', 'aria-pressed': String(s.planSort === k), 'data-focus': 'ec-sort-' + k, onclick: () => set((e) => { e.planSort = k; }),
+      }, label)))) : null;
+    const list = s.planSort !== 'cat' ? (openRows.length ? h('div.ec-sec.panel.ec-pv-cat' + (openRows.some((r) => r.en.id === s.planEditing) ? '.has-sel' : ''),
+      h('div.ec-group-name', h('span', s.planSort === 'az' ? 'A → Z' : 'Recommended order')),
+      h('div.ec-pi-list', sortPlanRows(openRows, s.planSort, (r) => itemName(r.en.item, r.en.material)).map(renderRow))) : null) : armorToolSections(openRows, (r) => r.en.item, (r) => renderEntry(r.en, r.p, s, r.i, needSet), '.ec-pi-list', (list) => '.panel.ec-pv-cat' + (list.some((r) => r.en.id === s.planEditing) ? '.has-sel' : ''));
 
     // ---- right: shopping list in the sticky Anvil-plan style, floating actions at the foot ----
     const naiveCount = open.filter(({ p }) => hitsNaive(p)).length;
@@ -1402,7 +1421,7 @@ TH.anvil = (function () {
       h('button.btn', { type: 'button', onclick: () => window.print() }, 'Print'));
 
     return h('div.ec-layout.ec-layout-single',
-      h('div.ec-main', h('div.ec-toprow', head), h('section.ec-pv-list', { 'aria-label': 'Anvil to-do checklist' }, list)),
+      h('div.ec-main', h('div.ec-toprow', head), h('section.ec-pv-list', { 'aria-label': 'Anvil to-do checklist' }, sortBar, list)),
       h('div.ec-side', h('aside.panel.ec-plan.ec-pvshop', { 'aria-label': 'Shopping list' }, renderModeCards(s), planTools, h('div.ec-plan-body', bookBox, matBox, doneList), actions)));
   }
 
@@ -1460,6 +1479,7 @@ TH.anvil = (function () {
     s.uses = clamp(s.uses | 0, 0, MAX_USES + 4);
     if (!MATS.includes(s.material)) s.material = 'diamond';
     if (s.mode !== 'plan') s.mode = 'single';
+    if (!['rec', 'az', 'cat'].includes(s.planSort)) s.planSort = 'rec';
     if (!s.planGot || typeof s.planGot !== 'object' || Array.isArray(s.planGot)) s.planGot = {};
     if (!s.booksOwned || typeof s.booksOwned !== 'object' || Array.isArray(s.booksOwned)) s.booksOwned = {};
     Object.keys(s.booksOwned).forEach((k) => { const n = Math.floor(Number(s.booksOwned[k])); if (n > 0) s.booksOwned[k] = n; else delete s.booksOwned[k]; });

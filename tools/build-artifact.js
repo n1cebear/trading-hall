@@ -17,7 +17,8 @@ const title = (html.match(/<title>([^<]*)<\/title>/) || [])[1] || "n1cebear's to
 const head = (html.match(/<head>([\s\S]*?)<\/head>/) || [])[1] || '';
 const body = (html.match(/<body[^>]*>([\s\S]*)<\/body>/) || [])[1] || '';
 const keepHead = head.split(/\r?\n/).filter((l) => !/<meta charset|<meta name="viewport"|<title>|rel="manifest"|rel="preconnect"|theme-color/.test(l)).join('\n');
-const page = `<title>${title}</title>\n<script>window.TH_LOCAL_ASSETS = true;</script>\n${keepHead}\n${body}`;
+const page = `<title>${title}</title>\n<script>window.TH_LOCAL_ASSETS = true;</script>\n${keepHead}\n${body}`
+  .replace('<script src="js/core/icons.js"></script>', '<script src="assets/mc-data.js"></script>\n  <script src="js/core/icons.js"></script>');
 fs.writeFileSync(path.join(out, 'index.html'), page);
 
 // ---- files ----
@@ -34,14 +35,28 @@ const walk = (dir) => {
 const LANGS = new Set('en_us en_gb de_de fr_fr es_es es_mx it_it pt_br pt_pt nl_nl pl_pl ru_ru uk_ua tr_tr cs_cz sv_se da_dk nb_no fi_fi hu_hu ro_ro ja_jp ko_kr zh_cn zh_tw'.split(' '));
 for (let i = files.length - 1; i >= 0; i--) { const m = files[i].match(/^js\/data\/lang\/(.+)\.js$/); if (m && m[1] !== 'index' && !LANGS.has(m[1])) files.splice(i, 1); }
 files.push('icon.svg');
+// block + item textures travel as ONE script of data URIs (an artifact version holds at most 512 files)
+{
+  const data = {};
+  for (let i = files.length - 1; i >= 0; i--) {
+    const m = files[i].match(/^assets\/mc\/((?:block|item)\/.+)\.png$/);
+    if (!m) continue;
+    data[m[1]] = 'data:image/png;base64,' + fs.readFileSync(path.join(root, files[i])).toString('base64');
+    files.splice(i, 1);
+  }
+  const sorted = Object.fromEntries(Object.keys(data).sort().map((k) => [k, data[k]]));
+  fs.writeFileSync(path.join(out, 'mc-data.js'), 'window.TH_ASSET_DATA = ' + JSON.stringify(sorted) + ';\n');
+  files.push('assets/mc-data.js');
+}
 
 const manifestPath = path.join(out, 'manifest.json');
 const prev = fs.existsSync(manifestPath) ? JSON.parse(fs.readFileSync(manifestPath, 'utf8')) : {};
 const next = {}, changed = {};
 for (const rel of files) {
-  const h = crypto.createHash('sha1').update(fs.readFileSync(path.join(root, rel))).digest('hex');
+  const packedData = rel === 'assets/mc-data.js';
+  const h = crypto.createHash('sha1').update(fs.readFileSync(packedData ? path.join(out, 'mc-data.js') : path.join(root, rel))).digest('hex');
   next[rel] = h;
-  if (prev[rel] !== h) changed[rel] = rel;
+  if (prev[rel] !== h) changed[rel] = packedData ? 'dist-artifact/mc-data.js' : rel;
 }
 const keys = Object.keys(changed);
 for (let i = 0, n = 1; i < keys.length; i += 250, n++) fs.writeFileSync(path.join(out, 'files-' + n + '.json'), JSON.stringify(Object.fromEntries(keys.slice(i, i + 250).map((k) => [k, k]))));

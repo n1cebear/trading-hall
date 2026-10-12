@@ -39,7 +39,7 @@
     { id: 'trims', line: 'Every armor trim, live in 3D.', kicker: 'Armor trims', wall: 'block/deepslate_tiles',
       pitch: 'Dress a 3D character in any armor and trim, piece by piece, then get the shopping list.',
       points: ['Live 3D preview', 'Every pattern and material', 'Skins and saved outfits'], unit: 'templates' },
-    { id: 'builds', line: 'Materials and stacks for any build.', kicker: 'Build planning', soon: true, wall: 'block/bricks',
+    { id: 'builds', line: 'Materials and stacks for any build.', kicker: 'Build planning', wall: 'block/bricks',
       pitch: 'Blocks, stacks and shulker boxes for any build, worked out for you.',
       points: ['Material lists', 'Stacks and shulker boxes', 'Example builds'], unit: '' },
     { id: 'portal', line: 'Overworld and Nether, lined up.', kicker: 'Nether travel', wall: 'block/netherrack',

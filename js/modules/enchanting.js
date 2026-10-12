@@ -258,6 +258,9 @@ TH.anvil = (function () {
     selected: {}, loadout: null, gearId: null, gear: [], saveName: '', renaming: null, renameText: '',
     mode: 'single', planSort: 'rec', planEditing: null, plan: [], planGot: {}, booksOwned: {}, bookCopies: {}, renameCost: '', anvilName: '',
     matOpen: false, itemOpen: false,   // picker: false = shrunk to the chosen material / item, true = every option shown
+    // what the user has actually chosen. s.item / s.material always hold valid values (every code path can read them),
+    // but until a slot is picked its field shows "Choose ..." and nothing item-specific is shown. null = work it out (migrate / pk)
+    picked: null,
   };
 
   const st = () => TH.store.get().enchanting;
@@ -324,15 +327,37 @@ TH.anvil = (function () {
   const applicable = (s) => itemById[s.item].enchants.slice().sort(byUse).map((id) => byId[id]).filter(Boolean);
   const conflictList = (id, ids) => ids.filter((x) => TH.anvil.conflicts(x, id));
 
+  /** A state nobody has touched yet (the defaults): it starts with nothing picked. */
+  const untouched = (s) => s.item === 'sword' && s.material === 'diamond' && !s.matTouched && !(s.uses | 0)
+    && !(Array.isArray(s.plan) && s.plan.length) && !(Array.isArray(s.gear) && s.gear.length)
+    && !Object.keys(s.selected || {}).length && !Object.keys(s.existing || {}).length;
+  /** The picked flags, created on first use (old saves with data count as chosen, a default state as fresh). */
+  function pk(s) {
+    if (!s.picked || typeof s.picked !== 'object') { const on = !untouched(s); s.picked = { mat: on, item: on }; }
+    return s.picked;
+  }
+  /** Both chosen (a plain item such as a bow needs no material). Until then the Enchantments box and the plan wait. */
+  const ready = (s) => { const p = pk(s); return p.item && (p.mat || isPlain(itemById[s.item])); };
+  const pickAll = (e) => { e.picked = { mat: true, item: true }; };
+
   function resetPlan(e) {
     e.existing = {}; e.selected = {}; e.uses = 0; e.loadout = null; e.gearId = null; e.planEditing = null; e.anvilName = ''; e.saveName = '';
-    e.matOpen = false; e.itemOpen = false;   // a fresh start shows only the chosen material + item
+    const p = pk(e);
+    e.matOpen = !p.mat && !(p.item && isPlain(itemById[e.item])); e.itemOpen = !p.item;   // a picked slot shows only its choice, an open one waits
   }
 
   function pickItem(id) {
     set((e) => {
+      const p = pk(e);
+      const was = p.item;
+      p.item = true;
       e.itemOpen = false;   // picking (even the current one) shrinks the picker to that single item
-      if (e.item === id) return;
+      const it = itemById[id];
+      if (!p.mat) {
+        if (!isPlain(it) && !it.materials.includes(e.material)) e.material = it.defaultMaterial;   // internal only: no material chosen yet
+        e.matOpen = !isPlain(it);   // a bow needs no material: that slot folds; anything else still waits for one
+      }
+      if (e.item === id && was) return;
       e.item = id;
       const keep = e.matOpen;
       resetPlan(e);
@@ -343,9 +368,12 @@ TH.anvil = (function () {
   /** Material first: switching to a material the current item doesn't come in moves to a sibling that does. */
   function pickMaterial(m) {
     set((e) => {
+      const p = pk(e);
+      const was = p.mat;
+      p.mat = true;
       e.matTouched = true;
       e.matOpen = false;
-      if (e.material === m) return;
+      if (e.material === m && was) return;
       e.material = m;
       const cur = itemById[e.item];
       if (fits(cur, m)) return;
@@ -495,6 +523,7 @@ TH.anvil = (function () {
               if (MATS.includes(g.material)) e.material = g.material;
               e.existing = Object.assign({}, g.enchants);
               e.uses = g.uses; e.selected = {}; e.loadout = null; e.gearId = g.id; e.planEditing = null;
+              pickAll(e); e.matOpen = false; e.itemOpen = false;
             }),
           },
           itemIcon(it.id, g.material, 28),
@@ -535,32 +564,27 @@ TH.anvil = (function () {
   /** Material-less name for greyed-out tiles ("Sword", "Fishing Rod"). */
   const genericName = (id) => id.split('_').map((w) => w[0].toUpperCase() + w.slice(1)).join(' ');
 
-  /** Inside of an item tile (icon, name, version tag): shared by the full grid and the shrunk picker. */
-  function itemTileBody(it, s, ok) {
-    const name = ok ? itemName(it.id, s.material) : genericName(it.id);
+  /** An item without a chosen material: plain items keep their real name, the rest a material-less one with the iron icon. */
+  const genericIcon = (it, size) => itemIcon(it.id, isPlain(it) ? 'plain' : it.materials.includes('iron') ? 'iron' : it.defaultMaterial, size);
+  const genericLabel = (it) => (isPlain(it) ? itemName(it.id, 'plain') : genericName(it.id));
+
+  /** Inside of an item tile in the full grid (icon, name, version tag). ok = comes in the material; generic = no material chosen yet. */
+  function itemTileBody(it, s, ok, generic) {
+    const real = ok && !generic;
     return [
-      h('span.ec-item-ico', ok ? itemIcon(it.id, s.material, 32) : itemIcon(it.id, it.materials.includes('iron') ? 'iron' : it.defaultMaterial, 32)),
-      h('span.ec-item-name', h('span', name)),
+      h('span.ec-item-ico', real ? itemIcon(it.id, s.material, 32) : genericIcon(it, 32)),
+      h('span.ec-item-name', h('span', real ? itemName(it.id, s.material) : genericLabel(it))),
       it.since ? h('span.ec-new', it.since) : null,
     ];
   }
 
   const matIconEl = (m) => { const ic = matIcon(m, 32); if (m === 'wooden' || m === 'stone') ic.classList.add('ec-mat-block'); return ic; };
 
-  /** What a material makes, as a quiet caption beside the compact material tile ("Armor & tools", "Helmet only"). */
-  function matCaption(m) {
-    const armor = HUD_ARMOR.filter((id) => itemById[id] && itemById[id].materials.includes(m));
-    const tools = D.items.filter((i) => !isPlain(i) && !HUD_ARMOR.includes(i.id) && i.materials.includes(m));
-    if (armor.length === 1 && !tools.length) return genericName(armor[0]) + ' only';
-    if (armor.length && tools.length) return 'Armor & tools';
-    if (armor.length) return 'Armor only';
-    return 'Tools & weapons only';
-  }
-
   /* ---------- the picker: ONE persistent panel ----------
-     Top row (never moves): two compact slots, [MATERIAL tile + caption + Show all] and [ITEM tile + caption + Show all].
-     "Show all" unfolds that slot's full grid in an area BELOW the row (both may be open); picking a tile folds it again
-     and the compact tile cross-fades to the new pick. The panel is built once and updated in place on every render
+     Top row (never moves): two select-like fields side by side, MATERIAL and ITEM (label above, icon + chosen name,
+     chevron on the right). A field unfolds its full grid in an area BELOW the row (both may be open); picking a tile
+     folds it again and the field's value cross-fades to the new pick. Nothing picked yet (fresh start, s.picked):
+     the field says "Choose ..." and its grid is open. The panel is built once and updated in place on every render
      (as the mode slider), so the row is never rebuilt, nothing jumps and hover / focus stay native. Open state lives
      in the store (enchanting.matOpen / itemOpen) so the other flows (new item, edit entry ...) can fold it. The areas
      glide with a measured height + opacity animation (Web Animations, interruptible), the tiles fade in staggered. */
@@ -578,18 +602,28 @@ TH.anvil = (function () {
     document.documentElement.style.overflowAnchor = anchorHolds ? 'none' : '';
   }
 
+  /** Pixel chevron for the select-like fields (rotates when the list is open). */
+  const caretSvg = () => {
+    const NS = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(NS, 'svg');
+    svg.setAttribute('viewBox', '0 0 10 6'); svg.setAttribute('aria-hidden', 'true'); svg.setAttribute('shape-rendering', 'crispEdges');
+    const p = document.createElementNS(NS, 'path');
+    p.setAttribute('d', 'M0 0h2v2H0zM2 2h2v2H2zM4 4h2v2H4zM6 2h2v2H6zM8 0h2v2H8z');
+    p.setAttribute('fill', 'currentColor');
+    svg.appendChild(p);
+    return svg;
+  };
+
   function buildPicker() {
     const slot = (k, label) => {
-      const tile = h('span.ec-cur' + (k === 'mat' ? '.btn.ec-matkey' : '.ec-item'), { 'aria-hidden': 'true' });
-      const cap = h('span.ec-pick-cap');
-      const glyph = h('span.ec-chip-glyph', '▾');
-      const chip = h('span.ec-showall-t', 'Show all');
-      const btn = h('button.ec-pick-one', {
+      const val = h('span.ec-combo-val', { 'aria-hidden': 'true' });   // icon + chosen name (or "Choose ...")
+      const badge = h('span.ec-new.ec-combo-new', { hidden: true, 'aria-hidden': 'true' });
+      const btn = h('button.field.ec-combo', {
         type: 'button', id: 'ec-pick-' + k, 'data-focus': 'ec-pick-' + k, 'aria-expanded': 'false', 'aria-controls': 'ec-area-' + k,
         onclick: (ev) => toggleArea(k, ev),
-      }, tile, h('span.ec-pick-meta', { 'aria-hidden': 'true' }, cap, h('span.ec-showall', glyph, chip)));
+      }, val, badge, h('span.ec-caret', { 'aria-hidden': 'true' }, caretSvg()));
       const wrap = h('div.ec-cslot.ec-cslot-' + k, h('h3.ec-pick-label', { id: 'ec-lbl-' + k }, label), btn);
-      return { k, wrap, btn, tile, cap, glyph, chip, key: null, open: undefined, area: null, btns: new Map() };
+      return { k, wrap, btn, tile: val, badge, key: null, open: undefined, area: null, btns: new Map() };
     };
     const mat = slot('mat', 'Material');
     const item = slot('item', 'Item');
@@ -625,33 +659,47 @@ TH.anvil = (function () {
     const it = itemById[s.item];
     const grp = HUD_ARMOR.includes(s.item) ? 'armor' : HUD_TOOLS.includes(s.item) ? 'tools' : 'other';
     const lang = T.lang;
+    const p = pk(s);
+    const noMat = p.item && isPlain(it) && !p.mat;   // a bow etc. needs no material
+    const genericItem = !p.mat && !isPlain(it);       // item chosen, material not yet: material-less name
 
-    // compact material tile
-    const mKey = s.material + '|' + lang;
+    // material field: icon + name, or the empty prompt
+    const mKey = (p.mat ? s.material : noMat ? '-none' : '-') + '|' + lang;
     if (P.mat.key !== mKey) {
-      P.mat.tile.replaceChildren(matIconEl(s.material), h('span.ec-mat-name', matName(s.material)));
-      if (P.mat.key) P.changed.add('mat');
+      P.mat.tile.replaceChildren(...(p.mat
+        ? [matIconEl(s.material), h('span.ec-combo-name', matName(s.material))]
+        : [h('span.ec-combo-ph', noMat ? 'Not needed' : 'Choose a material')]));
+      if (P.mat.key && p.mat) P.changed.add('mat');
       P.mat.key = mKey;
     }
-    P.mat.cap.textContent = matCaption(s.material);
-    P.mat.wrap.classList.toggle('has-sel', !!s.matTouched);
-    P.mat.btn.setAttribute('aria-label', 'Material: ' + matName(s.material) + '. ' + (s.matOpen ? 'Hide the materials' : 'Show all materials'));
+    // an item that comes in one form only (bow, elytra ...) needs no material: that field slides away and the item field takes the row
+    const plainItem = p.item && isPlain(it);
+    P.el.classList.toggle('is-plain', !!plainItem);
+    P.mat.wrap.inert = !!plainItem;
+    P.mat.wrap.classList.toggle('has-sel', p.mat);
+    P.mat.wrap.classList.toggle('is-empty', !p.mat);
+    const matTxt = p.mat ? matName(s.material) : noMat ? 'not needed for this item' : 'none chosen';
+    P.mat.btn.setAttribute('aria-label', 'Material: ' + matTxt + '. ' + (s.matOpen ? 'Hide the materials' : 'Show all materials'));
 
-    // compact item tile
-    const iKey = s.item + '|' + effMat(s.item, s.material) + '|' + lang;
+    // item field
+    const iKey = (p.item ? s.item + '|' + (genericItem ? '-' : effMat(s.item, s.material)) : '-') + '|' + lang;
     if (P.item.key !== iKey) {
-      P.item.tile.className = 'ec-cur ec-item' + (it.since ? ' has-since' : '');
-      P.item.tile.replaceChildren(...itemTileBody(it, s, true).filter(Boolean));
-      if (P.item.key) P.changed.add('item');
+      P.item.tile.replaceChildren(...(p.item
+        ? [h('span.ec-item-ico', genericItem ? genericIcon(it, 32) : itemIcon(it.id, s.material, 32)), h('span.ec-combo-name', genericItem ? genericLabel(it) : itemName(it.id, s.material))]
+        : [h('span.ec-combo-ph', 'Choose an item')]));
+      if (P.item.key && p.item) P.changed.add('item');
       P.item.key = iKey;
     }
-    P.item.cap.textContent = PICK_GROUPS[grp];
-    P.item.wrap.classList.add('has-sel');
-    P.item.btn.setAttribute('aria-label', 'Item: ' + itemName(it.id, s.material) + '. ' + (s.itemOpen ? 'Hide the items' : 'Show all items'));
+    P.item.badge.hidden = !(p.item && it.since);
+    P.item.badge.textContent = it.since || '';
+    P.item.wrap.classList.toggle('has-sel', p.item);
+    P.item.wrap.classList.toggle('is-empty', !p.item);
+    const itemTxt = p.item ? (genericItem ? genericLabel(it) : itemName(it.id, s.material)) : 'none chosen';
+    P.item.btn.setAttribute('aria-label', 'Item: ' + itemTxt + '. ' + (s.itemOpen ? 'Hide the items' : 'Show all items'));
 
     // full material grid
     P.mat.btns.forEach((b, m) => {
-      const on = s.material === m;
+      const on = p.mat && s.material === m;
       const nm = matName(m);
       if (b._lang !== lang) { b._lang = lang; b.replaceChildren(matIconEl(m), h('span.ec-mat-name', nm)); b.setAttribute('aria-label', nm); }
       b.classList.toggle('on', on);
@@ -660,20 +708,21 @@ TH.anvil = (function () {
     });
 
     // full item grid (names and icons follow the material)
-    const gridKey = s.material + '|' + lang;
+    // without a chosen material every item is open and shows its material-less name
+    const gridKey = (p.mat ? s.material : '-') + '|' + lang;
     P.item.btns.forEach((b, id) => {
       const x = itemById[id];
-      const ok = fits(x, s.material);
-      const on = ok && id === s.item;
-      if (b._key !== gridKey) { b._key = gridKey; b.replaceChildren(...itemTileBody(x, s, ok).filter(Boolean)); }
+      const ok = !p.mat || fits(x, s.material);
+      const on = p.item && ok && id === s.item;
+      if (b._key !== gridKey) { b._key = gridKey; b.replaceChildren(...itemTileBody(x, s, ok, !p.mat).filter(Boolean)); }
       b.className = 'ec-item' + (on ? ' on' : '') + (ok ? '' : ' na') + (x.since ? ' has-since' : '');
       b.disabled = !ok;
       b.setAttribute('aria-pressed', String(on));
-      const name = ok ? itemName(id, s.material) : genericName(id);
+      const name = !p.mat ? genericLabel(x) : ok ? itemName(id, s.material) : genericName(id);
       b.setAttribute('aria-label', name);
       b._tip = !ok ? 'Not available in ' + matName(s.material) : on ? name + ' · picked' : name;
     });
-    Object.keys(P.item.grps).forEach((g) => P.item.grps[g].classList.toggle('has-sel', g === grp));
+    Object.keys(P.item.grps).forEach((g) => P.item.grps[g].classList.toggle('has-sel', p.item && g === grp));
     return P.el;
   }
 
@@ -685,8 +734,6 @@ TH.anvil = (function () {
       const want = !!(A.k === 'mat' ? s.matOpen : s.itemOpen);
       A.btn.setAttribute('aria-expanded', String(want));
       A.wrap.classList.toggle('is-open', want);
-      A.chip.textContent = want ? 'Close' : 'Show all';
-      A.glyph.textContent = want ? '▴' : '▾';
       if (A.open === want) return;
       const first = A.open === undefined;
       A.open = want;
@@ -1002,8 +1049,13 @@ TH.anvil = (function () {
     const offers = hallOffers(state);
     const editingNow = editingEntry(s);
     const modeSw = renderModeCards(s);
+    // nothing chosen yet: no preview, no actions, only the empty hint
+    if (!ready(s)) {
+      return h('aside.panel.ec-plan', { 'aria-live': 'polite' }, modeSw,
+        h('div.ec-plan-body', h('div.empty.ec-empty', 'Pick an item and its enchantments, and the cheapest anvil order shows up here.')));
+    }
     const editLine = editingNow ? h('div.ec-edit-line', h('span', 'Editing a plan item'),
-      h('button.btn.ghost.small', { type: 'button', title: 'Stop editing this plan item and start a new one', onclick: () => set((e) => { e.planEditing = null; e.matOpen = false; e.itemOpen = false; }) }, 'Stop editing')) : null;
+      h('button.btn.ghost.small', { type: 'button', title: 'Stop editing this plan item and start a new one', onclick: () => set((e) => { e.planEditing = null; pickAll(e); e.matOpen = false; e.itemOpen = false; }) }, 'Stop editing')) : null;
     const head = [renderPreview(s)];
     const planCls = editingNow ? '.is-editing' : '';   // edit mode: dashed accent frame around the whole Anvil plan panel
 
@@ -1221,7 +1273,7 @@ TH.anvil = (function () {
       e.loadout = null;
       e.gearId = en.gearId && e.gear.some((g) => g.id === en.gearId) ? en.gearId : null;
       e.planEditing = en.id;
-      e.matOpen = false; e.itemOpen = false;
+      pickAll(e); e.matOpen = false; e.itemOpen = false;
     });
     requestAnimationFrame(() => window.scrollTo(0, 0));
   }
@@ -1695,24 +1747,53 @@ TH.anvil = (function () {
   /* Re-renders (material / item / mode switches, presets, ticks) swap the DOM in place with NO entrance animation:
      the staggered entrance belongs to tool-tab switches only (app.js adds .module.enter when the tab changes). */
 
+  /** In place of the Enchantments box until both a material and an item are chosen: a calm prompt, no controls. */
+  function renderWait(s) {
+    const p = pk(s);
+    const msg = p.item && !p.mat ? 'Now pick a material' : p.mat && !p.item ? 'Now pick an item' : 'Pick a material and an item to start';
+    return h('section.panel.ec-card.ec-wait', { 'aria-live': 'polite' },
+      h('div.ec-card-head', h('h3', 'Enchantments')),
+      h('div.ec-wait-msg', h('span.ec-wait-ico', { 'aria-hidden': 'true' }, TH.icon('enchanted_book', { size: 32 })),
+        h('span.ec-wait-text', h('b', msg), h('span', 'Its enchantments, presets and the anvil order show up here.'))));
+  }
+
+  /** The Enchantments box replacing the prompt: it grows from the prompt's height while the picker folds (one glide, no jump). */
+  function growIn(el, fromH) {
+    if (!el || reduceMotion()) return;
+    const to = el.offsetHeight;
+    if (!(to > fromH)) return;
+    el.style.overflow = 'clip';
+    holdAnchor(1);
+    const a = el.animate([{ height: fromH + 'px' }, { height: to + 'px' }], { duration: Math.round(Math.min(620, 300 + (to - fromH) * 0.25)), easing: GLIDE_EASE });
+    const inner = [...el.children];
+    inner.forEach((c) => c.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 320, delay: 80, easing: PICK_EASE, fill: 'backwards' }));
+    let done = false;
+    const end = () => { if (done) return; done = true; el.style.overflow = ''; holdAnchor(-1); queueFitSide(); };
+    a.onfinish = end; a.oncancel = end;
+  }
+
   function render(root, state) {
     const s = state.enchanting;
     if (!itemById[s.item]) s.item = 'sword';
     if (!MATS.includes(s.material)) s.material = 'diamond';
     if (!fits(itemById[s.item], s.material)) s.material = itemById[s.item].defaultMaterial;
     const planMode = s.mode === 'plan';
-    const plan = planMode ? null : currentPlan(s);
+    const isReady = ready(s);
+    const plan = planMode || !isReady ? null : currentPlan(s);
+    const prevWait = !planMode && isReady ? document.querySelector('.module-enchanting .ec-wait') : null;   // the prompt that is about to give way
+    const fromH = prevWait ? prevWait.offsetHeight : 0;
     TH.util.append(root, [
       h('div.page-head', h('div', h('h2', 'Enchanting'))),
       // the Single item / My plan switch sits centred on top of the right column (grid area "mode", enchanting.css)
       planMode ? renderPlanView(state, s) : [
         renderGear(state),
         h('div.ec-layout.ec-layout-single',
-          h('div.ec-main', renderPicker(s), renderSelect(state, s)),
-          h('div.ec-side', renderPlan(state, s, plan))),
+          h('div.ec-main', renderPicker(s), isReady ? renderSelect(state, s) : renderWait(s)),
+          h('div.ec-side', renderPlan(state, s, plan || { steps: [], books: [], skipped: [] }))),
       ],
     ]);
     root.querySelectorAll('[title]').forEach((el) => TH.util.tooltip(el)); // app tooltip instead of native title
+    if (prevWait) queueMicrotask(() => growIn(root.querySelector('.ec-rowbox'), fromH));
     queueMicrotask(fitSide);   // right after the swap, before the first paint (no jump)
     queueFitSide();
   }
@@ -1739,7 +1820,6 @@ TH.anvil = (function () {
     if (!Array.isArray(s.gear)) s.gear = [];
     s.renaming = null;
     s.own = !!s.own;
-    s.matOpen = false; s.itemOpen = false;   // every visit starts with the picker shrunk to the chosen material + item
     if (typeof s.renameCost !== 'string') s.renameCost = '';
     if (typeof s.anvilName !== 'string') s.anvilName = '';
     s.uses = clamp(s.uses | 0, 0, MAX_USES + 4);
@@ -1773,6 +1853,15 @@ TH.anvil = (function () {
       };
     });
     if (!s.plan.some((en) => en.id === s.planEditing)) s.planEditing = null;
+    // picked flags: a default, untouched state starts fresh (nothing chosen); a save with data counts as chosen
+    if (!itemById[s.item]) s.item = 'sword';
+    if (!s.picked || typeof s.picked !== 'object') s.picked = null;
+    const p = pk(s);
+    p.mat = !!p.mat; p.item = !!p.item;
+    if (s.planEditing) { p.mat = true; p.item = true; }
+    // every visit starts with the picker shrunk to the chosen material + item; a slot with nothing chosen shows its grid
+    s.matOpen = !p.mat && !(p.item && isPlain(itemById[s.item]));
+    s.itemOpen = !p.item;
   }
 
   TH.app.register({

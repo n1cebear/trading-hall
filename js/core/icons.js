@@ -55,8 +55,10 @@ TH.icon = (function () {
   }
   /** Local file path for a key (what tools/fetch-icons.js writes). */
   const localPath = (key) => LOCAL_BASE + (EXTERNAL[key] ? 'external/' + key : path(key)) + '.png';
+  // the claude.ai artifact packs every block / item texture into one script (window.TH_ASSET_DATA = { 'block/stone': 'data:image/png;base64,...' }): its file limit is 512
+  const packed = (p) => (BUNDLED && window.TH_ASSET_DATA && window.TH_ASSET_DATA[p]) || null;
   function src(key) {
-    return LOCAL ? localPath(key) : remote(key);
+    return LOCAL ? (EXTERNAL[key] ? null : packed(path(key))) || localPath(key) : remote(key);
   }
 
   /*
@@ -166,7 +168,7 @@ TH.icon = (function () {
     ['entity/wolf/wolf', 64, 32, 4, 4, 6, 6, 4], ['entity/illager/pillager', 64, 64, 8, 8, 8, 10, 3], ['entity/armadillo', 64, 64, 43, 17, 7, 5, 4],
   ];
   /** URL of any texture path (entity/..., item/...). Entity skins always come from the CDN mirror (cached by sw.js). */
-  icon.tex = (p) => (BUNDLED ? new URL(LOCAL_BASE + p + '.png', document.baseURI).href : BASE + p + '.png');   // absolute: also used from CSS (url() resolves against css/)
+  icon.tex = (p) => (packed(p) || (BUNDLED ? new URL(LOCAL_BASE + p + '.png', document.baseURI).href : BASE + p + '.png'));   // absolute: also used from CSS (url() resolves against css/)
 
   icon.aliases = ALIAS;
   icon.external = EXTERNAL;

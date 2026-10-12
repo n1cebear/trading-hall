@@ -1237,44 +1237,50 @@
 .ec-pi-ready.off { visibility: hidden; }
 
 /* ===== Oct 2026 (15): ONE picker panel: a calm compact row + areas that unfold below it ===== */
-/* .ec-pickpanel is built once (enchanting.js buildPicker) and updated in place. Top row (.ec-crow) = two content-sized
-   slots, MATERIAL and ITEM, each [tile | caption + "Show all"]; it never moves. "Show all" unfolds that slot's full grid
-   in an area under the row (.ec-area, both may be open); the height + opacity glide is a Web Animation (JS), so the
-   Enchantments panel below follows smoothly. The compact tile is a raised key with the accent in its name and icon
-   glow (it shows the pick, it is not a pressed / pending key). */
-.ec-crow { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 18px 56px; }
+/* .ec-pickpanel is built once (enchanting.js buildPicker) and updated in place. Top row (.ec-crow) = two select-like
+   fields, MATERIAL and ITEM (.ec-combo); it never moves. A field unfolds its full grid in an area under the row
+   (.ec-area, both may be open); the height + opacity glide is a Web Animation (JS), so the Enchantments panel below
+   follows smoothly. */
+/* Two select-like fields filling the row (two equal columns, stacked on a narrow panel): label above, a sunken .field
+   well with the icon + chosen name (Monocraft, accent) on the left and a pixel chevron on the right, which turns over
+   while the list is open. Nothing chosen: a muted "Choose ..." prompt and no icon. */
+.ec-crow { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 28px; }
 .ec-cslot { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
 :root:root:root .ec-cslot > .ec-pick-label { margin: 0 0 0 2px; }
 .ec-cslot.has-sel > .ec-pick-label, .ec-grp.has-sel > .ec-pick-label { color: var(--accent); text-shadow: 0 0 8px color-mix(in srgb, var(--accent) 75%, transparent), 0 0 18px color-mix(in srgb, var(--accent) 45%, transparent); }
 
-.ec-pick-one {
-  display: flex; align-items: center; gap: 20px; width: fit-content; max-width: 100%; margin: 0; padding: 0;
-  border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; border-radius: var(--radius);
+:root:root .ec-combo {
+  display: flex; align-items: center; gap: 12px; width: 100%; height: 58px; margin: 0; padding: 0 14px 0 13px;
+  color: var(--text); font: inherit; text-align: left; cursor: pointer; transition: border-color .15s, box-shadow .15s, filter .18s;
 }
-:root:root:root .ec-pick-one > :is(.ec-item, .ec-matkey) { flex: none; width: 124px; height: 84px; min-height: 0; margin: 0; cursor: pointer; }   /* both tiles one size */
-:root:root:root .ec-pick-one > .ec-matkey { display: flex; padding: 8px 4px; }
-:root:root:root .ec-pick-one > .ec-matkey > .mc { --mc: 32px !important; }
-:root:root:root .ec-pick-one > .ec-matkey > .mc.ec-mat-block { --mc: 24px !important; margin: 4px; transform: none; }
-.ec-cur .mc { opacity: 1; filter: drop-shadow(0 0 6px color-mix(in srgb, var(--accent) 55%, transparent)); }
-.ec-cur .ec-mat-name, .ec-cur .ec-item-name > span { color: var(--accent); }
-.ec-pick-one > .ec-cur { transition: filter .18s; }
-@media (hover: hover) { .ec-pick-one:hover > .ec-cur { filter: brightness(1.12); } }
-:root:root:root .module-enchanting .ec-pick-one:focus-visible { outline: 2px solid var(--accent); outline-offset: 5px; }
-/* fixed width: a longer caption or "Close" never nudges the second slot */
-.ec-pick-meta { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; width: 136px; min-width: 0; }
-.ec-pick-cap { font: 500 12.5px/1.3 var(--font); color: var(--muted); }
+.ec-combo-val { display: flex; align-items: center; gap: 12px; flex: 1 1 auto; min-width: 0; }
+.ec-combo-val > .mc, .ec-combo-val .ec-item-ico > .mc { --mc: 32px !important; flex: none; margin: 0; filter: drop-shadow(0 0 6px color-mix(in srgb, var(--accent) 45%, transparent)); }
+.ec-combo-val .ec-item-ico { display: flex; flex: none; }
+.ec-combo-val > .mc.ec-mat-block { --mc: 24px !important; margin: 4px; }
+.ec-combo-name { font: 400 14px/1.2 var(--display); color: var(--accent); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ec-combo-ph { font: 500 14px/1.2 var(--font); color: var(--muted); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+:root:root .ec-combo-new { position: static; flex: none; font-size: 9px; padding: 1px 5px; }
+.ec-caret { display: grid; place-items: center; flex: none; width: 22px; height: 22px; margin-left: auto; color: var(--muted); transition: color .15s, transform .22s cubic-bezier(.3, 1.3, .5, 1); }
+.ec-caret svg { width: 10px; height: 6px; display: block; }
+.ec-cslot.is-open .ec-caret { transform: rotate(180deg); color: var(--accent); }
+.ec-cslot.is-empty:not(.is-open) .ec-caret { color: var(--accent); }   /* nothing chosen and folded: the way back in is the accent */
+@media (hover: hover) {
+  :root:root .ec-combo:hover { filter: brightness(1.07); }
+  :root:root:not([data-neu]) .ec-combo:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--line-2)); }
+  .ec-combo:hover .ec-caret { color: var(--accent); }
+  .ec-combo:hover .ec-combo-ph { color: var(--text); }
+}
+:root:root:root .module-enchanting .ec-combo:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+:root:root .ec-combo:focus:not(:focus-visible) { box-shadow: var(--slot-shadow); border-color: var(--line); }
+:root:root[data-neu] .ec-combo:focus:not(:focus-visible) { box-shadow: var(--neu-inset-deep); border-color: transparent; }
 
-/* "Show all" / "Close": a small accent rounded rectangle in the body font (UI text, not a game name) */
-.ec-showall {
-  display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px 4px 8px; border-radius: 5px;
-  font: 600 11px/1.25 var(--font); letter-spacing: .3px; white-space: nowrap;
-  color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent);
-  opacity: 0; transform: translateX(-4px); transition: opacity .18s, transform .18s, background-color .18s;
-}
-.ec-chip-glyph { font-size: 10px; line-height: 1; }
-.ec-pick-one:hover .ec-showall, .ec-pick-one:focus-visible .ec-showall, .ec-cslot.is-open .ec-showall { opacity: 1; transform: none; }
-.ec-pick-one:hover .ec-showall { background: color-mix(in srgb, var(--accent) 22%, transparent); }
-@media (hover: none) { .ec-showall { opacity: 1; transform: none; } }
+/* nothing chosen yet: the prompt that replaces the Enchantments box */
+.ec-wait-msg { display: flex; align-items: center; gap: 16px; padding: 6px 2px 4px; }
+.ec-wait-ico { display: flex; flex: none; opacity: .75; }
+.ec-wait-text { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.ec-wait-text > b { font: 400 14px/1.3 var(--display); color: var(--text); }
+.ec-wait-text > span { font: 500 13px/1.4 var(--font); color: var(--muted); }
+:root:root .ec-wait .ec-card-head h3 { color: var(--muted); }
 
 /* the areas: no room at all while folded (hidden); the gap to the row lives inside, so it glides with the height */
 .ec-area-in { padding-top: 24px; }
@@ -1297,16 +1303,32 @@
    ring (that read as keyboard focus, so the pick looked "pending" after the area folded) */
 :root:root:not([data-neu]) .ec-picker :is(.ec-item, .ec-matkey).on { background: var(--accent-soft); border-color: var(--sel-edge); box-shadow: var(--sel-slot); }
 
-/* narrow panel (phones, the squeeze): the two slots share the row as two equal columns, tile on top, caption + chip under it */
-@container (max-width: 560px) {
-  .ec-crow { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
-  .ec-pick-one { flex-direction: column; align-items: stretch; gap: 10px; width: 100%; }
-  :root:root:root .ec-pick-one > :is(.ec-item, .ec-matkey) { width: 100%; }
-  .ec-pick-meta { width: auto; align-items: center; text-align: center; gap: 8px; }
-  .ec-pick-cap { font-size: 12px; }
+/* narrow panel (phones): the two fields stack, each the full width */
+@container (max-width: 480px) {
+  .ec-crow { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  :root:root .ec-combo { height: 54px; }
 }
-@media (prefers-reduced-motion: reduce) { .ec-showall, .ec-pick-one > .ec-cur { transition: none; } }
+/* phones: each list opens right under its own field (material field, its grid, item field, its grid) */
+@media (max-width: 640px) {
+  .ec-pickpanel { display: flex; flex-direction: column; }
+  .ec-pickpanel > .ec-crow { display: contents; }
+  .ec-cslot-mat { order: 1; }
+  .ec-area-mat { order: 2; }
+  .ec-cslot-item { order: 3; margin-top: 18px; }
+  .ec-area-item { order: 4; }
+  .ec-area-mat + .ec-area-item .ec-area-in { padding-top: 24px; }
+}
+@media (prefers-reduced-motion: reduce) { .ec-combo, .ec-caret { transition: none; } }
 
 /* ===== edit mode: a dashed accent frame around the whole Anvil plan panel (outline: follows the radius, takes no room) ===== */
 .ec-plan.is-editing { outline: 2px dashed color-mix(in srgb, var(--accent) 85%, transparent); outline-offset: 5px; }
 :root[data-style="pixel"] .ec-plan.is-editing { outline-offset: 6px; }
+
+/* plain items (bow, elytra ...): the material field slides away, the item field widens */
+.ec-crow { transition: grid-template-columns .45s cubic-bezier(.2, .85, .2, 1), column-gap .45s cubic-bezier(.2, .85, .2, 1); }
+.ec-crow > :first-child { min-width: 0; overflow: hidden; transition: opacity .3s; }
+.ec-pickpanel.is-plain .ec-crow { grid-template-columns: minmax(0, 0fr) minmax(0, 1fr); column-gap: 0; }
+.ec-pickpanel.is-plain .ec-crow > :first-child { opacity: 0; pointer-events: none; }
+.ec-pickpanel.is-plain .ec-area-mat { display: none; }
+@media (max-width: 640px) { .ec-pickpanel.is-plain .ec-crow > :first-child { display: none; } }
+@media (prefers-reduced-motion: reduce) { .ec-crow { transition: none; } }

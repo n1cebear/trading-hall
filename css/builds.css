@@ -3,7 +3,7 @@
    Tokens only. Hooks: segments = .panel (.bd-pan, .bd-viewer), wells = .bd-stage + .field, controls = shared .btn / .seg /
    .stepper / .switch / .check / .slider. Selected keys = the Hall lock-row .btn.on (pressed-in slot, accent label).
    ===================================================================== */
-.module-builds { --bd-gap: 22px; --bd-stage-h: clamp(440px, calc(100vh - 255px), 860px); }
+.module-builds { --bd-gap: 22px; --bd-stage-h: var(--stage-h, 640px); }
 .module-builds .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .bd-boot { padding: 40px 16px; text-align: center; color: var(--muted); }
 
@@ -281,3 +281,9 @@
 @media (prefers-reduced-motion: reduce) {
   .bd-hint, .bd-pan::before, .bd-prog > span, .bd-prow2, .bd-hovtip { transition: none; }
 }
+
+/* Library: one panel, two groups (our farms / your builds) */
+.bd-sub { display: flex; align-items: baseline; gap: 10px; margin: 18px 0 10px; }
+.bd-sub:first-of-type { margin-top: 4px; }
+.bd-sub h4 { margin: 0; font: 400 12px/1.2 var(--display); text-transform: uppercase; letter-spacing: 1.2px; color: var(--muted); }
+.bd-sub .bd-count { margin-left: auto; }

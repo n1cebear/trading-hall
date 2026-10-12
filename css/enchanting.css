@@ -1346,3 +1346,5 @@
 .ec-combo-val > .mc, .ec-combo-val .ec-item-ico > .mc { --mc: 28px !important; }
 .ec-combo[aria-expanded="true"] { box-shadow: var(--neu-inset-sm, inset 0 2px 5px rgb(0 0 0 / .45)); }
 @media (max-width: 640px) { .ec-crow { flex-direction: column; align-items: stretch; } .ec-cslot { flex: 1 1 auto; } :root:root .ec-combo { width: 100%; } }
+/* picker keys: their shadows must not be clipped (the slot wrapper used to hide overflow while sliding) */
+.ec-crow > :first-child { overflow: visible; }

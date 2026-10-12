@@ -414,12 +414,13 @@
         h('span.bd-strip-txt', h('span.bd-strip-name', f.name), h('span.bd-strip-sub', f.pitch)),
         h('span.bd-strip-tags', h('span.pill.bd-dim', DIM_NAME[f.dim]), st.swaps[key] && Object.keys(st.swaps[key]).length ? h('span.pill.bd-custom', 'custom') : null));
     }));
-    const farmPanel = h('section.panel.bd-pan' + (st.cur.startsWith('farm:') ? '.has-sel' : ''), { 'aria-label': 'Our farms' }, h('div.bd-pan-head', h('h3', 'Our farms'), h('span.bd-count', farms.FARMS.length + ' ready')), list);
+    const farmPanel = h('section.panel.bd-pan' + (st.cur.startsWith('farm:') || st.cur.startsWith('file:') ? '.has-sel' : ''), { 'aria-label': 'Library' },
+      h('div.bd-pan-head', h('h3', 'Library')),
+      h('div.bd-sub', h('h4', 'Our farms'), h('span.bd-count', farms.FARMS.length + ' ready')), list, ...filesPanel());
     const out = [farmPanel];
     const cur = st.cur;
     if (cur.startsWith('farm:')) out.push(farmInfo(farms.FARMS.find((f) => 'farm:' + f.id === cur)));
     if (original(cur)) out.push(customisePanel(cur));
-    out.push(filesPanel());
     out.push(plannedPanel());
     return out;
   }
@@ -536,7 +537,7 @@
         } else kept = false;
       });
       if (!kept) {
-        // session only: show it under Your files until the page reloads
+        // session only: show it under Your builds until the page reloads
         mem.sessionOnly = mem.sessionOnly || [];
         mem.sessionOnly.unshift({ id, name: s.name, size: s.size.slice(), session: true });
       }
@@ -575,9 +576,7 @@
       else if (ev === 'dragleave') dz.classList.remove('over');
       else { dz.classList.remove('over'); const f = e.dataTransfer.files[0]; if (f) { e.preventDefault(); openFile(f); } }
     }));
-    return h('section.panel.bd-pan' + (st.cur.startsWith('file:') ? '.has-sel' : ''), { 'aria-label': 'Your files' },
-      h('div.bd-pan-head', h('h3', 'Your files'), recs.length ? h('span.bd-count', recs.length + ' kept') : null),
-      dz, rows.length ? h('div.bd-list', rows) : null);
+    return [h('div.bd-sub', h('h4', 'Your builds'), recs.length ? h('span.bd-count', recs.length + ' kept') : null), dz, rows.length ? h('div.bd-list', rows) : null];   // custom made: your shapes and opened files
   }
   function plannedPanel() {
     const P = B().farms.PLANNED;
@@ -718,7 +717,7 @@
         h('button.btn.small', { type: 'button', onclick: () => { if (V) { if (S().mode === 'still') setMode('once'); V.replay(); } } }, glyph('replay'), 'Build it'),
         h('button.btn.small.primary', { type: 'button', onclick: () => exportAs(shapeSchem(), 'schem') }, glyph('down'), 'Download .schem'),
         h('button.btn.small', { type: 'button', onclick: () => exportAs(shapeSchem(), 'json') }, 'JSON'),
-        tip(h('button.btn.small', { type: 'button', onclick: keepShape }, glyph('file'), 'Keep in Library'), 'Add this shape to Your files, so you can customise it and find it again')));
+        tip(h('button.btn.small', { type: 'button', onclick: keepShape }, glyph('file'), 'Keep in Library'), 'Add this shape to your builds in the Library, so you can customise it and find it again')));
   }
   function keepShape() {
     const s = core().clone(shapeSchem());
@@ -733,7 +732,7 @@
     });
     if (data.length > FILE_CAP) { mem.sessionOnly = mem.sessionOnly || []; mem.sessionOnly.unshift({ id, name: s.name, size: s.size.slice(), session: true }); }
     pickKey('file:' + id);
-    toast('Kept ' + s.name + ' in Your files');
+    toast('Kept ' + s.name + ' in your builds');
   }
 
   /* ======================================================================

@@ -18,7 +18,7 @@
 }
 .tr-col { display: flex; flex-direction: column; gap: calc(var(--tr-gap) + 4px); min-width: 0; }
 /* the preview has its column to itself: the stage fills the viewport height left after the header + viewer bars (sticky on wide screens) */
-.module-trims { --tr-stage-h: clamp(420px, calc(100vh - 270px), 780px); }
+.module-trims { --tr-stage-h: var(--stage-h, 640px); }
 /* three columns: one top and one bottom line. The row height comes from the left column or the preview (whichever is
    taller); the preview stage and the Armor panel absorb the difference, and the Trim column contributes no height of its
    own (height 0 + min-height 100% of the grid area) so its pattern list fills what is left and scrolls. */
@@ -26,7 +26,7 @@
   .tr-layout { align-items: stretch; }
   .tr-col.a > .tr-hud { flex: 1 0 auto; }
   .tr-col.b > .tr-viewer { flex: 1 0 auto; }
-  .tr-viewer .tr-stage { flex: 1 0 auto; }
+  .tr-viewer .tr-stage { flex: 0 0 auto; }
   .tr-col.c { height: 0; min-height: 100%; }
   .tr-col.c > .tr-browser { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; }
   .tr-browser .tr-grid { flex: 1 1 0; min-height: 180px; max-height: none; }

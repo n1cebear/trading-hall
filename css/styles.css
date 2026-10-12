@@ -967,3 +967,6 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; }
 .th-ask-box { width: min(440px, 100%); display: flex; flex-direction: column; gap: 18px; padding: 24px 26px; }
 .th-ask-text { margin: 0; font-size: 14.5px; line-height: 1.5; color: var(--text); }
 .th-ask-btns { display: flex; justify-content: flex-end; gap: 12px; }
+
+/* one height for the big stages (Trims preview, Builds viewer, Trading Hall canvas) */
+:root { --stage-h: clamp(440px, calc(100vh - 262px), 800px); }

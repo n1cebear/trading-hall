@@ -1041,3 +1041,9 @@ button.hl-strip-main { cursor: pointer; }
 :root:root:root .hl-group-head small { font-size: 13px; }
 :root:root:root .hl-group-items { gap: 6px; }
 :root:root:root .hl-group-items .mc { --mc: 36px !important; }
+
+/* the canvas uses the shared stage height; the side column stretches to the same row */
+@media (min-width: 1000px) {
+  .hl-dash { height: auto; }
+  .hl-map .hc-viewport { flex: none; height: var(--stage-h); min-height: 0; }
+}

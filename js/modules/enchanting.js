@@ -734,6 +734,7 @@ TH.anvil = (function () {
       const want = !!(A.k === 'mat' ? s.matOpen : s.itemOpen);
       A.btn.setAttribute('aria-expanded', String(want));
       A.wrap.classList.toggle('is-open', want);
+      pick.el.classList.toggle('has-open', !!(s.matOpen || s.itemOpen));
       if (A.open === want) return;
       const first = A.open === undefined;
       A.open = want;

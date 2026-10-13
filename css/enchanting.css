@@ -1348,3 +1348,7 @@
 @media (max-width: 640px) { .ec-crow { flex-direction: column; align-items: stretch; } .ec-cslot { flex: 1 1 auto; } :root:root .ec-combo { width: 100%; } }
 /* picker keys: their shadows must not be clipped (the slot wrapper used to hide overflow while sliding) */
 .ec-crow > :first-child { overflow: visible; }
+
+/* the picker panel only shows its chrome while a grid is open; closed, the two keys sit straight on the page */
+:root:root:root .ec-pickpanel { transition: background-color .25s, box-shadow .25s, border-color .25s; }
+:root:root:root .ec-pickpanel:not(.has-open) { background: transparent; box-shadow: none; border-color: transparent; }

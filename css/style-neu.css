@@ -175,7 +175,7 @@
     --neu-rim-hi: rgb(255 253 242 / .75); --neu-rim-lo: rgb(120 80 20 / .13);
     --line: rgb(110 80 30 / .13); --line-2: rgb(110 80 30 / .22);
     --muted: #5f4a2c; --faint: #644f33;
-    --c-hall: #096629; --c-ench: #6f35b8; --c-trim: #095f5a; --c-build: #8e420a; --c-portal: #a52019; --c-home: #74490a; --danger: #a52019;
+    --c-hall: #096629; --c-ench: #6f35b8; --c-trim: #095f5a; --c-build: #8e420a; --c-portal: #a52019; --c-pal: #a3205f; --c-home: #74490a; --danger: #a52019;
     --glow-a: rgb(38 71 184 / .04); --glow-b: color-mix(in srgb, var(--tc, #12864f) 5%, transparent); --mob-op: .08;
     color-scheme: light;
   }
@@ -187,7 +187,7 @@
     --neu-rim-hi: rgb(255 253 242 / .75); --neu-rim-lo: rgb(120 80 20 / .13);
   --line: rgb(110 80 30 / .13); --line-2: rgb(110 80 30 / .22);
   --muted: #5f4a2c; --faint: #644f33;
-  --c-hall: #096629; --c-ench: #6f35b8; --c-trim: #095f5a; --c-build: #8e420a; --c-portal: #a52019; --c-home: #74490a; --danger: #a52019;
+  --c-hall: #096629; --c-ench: #6f35b8; --c-trim: #095f5a; --c-build: #8e420a; --c-portal: #a52019; --c-pal: #a3205f; --c-home: #74490a; --danger: #a52019;
   --glow-a: rgb(38 71 184 / .04); --glow-b: color-mix(in srgb, var(--tc, #12864f) 5%, transparent); --mob-op: .08;
   color-scheme: light;
 }

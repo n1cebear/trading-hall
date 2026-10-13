@@ -407,16 +407,18 @@
   }
   function librarySide() {
     const st = S(), farms = B().farms;
-    const list = h('div.bd-list', { role: 'listbox', 'aria-label': 'Farms' }, farms.FARMS.map((f) => {
+    const strip = (f) => {
       const key = 'farm:' + f.id, on = st.cur === key;
       return h('button.btn.bd-strip' + (on ? '.on' : ''), { type: 'button', role: 'option', 'aria-selected': String(on), onclick: () => pickKey(key) },
         thumb(f.icon),
         h('span.bd-strip-txt', h('span.bd-strip-name', f.name), h('span.bd-strip-sub', f.pitch)),
         h('span.bd-strip-tags', h('span.pill.bd-dim', DIM_NAME[f.dim]), st.swaps[key] && Object.keys(st.swaps[key]).length ? h('span.pill.bd-custom', 'custom') : null));
-    }));
+    };
+    const ofCat = (c) => farms.FARMS.filter((f) => (f.cat || 'farm') === c);
+    const group = (c, title, aria) => { const l = ofCat(c); return l.length ? [h('div.bd-sub', h('h4', title), h('span.bd-count', l.length + ' ready')), h('div.bd-list', { role: 'listbox', 'aria-label': aria }, l.map(strip))] : []; };
     const farmPanel = h('section.panel.bd-pan' + (st.cur.startsWith('farm:') || st.cur.startsWith('file:') ? '.has-sel' : ''), { 'aria-label': 'Library' },
       h('div.bd-pan-head', h('h3', 'Library')),
-      h('div.bd-sub', h('h4', 'Our farms'), h('span.bd-count', farms.FARMS.length + ' ready')), list, ...filesPanel());
+      ...group('farm', 'Farms', 'Farms'), ...group('build', 'Structures', 'Structures'), ...filesPanel());
     const out = [farmPanel];
     const cur = st.cur;
     if (cur.startsWith('farm:')) out.push(farmInfo(farms.FARMS.find((f) => 'farm:' + f.id === cur)));

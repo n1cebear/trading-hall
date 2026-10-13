@@ -149,7 +149,7 @@ TH.app = (function () {
   /** Background: small pixelated mob faces (cropped from entity skins) rising slowly. */
   function initAtmosphere() {
     const box = document.getElementById('atmosphere');
-    if (!box || !TH.icon.mobFaces || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    if (!box || box.childElementCount || !TH.icon.mobFaces || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     const faces = TH.icon.mobFaces, N = 18;
     for (let i = 0; i < N; i++) {
       const [p, sw, sh, fx, fy, fw, fh, k] = faces[i % faces.length];
@@ -305,7 +305,7 @@ TH.app = (function () {
   function morph(fn0) {
     const fn = () => keepPlace(fn0);
     const el = document.documentElement;
-    if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) { fn(); return; }
+    if (el.dataset.perf === 'lite' || (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches)) { fn(); return; }
     if (document.startViewTransition) {
       const t = document.startViewTransition(fn);
       t.finished.catch(() => {});
@@ -344,6 +344,40 @@ TH.app = (function () {
       b.setAttribute('aria-checked', String(on));
     });
     fitNav(); // nav tab metrics differ per style
+  }
+
+  /**
+   * Performance mode, persisted in settings.perf ("full" | "lite"). <html data-perf="lite"> switches off every looping
+   * animation, transition, backdrop blur, the rising background mobs and page transitions (css/styles.css) and caps the 3D
+   * viewers at pixel ratio 1. Meant for slow phones and old laptops.
+   */
+  function applyPerf() {
+    const lite = TH.store.get().settings.perf === 'lite';
+    const root = document.documentElement;
+    if (lite) root.dataset.perf = 'lite'; else delete root.dataset.perf;
+    document.querySelectorAll('#perfSeg [data-perf-key]').forEach((b) => {
+      const on = (b.dataset.perfKey === 'lite') === lite;
+      b.classList.toggle('on', on);
+      b.setAttribute('aria-checked', String(on));
+    });
+    if (!lite) initAtmosphere();
+    window.dispatchEvent(new Event('resize'));   // viewers re-read their pixel ratio
+  }
+  function initPerfSeg() {
+    const seg = document.getElementById('perfSeg');
+    if (!seg) return;
+    const tips = { full: ['Full', 'All animation and effects'], lite: ['Lite', 'No looping animation, blur or transitions: smoother on slow devices'] };
+    seg.querySelectorAll('[data-perf-key]').forEach((b) => {
+      const [t, sub] = tips[b.dataset.perfKey];
+      TH.util.tooltip(b, () => [TH.util.h('div.th-tooltip-title', t), TH.util.h('div.th-tooltip-sub', sub)]);
+    });
+    seg.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const b = e.target.closest('[data-perf-key]');
+      if (!b) return;
+      TH.store.update((st) => { st.settings.perf = b.dataset.perfKey; }, { silent: true });
+      applyPerf();
+    });
   }
 
   /** ⋯ menu style switcher: 3 keys (radio semantics), applies instantly and keeps the menu open so styles can be compared. */
@@ -424,6 +458,7 @@ TH.app = (function () {
     initToolbarIcons();
     applyTheme();
     applyStyle();
+    applyPerf();
     document.getElementById('themeBtn').addEventListener('click', () => {
       const dark = isDark();
       TH.store.update((s) => { s.settings.theme = dark ? 'light' : 'dark'; });
@@ -431,6 +466,7 @@ TH.app = (function () {
     });
     initMenu();
     initStyleSeg();
+    initPerfSeg();
     applyZoom(); if (window.TH_LOCAL_ASSETS) document.documentElement.dataset.artifact = "1";
     initLang();
     initSaveState();

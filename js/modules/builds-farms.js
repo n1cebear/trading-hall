@@ -99,6 +99,164 @@ TH.builds = TH.builds || {};
         'Each stalk grows about one block every 68 seconds in Java. Bone meal adds one or two.',
       ],
     },
+    {
+      id: 'crop_field', dim: 'overworld', icon: 'item/wheat', level: 'Easy', name: 'Crop field',
+      pitch: 'A nine by nine field around one water block. Every crop is watered, you harvest by walking along it, and the fence keeps animals out.',
+      how: 'One water source hydrates farmland up to four blocks away in every direction, so a 9 x 9 square with the water in the middle is the biggest field one bucket can feed.',
+      legend: { P: 'minecraft:oak_planks', F: 'minecraft:farmland[moisture=7]', W: 'minecraft:water', w: 'minecraft:wheat[age=7]', f: 'minecraft:oak_fence', T: 'minecraft:torch' },
+      layers: [
+        ['PPPPPPPPPPP', 'PFFFFFFFFFP', 'PFFFFFFFFFP', 'PFFFFFFFFFP', 'PFFFFFFFFFP', 'PFFFFWFFFFP', 'PFFFFFFFFFP', 'PFFFFFFFFFP', 'PFFFFFFFFFP', 'PFFFFFFFFFP', 'PPPPPPPPPPP'],
+        ['TfffffffffT', 'fwwwwwwwwwf', 'fwwwwwwwwwf', 'fwwwwwwwwwf', 'fwwwwwwwwwf', 'fwwww.wwwwf', 'fwwwwwwwwwf', 'fwwwwwwwwwf', 'fwwwwwwwwwf', 'fwwwwwwwwwf', 'Tffff.ffffT'],
+      ],
+      steps: [
+        'Flatten an 11 x 11 square and dig the whole 9 x 9 field one block down so the farmland sits level with the plank border.',
+        'Hoe the dirt into farmland and put a water bucket in the centre hole.',
+        'Plant seeds, carrots or potatoes on every block. Wheat as in the picture, or mix crops by row.',
+        'Build the fence ring with a torch on each corner. Leave one fence out on the south side as the gate, or place a fence gate there.',
+      ],
+      tips: [
+        'Water must be within four blocks of a farmland block, so the field cannot be wider than 9.',
+        'Torches stop mobs spawning on the field and keep the crops lit at night; crops grow with light level 9 or more.',
+        'Bone meal makes harvest time instant. A villager farmer next to it will replant for you.',
+      ],
+    },
+    {
+      id: 'cottage', cat: 'build', dim: 'overworld', icon: 'block/oak_planks', level: 'Easy', name: 'Starter cottage',
+      pitch: 'A seven by seven cottage with a cobblestone base, log corners, glass windows and a gabled roof. Room for a bed, chests and a crafting corner.',
+      how: 'Walls are three blocks high so you can walk through the door without ducking. The roof is two stair slopes meeting at a flat ridge.',
+      legend: { C: 'minecraft:cobblestone', L: 'minecraft:oak_log', P: 'minecraft:oak_planks', G: 'minecraft:glass', s: 'minecraft:oak_stairs[facing=east,half=bottom]', S: 'minecraft:oak_stairs[facing=west,half=bottom]', c: 'minecraft:crafting_table', K: 'minecraft:chest[facing=south]' },
+      layers: [
+        ['CCCCCCC', 'CCCCCCC', 'CCCCCCC', 'CCCCCCC', 'CCCCCCC', 'CCCCCCC', 'CCCCCCC'],
+        ['LPPPPPL', 'Pc...KP', 'P.....P', 'P.....P', 'P.....P', 'P.....P', 'LPP.PPL'],
+        ['LPGPGPL', 'P.....P', 'G.....G', 'P.....P', 'G.....G', 'P.....P', 'LGP.PGL'],
+        ['LPPPPPL', 'P.....P', 'P.....P', 'P.....P', 'P.....P', 'P.....P', 'LPPPPPL'],
+        ['sPPPPPS', 'sPPPPPS', 'sPPPPPS', 'sPPPPPS', 'sPPPPPS', 'sPPPPPS', 'sPPPPPS'],
+        ['.sPPPS.', '.sPPPS.', '.sPPPS.', '.sPPPS.', '.sPPPS.', '.sPPPS.', '.sPPPS.'],
+        ['..sPS..', '..sPS..', '..sPS..', '..sPS..', '..sPS..', '..sPS..', '..sPS..'],
+      ],
+      steps: [
+        'Lay the 7 x 7 cobblestone foundation, then raise a log in each corner, three high.',
+        'Fill the walls with planks. Leave the door gap in the middle of the south wall (two high) and put glass windows in the second course.',
+        'Close the top wall ring with planks, including the beam over the door.',
+        'Roof: a column of stairs on both long sides, then each layer one block further in. Fill behind them with planks. The two end walls stay solid under the slope.',
+        'Furnish: crafting table and chest in the north corners, a bed and a furnace to taste.',
+      ],
+      tips: [
+        'Swap the planks for spruce or birch in Customise blocks to change the look in one click.',
+        'Place torches inside, not on the roof, or mobs spawn on the roof slabs.',
+        'For a bigger house add two blocks of length and repeat the roof column.',
+      ],
+    },
+    {
+      id: 'watchtower', cat: 'build', dim: 'overworld', icon: 'block/stone_bricks', level: 'Easy', name: 'Watchtower',
+      pitch: 'A five by five stone tower, ten blocks tall, with arrow slits and a crenellated lookout. Good for a base entrance or a village guard post.',
+      how: 'Plain wall courses, two courses with slit windows, then the platform and the battlements. The inside is hollow so you can add a ladder or stairs as you like.',
+      legend: { S: 'minecraft:stone_bricks', G: 'minecraft:glass', P: 'minecraft:oak_planks', T: 'minecraft:torch', C: 'minecraft:cobblestone' },
+      layers: [
+        ['CCCCC', 'CCCCC', 'CCCCC', 'CCCCC', 'CCCCC'],
+        ['SSSSS', 'S...S', 'S...S', 'S...S', 'SS.SS'],
+        ['SSSSS', 'S...S', 'S...S', 'S...S', 'SS.SS'],
+        ['SSGSS', 'S...S', 'G...G', 'S...S', 'SSGSS'],
+        ['SSSSS', 'S...S', 'S...S', 'S...S', 'SSSSS'],
+        ['SSSSS', 'S...S', 'S...S', 'S...S', 'SSSSS'],
+        ['SSGSS', 'S...S', 'G...G', 'S...S', 'SSGSS'],
+        ['SSSSS', 'SPPPS', 'SPPPS', 'SPPPS', 'SSSSS'],
+        ['S.S.S', '.....', 'S...S', '.....', 'S.S.S'],
+        ['T...T', '.....', '.....', '.....', 'T...T'],
+      ],
+      steps: [
+        'Build the 5 x 5 cobblestone base and raise the stone-brick ring around it.',
+        'Leave a two-high door gap in the middle of the south wall and glass slits on the third and sixth courses.',
+        'Lay the oak plank floor of the lookout one course above the upper windows.',
+        'Add the battlements: every other block on the top course, with a torch on each corner.',
+        'Inside, run a ladder up the wall, or build a stair up the inside corner.',
+      ],
+      tips: [
+        'Skeletons shoot from the platform, so put a slab over the stair opening you use.',
+        'Swap stone bricks for deepslate bricks for a darker, Gothic look.',
+        'Remove the glass course if you prefer a solid tower.',
+      ],
+    },
+    {
+      id: 'lighthouse', cat: 'build', dim: 'overworld', icon: 'block/sea_lantern', level: 'Medium', name: 'Lighthouse',
+      pitch: 'A red and white banded lighthouse with a glass lamp room and a sea lantern at the top. Thirteen blocks tall on a round stone base.',
+      how: 'The footprint is a seven-wide octagon, which reads as round in Minecraft. Each band is two courses; the lamp room is glass around a sea lantern.',
+      legend: { B: 'minecraft:smooth_stone', W: 'minecraft:white_concrete', R: 'minecraft:red_concrete', G: 'minecraft:glass', L: 'minecraft:sea_lantern' },
+      layers: (function () {
+        const OCT = ['..###..', '.#####.', '#######', '#######', '#######', '.#####.', '..###..'];
+        const RING = ['..###..', '.#...#.', '#.....#', '#.....#', '#.....#', '.#...#.', '..###..'];
+        const f = (rows, ch) => rows.map((r) => r.replace(/#/g, ch));
+        const door = (rows) => rows.map((r, i) => (i === 6 ? r.slice(0, 3) + '.' + r.slice(4) : r));
+        const win = (rows) => rows.map((r, i) => (i === 0 || i === 6 ? r.slice(0, 3) + 'G' + r.slice(4) : i === 3 ? 'G' + r.slice(1, 6) + 'G' : r));
+        const lamp = ['..GGG..', '.G...G.', 'G.....G', 'G..L..G', 'G.....G', '.G...G.', '..GGG..'];
+        return [f(OCT, 'B'), door(f(RING, 'W')), door(f(RING, 'W')), f(RING, 'R'), win(f(RING, 'R')), f(RING, 'W'), f(RING, 'W'), f(RING, 'R'), f(RING, 'R'), f(OCT, 'B'), lamp, lamp, f(OCT, 'R'), ['.......', '.......', '.......', '...R...', '.......', '.......', '.......']];
+      })(),
+      steps: [
+        'Build the octagon base in smooth stone, then raise the bands from the bottom: two white, two red, two white, two red.',
+        'Leave a two-high door gap in the south wall and put windows in the middle of the first red band.',
+        'Close the tower with a smooth stone gallery floor. Inside, add a ladder or stairs up to it.',
+        'Make the lamp room: two courses of glass around a sea lantern, then a red roof and a single block spire.',
+      ],
+      tips: [
+        'Place it on a headland or a small island; torches on the shore help boats find the harbour.',
+        'Swap the red concrete for orange to get an autumn lighthouse, or blue for a harbour beacon.',
+        'Sea lantern is light level 15, so it lights a wide area of the water.',
+      ],
+    },
+    {
+      id: 'pavilion', cat: 'build', dim: 'overworld', icon: 'block/dark_oak_planks', level: 'Medium', name: 'Pagoda pavilion',
+      pitch: 'An open pavilion with four dark oak pillars and a three-tier red roof. A garden shrine or a rest stop by your path.',
+      how: 'Four pillars rise three blocks from a stone base; the roof is three nested rings of red nether brick stairs that shrink toward a small spire.',
+      legend: { B: 'minecraft:stone_bricks', L: 'minecraft:dark_oak_log', R: 'minecraft:red_nether_bricks', n: 'minecraft:red_nether_brick_stairs[facing=south,half=bottom]', s: 'minecraft:red_nether_brick_stairs[facing=north,half=bottom]', w: 'minecraft:red_nether_brick_stairs[facing=east,half=bottom]', e: 'minecraft:red_nether_brick_stairs[facing=west,half=bottom]', M: 'minecraft:sea_lantern', f: 'minecraft:dark_oak_fence' },
+      layers: [
+        ['BBBBBBB', 'BBBBBBB', 'BBBBBBB', 'BBBMBBB', 'BBBBBBB', 'BBBBBBB', 'BBBBBBB'],
+        ['.......', '.L...L.', '.......', '.......', '.......', '.L...L.', '.......'],
+        ['.......', '.L...L.', '.......', '.......', '.......', '.L...L.', '.......'],
+        ['.......', '.L...L.', '.......', '.......', '.......', '.L...L.', '.......'],
+        ['nnnnnnn', 'wRRRRRe', 'wRRRRRe', 'wRRRRRe', 'wRRRRRe', 'wRRRRRe', 'sssssss'],
+        ['.......', '.nnnnn.', '.wRRRe.', '.wRRRe.', '.wRRRe.', '.sssss.', '.......'],
+        ['.......', '.......', '..nnn..', '..wRe..', '..sss..', '.......', '.......'],
+        ['.......', '.......', '.......', '...R...', '.......', '.......', '.......'],
+        ['.......', '.......', '.......', '...f...', '.......', '.......', '.......'],
+      ],
+      steps: [
+        'Lay a 7 x 7 stone brick base. The sea lantern in the centre is a glowing floor light.',
+        'Raise a dark oak log pillar, three high, at each of the four inner corners (one block in from the edge).',
+        'Build the lowest roof ring: stairs on every edge, facing outward, with red nether brick filling the inside of the ring.',
+        'Repeat two more times, each ring one block smaller, and finish with a block and a fence post as the spire.',
+        'Add steps on one side and a lantern or two for the evening.',
+      ],
+      tips: [
+        'The stairs on each side face outward so the slope reads correctly; check the corner stairs from above.',
+        'Swap red nether brick for blue concrete and sea lanterns for a water temple, or prismarine for an ocean one.',
+        'Trapdoors on the roof edges give it the curled eaves of the real thing.',
+      ],
+    },
+    {
+      id: 'well', cat: 'build', dim: 'overworld', icon: 'block/cobblestone', level: 'Easy', name: 'Village well',
+      pitch: 'A three by three well with a cobblestone wall, a water block, four posts and a small roof. A good first build for any village.',
+      how: 'The water sits in the middle of a ring of cobblestone wall. Four fence posts hold a plank roof with a slab on top.',
+      legend: { C: 'minecraft:cobblestone', W: 'minecraft:water', w: 'minecraft:cobblestone_wall', f: 'minecraft:oak_fence', P: 'minecraft:oak_planks', o: 'minecraft:oak_slab[type=bottom]' },
+      layers: [
+        ['CCC', 'CWC', 'CCC'],
+        ['www', 'w.w', 'www'],
+        ['f.f', '...', 'f.f'],
+        ['f.f', '...', 'f.f'],
+        ['PPP', 'PPP', 'PPP'],
+        ['...', '.o.', '...'],
+      ],
+      steps: [
+        'Dig one block down, fill a 3 x 3 square with cobblestone and put water in the centre.',
+        'Ring the water with cobblestone wall.',
+        'Raise a fence post on each corner, two high.',
+        'Cap the posts with a 3 x 3 plank roof and a slab on the middle.',
+      ],
+      tips: [
+        'Add a bucket on a fence with an item frame for the classic village look.',
+        'A well lights nothing: put a torch on a post top or a lantern under the roof.',
+        'Stone brick walls and a stone slab roof make it look older.',
+      ],
+    },
   ];
 
   // the old roadmap list: [dimension, icon, name, pitch, optional link]
@@ -128,6 +286,8 @@ TH.builds = TH.builds || {};
     if (!s) { s = TH.builds.io.fromJSON({ name: f.name, legend: f.legend, layers: f.layers }); cache.set(id, s); }
     return s;
   }
+
+  FARMS.forEach((f) => { f.cat = f.cat || 'farm'; });
 
   TH.builds.farms = { FARMS, PLANNED, DIMS, schematic };
 })();

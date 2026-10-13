@@ -32,6 +32,7 @@
 .lp-pane[data-tool="trims"] { --tc: var(--c-trim); }
 .lp-pane[data-tool="builds"] { --tc: var(--c-build); }
 .lp-pane[data-tool="portal"] { --tc: var(--c-portal); }
+.lp-pane[data-tool="palettes"] { --tc: var(--c-pal); }
 .lp-stage.has-open .lp-pane.is-open { flex-grow: 5; }
 .lp-pane:focus-visible { outline: 2px solid var(--tc); outline-offset: -4px; }
 
@@ -298,3 +299,9 @@
   .lp-name { font-size: 22px; }
   .lp-pitch { font-size: 13px; }
 }
+
+/* palettes scene: three floating palette cubes over a row of swatches */
+.lp-swrow { position: absolute; left: 0; right: 0; top: 262px; height: 54px; }
+.lp-sw { position: absolute; top: 0; width: 44px; height: 44px; border-radius: 6px; background-size: cover; background-position: center; image-rendering: pixelated; box-shadow: 0 8px 18px -8px rgb(0 0 0 / .6); animation: lp-sw-bob 4.2s ease-in-out infinite; animation-delay: var(--o, 0s); }
+@keyframes lp-sw-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-7px); } }
+.lp-pcube { animation: lp-sw-bob 5s ease-in-out infinite; animation-delay: var(--o, 0s); }

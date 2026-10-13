@@ -560,7 +560,7 @@ TH.builds = TH.builds || {};
       const w = el.clientWidth, hh = el.clientHeight;
       if (!w || !hh || (w === S.w && hh === S.h)) return;
       S.w = w; S.h = hh;
-      S.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+      S.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, document.documentElement.dataset.perf === 'lite' ? 1 : 2));
       S.renderer.setSize(w, hh, false);
       S.camera.aspect = w / hh;
       S.dist = fitDist();

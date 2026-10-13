@@ -923,7 +923,7 @@
       if (!w || !hh) return;
       if (w === S.w && hh === S.h) return;
       S.w = w; S.h = hh;
-      S.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+      S.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, document.documentElement.dataset.perf === 'lite' ? 1 : 2));
       S.renderer.setSize(w, hh, false);
       S.camera.aspect = w / hh;
       S.camera.updateProjectionMatrix();

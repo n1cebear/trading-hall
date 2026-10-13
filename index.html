@@ -15,6 +15,7 @@
   <link rel="stylesheet" href="css/enchanting.css">
   <link rel="stylesheet" href="css/overview.css">
   <link rel="stylesheet" href="css/builds.css">
+  <link rel="stylesheet" href="css/palettes.css">
   <link rel="stylesheet" href="css/portal.css">
   <link rel="stylesheet" href="css/trims.css">
   <link rel="stylesheet" href="css/style-neu.css">
@@ -73,6 +74,13 @@
                   <button type="button" role="menuitemradio" aria-checked="false" data-style-key="soft" aria-label="Soft, smooth neumorphism">Soft</button>
                 </div>
               </div>
+              <div class="menu-style">
+                <span class="menu-style-lbl" id="perfLbl"><span class="mi" data-ico="style"></span>Performance</span>
+                <div class="seg menu-seg" id="perfSeg" role="group" aria-labelledby="perfLbl">
+                  <button type="button" role="menuitemradio" aria-checked="true" class="on" data-perf-key="full">Full</button>
+                  <button type="button" role="menuitemradio" aria-checked="false" data-perf-key="lite" aria-label="Lite, for slow devices">Lite</button>
+                </div>
+              </div>
               <hr>
               <button role="menuitem" data-act="reset" class="danger"><span class="mi" data-ico="tnt"></span>Reset everything</button>
             </div>
@@ -121,6 +129,8 @@
   <script src="js/modules/trims.js"></script>
   <script src="js/modules/builds-core.js"></script>
   <script src="js/modules/builds.js"></script>
+  <script src="js/data/palettes.js"></script>
+  <script src="js/modules/palettes.js"></script>
   <script src="js/modules/portal.js"></script>
   <script src="js/modules/overview.js"></script>
   <script>TH.app.start();</script>

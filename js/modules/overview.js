@@ -13,7 +13,7 @@
  * Everything is DOM built once + CSS keyframes on transform / opacity (GPU), so the stage paints and moves at once.
  * The pane under the pointer (or focused / tapped) swells open (flex-grow) and shows the pitch, a live stat and the CTA;
  * its diorama slides to the right and grows; the pointer drives a soft light and per-layer parallax.
- * Touch: tap focuses a pane, tap again opens the tool. Keys 1-5 jump to a tool, arrows move between panes.
+ * Touch: tap focuses a pane, tap again opens the tool. Keys 1-6 jump to a tool, arrows move between panes.
  * Live stats come from each module's badge(state).
  */
 (function () {
@@ -42,6 +42,9 @@
     { id: 'builds', line: 'Materials and stacks for any build.', kicker: 'Build planning', wall: 'block/bricks',
       pitch: 'Blocks, stacks and shulker boxes for any build, worked out for you.',
       points: ['Material lists', 'Stacks and shulker boxes', 'Example builds'], unit: '' },
+    { id: 'palettes', line: 'Block palettes that belong together.', kicker: 'Block palettes', wall: 'block/pink_concrete',
+      pitch: 'Pick blocks that look good together. Browse 140 palettes, or build your own from the real block colours.',
+      points: ['140 ready-made palettes', 'Matching blocks from real colours', 'Live mosaic preview'], unit: '' },
     { id: 'portal', line: 'Overworld and Nether, lined up.', kicker: 'Nether travel', wall: 'block/netherrack',
       pitch: 'Convert coordinates between the Overworld and the Nether and line your portals up.',
       points: ['Overworld and Nether', 'Linked portal finder', 'Portal map'], unit: '' },
@@ -139,6 +142,18 @@
     ];
   }
 
+  function scenePalettes() {
+    const sw = ['block/pink_concrete', 'block/magenta_terracotta', 'block/cherry_planks', 'block/white_concrete', 'block/purple_concrete'];
+    const swatches = sw.map((t, i) => h('i.lp-sw', { style: { left: px(22 + i * 50), backgroundImage: `url("${tex(t)}")`, '--o': (-i * 0.7).toFixed(2) + 's' } }));
+    const cubes = [
+      cube(70, { top: 'block/pink_concrete', left: 'block/cherry_planks', right: 'block/magenta_terracotta' }, 28, 96, { cls: '.lp-pcube', style: { '--o': '0s' } }),
+      cube(70, { top: 'block/white_concrete', left: 'block/pink_terracotta', right: 'block/cherry_planks' }, 150, 66, { cls: '.lp-pcube', style: { '--o': '-1.4s' } }),
+      cube(70, { top: 'block/purple_concrete', left: 'block/magenta_terracotta', right: 'block/purple_terracotta' }, 86, 150, { cls: '.lp-pcube', style: { '--o': '-2.6s' } }),
+    ];
+    const spark = [[30, 60], [250, 40], [262, 190], [20, 200], [150, 26]].map(([x, y], i) => at(x, y, '.lp-twinkle', null, { '--o': (-i * 0.8).toFixed(2) + 's' }));
+    return [layer(4, h('div.lp-halo'), ...spark), layer(14, ...cubes), layer(22, h('div.lp-swrow', swatches))];
+  }
+
   const COORDS = [[1024, -512], [-2400, 880], [312, 4096], [-60, -1600], [7777, 256]];
   function scenePortal() {
     const B = 40, fx = 100, fy = 22;   // obsidian block size and frame position (4 x 5 blocks)
@@ -161,7 +176,7 @@
     ];
   }
 
-  const SCENES = { enchanting: sceneEnchanting, hall: sceneHall, trims: sceneTrims, builds: sceneBuilds, portal: scenePortal };
+  const SCENES = { enchanting: sceneEnchanting, hall: sceneHall, trims: sceneTrims, builds: sceneBuilds, palettes: scenePalettes, portal: scenePortal };
 
   const reduced = () => !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
   const hovers = () => !!(window.matchMedia && matchMedia('(hover: hover)').matches);
@@ -269,7 +284,7 @@
     root.append(stage);
   }
 
-  // number keys 1-5 open the tools while the landing page is showing
+  // number keys 1-6 open the tools while the landing page is showing
   document.addEventListener('keydown', (e) => {
     if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
     if (!/^[1-9]$/.test(e.key)) return;

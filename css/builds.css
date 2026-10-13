@@ -287,3 +287,34 @@
 .bd-sub:first-of-type { margin-top: 4px; }
 .bd-sub h4 { margin: 0; font: 400 12px/1.2 var(--display); text-transform: uppercase; letter-spacing: 1.2px; color: var(--muted); }
 .bd-sub .bd-count { margin-left: auto; }
+
+/* ---------- Library as one filterable list: search, filter chips, a scrolling list ---------- */
+.bd-search { width: 100%; }
+.bd-filters { display: flex; flex-direction: column; gap: 14px; margin: 4px 0 6px; }
+.bd-fgrp { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.bd-flbl { font: 400 11px/1.2 var(--display); text-transform: uppercase; letter-spacing: 1.2px; color: var(--muted); }
+.bd-fchips { display: flex; flex-wrap: wrap; gap: 8px; }
+.bd-fchips .chip { cursor: pointer; }
+.bd-fchips .chip em { font-style: normal; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.bd-fchips .chip.on { color: var(--accent); }
+.bd-lib-list { max-height: 520px; overflow-y: auto; padding: 4px 8px 12px 4px; margin: 0 -8px 0 -4px; scrollbar-width: thin; }
+.bd-none { margin: 10px 0 4px; text-align: center; color: var(--muted); font-size: 13.5px; }
+
+/* how you use it: AFK stays calm, only the accent marks the fully automatic ones */
+.bd-use { font-weight: 600; }
+.bd-use-afk { color: var(--accent); }
+.bd-use-semi, .bd-use-manual { color: var(--muted); }
+.bd-use-text { margin: 0; color: var(--text); font-size: 13.5px; line-height: 1.55; }
+.bd-tagrow { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+.bd-tag { color: var(--muted); }
+
+/* run the machine: a labelled key under the title, the phase caption beneath it */
+.bd-label .bd-run { pointer-events: auto; justify-self: start; margin-top: 8px; }
+.bd-run.on { color: var(--accent); }
+.bd-phase { pointer-events: none; margin-top: 4px; font: 500 12.5px/1.3 var(--font); color: var(--accent); text-shadow: 0 1px 0 var(--edge-lo); }
+.bd-label { max-width: calc(100% - 190px); }
+.bd-more { align-self: flex-start; display: inline-flex; align-items: center; gap: 8px; padding: 2px 0; border: 0; background: none; cursor: pointer; font: 600 12.5px var(--font); color: var(--muted); }
+.bd-more:hover { color: var(--text); }
+.bd-more em { font-style: normal; font-weight: 500; color: var(--accent); }
+.bd-filters { gap: 12px; }
+.bd-fchips .chip.none { opacity: .4; }

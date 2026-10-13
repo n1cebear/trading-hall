@@ -35,8 +35,9 @@
   const core = () => TH.builds.core;
 
   const DEFAULTS = {
-    v: 1, section: 'library', cur: 'farm:cow_crusher', stage: 'farm:cow_crusher',
-    mode: 'loop', speed: 1, grid: true, outline: false, auto: true,
+    v: 2, section: 'library', cur: 'farm:cow_crusher', stage: 'farm:cow_crusher',
+    lib: { q: '', type: 'all', use: 'all', tech: 'all', topic: 'all', sort: 'name', more: false },
+    mode: 'once', speed: 1, grid: true, outline: false, auto: true,
     shape: { kind: 'sphere', p: {}, block: {}, block2: {} },
     swaps: {}, ticks: {}, units: 'items', sort: 'count', files: [], paste: null, matSrc: 'stage',
   };
@@ -84,6 +85,7 @@
     x: ['#.....#', '.#...#.', '..#.#..', '...#...', '..#.#..', '.#...#.', '#.....#'],
     plus: ['...#...', '...#...', '...#...', '#######', '...#...', '...#...', '...#...'],
     minus: ['.......', '.......', '.......', '#######', '.......', '.......', '.......'],
+    run: ['#......', '####...', '#####..', '#######', '#####..', '####...', '#......'],
     file: ['####...', '#..##..', '#...##.', '#....#.', '#....#.', '#....#.', '######.'],
   };
   const glyphURL = new Map();
@@ -223,12 +225,15 @@
     const hint = h('div.bd-hint', { 'aria-hidden': 'true' }, 'Drag to turn · scroll or pinch to zoom · hover a block');
     const drop = h('div.bd-drop', { 'aria-hidden': 'true' }, h('span', 'Drop a schematic file'), h('small', '.schem · .litematic · .nbt · .schematic · .json'));
     const loading = h('div.bd-loading', 'Loading the 3D view…');
-    stage.append(h('div.bd-label', title, meta), h('div.bd-frametools', { role: 'group', 'aria-label': 'View' }, zoomOut, zoomIn, resetV), hint, drop, loading);
+    const runBtn = h('button.btn.small.bd-run', { type: 'button', 'aria-pressed': 'false', hidden: true, onclick: () => { if (!V || !V.hasRun()) return; V.setRun(!V.run); syncRun(); } }, glyph('run'), h('span', 'Run the machine'));
+    tip(runBtn, 'Play the machine: the plants grow, the observer fires and the pistons move');
+    const phaseCap = h('div.bd-phase', { 'aria-live': 'polite', hidden: true });
+    stage.append(h('div.bd-label', title, meta, runBtn, phaseCap), h('div.bd-frametools', { role: 'group', 'aria-label': 'View' }, zoomOut, zoomIn, resetV), hint, drop, loading);
 
     // ---- animation bar ----
     const playBtn = h('button.btn.small.bd-vk.bd-play', { type: 'button', 'aria-label': 'Pause', onclick: () => { if (!V) return; if (V.playing && V.mode !== 'still') V.pause(); else { if (S().mode === 'still') setMode('loop'); V.play(); } } }, glyph('pause'));
     const replayBtn = tip(h('button.btn.small.bd-vk.sq', { type: 'button', 'aria-label': 'Build it again', onclick: () => { if (!V) return; if (S().mode === 'still') setMode('once'); V.replay(); } }, glyph('replay')), 'Build it again from the first block');
-    const modes = [['loop', 'Loop', 'Build, hold, take apart, repeat'], ['once', 'Build', 'Build once and keep it standing'], ['still', 'Still', 'No animation: the finished build']];
+    const modes = [['loop', 'Loop', 'Build it, hold, take it apart and start again, forever'], ['once', 'Build', 'Build it once, block by block, and leave it standing'], ['still', 'Still', 'No animation: the finished build right away']];
     const modeBtns = modes.map(([id, label, t]) => tip(h('button', { type: 'button', role: 'radio', 'data-mode': id, 'aria-checked': 'false', onclick: () => setMode(id) }, label), t));
     const modeSeg = h('div.seg.bd-modes', { role: 'radiogroup', 'aria-label': 'Animation' }, modeBtns);
     const speeds = [[0.5, '½×'], [1, '1×'], [2, '2×'], [4, '4×']];
@@ -237,6 +242,7 @@
     const layer = h('input.slider.bd-layer', { type: 'range', min: 1, max: 1, value: 1, step: 1, 'aria-label': 'Show layers up to' });
     const layerLbl = h('span.bd-layer-lbl');
     layer.addEventListener('input', () => { if (V) V.setLayer(+layer.value - 1); syncLayer(); });
+    tip(layer, 'Hide the upper layers to look inside. Drag down to see the build from the bottom up.');
     const sliceBtn = tip(h('button.btn.small.bd-vk', { type: 'button', 'aria-pressed': 'false', onclick: () => { if (!V) return; V.setSlice(!V.slice); syncLayer(); } }, glyph('slice'), h('span.bd-vlabel', 'Only this layer')), 'Show only the chosen layer, from above, with its outline');
     const gridBtn = tip(h('button.btn.small.bd-vk.sq', { type: 'button', 'aria-label': 'Blueprint grid', onclick: () => { save((b) => { b.grid = !b.grid; }); if (V) V.setGrid(S().grid); syncBar(); } }, glyph('grid')), 'Blueprint grid');
     const outlineBtn = tip(h('button.btn.small.bd-vk.sq', { type: 'button', 'aria-label': 'Layer outline', onclick: () => { save((b) => { b.outline = !b.outline; }); if (V) V.setOutline(S().outline); syncBar(); } }, glyph('outline')), 'Outline of the top shown layer');
@@ -295,7 +301,7 @@
       placeHov();
     }
 
-    UI = { wrap, head, secBtns, stage, title, meta, loading, playBtn, modeBtns, speedBtns, layer, layerLbl, sliceBtn, gridBtn, outlineBtn, rotBtn, side, viewer, fileIn, hov, onHover, shown: null, shownKey: null, picker: null };
+    UI = { wrap, head, secBtns, stage, title, meta, runBtn, phaseCap, loading, playBtn, modeBtns, speedBtns, layer, layerLbl, sliceBtn, gridBtn, outlineBtn, rotBtn, side, viewer, fileIn, hov, onHover, shown: null, shownKey: null, picker: null };
     return UI;
   }
 
@@ -306,6 +312,7 @@
       V = B().view.create(UI.stage);
       TH.builds.viewer = V;   // handle for debugging in the console
       V.onState = syncPlay;
+      V.onRun = (k, info, running) => syncRun(info, running);
       V.onHover = (hit) => UI.onHover(hit);
       new MutationObserver(() => { if (V) V.setAccent(accent()); }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'data-tool'] });
       matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { if (V) setTimeout(() => V.setAccent(accent()), 50); });
@@ -339,7 +346,8 @@
     UI.layer.max = s.size[1];
     if (opts.layer === 'top' || +UI.layer.value > s.size[1] || !opts.keepView) UI.layer.value = s.size[1];
     if (V && V.ready) {
-      V.setSchematic(s, { animate: !!opts.animate, keepView: !!opts.keepView, keepZoom: !!opts.keepView, layer: opts.layer || (+UI.layer.value >= s.size[1] ? 'top' : null) }).then(() => { if (V) { V.setLayer(+UI.layer.value - 1); syncLayer(); } });
+      const ph = key.startsWith('farm:') ? B().farms.phases(key.slice(5), s) : null;
+      V.setSchematic(s, { animate: !!opts.animate, keepView: !!opts.keepView, keepZoom: !!opts.keepView, phases: ph, layer: opts.layer || (+UI.layer.value >= s.size[1] ? 'top' : null) }).then(() => { if (V) { V.setLayer(+UI.layer.value - 1); syncLayer(); syncRun(); } });
     } else if (V) V.schem = s;
     syncLayer();
   }
@@ -366,6 +374,18 @@
     UI.speedBtns.forEach((b) => { const on = +b.dataset.speed === st.speed; b.classList.toggle('on', on); b.setAttribute('aria-checked', String(on)); });
     press(UI.gridBtn, st.grid); press(UI.outlineBtn, st.outline); press(UI.rotBtn, st.auto && !reduced());
     if (V) syncPlay({ playing: V.playing, mode: V.mode, phase: V.phase, t: V.t, end: V.M ? V.M.span + V.M.drop : 1 });
+  }
+  /** The Run button and the caption of the machine phase on the stage. */
+  function syncRun(info, running) {
+    if (!UI) return;
+    const has = !!(V && V.ready && V.hasRun && V.hasRun());
+    UI.runBtn.hidden = !has;
+    const on = has && V.run;
+    press(UI.runBtn, on);
+    const lbl = UI.runBtn.querySelector('span:last-child');
+    if (lbl) lbl.textContent = on ? 'Stop the machine' : 'Run the machine';
+    UI.phaseCap.hidden = !on;
+    if (on) { const i = info || (V.phaseInfo && V.phaseInfo[V.runIdx]); UI.phaseCap.textContent = i ? i.label : ''; }
   }
   function syncLayer() {
     const max = +UI.layer.max || 1, v = +UI.layer.value || max;
@@ -405,20 +425,70 @@
     show(key, { animate: true, layer: 'top' });
     patch();
   }
+  const USE = { afk: ['AFK', 'Runs by itself while you do something else nearby'], semi: ['Semi-AFK', 'Mostly automatic, you top it up or collect now and then'], manual: ['Manual', 'You do the work by hand'] };
+  const CATS = [['all', 'All'], ['farm', 'Farms'], ['machine', 'Machines'], ['build', 'Structures'], ['yours', 'Yours']];
+  const TECH = [['all', 'Any'], ['redstone', 'Redstone'], ['no-redstone', 'No redstone']];
+  const TAG_LABEL = { pistons: 'Pistons', observer: 'Observers', hoppers: 'Hoppers', crops: 'Crops', mobs: 'Mobs', food: 'Food', utility: 'Utility', house: 'Houses', defence: 'Defence', medieval: 'Medieval', landmark: 'Landmarks', coastal: 'Coastal', decor: 'Decor', japanese: 'Japanese', village: 'Village', wood: 'Wood', stone: 'Stone' };
+  const NOT_TOPIC = new Set(['redstone', 'no-redstone']);
+  const LEVEL_RANK = { Easy: 0, Medium: 1, Hard: 2 };
+  function useBadge(u) { return u && USE[u] ? h('span.pill.bd-use.bd-use-' + u, USE[u][0]) : null; }
+
   function librarySide() {
-    const st = S(), farms = B().farms;
+    const st = S(), farms = B().farms, lib = st.lib;
     const strip = (f) => {
       const key = 'farm:' + f.id, on = st.cur === key;
       return h('button.btn.bd-strip' + (on ? '.on' : ''), { type: 'button', role: 'option', 'aria-selected': String(on), onclick: () => pickKey(key) },
         thumb(f.icon),
         h('span.bd-strip-txt', h('span.bd-strip-name', f.name), h('span.bd-strip-sub', f.pitch)),
-        h('span.bd-strip-tags', h('span.pill.bd-dim', DIM_NAME[f.dim]), st.swaps[key] && Object.keys(st.swaps[key]).length ? h('span.pill.bd-custom', 'custom') : null));
+        h('span.bd-strip-tags', useBadge(f.use), h('span.pill.bd-dim', DIM_NAME[f.dim]), st.swaps[key] && Object.keys(st.swaps[key]).length ? h('span.pill.bd-custom', 'custom') : null));
     };
-    const ofCat = (c) => farms.FARMS.filter((f) => (f.cat || 'farm') === c);
-    const group = (c, title, aria) => { const l = ofCat(c); return l.length ? [h('div.bd-sub', h('h4', title), h('span.bd-count', l.length + ' ready')), h('div.bd-list', { role: 'listbox', 'aria-label': aria }, l.map(strip))] : []; };
+    const fp = fileParts();
+    const entries = farms.FARMS.map((f) => ({ cat: f.cat || 'farm', name: f.name, text: (f.name + ' ' + f.pitch + ' ' + (f.tags || []).join(' ') + ' ' + (f.use ? USE[f.use][0] : '')).toLowerCase(), use: f.use || null, tags: f.tags || [], level: f.level, el: strip(f) }))
+      .concat(fp.rows.map((r) => ({ cat: 'yours', name: r.rec.name, text: ('yours ' + r.rec.name).toLowerCase(), use: null, tags: ['yours'], level: 'Easy', el: r.el })));
+
+    const q = h('input.field.bd-search', { type: 'search', placeholder: 'Search builds, tags, blocks', 'aria-label': 'Search the library', value: lib.q || '', oninput: (e) => { save((b) => { b.lib.q = e.target.value; }); refresh(true); } });
+    const filters = h('div.bd-filters');
+    const listEl = h('div.bd-list.bd-lib-list', { role: 'listbox', 'aria-label': 'Builds' });
+    const count = h('span.bd-count');
+    const none = h('p.bd-none');
+    const pick = (k, v) => { save((b) => { b.lib[k] = v; if (k === 'type' && !['all', 'farm', 'machine'].includes(v)) b.lib.use = 'all'; }); refresh(false); };
+    const group = (title, key, opts) => h('div.bd-fgrp', h('span.bd-flbl', title), h('div.bd-fchips', { role: 'group', 'aria-label': title }, opts.map(([id, label, n]) =>
+      h('button.chip' + (lib[key] === id ? '.on' : n === 0 ? '.none' : ''), { type: 'button', 'aria-pressed': String(lib[key] === id), onclick: () => pick(key, id) }, label, n != null ? h('em', String(n)) : null))));
+    const match = (e, skip) => {
+      const t = (lib.q || '').trim().toLowerCase();
+      if (t && !e.text.includes(t)) return false;
+      if (skip !== 'type' && lib.type !== 'all' && e.cat !== lib.type) return false;
+      if (skip !== 'use' && lib.use !== 'all' && e.use !== lib.use) return false;
+      if (skip !== 'tech' && lib.tech !== 'all' && !e.tags.includes(lib.tech)) return false;
+      if (skip !== 'topic' && lib.topic !== 'all' && !e.tags.includes(lib.topic)) return false;
+      return true;
+    };
+    function refresh(keepFilters) {
+      const list = entries.filter((e) => match(e));
+      list.sort((x, y) => (lib.sort === 'easy' ? (LEVEL_RANK[x.level] || 0) - (LEVEL_RANK[y.level] || 0) : lib.sort === 'afk' ? (['afk', 'semi', 'manual', null].indexOf(x.use) - ['afk', 'semi', 'manual', null].indexOf(y.use)) : 0) || x.name.localeCompare(y.name));
+      listEl.replaceChildren(...list.map((e) => e.el));
+      count.textContent = list.length + (list.length === 1 ? ' build' : ' builds');
+      none.textContent = list.length ? '' : 'Nothing matches. Clear a filter or the search.';
+      none.hidden = !!list.length;
+      if (keepFilters) return;
+      const cnt = (key, id, test) => entries.filter((e) => match(e, key) && test(e, id)).length;
+      const topics = [...new Set(entries.flatMap((e) => e.tags))].filter((t) => !NOT_TOPIC.has(t) && t !== 'yours').sort((x, y) => (TAG_LABEL[x] || x).localeCompare(TAG_LABEL[y] || y));
+      const showUse = ['all', 'farm', 'machine'].includes(lib.type);
+      const hidden = (lib.tech !== 'all' ? 1 : 0) + (lib.topic !== 'all' ? 1 : 0) + (lib.sort !== 'name' ? 1 : 0);
+      filters.replaceChildren(...[
+        group('Type', 'type', CATS.map(([id, l]) => [id, l, id === 'all' ? null : cnt('type', id, (e) => e.cat === id)])),
+        showUse ? group('How you use it', 'use', [['all', 'Any'], ...Object.keys(USE).map((u) => [u, USE[u][0], cnt('use', u, (e) => e.use === u)])]) : null,
+        h('button.bd-more', { type: 'button', 'aria-expanded': String(!!lib.more), onclick: () => { save((b) => { b.lib.more = !b.lib.more; }); refresh(false); } },
+          h('span', lib.more ? 'Fewer filters' : 'More filters'), hidden ? h('em', hidden + ' on') : null),
+        lib.more ? group('Needs', 'tech', TECH.map(([id, l]) => [id, l, id === 'all' ? null : cnt('tech', id, (e) => e.tags.includes(id))])) : null,
+        lib.more ? group('Topic', 'topic', [['all', 'Any'], ...topics.map((t) => [t, TAG_LABEL[t] || t, cnt('topic', t, (e) => e.tags.includes(t))])]) : null,
+        lib.more ? h('div.bd-fgrp', h('span.bd-flbl', 'Sort'), h('div.bd-fchips', { role: 'group', 'aria-label': 'Sort' }, [['name', 'A to Z'], ['easy', 'Easiest first'], ['afk', 'AFK first']].map(([id, l]) =>
+          h('button.chip' + (lib.sort === id ? '.on' : ''), { type: 'button', 'aria-pressed': String(lib.sort === id), onclick: () => pick('sort', id) }, l)))) : null].filter(Boolean));
+    }
+    refresh(false);
     const farmPanel = h('section.panel.bd-pan' + (st.cur.startsWith('farm:') || st.cur.startsWith('file:') ? '.has-sel' : ''), { 'aria-label': 'Library' },
-      h('div.bd-pan-head', h('h3', 'Library')),
-      ...group('farm', 'Farms', 'Farms'), ...group('build', 'Structures', 'Structures'), ...filesPanel());
+      h('div.bd-pan-head', h('h3', 'Library'), count),
+      q, filters, listEl, none, fp.dz);
     const out = [farmPanel];
     const cur = st.cur;
     if (cur.startsWith('farm:')) out.push(farmInfo(farms.FARMS.find((f) => 'farm:' + f.id === cur)));
@@ -431,9 +501,11 @@
     const mats = core().materials(effective('farm:' + f.id));
     const top = mats.slice(0, 6);
     return h('section.panel.bd-pan.bd-info', { 'aria-label': f.name },
-      h('div.bd-pan-head', h('h3', f.name), h('span.bd-pills', h('span.pill.bd-dim', DIM_NAME[f.dim]), h('span.pill.bd-level', f.level), h('span.pill.bd-ed', 'Java'))),
+      h('div.bd-pan-head', h('h3', f.name), h('span.bd-pills', useBadge(f.use), h('span.pill.bd-dim', DIM_NAME[f.dim]), h('span.pill.bd-level', f.level), h('span.pill.bd-ed', 'Java'))),
       h('p.bd-pitch', f.pitch),
       h('p.bd-how', f.how),
+      f.useText ? [h('div.bd-sub', 'How you use it'), h('p.bd-use-text', f.useText)] : null,
+      f.tags && f.tags.length ? h('div.bd-tagrow', f.tags.map((t) => h('span.pill.bd-tag', (t === 'no-redstone' ? 'No redstone' : t === 'redstone' ? 'Redstone' : TAG_LABEL[t] || t)))) : null,
       h('div.bd-sub', 'You need'),
       h('ul.bd-needs', top.map((m) => h('li', TH.icon(core().iconOf(m.block), { size: 18 }), h('span.bd-needs-n', fmtN(m.n)), h('span', core().nameOf(m.item)))),
         mats.length > top.length ? h('li', h('button.bd-link', { type: 'button', onclick: () => go('materials') }, '+ ' + (mats.length - top.length) + ' more in Materials')) : null),
@@ -552,7 +624,7 @@
     }
 
   }
-  function filesPanel() {
+  function fileParts() {
     const st = S();
     const recs = (mem.sessionOnly || []).filter((r) => mem.files.has(r.id)).concat(st.files || []);
     const rows = recs.map((r) => {
@@ -565,11 +637,11 @@
         if (UI.shownKey === key) show(S().cur, { animate: true, layer: 'top' });
         patch();
       } }, glyph('x')), 'Remove from this list');
-      return h('div.bd-filerow',
+      return { rec: r, el: h('div.bd-filerow',
         h('button.btn.bd-strip.bd-filestrip' + (on ? '.on' : ''), { type: 'button', onclick: () => pickKey(key) },
           h('span.bd-thumb.bd-thumb-file', { 'aria-hidden': 'true' }, glyph('file')),
           h('span.bd-strip-txt', h('span.bd-strip-name', r.name), h('span.bd-strip-sub', r.size.join(' × ') + (r.session ? ' · this visit only' : '')))),
-        del);
+        del) };
     });
     const dz = h('button.bd-dropzone', { type: 'button', onclick: () => UI.fileIn.click() },
       glyph('up', 'bd-dz-ico'), h('span.bd-dz-t', 'Open a schematic file'), h('span.bd-dz-s', '.schem, .litematic, .nbt, .schematic or .json · or drop it on the stage'));
@@ -578,7 +650,7 @@
       else if (ev === 'dragleave') dz.classList.remove('over');
       else { dz.classList.remove('over'); const f = e.dataTransfer.files[0]; if (f) { e.preventDefault(); openFile(f); } }
     }));
-    return [h('div.bd-sub', h('h4', 'Your builds'), recs.length ? h('span.bd-count', recs.length + ' kept') : null), dz, rows.length ? h('div.bd-list', rows) : null];   // custom made: your shapes and opened files
+    return { rows, dz };   // yours = shapes you kept and files you opened; they sit in the Library list under the Yours type
   }
   function plannedPanel() {
     const P = B().farms.PLANNED;
@@ -866,7 +938,9 @@
       if (typeof b.cur !== 'string' || !/^(farm|file):/.test(b.cur)) b.cur = 'farm:cow_crusher';
       if (b.cur.startsWith('file:') && !b.files.some((f) => 'file:' + f.id === b.cur)) b.cur = 'farm:cow_crusher';
       if (typeof b.stage !== 'string' || (b.stage.startsWith('file:') && !b.files.some((f) => 'file:' + f.id === b.stage))) b.stage = b.cur;
-      if (!['loop', 'once', 'still'].includes(b.mode)) b.mode = 'loop';
+      if (!['loop', 'once', 'still'].includes(b.mode)) b.mode = 'once';
+      if (!(b.v >= 2)) { if (b.mode === 'loop') b.mode = 'once'; b.v = 2; }   // looping used to be the default; now it is opt-in
+      if (!b.lib || typeof b.lib !== 'object') b.lib = structuredClone(DEFAULTS.lib);
     },
     render,
   });

@@ -13,6 +13,7 @@ TH.builds = TH.builds || {};
   const FARMS = [
     {
       id: 'cow_crusher', dim: 'overworld', icon: 'item/beef', level: 'Easy', name: 'Cow crusher',
+      use: 'semi', useText: 'Not AFK: you breed the cows every five minutes. The crowd and the hopper do the rest, so stay on the rim and keep wheat in hand.', tags: ['no-redstone', 'mobs', 'food'],
       pitch: 'Cows in a one-block hole over a hopper. Breed them from the rim; past 24 cows the crowd crushes itself and leather and beef drop into a chest.',
       how: 'Entity cramming: in Java a mob that touches more than 24 others (gamerule maxEntityCramming) takes damage every tick. No lava, no redstone.',
       legend: {
@@ -40,6 +41,7 @@ TH.builds = TH.builds || {};
     },
     {
       id: 'sugar_cane', dim: 'overworld', icon: 'item/sugar_cane', level: 'Easy', name: 'Sugar cane farm',
+      use: 'afk', useText: 'Fully automatic. Stand anywhere within about 8 chunks (so the farm stays loaded), do something else, and empty the chest now and then.', tags: ['redstone', 'pistons', 'observer', 'crops'],
       pitch: 'Seven canes on mud with a water strip behind them. One observer watches the last cane and fires a row of pistons; hoppers under the mud collect.',
       how: 'Mud is a little lower than a full block, so a hopper underneath still pulls in items lying on it. The observer sees the third cane block appear, the pistons break the second block and the top one falls with it.',
       legend: {
@@ -69,6 +71,7 @@ TH.builds = TH.builds || {};
     },
     {
       id: 'bamboo', dim: 'overworld', icon: 'item/bamboo', level: 'Easy', name: 'Bamboo farm',
+      use: 'afk', useText: 'Fully automatic. Stay within about 8 chunks and empty the chest now and then. Bamboo is also fuel and scaffolding, so it fills up fast.', tags: ['redstone', 'pistons', 'observer', 'crops'],
       pitch: 'Eight bamboo on mud over a hopper line. An observer five blocks up sees the last stalk reach it, and the pistons cut every stalk above its base.',
       how: 'The pistons break the second bamboo block; everything above it pops off and falls onto the mud, where the hoppers pull it in. The base block stays and grows again.',
       legend: {
@@ -101,6 +104,7 @@ TH.builds = TH.builds || {};
     },
     {
       id: 'crop_field', dim: 'overworld', icon: 'item/wheat', level: 'Easy', name: 'Crop field',
+      use: 'manual', useText: 'Hands on: walk along the rows and harvest, then replant. A villager farmer next to it can replant for you.', tags: ['no-redstone', 'crops', 'food'],
       pitch: 'A nine by nine field around one water block. Every crop is watered, you harvest by walking along it, and the fence keeps animals out.',
       how: 'One water source hydrates farmland up to four blocks away in every direction, so a 9 x 9 square with the water in the middle is the biggest field one bucket can feed.',
       legend: { P: 'minecraft:oak_planks', F: 'minecraft:farmland[moisture=7]', W: 'minecraft:water', w: 'minecraft:wheat[age=7]', f: 'minecraft:oak_fence', T: 'minecraft:torch' },
@@ -122,6 +126,7 @@ TH.builds = TH.builds || {};
     },
     {
       id: 'cottage', cat: 'build', dim: 'overworld', icon: 'block/oak_planks', level: 'Easy', name: 'Starter cottage',
+      tags: ['house', 'village', 'wood'],
       pitch: 'A seven by seven cottage with a cobblestone base, log corners, glass windows and a gabled roof. Room for a bed, chests and a crafting corner.',
       how: 'Walls are three blocks high so you can walk through the door without ducking. The roof is two stair slopes meeting at a flat ridge.',
       legend: { C: 'minecraft:cobblestone', L: 'minecraft:oak_log', P: 'minecraft:oak_planks', G: 'minecraft:glass', s: 'minecraft:oak_stairs[facing=east,half=bottom]', S: 'minecraft:oak_stairs[facing=west,half=bottom]', c: 'minecraft:crafting_table', K: 'minecraft:chest[facing=south]' },
@@ -149,6 +154,7 @@ TH.builds = TH.builds || {};
     },
     {
       id: 'watchtower', cat: 'build', dim: 'overworld', icon: 'block/stone_bricks', level: 'Easy', name: 'Watchtower',
+      tags: ['defence', 'medieval', 'stone'],
       pitch: 'A five by five stone tower, ten blocks tall, with arrow slits and a crenellated lookout. Good for a base entrance or a village guard post.',
       how: 'Plain wall courses, two courses with slit windows, then the platform and the battlements. The inside is hollow so you can add a ladder or stairs as you like.',
       legend: { S: 'minecraft:stone_bricks', G: 'minecraft:glass', P: 'minecraft:oak_planks', T: 'minecraft:torch', C: 'minecraft:cobblestone' },
@@ -179,6 +185,7 @@ TH.builds = TH.builds || {};
     },
     {
       id: 'lighthouse', cat: 'build', dim: 'overworld', icon: 'block/sea_lantern', level: 'Medium', name: 'Lighthouse',
+      tags: ['landmark', 'coastal'],
       pitch: 'A red and white banded lighthouse with a glass lamp room and a sea lantern at the top. Thirteen blocks tall on a round stone base.',
       how: 'The footprint is a seven-wide octagon, which reads as round in Minecraft. Each band is two courses; the lamp room is glass around a sea lantern.',
       legend: { B: 'minecraft:smooth_stone', W: 'minecraft:white_concrete', R: 'minecraft:red_concrete', G: 'minecraft:glass', L: 'minecraft:sea_lantern' },
@@ -205,6 +212,7 @@ TH.builds = TH.builds || {};
     },
     {
       id: 'pavilion', cat: 'build', dim: 'overworld', icon: 'block/dark_oak_planks', level: 'Medium', name: 'Pagoda pavilion',
+      tags: ['decor', 'japanese', 'landmark'],
       pitch: 'An open pavilion with four dark oak pillars and a three-tier red roof. A garden shrine or a rest stop by your path.',
       how: 'Four pillars rise three blocks from a stone base; the roof is three nested rings of red nether brick stairs that shrink toward a small spire.',
       legend: { B: 'minecraft:stone_bricks', L: 'minecraft:dark_oak_log', R: 'minecraft:red_nether_bricks', n: 'minecraft:red_nether_brick_stairs[facing=south,half=bottom]', s: 'minecraft:red_nether_brick_stairs[facing=north,half=bottom]', w: 'minecraft:red_nether_brick_stairs[facing=east,half=bottom]', e: 'minecraft:red_nether_brick_stairs[facing=west,half=bottom]', M: 'minecraft:sea_lantern', f: 'minecraft:dark_oak_fence' },
@@ -234,6 +242,7 @@ TH.builds = TH.builds || {};
     },
     {
       id: 'well', cat: 'build', dim: 'overworld', icon: 'block/cobblestone', level: 'Easy', name: 'Village well',
+      tags: ['decor', 'village', 'stone'],
       pitch: 'A three by three well with a cobblestone wall, a water block, four posts and a small roof. A good first build for any village.',
       how: 'The water sits in the middle of a ring of cobblestone wall. Four fence posts hold a plank roof with a slab on top.',
       legend: { C: 'minecraft:cobblestone', W: 'minecraft:water', w: 'minecraft:cobblestone_wall', f: 'minecraft:oak_fence', P: 'minecraft:oak_planks', o: 'minecraft:oak_slab[type=bottom]' },
@@ -257,13 +266,41 @@ TH.builds = TH.builds || {};
         'Stone brick walls and a stone slab roof make it look older.',
       ],
     },
+    {
+      id: 'auto_smelter', cat: 'machine', dim: 'overworld', icon: 'block/furnace_front', level: 'Easy', name: 'Auto smelter',
+      use: 'semi', useText: 'Load once, walk away. Fill the top chest with raw items and the side chest with fuel, come back later and take the finished items from the bottom chest.',
+      tags: ['no-redstone', 'hoppers', 'utility'],
+      pitch: 'A furnace fed by hoppers: raw items from a chest on top, fuel from a chest on the side, smelted items into a chest below. No redstone at all.',
+      how: 'A hopper pointing into the top of a furnace fills its input slot, a hopper pointing into its side fills the fuel slot, and a hopper under the furnace takes the finished items out of the output slot.',
+      legend: { S: 'minecraft:stone_bricks', K: 'minecraft:chest[facing=south]', H: 'minecraft:hopper[facing=down]', h: 'minecraft:hopper[facing=west]', F: 'minecraft:furnace[facing=south]' },
+      layers: [
+        ['SSS', 'SSS', 'SSS'],
+        ['...', '.K.', '...'],
+        ['...', '.H.', '...'],
+        ['...', '.Fh', '...'],
+        ['...', '.HK', '...'],
+        ['...', '.K.', '...'],
+      ],
+      steps: [
+        'Place the bottom chest, then a hopper above it pointing down into it. Sneak and click to place the hopper on the chest.',
+        'Put the furnace on top of that hopper, facing the side you will stand on.',
+        'Put a hopper on top of the furnace pointing down, with a chest on top of it: that is the input.',
+        'Put a hopper on the east side of the furnace pointing west into it, and a chest on top of that hopper for fuel.',
+        'Fill the top chest with raw ore, food or sand and the side chest with coal or charcoal.',
+      ],
+      tips: [
+        'Only put smeltable items in the input chest. Anything else blocks the hopper.',
+        'One stack of coal smelts 80 items, so one fuel chest runs a long time.',
+        'To double the speed, build two of them side by side or put a second furnace under the input hopper.',
+        'Blast furnaces and smokers work the same way and smelt ores or food twice as fast.',
+      ],
+    },
   ];
 
   // the old roadmap list: [dimension, icon, name, pitch, optional link]
   const PLANNED = [
     ['overworld', 'iron', 'Easy iron farm', 'A golem platform with a lava blade: the simplest design that still pays out in stacks of iron.', { href: 'https://minecraft.wiki/w/Tutorial:Iron_golem_farming', label: 'Wiki tutorial' }],
     ['overworld', 'xp', 'Easy XP farm', 'A spawner or dark-room mob grinder with a drop chute and a kill spot, no AFK tricks required.'],
-    ['overworld', 'wheat', 'Easy crop farm', 'A water-channel field harvested by a villager or a simple piston line, one crop first.'],
     ['overworld', 'block/spawner', 'Spawner-to-farm converter', 'Turn a found dungeon spawner into a lit, walled grinder with a chute into a chest.'],
     ['overworld', 'block/moss_block', 'Moss farm', 'Bone meal on a flat moss floor, harvested by a piston or shears row.'],
     ['overworld', 'item/bone_meal', 'Bone meal farm', 'A skeleton drop chute feeding a hopper line, so bones arrive ready to craft.'],
@@ -277,6 +314,38 @@ TH.builds = TH.builds || {};
 
   const DIMS = { overworld: 'Overworld', nether: 'Nether', end: 'End' };
 
+  /**
+   * Machine phases: the farm as the viewer steps through it. Each is the original schematic with a few blocks patched
+   * (pistons extended, plants grown). Phase 0 is always the finished build as it stands.
+   */
+  const CANE = 'minecraft:sugar_cane', PIST_OUT = 'minecraft:piston[facing=south,extended=true]', HEAD = 'minecraft:piston_head[facing=south,type=normal]', AIR = 'minecraft:air';
+  const PHASES = {
+    sugar_cane: [
+      { label: 'Planted: the cane is one block high', dur: 1.6 },
+      { label: 'Grown: the observer sees the third block', dur: 1.6, patch: (set) => { for (let x = 1; x <= 7; x++) { set(x, 3, 2, CANE); set(x, 4, 2, CANE); } } },
+      { label: 'Pistons fire and cut the cane', dur: 1.3, patch: (set) => { for (let x = 1; x <= 7; x++) { set(x, 3, 1, PIST_OUT); set(x, 3, 2, HEAD); set(x, 4, 2, AIR); } } },
+    ],
+    bamboo: [
+      { label: 'Planted: the bamboo is one block high', dur: 1.6 },
+      { label: 'Grown: the observer sees the top', dur: 1.6, patch: (set) => { for (let x = 1; x <= 8; x++) for (let y = 3; y <= 6; y++) set(x, y, 2, 'minecraft:bamboo'); } },
+      { label: 'Pistons fire and cut the bamboo', dur: 1.3, patch: (set) => { for (let x = 1; x <= 8; x++) { set(x, 3, 1, PIST_OUT); set(x, 3, 2, HEAD); for (let y = 4; y <= 6; y++) set(x, y, 2, AIR); } } },
+    ],
+  };
+  /** [{ label, dur, schem }] for a farm that has a machine to show, built from the schematic as shown (swaps included); else null. */
+  function phases(id, base) {
+    const P = PHASES[id];
+    if (!P || !base) return null;
+    const C = TH.builds.core;
+    let cur = base;
+    return P.map((ph, i) => {
+      if (i === 0) return { label: ph.label, dur: ph.dur, schem: base };
+      const s = C.clone(cur);   // each phase continues from the one before
+      ph.patch((x, y, z, b) => C.set(s, x, y, z, b));
+      cur = s;
+      return { label: ph.label, dur: ph.dur, schem: s };
+    });
+  }
+
   const cache = new Map();
   /** The farm's original schematic (built once, never modified: callers get a fresh copy when they need to change it). */
   function schematic(id) {
@@ -289,5 +358,5 @@ TH.builds = TH.builds || {};
 
   FARMS.forEach((f) => { f.cat = f.cat || 'farm'; });
 
-  TH.builds.farms = { FARMS, PLANNED, DIMS, schematic };
+  TH.builds.farms = { FARMS, PLANNED, DIMS, schematic, phases, hasPhases: (id) => !!PHASES[id] };
 })();

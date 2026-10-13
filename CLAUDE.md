@@ -1,6 +1,6 @@
 # n1cebear's toolbox (formerly "Trading Hall")
 
-Static, no-build PWA of Minecraft tools (Hall planner, Enchanting, Trims, Builds, Portal). Vanilla JS modules under `js/`, CSS under `css/`, global namespace `TH`. Deployed from `main` via GitHub Pages (`origin` = github.com/n1cebear/trading-hall; the repo is not yet renamed).
+Static, no-build PWA of Minecraft tools (Enchanting, Hall planner, Trims, Builds, Block Palettes, Portal). Vanilla JS modules under `js/`, CSS under `css/`, global namespace `TH`. Deployed from `main` via GitHub Pages (`origin` = github.com/n1cebear/trading-hall; the repo is not yet renamed).
 
 **Read `DESIGN.md` first** and follow it (its "Open items" section is the handoff state). User rules: one main colour per tool; no divider lines; no box-in-box; app tooltips; no re-render animations on clicks; test Classic + Pixel + Soft, dark + light, desktop + 390px.
 

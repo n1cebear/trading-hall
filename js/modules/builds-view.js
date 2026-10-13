@@ -131,7 +131,7 @@ TH.builds = TH.builds || {};
     const span = Math.min(10, Math.max(2.2, 1.4 + Math.sqrt(n) * 0.09)), drop = 0.55;
     const times = new Float32Array(N).fill(-1);
     cells.forEach((i, r) => { times[i] = n > 1 ? (r / (n - 1)) * span : 0; });
-    const tiles = [], tileIndex = new Map();
+    const tiles = opts.tiles || [], tileIndex = opts.tileIndex || new Map();   // phases of one machine share the registry (one atlas)
     const tileOf = (spec) => { let t = tileIndex.get(spec); if (t == null) { t = tiles.length; tiles.push(spec); tileIndex.set(spec, t); } return t; };
     const opaque = new Geo(), trans = new Geo();
     const big = n > 50000;   // very large builds: skip the hidden inner faces (memory); slicing then shows outer faces only
@@ -226,6 +226,17 @@ TH.builds = TH.builds || {};
       return [times[j], Y];
     }
 
+    /** Box spanning a..b px along the facing axis (0 = the back of the cell) and c0..c1 across it. */
+    const alongBox = (fac, a, b, c0, c1) => {
+      switch (fac) {
+        case 'east': return [a, c0, c0, b, c1, c1];
+        case 'west': return [16 - b, c0, c0, 16 - a, c1, c1];
+        case 'up': return [c0, a, c0, c1, b, c1];
+        case 'down': return [c0, 16 - b, c0, c1, 16 - a, c1];
+        case 'south': return [c0, c0, a, c1, c1, b];
+        default: return [c0, c0, 16 - b, c1, c1, 16 - a];
+      }
+    };
     const FULL = [0, 0, 0, 16, 16, 16];
     function cubeFaces(g, info, x, y, z, i, e, opt) {
       opt = opt || {};
@@ -247,7 +258,20 @@ TH.builds = TH.builds || {};
       const info = P[B[i]], x = i % sx, z = Math.floor(i / sx) % sz, y = Math.floor(i / (sx * sz));
       const g = info.cut === 'translucent' ? trans : opaque, d = info.d, pr = info.props;
       switch (info.shape) {
-        case 'cube': cubeFaces(g, info, x, y, z, i, info.occl ? FULL : [0, 0, 0, 16, 16, 16]); break;
+        case 'cube':
+          if (/piston$/.test(info.name) && pr.extended === 'true') {
+            // extended piston: a 12 px body with the recessed inside face, and the first 4 px of the arm sticking out of it
+            const fac = facingOf(pr, 'north'), fi = FI[fac];
+            cubeFaces(g, info, x, y, z, i, alongBox(fac, 0, 12, 0, 16), { cull: false, spec: (f, r) => (f === fi ? tileSpec(d, 'i') : tileSpec(d, r.role)) });
+            cubeFaces(g, info, x, y, z, i, alongBox(fac, 12, 16, 6, 10), { cull: false, role: () => ({ role: 's', rot: 0 }) });
+          } else cubeFaces(g, info, x, y, z, i, info.occl ? FULL : [0, 0, 0, 16, 16, 16]);
+          break;
+        case 'pistonhead': {
+          const fac = facingOf(pr, 'north'), fi = FI[fac], sticky = pr.type === 'sticky';
+          cubeFaces(g, info, x, y, z, i, alongBox(fac, 12, 16, 0, 16), { cull: false, spec: (f) => (f === fi ? (sticky ? 'block/piston_top_sticky' : 'block/piston_top') : tileSpec(d, 's')) });
+          cubeFaces(g, info, x, y, z, i, alongBox(fac, 0, 12, 6, 10), { cull: false, role: () => ({ role: 's', rot: 0 }) });
+          break;
+        }
         case 'slab': cubeFaces(g, info, x, y, z, i, pr.type === 'top' ? [0, 8, 0, 16, 16, 16] : [0, 0, 0, 16, 8, 16]); break;
         case 'stairs': {
           const top = pr.half === 'top', fac = facingOf(pr, 'north');
@@ -490,6 +514,7 @@ TH.builds = TH.builds || {};
       schem: null, M: null, sig: '', yaw: 0.78, pitch: 0.52, zoom: 1, vel: 0, goal: null, auto: !reduced(), lastInput: 0, dist: 30, target: [0, 4, 0],
       t: 0, mode: 'loop', speed: 1, playing: true, phase: 'in', hold: 0, minY: 0, maxY: 999, slice: false, gridOn: true, outlineOn: false,
       dirty: true, raf: 0, last: 0, inView: true, w: 0, h: 0, accent: '#ff8a3d', onState: null, onHover: null, buildId: 0,
+      run: false, runIdx: 0, runT: 0, phaseSets: null, phaseInfo: null, onRun: null,
     };
     const HOME = { yaw: 0.78, pitch: 0.52, zoom: 1 };
     const ZMIN = 0.35, ZMAX = 4, PMIN = -0.2, PMAX = 1.52;
@@ -576,12 +601,29 @@ TH.builds = TH.builds || {};
       if (S.mode === 'still' || reduced()) { if (S.t !== end) { S.t = end; S.phase = 'done'; return true; } return false; }
       if (!S.playing) return false;
       const k = dt * S.speed;
-      if (S.phase === 'in') { S.t += k; if (S.t >= end) { S.t = end; S.phase = S.mode === 'loop' ? 'hold' : 'done'; S.hold = 0; } }
-      else if (S.phase === 'hold') { S.hold += dt; if (S.hold >= 2) S.phase = 'out'; }
+      if (S.phase === 'in') { S.t += k; if (S.t >= end) { S.t = end; S.phase = S.mode === 'loop' && !S.run ? 'hold' : 'done'; S.hold = 0; } }
+      else if (S.phase === 'hold') {
+        if (S.run) { S.phase = 'done'; return true; } S.hold += dt; if (S.hold >= 2) S.phase = 'out'; }
       else if (S.phase === 'out') { S.t -= k * 1.6; if (S.t <= 0) { S.t = 0; S.phase = 'gap'; S.hold = 0; } }
       else if (S.phase === 'gap') { S.hold += dt; if (S.hold >= 0.6) S.phase = 'in'; }
       else return false;
       return true;
+    }
+    /** Machine phases (pistons out, pistons back ...): once the build has landed, step through them on their own clock. */
+    function setPhase(k) {
+      if (!S.phaseSets) return;
+      S.runIdx = k;
+      S.phaseSets.forEach((set, j) => set.forEach((m) => { m.visible = j === k; }));
+      S.dirty = true;
+      if (S.onRun) S.onRun(k, S.phaseInfo[k], S.run);
+    }
+    function stepRun(dt) {
+      if (!S.run || !S.phaseSets || S.phaseSets.length < 2 || reduced()) return false;
+      if (S.phase !== 'done' && S.phase !== 'hold') return false;
+      if (S.t < Tend() - 1e-3) return false;
+      S.runT += dt * S.speed;
+      if (S.runT >= S.phaseInfo[S.runIdx].dur) { S.runT = 0; setPhase((S.runIdx + 1) % S.phaseSets.length); return true; }
+      return false;
     }
     function frame(now) {
       S.raf = 0;
@@ -598,9 +640,11 @@ TH.builds = TH.builds || {};
       if (!dragging && Math.abs(S.vel) > 0.01) { S.yaw += S.vel * dt; S.vel *= Math.exp(-3.2 * dt); moving = true; }
       if (!S.auto && !reduced() && !dragging && !S.slice && S.autoOk && now - S.lastInput > 7000) S.auto = true;   // idle again: resume the slow turn
       if (S.auto && !dragging && !S.goal && !S.slice) { S.yaw += 0.16 * dt; moving = true; }
+      if (stepRun(dt)) moving = true;
       const ticking = stepClock(dt);
       if (ticking) { uni.uT.value = S.t; moving = true; if (S.onState) S.onState(state()); }
-      const animating = S.playing && S.mode !== 'still' && !reduced() && S.phase !== 'done';
+      const running = S.run && S.phaseSets && S.phaseSets.length > 1;
+      const animating = (S.playing && S.mode !== 'still' && !reduced() && S.phase !== 'done') || running;
       if (moving || S.dirty) { resize(); place(); S.renderer.render(S.scene, S.camera); S.dirty = false; }
       if (moving || dragging || animating) S.raf = requestAnimationFrame(frame);
     }
@@ -813,7 +857,9 @@ TH.builds = TH.builds || {};
       const id = ++S.buildId;
       S.schem = schem;
       if (!S.ready) return;
-      const M = mesh(schem);
+      const reg = { tiles: [], tileIndex: new Map() }, ph = opts.phases && opts.phases.length > 1 ? opts.phases : null;
+      const M = mesh(schem, reg);
+      const Ms = ph ? ph.map((p) => (p.schem === schem ? M : mesh(p.schem, reg))) : [M];
       // texture atlas (tiles load in parallel; a failed one becomes the unknown tile)
       const canv = await Promise.all(M.tiles.map(tileCanvas));
       if (id !== S.buildId || !S.ready) return;
@@ -826,13 +872,21 @@ TH.builds = TH.builds || {};
       tex.magFilter = THREE.NearestFilter; tex.minFilter = THREE.NearestFilter; tex.generateMipmaps = false; tex.colorSpace = THREE.SRGBColorSpace;
       S.atlas = tex;
       S.mats.forEach((m) => { m.map = tex; m.needsUpdate = true; });
-      [[M.opaque, S.mats[0]], [M.trans, S.mats[1]]].forEach(([g, m], k) => {
-        if (!g.verts) return;
-        const mm = new THREE.Mesh(geometry(g, cols, rows), m);
-        mm.renderOrder = k;
-        mm.frustumCulled = false;   // vertices move in the shader
-        S.root.add(mm); S.meshes.push(mm);
+      S.phaseSets = [];
+      Ms.forEach((Mk, j) => {
+        const set = [];
+        [[Mk.opaque, S.mats[0]], [Mk.trans, S.mats[1]]].forEach(([g, m], k) => {
+          if (!g.verts) return;
+          const mm = new THREE.Mesh(geometry(g, cols, rows), m);
+          mm.renderOrder = k;
+          mm.frustumCulled = false;   // vertices move in the shader
+          mm.visible = j === 0;
+          S.root.add(mm); S.meshes.push(mm); set.push(mm);
+        });
+        S.phaseSets.push(set);
       });
+      S.phaseInfo = ph ? ph.map((p) => ({ label: p.label, dur: p.dur || 1.5 })) : null;
+      S.runIdx = 0; S.runT = 0; S.run = false;
       S.grid = makeGrid(); S.root.add(S.grid);
       S.hl = makeHighlight(); S.root.add(S.hl);
       uni.uD.value = M.drop; uni.uH.value = clamp(schem.size[1] * 0.5 + 3, 4, 14);
@@ -868,6 +922,14 @@ TH.builds = TH.builds || {};
       if (S.onState) S.onState(state());
       S.wake();
     };
+    /** Start / stop stepping through the machine phases (only when the build came with phases). */
+    S.setRun = (on) => {
+      S.run = !!on && !!S.phaseSets && S.phaseSets.length > 1;
+      S.runT = 0;
+      if (!S.run) setPhase(0); else { if (S.phase === 'hold') S.phase = 'done'; S.dirty = true; if (S.onRun) S.onRun(S.runIdx, S.phaseInfo[S.runIdx], true); }
+      S.wake();
+    };
+    S.hasRun = () => !!(S.phaseSets && S.phaseSets.length > 1);
     S.setSpeed = (v) => { S.speed = clamp(+v || 1, 0.1, 8); };
     S.setLayer = (y) => {
       if (!S.schem) return;

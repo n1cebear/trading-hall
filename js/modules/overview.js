@@ -143,12 +143,12 @@
   }
 
   function scenePalettes() {
-    const sw = ['block/pink_concrete', 'block/magenta_terracotta', 'block/cherry_planks', 'block/white_concrete', 'block/purple_concrete'];
+    const sw = ['block/cherry_log', 'block/cherry_planks', 'block/pink_concrete', 'block/white_concrete', 'block/purple_concrete'];
     const swatches = sw.map((t, i) => h('i.lp-sw', { style: { left: px(22 + i * 50), backgroundImage: `url("${tex(t)}")`, '--o': (-i * 0.7).toFixed(2) + 's' } }));
     const cubes = [
-      cube(70, { top: 'block/pink_concrete', left: 'block/cherry_planks', right: 'block/magenta_terracotta' }, 28, 96, { cls: '.lp-pcube', style: { '--o': '0s' } }),
-      cube(70, { top: 'block/white_concrete', left: 'block/pink_terracotta', right: 'block/cherry_planks' }, 150, 66, { cls: '.lp-pcube', style: { '--o': '-1.4s' } }),
-      cube(70, { top: 'block/purple_concrete', left: 'block/magenta_terracotta', right: 'block/purple_terracotta' }, 86, 150, { cls: '.lp-pcube', style: { '--o': '-2.6s' } }),
+      cube(70, { top: 'block/cherry_log_top', side: 'block/cherry_log' }, 28, 96, { cls: '.lp-pcube', style: { '--o': '0s' } }),
+      cube(70, { top: 'block/pink_concrete', side: 'block/pink_concrete' }, 150, 66, { cls: '.lp-pcube', style: { '--o': '-1.4s' } }),
+      cube(70, { top: 'block/cherry_planks', side: 'block/cherry_planks' }, 86, 150, { cls: '.lp-pcube', style: { '--o': '-2.6s' } }),
     ];
     const spark = [[30, 60], [250, 40], [262, 190], [20, 200], [150, 26]].map(([x, y], i) => at(x, y, '.lp-twinkle', null, { '--o': (-i * 0.8).toFixed(2) + 's' }));
     return [layer(4, h('div.lp-halo'), ...spark), layer(14, ...cubes), layer(22, h('div.lp-swrow', swatches))];

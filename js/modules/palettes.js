@@ -211,11 +211,40 @@
         const v = (a + (b - a) * tx) * (1 - ty) + (c + (d - c) * tx) * ty;
         out[y * CW + x] = byT(v * 1.15 - 0.07 + (r() - 0.5) * 0.12);
       }
-    } else if (mode === 'stripes') {
-      let x = 0;
-      while (x < CW) {
-        const sw = 1 + Math.floor(r() * 4), idx = wpick();
-        for (let k = 0; k < sw && x < CW; k++, x++) for (let y = 0; y < CH; y++) out[y * CW + x] = r() < 0.1 ? wpick() : idx;
+    } else if (mode === 'wall' || mode === 'floor') {
+      // roles by position in the palette; with fewer blocks the last one fills the rest
+      const R = (k) => Math.min(k, n - 1);
+      const dark = order[n - 1], light = order[0];
+      const main = 0, second = R(1), third = R(2), fourth = R(3), fifth = R(4);
+      const at = (x, y, v) => { out[y * CW + x] = v; };
+      if (mode === 'wall') {
+        // a half-timbered house front: plinth, corner and bay pillars, a beam, a roof edge, windows, a body of the main block
+        for (let y = 0; y < CH; y++) for (let x = 0; x < CW; x++) {
+          let v = r() < 0.16 ? second : main;
+          if (r() < 0.05) v = third;
+          if (y >= CH - 3) v = r() < 0.18 ? second : dark;                                  // plinth
+          else if (y <= 1) v = n > 3 ? fourth : light;                                      // roof edge
+          else if (y === 3) v = second;                                                     // beam under the roof
+          else if (x % 8 === 0 || x % 8 === 7 || x === CW - 1) v = third;                    // pillars
+          else if (y >= 6 && y <= 10 && (x % 8 === 3 || x % 8 === 4)) v = n > 4 ? fifth : light;   // windows
+          else if (y === 5 && (x % 8 === 3 || x % 8 === 4) || y === 11 && (x % 8 === 3 || x % 8 === 4)) v = third;   // window frames
+          at(x, y, v);
+        }
+      } else {
+        // a floor seen from above: dark border, a ring, a 2x2 checker, and a medallion in the middle
+        for (let y = 0; y < CH; y++) for (let x = 0; x < CW; x++) {
+          const edge = Math.min(x, y, CW - 1 - x, CH - 1 - y);
+          let v;
+          if (edge === 0) v = dark;
+          else if (edge === 1) v = third;
+          else v = (((x >> 1) + (y >> 1)) & 1) ? second : main;
+          if (edge >= 2 && r() < 0.05) v = wpick();
+          at(x, y, v);
+        }
+        for (let y = 5; y <= 12; y++) for (let x = 11; x <= 20; x++) {
+          const ring = x === 11 || x === 20 || y === 5 || y === 12;
+          at(x, y, ring ? dark : (x >= 14 && x <= 17 && y >= 8 && y <= 9) ? fifth : fourth);
+        }
       }
     } else {
       for (let i = 0; i < out.length; i++) out[i] = wpick();
@@ -247,6 +276,7 @@
     const st = S();
     if (!['browse', 'make'].includes(st.tab)) st.tab = 'browse';
     loadColours();
+    if (!['mix', 'gradient', 'noise', 'wall', 'floor'].includes(st.mode)) st.mode = 'mix';
 
     /* ----- preview ----- */
     const mosaic = h('canvas.pl-mosaic', { width: CW * CP, height: CH * CP, role: 'img' });
@@ -272,11 +302,12 @@
     function paintNow() {
       const p = current();
       mosaic._names = p.blocks.join();
+      mosaic.classList.remove('pl-flash'); void mosaic.offsetWidth; mosaic.classList.add('pl-flash');
       paint(mosaic, p.blocks, st.mode, st.seed);
       mosaic.setAttribute('aria-label', 'Sample build painted with ' + p.name);
     }
     function patchModes() {
-      modeSeg.replaceChildren(seg('Pattern', [['mix', 'Mix'], ['gradient', 'Gradient'], ['noise', 'Noise'], ['stripes', 'Stripes']], st.mode, (m) => { st.mode = m; save(); patchModes(); paintNow(); }));
+      modeSeg.replaceChildren(seg('Pattern', [['mix', 'Mix'], ['gradient', 'Gradient'], ['noise', 'Noise'], ['wall', 'Wall'], ['floor', 'Floor']], st.mode, (m) => { st.mode = m; save(); patchModes(); paintNow(); }));
     }
     function share(i, n) { const w = Array.from({ length: n }, (_, k) => WEIGHT[k] || 0.4); const t = w.reduce((a, b) => a + b, 0); return Math.round(w[i] / t * 100); }
     function patchPreview() {
@@ -377,7 +408,10 @@
       const el = h('div.pl-card' + (st.sel === p.id ? '.on' : ''), { 'data-id': p.id, role: 'button', tabindex: '0', 'aria-label': p.name + ', ' + p.blocks.map(nameOf).join(', '),
         onclick: () => select(p.id), onkeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); select(p.id); } } },
         h('div.pl-strip', p.blocks.slice(0, 6).map((b) => tile(b))),
-        h('div.pl-cap', h('span.pl-cname', p.name), heart));
+        h('div.pl-cap', h('span.pl-cname', p.name), heart),
+        h('div.pl-extra', { 'aria-hidden': 'true' },
+          h('div.pl-xnames', p.blocks.map((b) => h('span.pl-xn', tile(b, '.pl-xt'), nameOf(b)))),
+          p.tags && p.tags.length ? h('div.pl-xtags', p.tags.map((t) => h('span', t))) : null));
       return el;
     }
     function filtered() {
@@ -499,7 +533,7 @@
     id: 'palettes',
     name: 'Block Palettes',
     short: 'Palettes',
-    icon: 'mc:block/pink_concrete',
+    icon: () => h('span.pl-navico', ['block/cherry_planks', 'block/pink_concrete', 'block/purple_concrete', 'block/white_concrete'].map((t) => h('i', { style: { backgroundImage: 'url("' + TH.icon.tex(t) + '")' } }))),
     init(store) {
       store.define('palettes', { tab: 'browse', sel: 'c0', mode: 'mix', seed: 7, tag: 'all', q: '', fav: [], mine: [], draft: [], gen: null });
       const s = store.get().palettes;

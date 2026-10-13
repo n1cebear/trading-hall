@@ -35,7 +35,7 @@
   const core = () => TH.builds.core;
 
   const DEFAULTS = {
-    v: 2, section: 'library', cur: 'farm:cow_crusher', stage: 'farm:cow_crusher',
+    v: 3, browse: true, meta: {}, section: 'library', cur: 'farm:cow_crusher', stage: 'farm:cow_crusher',
     lib: { q: '', type: 'all', use: 'all', tech: 'all', topic: 'all', sort: 'name', more: false },
     mode: 'once', speed: 1, grid: true, outline: false, auto: true,
     shape: { kind: 'sphere', p: {}, block: {}, block2: {} },
@@ -85,6 +85,8 @@
     x: ['#.....#', '.#...#.', '..#.#..', '...#...', '..#.#..', '.#...#.', '#.....#'],
     plus: ['...#...', '...#...', '...#...', '#######', '...#...', '...#...', '...#...'],
     minus: ['.......', '.......', '.......', '#######', '.......', '.......', '.......'],
+    left: ['....#..', '...##..', '..###..', '.####..', '..###..', '...##..', '....#..'],
+    right: ['..#....', '..##...', '..###..', '..####.', '..###..', '..##...', '..#....'],
     run: ['#......', '####...', '#####..', '#######', '#####..', '####...', '#......'],
     file: ['####...', '#..##..', '#...##.', '#....#.', '#....#.', '#....#.', '######.'],
   };
@@ -301,7 +303,7 @@
       placeHov();
     }
 
-    UI = { wrap, head, secBtns, stage, title, meta, runBtn, phaseCap, loading, playBtn, modeBtns, speedBtns, layer, layerLbl, sliceBtn, gridBtn, outlineBtn, rotBtn, side, viewer, fileIn, hov, onHover, shown: null, shownKey: null, picker: null };
+    UI = { wrap, layout, head, secBtns, stage, title, meta, runBtn, phaseCap, loading, playBtn, modeBtns, speedBtns, layer, layerLbl, sliceBtn, gridBtn, outlineBtn, rotBtn, side, viewer, fileIn, hov, onHover, shown: null, shownKey: null, picker: null };
     return UI;
   }
 
@@ -409,6 +411,12 @@
     const st = S();
     UI.secBtns.forEach((b) => { const on = b.dataset.sec === st.section; b.classList.toggle('on', on); b.setAttribute('aria-checked', String(on)); });
     UI.wrap.dataset.sec = st.section;
+    const browsing = st.section === 'library' && st.browse;
+    UI.layout.classList.toggle('is-browse', browsing);
+    if (UI.wasBrowse && !browsing && !reduced()) {   // the build comes in, the library folds up beside it
+      [UI.viewer, UI.side].forEach((e) => { e.classList.add('bd-enter'); setTimeout(() => e.classList.remove('bd-enter'), 700); });
+    }
+    UI.wasBrowse = browsing;
     UI.picker = null;
     const body = st.section === 'create' ? createSide() : st.section === 'materials' ? materialsSide() : librarySide();
     UI.side.replaceChildren(...body);
@@ -421,77 +429,151 @@
   const DIM_NAME = { overworld: 'Overworld', nether: 'Nether', end: 'End' };
   function thumb(icon) { return h('span.bd-thumb', { 'aria-hidden': 'true' }, TH.icon(icon, { size: 32 })); }
   function pickKey(key) {
-    save((b) => { b.cur = key; b.section = 'library'; });
+    save((b) => { b.cur = key; b.section = 'library'; b.browse = false; });
+    patch();   // the viewer is on screen again before it is filled
     show(key, { animate: true, layer: 'top' });
-    patch();
   }
   const USE = { afk: ['AFK', 'Runs by itself while you do something else nearby'], semi: ['Semi-AFK', 'Mostly automatic, you top it up or collect now and then'], manual: ['Manual', 'You do the work by hand'] };
   const CATS = [['all', 'All'], ['farm', 'Farms'], ['machine', 'Machines'], ['build', 'Structures'], ['yours', 'Yours']];
   const TECH = [['all', 'Any'], ['redstone', 'Redstone'], ['no-redstone', 'No redstone']];
-  const TAG_LABEL = { pistons: 'Pistons', observer: 'Observers', hoppers: 'Hoppers', crops: 'Crops', mobs: 'Mobs', food: 'Food', utility: 'Utility', house: 'Houses', defence: 'Defence', medieval: 'Medieval', landmark: 'Landmarks', coastal: 'Coastal', decor: 'Decor', japanese: 'Japanese', village: 'Village', wood: 'Wood', stone: 'Stone' };
-  const NOT_TOPIC = new Set(['redstone', 'no-redstone']);
+  const TAG_LABEL = { pistons: 'Pistons', observer: 'Observers', hoppers: 'Hoppers', crops: 'Crops', mobs: 'Mobs', food: 'Food', utility: 'Utility', house: 'Houses', defence: 'Defence', medieval: 'Medieval', landmark: 'Landmarks', coastal: 'Coastal', decor: 'Decor', japanese: 'Japanese', village: 'Village', wood: 'Wood', stone: 'Stone', 'no-redstone': 'No redstone', redstone: 'Redstone' };
+  const tagLabel = (t) => TAG_LABEL[t] || (t[0].toUpperCase() + t.slice(1));
+  const NOT_TOPIC = new Set(['redstone', 'no-redstone', 'yours']);
   const LEVEL_RANK = { Easy: 0, Medium: 1, Hard: 2 };
+  const USE_RANK = ['afk', 'semi', 'manual', null];
   function useBadge(u) { return u && USE[u] ? h('span.pill.bd-use.bd-use-' + u, USE[u][0]) : null; }
 
-  function librarySide() {
-    const st = S(), farms = B().farms, lib = st.lib;
-    const strip = (f) => {
-      const key = 'farm:' + f.id, on = st.cur === key;
-      return h('button.btn.bd-strip' + (on ? '.on' : ''), { type: 'button', role: 'option', 'aria-selected': String(on), onclick: () => pickKey(key) },
-        thumb(f.icon),
-        h('span.bd-strip-txt', h('span.bd-strip-name', f.name), h('span.bd-strip-sub', f.pitch)),
-        h('span.bd-strip-tags', useBadge(f.use), h('span.pill.bd-dim', DIM_NAME[f.dim]), st.swaps[key] && Object.keys(st.swaps[key]).length ? h('span.pill.bd-custom', 'custom') : null));
-    };
-    const fp = fileParts();
-    const entries = farms.FARMS.map((f) => ({ cat: f.cat || 'farm', name: f.name, text: (f.name + ' ' + f.pitch + ' ' + (f.tags || []).join(' ') + ' ' + (f.use ? USE[f.use][0] : '')).toLowerCase(), use: f.use || null, tags: f.tags || [], level: f.level, el: strip(f) }))
-      .concat(fp.rows.map((r) => ({ cat: 'yours', name: r.rec.name, text: ('yours ' + r.rec.name).toLowerCase(), use: null, tags: ['yours'], level: 'Easy', el: r.el })));
+  /** Everything the Library can show: our builds plus the files you opened (with the tags you gave them). */
+  function libEntries() {
+    const st = S(), fp = fileParts();
+    const farms = B().farms.FARMS.map((f) => ({ key: 'farm:' + f.id, farm: f, cat: f.cat || 'farm', name: f.name, pitch: f.pitch, icon: f.icon, use: f.use || null, tags: f.tags || [], level: f.level, dim: f.dim }));
+    const mine = fp.rows.map((r) => {
+      const m = st.meta[r.key] || {};
+      return { key: r.key, rec: r.rec, cat: 'yours', name: m.name || r.rec.name, pitch: r.rec.size.join(' × ') + (r.rec.session ? ' · this visit only' : ''), icon: null, use: m.use || null, tags: ['yours'].concat(m.tags || []), level: 'Easy', dim: null };
+    });
+    return farms.concat(mine).map((e) => Object.assign(e, { text: (e.name + ' ' + e.pitch + ' ' + e.tags.join(' ') + ' ' + (e.use ? USE[e.use][0] : '')).toLowerCase() }));
+  }
+  function libMatch(e, lib, skip) {
+    const t = (lib.q || '').trim().toLowerCase();
+    if (t && !e.text.includes(t)) return false;
+    if (skip !== 'type' && lib.type !== 'all' && e.cat !== lib.type) return false;
+    if (skip !== 'use' && lib.use !== 'all' && e.use !== lib.use) return false;
+    if (skip !== 'tech' && lib.tech !== 'all' && !e.tags.includes(lib.tech)) return false;
+    if (skip !== 'topic' && lib.topic !== 'all' && !e.tags.includes(lib.topic)) return false;
+    return true;
+  }
+  function libList(all) {
+    const lib = S().lib;
+    const list = all.filter((e) => libMatch(e, lib));
+    list.sort((x, y) => (lib.sort === 'easy' ? (LEVEL_RANK[x.level] || 0) - (LEVEL_RANK[y.level] || 0) : lib.sort === 'afk' ? USE_RANK.indexOf(x.use) - USE_RANK.indexOf(y.use) : 0) || x.name.localeCompare(y.name));
+    return list;
+  }
 
-    const q = h('input.field.bd-search', { type: 'search', placeholder: 'Search builds, tags, blocks', 'aria-label': 'Search the library', value: lib.q || '', oninput: (e) => { save((b) => { b.lib.q = e.target.value; }); refresh(true); } });
-    const filters = h('div.bd-filters');
-    const listEl = h('div.bd-list.bd-lib-list', { role: 'listbox', 'aria-label': 'Builds' });
-    const count = h('span.bd-count');
-    const none = h('p.bd-none');
-    const pick = (k, v) => { save((b) => { b.lib[k] = v; if (k === 'type' && !['all', 'farm', 'machine'].includes(v)) b.lib.use = 'all'; }); refresh(false); };
+  function removeFile(rec) {
+    const key = 'file:' + rec.id;
+    save((b) => { b.files = (b.files || []).filter((x) => x.id !== rec.id); delete b.swaps[key]; delete b.ticks[key]; delete b.meta[key]; if (b.cur === key) b.cur = 'farm:cow_crusher'; if (b.stage === key) b.stage = b.cur; });
+    mem.files.delete(rec.id);
+    if (mem.sessionOnly) mem.sessionOnly = mem.sessionOnly.filter((x) => x.id !== rec.id);
+    if (UI.shownKey === key) show(S().cur, { animate: true, layer: 'top' });
+    patch();
+  }
+
+  /** One build as a card: icon, name, a two-line pitch, badges. */
+  function card(e) {
+    const st = S(), on = st.cur === e.key;
+    const del = e.rec ? tip(h('button.bd-x.bd-card-x', { type: 'button', 'aria-label': 'Remove ' + e.name, onclick: (ev) => { ev.stopPropagation(); removeFile(e.rec); } }, glyph('x')), 'Remove from the library') : null;
+    return h('div.bd-cardwrap', h('button.bd-card' + (on ? '.on' : ''), { type: 'button', 'aria-pressed': String(on), onclick: () => pickKey(e.key) },
+      h('span.bd-card-top', e.icon ? thumb(e.icon) : h('span.bd-thumb.bd-thumb-file', { 'aria-hidden': 'true' }, glyph('file')), h('span.bd-card-name', e.name)),
+      h('span.bd-card-sub', e.pitch),
+      h('span.bd-card-tags', useBadge(e.use), e.dim ? h('span.pill.bd-dim', DIM_NAME[e.dim]) : null, e.cat !== 'yours' ? h('span.pill.bd-level', e.level) : null,
+        st.swaps[e.key] && Object.keys(st.swaps[e.key]).length ? h('span.pill.bd-custom', 'custom') : null)), del);
+  }
+
+  /** Search + filter chips, shared by the wide browser. onChange refills the cards. */
+  function filterBar(all, onChange, expanded) {
+    const lib = S().lib;
+    const box = h('div.bd-filters');
+    const pick = (k, v) => { save((b) => { b.lib[k] = v; if (k === 'type' && !['all', 'farm', 'machine'].includes(v)) b.lib.use = 'all'; }); onChange(); fill(); };
     const group = (title, key, opts) => h('div.bd-fgrp', h('span.bd-flbl', title), h('div.bd-fchips', { role: 'group', 'aria-label': title }, opts.map(([id, label, n]) =>
       h('button.chip' + (lib[key] === id ? '.on' : n === 0 ? '.none' : ''), { type: 'button', 'aria-pressed': String(lib[key] === id), onclick: () => pick(key, id) }, label, n != null ? h('em', String(n)) : null))));
-    const match = (e, skip) => {
-      const t = (lib.q || '').trim().toLowerCase();
-      if (t && !e.text.includes(t)) return false;
-      if (skip !== 'type' && lib.type !== 'all' && e.cat !== lib.type) return false;
-      if (skip !== 'use' && lib.use !== 'all' && e.use !== lib.use) return false;
-      if (skip !== 'tech' && lib.tech !== 'all' && !e.tags.includes(lib.tech)) return false;
-      if (skip !== 'topic' && lib.topic !== 'all' && !e.tags.includes(lib.topic)) return false;
-      return true;
-    };
-    function refresh(keepFilters) {
-      const list = entries.filter((e) => match(e));
-      list.sort((x, y) => (lib.sort === 'easy' ? (LEVEL_RANK[x.level] || 0) - (LEVEL_RANK[y.level] || 0) : lib.sort === 'afk' ? (['afk', 'semi', 'manual', null].indexOf(x.use) - ['afk', 'semi', 'manual', null].indexOf(y.use)) : 0) || x.name.localeCompare(y.name));
-      listEl.replaceChildren(...list.map((e) => e.el));
-      count.textContent = list.length + (list.length === 1 ? ' build' : ' builds');
-      none.textContent = list.length ? '' : 'Nothing matches. Clear a filter or the search.';
-      none.hidden = !!list.length;
-      if (keepFilters) return;
-      const cnt = (key, id, test) => entries.filter((e) => match(e, key) && test(e, id)).length;
-      const topics = [...new Set(entries.flatMap((e) => e.tags))].filter((t) => !NOT_TOPIC.has(t) && t !== 'yours').sort((x, y) => (TAG_LABEL[x] || x).localeCompare(TAG_LABEL[y] || y));
+    function fill() {
+      const cnt = (key, test) => all.filter((e) => libMatch(e, lib, key) && test(e)).length;
+      const topics = [...new Set(all.flatMap((e) => e.tags))].filter((t) => !NOT_TOPIC.has(t)).sort((x, y) => tagLabel(x).localeCompare(tagLabel(y)));
       const showUse = ['all', 'farm', 'machine'].includes(lib.type);
-      const hidden = (lib.tech !== 'all' ? 1 : 0) + (lib.topic !== 'all' ? 1 : 0) + (lib.sort !== 'name' ? 1 : 0);
-      filters.replaceChildren(...[
-        group('Type', 'type', CATS.map(([id, l]) => [id, l, id === 'all' ? null : cnt('type', id, (e) => e.cat === id)])),
-        showUse ? group('How you use it', 'use', [['all', 'Any'], ...Object.keys(USE).map((u) => [u, USE[u][0], cnt('use', u, (e) => e.use === u)])]) : null,
-        h('button.bd-more', { type: 'button', 'aria-expanded': String(!!lib.more), onclick: () => { save((b) => { b.lib.more = !b.lib.more; }); refresh(false); } },
-          h('span', lib.more ? 'Fewer filters' : 'More filters'), hidden ? h('em', hidden + ' on') : null),
-        lib.more ? group('Needs', 'tech', TECH.map(([id, l]) => [id, l, id === 'all' ? null : cnt('tech', id, (e) => e.tags.includes(id))])) : null,
-        lib.more ? group('Topic', 'topic', [['all', 'Any'], ...topics.map((t) => [t, TAG_LABEL[t] || t, cnt('topic', t, (e) => e.tags.includes(t))])]) : null,
-        lib.more ? h('div.bd-fgrp', h('span.bd-flbl', 'Sort'), h('div.bd-fchips', { role: 'group', 'aria-label': 'Sort' }, [['name', 'A to Z'], ['easy', 'Easiest first'], ['afk', 'AFK first']].map(([id, l]) =>
-          h('button.chip' + (lib.sort === id ? '.on' : ''), { type: 'button', 'aria-pressed': String(lib.sort === id), onclick: () => pick('sort', id) }, l)))) : null].filter(Boolean));
+      box.replaceChildren(...[
+        group('Type', 'type', CATS.map(([id, l]) => [id, l, id === 'all' ? null : cnt('type', (e) => e.cat === id)])),
+        showUse ? group('How you use it', 'use', [['all', 'Any'], ...Object.keys(USE).map((u) => [u, USE[u][0], cnt('use', (e) => e.use === u)])]) : null,
+        group('Needs', 'tech', TECH.map(([id, l]) => [id, l, id === 'all' ? null : cnt('tech', (e) => e.tags.includes(id))])),
+        topics.length ? group('Topic', 'topic', [['all', 'Any'], ...topics.map((t) => [t, tagLabel(t), cnt('topic', (e) => e.tags.includes(t))])]) : null,
+        group('Sort', 'sort', [['name', 'A to Z'], ['easy', 'Easiest first'], ['afk', 'AFK first']])].filter(Boolean));
     }
-    refresh(false);
-    const farmPanel = h('section.panel.bd-pan' + (st.cur.startsWith('farm:') || st.cur.startsWith('file:') ? '.has-sel' : ''), { 'aria-label': 'Library' },
-      h('div.bd-pan-head', h('h3', 'Library'), count),
-      q, filters, listEl, none, fp.dz);
-    const out = [farmPanel];
+    fill();
+    const q = h('input.field.bd-search', { type: 'search', placeholder: 'Search builds, tags, blocks', 'aria-label': 'Search the library', value: lib.q || '', oninput: (ev) => { save((b) => { b.lib.q = ev.target.value; }); onChange(); fill(); } });
+    return [q, box];
+  }
+
+  /** The wide browser: shown until a build is picked, and again from "Browse all builds". */
+  function browsePanel() {
+    const st = S(), all = libEntries();
+    const grid = h('div.bd-cards', { role: 'list', 'aria-label': 'Builds' });
+    const count = h('span.bd-count'), none = h('p.bd-none', 'Nothing matches. Clear a filter or the search.');
+    const refill = () => {
+      const list = libList(all);
+      grid.replaceChildren(...list.map(card), fileParts().dz);
+      count.textContent = list.length + (list.length === 1 ? ' build' : ' builds');
+      none.hidden = !!list.length;
+    };
+    const [q, bar] = filterBar(all, refill);
+    const back = UI.shownKey && UI.shownKey !== 'shape' ? h('button.btn.small', { type: 'button', onclick: () => { save((b) => { b.browse = false; }); patch(); } }, glyph('left'), 'Back to the build') : null;
+    refill();
+    return h('section.panel.bd-pan.bd-browse.has-sel', { 'aria-label': 'Library' },
+      h('div.bd-pan-head', h('h3', 'Library'), count, back), h('p.bd-note', 'Pick a build and it opens in the 3D view, with the library tucked in beside it.'), q, bar, grid, none);
+  }
+
+  /** Beside the viewer: the current build as one compact key with step arrows, and a way back to the browser. */
+  function compactPanel() {
+    const st = S(), all = libEntries(), list = libList(all);
+    const cur = all.find((e) => e.key === st.cur) || all[0];
+    const i = list.findIndex((e) => e.key === st.cur);
+    const step = (d) => { if (!list.length) return; const j = i < 0 ? (d > 0 ? 0 : list.length - 1) : (i + d + list.length) % list.length; pickKey(list[j].key); };
+    const act = [st.lib.type !== 'all', st.lib.use !== 'all', st.lib.tech !== 'all', st.lib.topic !== 'all', (st.lib.q || '').trim()].filter(Boolean).length;
+    const key = h('button.btn.bd-ckey', { type: 'button', 'aria-label': 'Current build: ' + cur.name + '. Browse all builds', onclick: () => { save((b) => { b.browse = true; }); patch(); } },
+      cur.icon ? thumb(cur.icon) : h('span.bd-thumb.bd-thumb-file', { 'aria-hidden': 'true' }, glyph('file')),
+      h('span.bd-ckey-txt', h('span.bd-ckey-name', cur.name), h('span.bd-ckey-sub', [USE[cur.use] ? USE[cur.use][0] : null, cur.level, cur.dim ? DIM_NAME[cur.dim] : null].filter(Boolean).join(' · '))));
+    tip(key, 'Browse all builds, with search and filters');
+    const prev = tip(h('button.btn.small.bd-vk.sq', { type: 'button', 'aria-label': 'Previous build', disabled: list.length < 2, onclick: () => step(-1) }, glyph('left')), 'Previous build' + (act ? ' in this filter' : ''));
+    const next = tip(h('button.btn.small.bd-vk.sq', { type: 'button', 'aria-label': 'Next build', disabled: list.length < 2, onclick: () => step(1) }, glyph('right')), 'Next build' + (act ? ' in this filter' : ''));
+    return h('section.panel.bd-pan.bd-compact.has-sel', { 'aria-label': 'Library' },
+      h('div.bd-pan-head', h('h3', 'Library'), h('span.bd-count', list.length + (act ? ' match your filter' : ' builds'))),
+      h('div.bd-crow', prev, key, next),
+      h('button.bd-more', { type: 'button', onclick: () => { save((b) => { b.browse = true; }); patch(); } }, h('span', act ? 'Browse all builds (filter on)' : 'Browse all builds')));
+  }
+
+  /** Name, how you use it and tags for a file you opened: this is what makes your own builds findable in the Library. */
+  function fileInfo(key) {
+    const st = S(), m = st.meta[key] || {}, rec = fileRec(key.slice(5));
+    if (!rec) return null;
+    const upd = (fn) => { save((b) => { const x = b.meta[key] || (b.meta[key] = {}); fn(x); }); };
+    const name = h('input.field', { type: 'text', value: m.name || rec.name, 'aria-label': 'Name', maxlength: 60, onchange: (e) => { upd((x) => { x.name = e.target.value.trim() || rec.name; }); UI.title.textContent = e.target.value.trim() || rec.name; } });
+    const useSeg = h('div.seg.bd-useseg', { role: 'radiogroup', 'aria-label': 'How you use it' }, [['', 'Not a farm'], ['afk', 'AFK'], ['semi', 'Semi-AFK'], ['manual', 'Manual']].map(([id, t]) =>
+      h('button', { type: 'button', role: 'radio', 'aria-checked': String((m.use || '') === id), class: (m.use || '') === id ? 'on' : null, onclick: () => { upd((x) => { x.use = id || null; }); patch(); } }, t)));
+    const tags = m.tags || [];
+    const chips = h('div.bd-tagrow', tags.map((t) => h('span.pill.bd-tag.bd-tag-x', tagLabel(t), h('button', { type: 'button', 'aria-label': 'Remove tag ' + t, onclick: () => { upd((x) => { x.tags = (x.tags || []).filter((y) => y !== t); }); patch(); } }, glyph('x')))));
+    const add = h('input.field', { type: 'text', placeholder: 'Add a tag, press Enter', 'aria-label': 'Add a tag', maxlength: 24,
+      onkeydown: (e) => { if (e.key !== 'Enter') return; e.preventDefault(); const t = add.value.trim().toLowerCase().replace(/[^a-z0-9 -]+/g, '').replace(/\s+/g, '-'); if (!t || tags.includes(t) || tags.length >= 8) return; upd((x) => { x.tags = (x.tags || []).concat(t); }); patch(); } });
+    return h('section.panel.bd-pan.bd-info', { 'aria-label': 'About this build' },
+      h('div.bd-pan-head', h('h3', 'Your build'), h('span.bd-count', rec.size.join(' × '))),
+      h('p.bd-note', 'Name it and tag it so you can find it in the Library: AFK, redstone, whatever you like.'),
+      h('div.bd-sub', 'Name'), name, h('div.bd-sub', 'How you use it'), useSeg, h('div.bd-sub', 'Tags'), chips, add);
+  }
+
+  function librarySide() {
+    const st = S(), farms = B().farms;
     const cur = st.cur;
+    if (st.browse) return [browsePanel(), plannedPanel()];
+    const out = [compactPanel()];
     if (cur.startsWith('farm:')) out.push(farmInfo(farms.FARMS.find((f) => 'farm:' + f.id === cur)));
+    if (cur.startsWith('file:')) { const fi = fileInfo(cur); if (fi) out.push(fi); }
     if (original(cur)) out.push(customisePanel(cur));
     out.push(plannedPanel());
     return out;
@@ -627,22 +709,7 @@
   function fileParts() {
     const st = S();
     const recs = (mem.sessionOnly || []).filter((r) => mem.files.has(r.id)).concat(st.files || []);
-    const rows = recs.map((r) => {
-      const key = 'file:' + r.id, on = st.cur === key;
-      const del = tip(h('button.bd-x', { type: 'button', 'aria-label': 'Remove ' + r.name, onclick: (e) => {
-        e.stopPropagation();
-        save((b) => { b.files = (b.files || []).filter((x) => x.id !== r.id); delete b.swaps[key]; delete b.ticks[key]; if (b.cur === key) b.cur = 'farm:cow_crusher'; if (b.stage === key) b.stage = b.cur; });
-        mem.files.delete(r.id);
-        if (mem.sessionOnly) mem.sessionOnly = mem.sessionOnly.filter((x) => x.id !== r.id);
-        if (UI.shownKey === key) show(S().cur, { animate: true, layer: 'top' });
-        patch();
-      } }, glyph('x')), 'Remove from this list');
-      return { rec: r, el: h('div.bd-filerow',
-        h('button.btn.bd-strip.bd-filestrip' + (on ? '.on' : ''), { type: 'button', onclick: () => pickKey(key) },
-          h('span.bd-thumb.bd-thumb-file', { 'aria-hidden': 'true' }, glyph('file')),
-          h('span.bd-strip-txt', h('span.bd-strip-name', r.name), h('span.bd-strip-sub', r.size.join(' × ') + (r.session ? ' · this visit only' : '')))),
-        del) };
-    });
+    const rows = recs.map((r) => ({ rec: r, key: 'file:' + r.id }));
     const dz = h('button.bd-dropzone', { type: 'button', onclick: () => UI.fileIn.click() },
       glyph('up', 'bd-dz-ico'), h('span.bd-dz-t', 'Open a schematic file'), h('span.bd-dz-s', '.schem, .litematic, .nbt, .schematic or .json · or drop it on the stage'));
     ['dragover', 'dragleave', 'drop'].forEach((ev) => dz.addEventListener(ev, (e) => {
@@ -650,7 +717,7 @@
       else if (ev === 'dragleave') dz.classList.remove('over');
       else { dz.classList.remove('over'); const f = e.dataTransfer.files[0]; if (f) { e.preventDefault(); openFile(f); } }
     }));
-    return { rows, dz };   // yours = shapes you kept and files you opened; they sit in the Library list under the Yours type
+    return { rows, dz };   // yours = shapes you kept and files you opened; they sit in the Library under the Yours type
   }
   function plannedPanel() {
     const P = B().farms.PLANNED;
@@ -939,7 +1006,9 @@
       if (b.cur.startsWith('file:') && !b.files.some((f) => 'file:' + f.id === b.cur)) b.cur = 'farm:cow_crusher';
       if (typeof b.stage !== 'string' || (b.stage.startsWith('file:') && !b.files.some((f) => 'file:' + f.id === b.stage))) b.stage = b.cur;
       if (!['loop', 'once', 'still'].includes(b.mode)) b.mode = 'once';
-      if (!(b.v >= 2)) { if (b.mode === 'loop') b.mode = 'once'; b.v = 2; }   // looping used to be the default; now it is opt-in
+      if (!(b.v >= 2)) { if (b.mode === 'loop') b.mode = 'once'; }   // looping used to be the default; now it is opt-in
+      if (!(b.v >= 3)) { b.browse = true; b.v = 3; }   // the Library opens as a browser first
+      if (!b.meta || typeof b.meta !== 'object') b.meta = {};
       if (!b.lib || typeof b.lib !== 'object') b.lib = structuredClone(DEFAULTS.lib);
     },
     render,

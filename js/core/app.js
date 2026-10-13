@@ -174,7 +174,7 @@ TH.app = (function () {
     nav.replaceChildren(...modules.filter((m) => !m.hidden).map((m) => {
       const badge = m.badge && m.badge(state);
       const a = h('a.nav-item' + (m === current ? '.active' : ''), { href: '#/' + m.id, 'data-tool': m.id, 'aria-current': m === current ? 'page' : null },
-        h('span.nav-icon', { 'aria-hidden': 'true' }, typeof m.icon === 'string' && m.icon.startsWith('mc:') ? TH.icon(m.icon.slice(3), { size: 18 }) : m.icon),
+        h('span.nav-icon', { 'aria-hidden': 'true' }, typeof m.icon === 'string' && m.icon.startsWith('mc:') ? TH.icon(m.icon.slice(3), { size: 18 }) : typeof m.icon === 'function' ? m.icon() : m.icon),
         h('span.nav-name', m.short ? [h('span.nm-full', m.name), h('span.nm-short', m.short)] : m.name),
         badgeEl(badge),
         m.soon ? h('span.nav-soon', 'soon') : null,

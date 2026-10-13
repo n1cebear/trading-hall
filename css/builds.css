@@ -318,3 +318,46 @@
 .bd-more em { font-style: normal; font-weight: 500; color: var(--accent); }
 .bd-filters { gap: 12px; }
 .bd-fchips .chip.none { opacity: .4; }
+
+/* ---------- run key only when the build has a machine ---------- */
+.bd-run[hidden], .bd-phase[hidden] { display: none !important; }
+
+/* ---------- Library as a picker: wide browser first, then tucked in beside the viewer ---------- */
+.bd-layout.is-browse { grid-template-columns: minmax(0, 1fr); }
+.bd-layout.is-browse .bd-viewer { display: none; }
+@keyframes bd-in { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+.bd-enter { animation: bd-in .5s cubic-bezier(.2, .8, .2, 1) both; }
+.bd-side.bd-enter { animation-delay: .08s; }
+
+.bd-browse { gap: 18px; }
+.bd-browse .bd-note { margin: 0; }
+.bd-browse .bd-filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px 32px; margin: 4px 0 2px; }
+.bd-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 20px 18px; padding: 6px 2px 2px; }
+.bd-cardwrap { position: relative; min-width: 0; display: flex; }
+.bd-card { display: flex; flex-direction: column; gap: 10px; flex: 1; min-width: 0; padding: 16px 16px 14px; border: 0; border-radius: var(--neu-r-md, var(--radius)); text-align: left; cursor: pointer; color: var(--text);
+  background: var(--neu-bg, var(--panel-2)); box-shadow: var(--neu-raised-sm, 0 2px 0 rgb(0 0 0 / .45), inset 0 1px 0 rgb(255 255 255 / .06)); transition: transform .2s, box-shadow .25s; }
+.bd-card-top { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.bd-card-name { min-width: 0; font: 400 14px/1.25 var(--display); letter-spacing: .2px; overflow-wrap: anywhere; transition: color .2s, text-shadow .2s; }
+.bd-card-sub { font: 500 12.5px/1.45 var(--font); color: var(--muted); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.bd-card-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: auto; }
+@media (hover: hover) { .bd-card:hover { transform: translateY(-3px); box-shadow: var(--neu-raised-sm, 0 2px 0 rgb(0 0 0 / .45)), 0 12px 24px -12px color-mix(in srgb, var(--accent) 55%, transparent); } }
+.bd-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.bd-card.on { box-shadow: var(--neu-raised-sm, 0 2px 0 rgb(0 0 0 / .45)), 0 0 0 2px color-mix(in srgb, var(--accent) 65%, transparent), 0 10px 26px -10px color-mix(in srgb, var(--accent) 60%, transparent); }
+.bd-card.on .bd-card-name { color: var(--accent); text-shadow: 0 0 8px color-mix(in srgb, var(--accent) 55%, transparent); }
+.bd-card-x { position: absolute; top: 8px; right: 8px; }
+.bd-cards .bd-dropzone { align-self: stretch; min-height: 150px; }
+
+/* the compact library beside the viewer: one key with step arrows */
+.bd-compact { gap: 14px; }
+.bd-crow { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.bd-ckey { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 12px; height: auto; padding: 10px 14px 10px 10px; text-align: left; }
+.bd-ckey-txt { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.bd-ckey-name { font: 400 14px/1.2 var(--display); color: var(--accent); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bd-ckey-sub { font: 500 12px var(--font); color: var(--muted); }
+
+/* your own builds: tags you gave them */
+.bd-useseg { display: flex; flex-wrap: wrap; }
+.bd-tag-x { display: inline-flex; align-items: center; gap: 6px; }
+.bd-tag-x button { display: grid; place-items: center; width: 14px; height: 14px; padding: 0; border: 0; background: none; color: var(--faint); cursor: pointer; }
+.bd-tag-x button:hover { color: var(--danger); }
+.bd-tag-x .bd-ico { width: 9px; height: 9px; }

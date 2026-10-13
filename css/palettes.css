@@ -114,3 +114,29 @@
 /* slots stay compact: as many as fit, each a modest square */
 .pl-slots { grid-template-columns: repeat(4, minmax(0, 96px)); gap: 16px 14px; }
 @media (max-width: 640px) { .pl-slots { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px 10px; } }
+
+/* tiles are real 1 x 1 blocks everywhere: the card strip is a row of squares */
+.pl-strip { height: auto; }
+.pl-strip img { flex: 1 1 0; width: 0; height: auto; aspect-ratio: 1; object-fit: fill; }
+.pl-strip img.pl-t { min-width: 0; }
+
+/* hover / focus: the card extends with the block names and tags (floats over what is below, nothing moves) */
+.pl-card { position: relative; }
+.pl-extra { position: absolute; left: -6px; right: -6px; top: calc(100% - 6px); z-index: 20; display: flex; flex-direction: column; gap: 10px; padding: 14px 14px 12px; border-radius: var(--neu-r-md, var(--radius));
+  background: var(--neu-bg, var(--panel)); box-shadow: var(--neu-t2, 0 14px 30px -12px rgb(0 0 0 / .6)), 0 0 0 1px color-mix(in srgb, var(--accent) 22%, transparent);
+  opacity: 0; transform: translateY(-4px); pointer-events: none; transition: opacity .18s, transform .18s; }
+@media (hover: hover) { .pl-card:hover .pl-extra, .pl-card:focus-visible .pl-extra, .pl-card:focus-within .pl-extra { opacity: 1; transform: none; } }
+.pl-xnames { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 10px; }
+.pl-xn { display: flex; align-items: center; gap: 8px; min-width: 0; font: 500 12px/1.2 var(--font); color: var(--text); }
+.pl-xt { width: 18px; height: 18px; flex: none; border-radius: 3px; image-rendering: pixelated; box-shadow: var(--neu-raised-xs, 0 1px 0 rgb(0 0 0 / .4)); }
+.pl-xtags { display: flex; flex-wrap: wrap; gap: 6px; font: 500 11px var(--font); color: var(--muted); text-transform: capitalize; }
+.pl-xtags span { padding: 2px 8px; border-radius: 4px; background: color-mix(in srgb, var(--text) 8%, transparent); }
+.pl-grid:has(.pl-card:hover) .pl-card:not(:hover) { opacity: .85; }
+
+/* a quick flash when the palette changes, so a new order or block is seen to land */
+@keyframes pl-flash { 0% { opacity: .35; transform: scale(.985); } 100% { opacity: 1; transform: none; } }
+.pl-mosaic.pl-flash { animation: pl-flash .3s ease-out; }
+
+/* nav icon: a 2 x 2 of real blocks */
+.pl-navico { display: inline-grid; grid-template-columns: 1fr 1fr; gap: 1px; width: 16px; height: 16px; }
+.pl-navico i { display: block; background-size: cover; image-rendering: pixelated; border-radius: 1px; }

@@ -648,8 +648,21 @@ TH.anvil = (function () {
     item.area = h('div.ec-area.ec-area-item', { id: 'ec-area-item', hidden: true },
       h('div.ec-area-in.ec-items-all', item.grps.armor, item.grps.tools, item.grps.other));
 
+    // decorative scene behind the two keys: bookshelves to both sides, runes rising between (all CSS; see .ec-art)
+    const buildArt = () => {
+      const shelf = (side) => h('i.ec-shelf.' + side, h('b'), h('b'), h('b'), h('b'));
+      const runes = Array.from({ length: 16 }, (_, i) => {
+        const r = h('u');
+        r.style.setProperty('--x', (14 + ((i * 53) % 72)) + '%');
+        r.style.setProperty('--d', (7 + (i % 5) * 1.3).toFixed(1) + 's');
+        r.style.setProperty('--w', '-' + ((i * 1.7) % 9).toFixed(1) + 's');
+        r.style.setProperty('--z', i % 3 === 0 ? '8px' : '5px');
+        return r;
+      });
+      return h('div.ec-art', { 'aria-hidden': 'true' }, shelf('l'), shelf('r'), ...runes);
+    };
     const el = h('section.panel.ec-card.ec-picker.ec-pickpanel', { 'aria-label': 'Material and item', onkeydown: pickerKeys },
-      h('div.ec-crow', mat.wrap, item.wrap), mat.area, item.area);
+      buildArt(), h('div.ec-crow', mat.wrap, item.wrap), mat.area, item.area);
     return { el, mat, item, changed: new Set() };
   }
 

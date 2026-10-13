@@ -1352,3 +1352,25 @@
 /* the picker panel only shows its chrome while a grid is open; closed, the two keys sit straight on the page */
 :root:root:root .ec-pickpanel { transition: background-color .25s, box-shadow .25s, border-color .25s; }
 :root:root:root .ec-pickpanel:not(.has-open) { background: transparent; box-shadow: none; border-color: transparent; }
+
+/* ===== picker hero: the two chosen keys centred and larger, over a soft accent glow with a faint pixel floor ===== */
+.ec-pickpanel { position: relative; isolation: isolate; }
+.ec-pickpanel::before { content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none; border-radius: inherit;
+  background:
+    radial-gradient(ellipse 46% 85% at 50% 50%, color-mix(in srgb, var(--accent) 17%, transparent), transparent 72%),
+    linear-gradient(color-mix(in srgb, var(--accent) 7%, transparent) 1px, transparent 1px) 0 0 / 24px 24px,
+    linear-gradient(90deg, color-mix(in srgb, var(--accent) 7%, transparent) 1px, transparent 1px) 0 0 / 24px 24px;
+  -webkit-mask-image: radial-gradient(ellipse 60% 100% at 50% 50%, #000 20%, transparent 78%); mask-image: radial-gradient(ellipse 60% 100% at 50% 50%, #000 20%, transparent 78%);
+  opacity: 0; transition: opacity .3s; }
+.ec-pickpanel:not(.has-open)::before { opacity: 1; }
+.ec-crow { justify-content: center; gap: 16px 30px; padding: 14px 0 8px; }
+.ec-cslot { align-items: center; gap: 12px; }
+:root:root:root .ec-cslot > .ec-pick-label { margin: 0; text-align: center; }
+:root:root .ec-combo { height: 66px; min-width: 200px; padding: 0 24px 0 18px; gap: 14px; justify-content: center; }
+.ec-combo-val { gap: 14px; }
+.ec-combo-val > .mc, .ec-combo-val .ec-item-ico > .mc { --mc: 40px !important; }
+.ec-combo-val > .mc.ec-mat-block { --mc: 30px !important; }
+.ec-combo-name { font-size: 17px; }
+.ec-combo-ph { font-size: 15px; }
+.ec-pickpanel.has-open .ec-crow { padding-top: 0; }
+@media (max-width: 640px) { :root:root .ec-combo { min-width: 0; height: 60px; } .ec-cslot { align-items: stretch; } }

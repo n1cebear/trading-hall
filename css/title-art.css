@@ -46,3 +46,19 @@
 :root[data-tool="portal"] .th-art u { animation-name: th-warp; background: #b45cff; box-shadow: 0 0 10px 1px rgb(168 70 255 / .6); }
 :root[data-tool="portal"] .th-art u:nth-child(3n) { background: #e08bff; }
 :root[data-tool="portal"] .th-art u:nth-child(5n) { background: #7a2dd6; }
+
+/* ----- Enchanting: the bookshelves of the enchanting room stand to both sides of the title ----- */
+.th-shelf { --sp1: color-mix(in srgb, var(--accent) 52%, var(--bg)); --sp2: color-mix(in srgb, var(--accent) 24%, var(--text) 14%); --sp3: color-mix(in srgb, var(--accent) 34%, var(--bg)); --sp4: color-mix(in srgb, var(--text) 24%, var(--bg)); --plank: color-mix(in srgb, var(--accent) 16%, var(--text) 18%);
+  position: absolute; bottom: 4px; width: 26%; display: flex; flex-direction: column-reverse; opacity: .55;
+  -webkit-mask-image: linear-gradient(90deg, #000 30%, transparent 98%); mask-image: linear-gradient(90deg, #000 30%, transparent 98%); }
+.th-shelf.l { left: 0; }
+.th-shelf.r { right: 0; transform: scaleX(-1); }
+.th-shelf b { display: block; height: 44px; background-repeat: repeat-x;
+  background-image: linear-gradient(var(--plank), var(--plank)),
+    linear-gradient(90deg, transparent 0 3px, var(--sp1) 3px 11px, transparent 11px), linear-gradient(90deg, transparent 0 9px, var(--sp2) 9px 16px, transparent 16px),
+    linear-gradient(90deg, transparent 0 21px, var(--sp3) 21px 31px, transparent 31px), linear-gradient(90deg, transparent 0 13px, var(--sp4) 13px 19px, transparent 19px),
+    linear-gradient(90deg, transparent 0 2px, var(--sp2) 2px 8px, transparent 8px);
+  background-size: 100% 5px, 29px 31px, 41px 27px, 53px 35px, 37px 23px, 47px 29px;
+  background-position: 0 100%, 0 calc(100% - 5px), 7px calc(100% - 5px), 3px calc(100% - 5px), 12px calc(100% - 5px), 19px calc(100% - 5px); }
+.th-shelf b:nth-child(2) { background-position: 0 100%, 11px calc(100% - 5px), 0 calc(100% - 5px), 17px calc(100% - 5px), 4px calc(100% - 5px), 30px calc(100% - 5px); }
+@media (max-width: 640px) { .th-shelf { width: 30%; opacity: .4; } }

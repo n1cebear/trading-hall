@@ -1499,3 +1499,26 @@
   .ec-mopv-foot .ec-mosum-meta { white-space: normal; }
   :root:root:root .ec-mopv-foot .ec-mosum-go { grid-column: auto; width: auto; }
 }
+
+/* ===== the material is only a look: one Item key, a row of look swatches under it, one flat item grid ===== */
+:root:root:root .ec-cslot-mat, :root:root:root .ec-area-mat { display: none !important; }
+:root:root:root .ec-pickpanel > .ec-art { display: none; }
+.ec-pickpanel::before { display: none; }
+:root:root:root .ec-crow { padding: 14px 0 8px; justify-content: center; }
+.ec-looks { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 8px; padding: 2px 0 10px; }
+.ec-looks[hidden] { display: none; }
+.ec-looks-lbl { margin-right: 6px; font: 400 11px/1 var(--display); text-transform: uppercase; letter-spacing: 1.2px; color: var(--muted); }
+.ec-look { display: grid; place-items: center; width: 40px; height: 40px; padding: 0; border: 0; border-radius: var(--radius); cursor: pointer; color: var(--text);
+  background: var(--neu-ctl, var(--panel-2)); box-shadow: var(--neu-raised-xs, 0 2px 0 rgb(0 0 0 / .4)); transition: transform .15s, box-shadow .2s; }
+.ec-look .mc { --mc: 26px !important; margin: 0 !important; }
+@media (hover: hover) { .ec-look:hover { transform: translateY(-2px); } }
+.ec-look:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ec-look.on { box-shadow: var(--neu-inset-sm, inset 0 2px 5px rgb(0 0 0 / .45)), 0 0 0 2px color-mix(in srgb, var(--accent) 70%, transparent), 0 0 14px -2px color-mix(in srgb, var(--accent) 55%, transparent); }
+/* one flat grid of items: no Armor / Tools / Other headings, every tile the same */
+:root:root:root .ec-items-all { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); grid-template-areas: none; gap: 12px; }
+:root:root:root .ec-items-all .ec-grp, :root:root:root .ec-items-all .ec-slots { display: contents; }
+:root:root:root .ec-items-all .ec-pick-label { display: none; }
+:root:root:root .ec-items-all .ec-slots .ec-item { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto; justify-items: center; align-content: center; text-align: center; min-height: 84px; padding: 8px 4px; column-gap: 0; }
+:root:root:root .ec-items-all .ec-item .ec-item-name { justify-content: center; min-height: 28px; height: auto; width: auto; }
+:root:root:root .ec-items-all .ec-item .ec-item-name > span { font-size: 11.5px; -webkit-line-clamp: 2; }
+@media (max-width: 640px) { :root:root:root .ec-items-all { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; } :root:root:root .ec-pickpanel .ec-cslot-item { flex: 1 1 100%; } }

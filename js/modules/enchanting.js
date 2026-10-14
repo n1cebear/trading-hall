@@ -334,6 +334,7 @@ TH.anvil = (function () {
   /** The picked flags, created on first use (old saves with data count as chosen, a default state as fresh). */
   function pk(s) {
     if (!s.picked || typeof s.picked !== 'object') { const on = !untouched(s); s.picked = { mat: on, item: on }; }
+    s.picked.mat = true;   // the material is only a look (the preview and the names); it is never a step
     return s.picked;
   }
   /** Both chosen (a plain item such as a bow needs no material). Until then the Enchantments box and the plan wait. */
@@ -353,10 +354,8 @@ TH.anvil = (function () {
       p.item = true;
       e.itemOpen = false;   // picking (even the current one) shrinks the picker to that single item
       const it = itemById[id];
-      if (!p.mat) {
-        if (!isPlain(it) && !it.materials.includes(e.material)) e.material = it.defaultMaterial;   // internal only: no material chosen yet
-        e.matOpen = !isPlain(it);   // a bow needs no material: that slot folds; anything else still waits for one
-      }
+      if (!isPlain(it) && !it.materials.includes(e.material)) e.material = it.defaultMaterial;   // keep the look when the item has it
+      e.matOpen = false;
       if (e.item === id && was) return;
       e.item = id;
       const keep = e.matOpen;
@@ -661,9 +660,11 @@ TH.anvil = (function () {
       });
       return h('div.ec-art', { 'aria-hidden': 'true' }, shelf('l'), shelf('r'), ...runes);
     };
-    const el = h('section.panel.ec-card.ec-picker.ec-pickpanel', { 'aria-label': 'Material and item', onkeydown: pickerKeys },
-      buildArt(), h('div.ec-crow', mat.wrap, item.wrap), mat.area, item.area);
-    return { el, mat, item, changed: new Set() };
+    const looks = h('div.ec-looks', { role: 'radiogroup', 'aria-label': 'Look of the item', hidden: true });
+    looks.key = null;
+    const el = h('section.panel.ec-card.ec-picker.ec-pickpanel', { 'aria-label': 'Item', onkeydown: pickerKeys },
+      buildArt(), h('div.ec-crow', mat.wrap, item.wrap), looks, mat.area, item.area);
+    return { el, mat, item, looks, changed: new Set() };
   }
 
   /** Update the persistent panel in place (contents only; open / close and the tile cross-fade run after the swap). */
@@ -710,6 +711,23 @@ TH.anvil = (function () {
     const itemTxt = p.item ? (genericItem ? genericLabel(it) : itemName(it.id, effMat(it.id, s.material))) : 'none chosen';
     P.item.btn.setAttribute('aria-label', 'Item: ' + itemTxt + '. ' + (s.itemOpen ? 'Hide the items' : 'Show all items'));
 
+    // the look: which material the item is drawn in (names and the preview only; the enchanting rules do not care)
+    {
+      const mats = p.item && !isPlain(it) ? it.materials : [];
+      const lk = mats.join() + '|' + s.material + '|' + lang;
+      if (P.looks.key !== lk) {
+        P.looks.key = lk;
+        P.looks.replaceChildren(...(mats.length ? [h('span.ec-looks-lbl', 'Look'), ...mats.map((m) => {
+          const on = m === s.material;
+          const b = h('button.ec-look' + (on ? '.on' : ''), { type: 'button', role: 'radio', 'aria-checked': String(on), 'aria-label': matName(m), 'data-focus': 'ec-look-' + m,
+            onclick: () => set((e) => { e.material = m; e.matTouched = true; }) }, matIconEl(m));
+          TH.util.tooltip(b, () => matName(m));
+          return b;
+        })] : []));
+        P.looks.hidden = !mats.length;
+      }
+    }
+
     // full material grid
     P.mat.btns.forEach((b, m) => {
       const on = p.mat && s.material === m;
@@ -725,13 +743,13 @@ TH.anvil = (function () {
     const gridKey = (p.mat ? s.material : '-') + '|' + lang;
     P.item.btns.forEach((b, id) => {
       const x = itemById[id];
-      const ok = !p.mat || fits(x, s.material);
+      const ok = true;
       const on = p.item && ok && id === s.item;
-      if (b._key !== gridKey) { b._key = gridKey; b.replaceChildren(...itemTileBody(x, s, ok, !p.mat).filter(Boolean)); }
+      if (b._key !== gridKey) { b._key = gridKey; b.replaceChildren(...itemTileBody(x, s, ok, true).filter(Boolean)); }
       b.className = 'ec-item' + (on ? ' on' : '') + (ok ? '' : ' na') + (x.since ? ' has-since' : '');
       b.disabled = !ok;
       b.setAttribute('aria-pressed', String(on));
-      const name = !p.mat ? genericLabel(x) : ok ? itemName(id, effMat(id, s.material)) : genericName(id);
+      const name = genericLabel(x);
       b.setAttribute('aria-label', name);
       b._tip = !ok ? 'Not available in ' + matName(s.material) : on ? name + ' · picked' : name;
     });
@@ -1845,7 +1863,7 @@ TH.anvil = (function () {
   /** In place of the Enchantments box until both a material and an item are chosen: a calm prompt, no controls. */
   function renderWait(s) {
     const p = pk(s);
-    const msg = p.item && !p.mat ? 'Now pick a material' : p.mat && !p.item ? 'Now pick an item' : 'Pick a material and an item to start';
+    const msg = 'Pick an item to start';
     return h('section.panel.ec-card.ec-wait', { 'aria-live': 'polite' },
       h('div.ec-card-head', h('h3', 'Enchantments')),
       h('div.ec-wait-msg', h('span.ec-wait-ico', { 'aria-hidden': 'true' }, TH.icon('enchanted_book', { size: 32 })),

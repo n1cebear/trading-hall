@@ -3,31 +3,34 @@
  *   Library   = our farms + schematic files you open (.schem, .litematic, .nbt, .schematic, .json); farm info,
  *               build steps, tips, and "Customise blocks" (swap decorative blocks, functional ones stay).
  *   Create    = shape generators (sphere, ellipsoid, circle, dome, cylinder, cone, pyramid, torus, tree), live preview.
- *   Materials = the block list of whatever the stage shows: items / stacks / shulker boxes, ticks, copy as text,
- *               plus a Litematica material list paste.
+ *   Materials = the smart material list (builds-mats.js): any build, kept file or saved list (pasted / .txt / .csv,
+ *               Litematica tables read as is), ticks + have counts, recipes with the best way to make each block
+ *               (data/recipes.js), raw materials, units and packing into shulker boxes / double chests.
  * (A fourth section, block palettes, will join the switch later.)
  *
  * Files: builds-core.js (data model + block table, loaded with the page), then on first visit builds-io.js (loader /
- * exporter), builds-shapes.js, builds-farms.js and builds-view.js (mesher + three.js viewer, which imports
- * js/vendor/three.lite.module.min.js itself).
+ * exporter), builds-shapes.js, builds-farms.js, builds-view.js (mesher + three.js viewer, which imports
+ * js/vendor/three.lite.module.min.js itself), builds-mats.js (Materials) and ../data/recipes.js.
  *
  * state.builds = {
  *   v, section: 'library'|'create'|'materials', cur: 'farm:<id>'|'file:<id>', stage: key shown on the stage,
  *   mode: 'loop'|'once'|'still', speed, grid, outline, auto,
  *   shape: { kind, p: { [kind]: params }, block: { [kind]: id }, block2: { [kind]: id } },
  *   swaps: { [key]: { 'minecraft:stone_bricks': 'minecraft:deepslate_bricks' } },
- *   ticks: { [key]: { [itemId]: 1 } }, units: 'items'|'stacks'|'boxes', sort: 'count'|'name',
+ *   ticks: { [key]: { [itemId]: 1 } }, have: { [key]: { [itemId]: n } }, units: 'items'|'stacks'|'boxes'|'dc',
+ *   sort: 'count'|'name'|'group', matSrc: 'stage'|<key>, lists: [{ id, name, text, at }],
+ *   mats: { raw, cont: 'box'|'dc', pack: 'tight'|'sorted', hide, sc, pick: { [itemId]: recipe index } },
  *   files: [{ id, name, size, palette, data (run-length text), added }]   (only files small enough; see FILE_CAP)
- *   paste: { text, at } | null
+ *   paste: null (before v4 the one pasted list; migrated into lists)
  * }
- * Keys: 'farm:<id>', 'file:<id>', 'shape', 'paste'. Every change is saved silently and the page is patched in place.
+ * Keys: 'farm:<id>', 'file:<id>', 'shape', 'list:<id>' (+ '#raw' for the raw-material ticks). Every change is saved silently and the page is patched in place.
  */
 (function () {
   'use strict';
   const { h, toast, clamp } = TH.util;
   const SRC = (document.currentScript && document.currentScript.src) || location.href;
   const rel = (p) => new URL(p, SRC).href;
-  const LAZY = ['builds-io.js', 'builds-shapes.js', 'builds-farms.js', 'builds-view.js'];
+  const LAZY = ['builds-io.js', 'builds-shapes.js', 'builds-farms.js', 'builds-view.js', '../data/recipes.js', 'builds-mats.js'];
   const FILE_CAP = 400000;    // characters of run-length data we keep in the saved state per file
   const MAX_FILES = 4;
   const reduced = () => !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
@@ -35,11 +38,12 @@
   const core = () => TH.builds.core;
 
   const DEFAULTS = {
-    v: 3, browse: true, meta: {}, section: 'library', cur: 'farm:cow_crusher', stage: 'farm:cow_crusher',
+    v: 4, browse: true, meta: {}, section: 'library', cur: 'farm:cow_crusher', stage: 'farm:cow_crusher',
     lib: { q: '', type: 'all', use: 'all', tech: 'all', topic: 'all', sort: 'name', more: false },
     mode: 'once', speed: 1, grid: true, outline: false, auto: true,
     shape: { kind: 'sphere', p: {}, block: {}, block2: {} },
-    swaps: {}, ticks: {}, units: 'items', sort: 'count', files: [], paste: null, matSrc: 'stage',
+    swaps: {}, ticks: {}, have: {}, units: 'items', sort: 'count', files: [], paste: null, matSrc: 'stage', lists: [],
+    mats: { raw: false, cont: 'box', pack: 'tight', hide: false, sc: true, pick: {} },
   };
   const SHAPE_BLOCK = { sphere: 'minecraft:stone_bricks', ellipsoid: 'minecraft:white_concrete', circle: 'minecraft:polished_andesite', dome: 'minecraft:glass', cylinder: 'minecraft:bricks', cone: 'minecraft:spruce_planks', pyramid: 'minecraft:sandstone', torus: 'minecraft:prismarine', tree: 'minecraft:oak_log' };
   const SHAPE_BLOCK2 = { dome: 'minecraft:polished_andesite', cylinder: 'minecraft:stone_bricks', tree: 'minecraft:oak_leaves' };
@@ -413,6 +417,7 @@
     UI.wrap.dataset.sec = st.section;
     const browsing = st.section === 'library' && st.browse;
     UI.layout.classList.toggle('is-browse', browsing);
+    UI.layout.classList.toggle('is-mats', st.section === 'materials');
     if (UI.wasBrowse && !browsing && !reduced()) {   // the build comes in, the library folds up beside it
       [UI.viewer, UI.side].forEach((e) => { e.classList.add('bd-enter'); setTimeout(() => e.classList.remove('bd-enter'), 700); });
     }
@@ -471,7 +476,7 @@
 
   function removeFile(rec) {
     const key = 'file:' + rec.id;
-    save((b) => { b.files = (b.files || []).filter((x) => x.id !== rec.id); delete b.swaps[key]; delete b.ticks[key]; delete b.meta[key]; if (b.cur === key) b.cur = 'farm:cow_crusher'; if (b.stage === key) b.stage = b.cur; });
+    save((b) => { b.files = (b.files || []).filter((x) => x.id !== rec.id); delete b.swaps[key]; delete b.ticks[key]; delete b.ticks[key + '#raw']; if (b.have) { delete b.have[key]; delete b.have[key + '#raw']; } delete b.meta[key]; if (b.matSrc === key) b.matSrc = 'stage'; if (b.cur === key) b.cur = 'farm:cow_crusher'; if (b.stage === key) b.stage = b.cur; });
     mem.files.delete(rec.id);
     if (mem.sessionOnly) mem.sessionOnly = mem.sessionOnly.filter((x) => x.id !== rec.id);
     if (UI.shownKey === key) show(S().cur, { animate: true, layer: 'top' });
@@ -546,7 +551,8 @@
     return h('section.panel.bd-pan.bd-compact.has-sel', { 'aria-label': 'Library' },
       h('div.bd-pan-head', h('h3', 'Library'), h('span.bd-count', list.length + (act ? ' match your filter' : ' builds'))),
       h('div.bd-crow', prev, key, next),
-      h('button.bd-more', { type: 'button', onclick: () => { save((b) => { b.browse = true; }); patch(); } }, h('span', act ? 'Browse all builds (filter on)' : 'Browse all builds')));
+      h('div.bd-morerow', h('button.bd-more', { type: 'button', onclick: () => { save((b) => { b.browse = true; }); patch(); } }, h('span', act ? 'Browse all builds (filter on)' : 'Browse all builds')),
+        h('button.bd-more', { type: 'button', onclick: () => toMats(cur.key) }, h('span', 'Material list'), h('em', '→'))));
   }
 
   /** Name, how you use it and tags for a file you opened: this is what makes your own builds findable in the Library. */
@@ -564,7 +570,8 @@
     return h('section.panel.bd-pan.bd-info', { 'aria-label': 'About this build' },
       h('div.bd-pan-head', h('h3', 'Your build'), h('span.bd-count', rec.size.join(' × '))),
       h('p.bd-note', 'Name it and tag it so you can find it in the Library: AFK, redstone, whatever you like.'),
-      h('div.bd-sub', 'Name'), name, h('div.bd-sub', 'How you use it'), useSeg, h('div.bd-sub', 'Tags'), chips, add);
+      h('div.bd-sub', 'Name'), name, h('div.bd-sub', 'How you use it'), useSeg, h('div.bd-sub', 'Tags'), chips, add,
+      h('button.bd-link', { type: 'button', onclick: () => toMats(key) }, 'Material list, recipes and packing →'));
   }
 
   function librarySide() {
@@ -590,7 +597,8 @@
       f.tags && f.tags.length ? h('div.bd-tagrow', f.tags.map((t) => h('span.pill.bd-tag', (t === 'no-redstone' ? 'No redstone' : t === 'redstone' ? 'Redstone' : TAG_LABEL[t] || t)))) : null,
       h('div.bd-sub', 'You need'),
       h('ul.bd-needs', top.map((m) => h('li', TH.icon(core().iconOf(m.block), { size: 18 }), h('span.bd-needs-n', fmtN(m.n)), h('span', core().nameOf(m.item)))),
-        mats.length > top.length ? h('li', h('button.bd-link', { type: 'button', onclick: () => go('materials') }, '+ ' + (mats.length - top.length) + ' more in Materials')) : null),
+        mats.length > top.length ? h('li', h('button.bd-link', { type: 'button', onclick: () => toMats('farm:' + f.id) }, '+ ' + (mats.length - top.length) + ' more in Materials')) : null),
+      h('button.bd-link', { type: 'button', onclick: () => toMats('farm:' + f.id) }, 'Full material list, recipes and packing →'),
       h('div.bd-sub', 'Build it'),
       h('ol.bd-steps', f.steps.map((t) => h('li', t))),
       h('div.bd-sub', 'Good to know'),
@@ -676,8 +684,10 @@
   }
 
   /* ---- files you open ---- */
-  async function openFile(f) {
+  async function openFile(f, opts) {
     if (!ready) return;
+    if (B().mats.isText(f)) { B().mats.importFile(f); return; }   // a .txt / .csv material list
+    opts = opts || {};
     toast('Reading ' + f.name + '…');
     try {
       const s = await B().io.load(f);
@@ -697,7 +707,11 @@
         mem.sessionOnly = mem.sessionOnly || [];
         mem.sessionOnly.unshift({ id, name: s.name, size: s.size.slice(), session: true });
       }
-      pickKey('file:' + id);
+      if (opts.mats) {   // opened from Materials: keep the list in view, the build is on the stage and in the Library
+        save((b) => { b.cur = 'file:' + id; b.browse = false; b.matSrc = 'file:' + id; b.section = 'materials'; });
+        show('file:' + id, { layer: 'top' });
+        patch();
+      } else pickKey('file:' + id);
       const unknown = s.palette.filter((p, i) => i && !core().known(p)).length;
       toast('Opened ' + s.name + ' · ' + fmtN(core().volume(s)) + ' blocks' + (unknown ? ' · ' + unknown + ' unknown block type' + (unknown > 1 ? 's' : '') : '') + (kept ? '' : ' · too big to keep after a reload'));
     } catch (e) {
@@ -858,7 +872,8 @@
         h('button.btn.small', { type: 'button', onclick: () => { if (V) { if (S().mode === 'still') setMode('once'); V.replay(); } } }, glyph('replay'), 'Build it'),
         h('button.btn.small.primary', { type: 'button', onclick: () => exportAs(shapeSchem(), 'schem') }, glyph('down'), 'Download .schem'),
         h('button.btn.small', { type: 'button', onclick: () => exportAs(shapeSchem(), 'json') }, 'JSON'),
-        tip(h('button.btn.small', { type: 'button', onclick: keepShape }, glyph('file'), 'Keep in Library'), 'Add this shape to your builds in the Library, so you can customise it and find it again')));
+        tip(h('button.btn.small', { type: 'button', onclick: keepShape }, glyph('file'), 'Keep in Library'), 'Add this shape to your builds in the Library, so you can customise it and find it again'),
+        tip(h('button.btn.small', { type: 'button', onclick: () => toMats('shape') }, 'Material list'), 'The blocks this shape needs, with ticks, recipes and packing')));
   }
   function keepShape() {
     const s = core().clone(shapeSchem());
@@ -879,100 +894,35 @@
   /* ======================================================================
    * Materials
    * ====================================================================== */
-  const SHULKER = 27;
-  function amount(n, stack, units) {
-    if (units === 'items' || stack === 1) return { main: fmtN(n), sub: stack === 1 && units !== 'items' ? 'unstackable' : '' };
-    const st = Math.floor(n / stack), rest = n % stack;
-    if (units === 'stacks') return { main: st ? st + (rest ? ' st + ' + rest : ' st') : String(rest), sub: fmtN(n) + ' items' };
-    const per = stack * SHULKER, bx = Math.floor(n / per), r2 = n % per, st2 = Math.floor(r2 / stack), r3 = r2 % stack;
-    const parts = []; if (bx) parts.push(bx + ' box' + (bx > 1 ? 'es' : '')); if (st2) parts.push(st2 + ' st'); if (r3) parts.push(String(r3));
-    return { main: parts.join(' + ') || '0', sub: (n / per).toFixed(2) + ' boxes · ' + fmtN(n) + ' items' };
-  }
-  /** Parse a Litematica material list (the text table or CSV export) into [{ name, n }]. */
-  function parsePaste(text) {
-    const out = [];
-    String(text || '').split(/\r?\n/).forEach((line) => {
-      let cells;
-      if (line.includes('|')) cells = line.split('|').map((c) => c.trim()).filter((c, i, a) => !(c === '' && (i === 0 || i === a.length - 1)));
-      else if (line.includes(',')) cells = line.split(',').map((c) => c.replace(/^"|"$/g, '').trim());
-      else if (line.includes('\t')) cells = line.split('\t').map((c) => c.trim());
-      else { const m = line.match(/^\s*(.+?)\s*[:x×]?\s+(\d[\d\s,.]*)\s*$/); cells = m ? [m[1], m[2]] : null; }
-      if (!cells || cells.length < 2) return;
-      const name = cells[0], n = parseInt(String(cells[1]).replace(/[\s,.]/g, ''), 10);
-      if (!name || !(n > 0) || /^item$|^total$|^name$/i.test(name) || /^[-=+]+$/.test(name)) return;
-      out.push({ name, n });
-    });
-    const m = new Map();
-    out.forEach((e) => m.set(e.name, (m.get(e.name) || 0) + e.n));
-    return [...m].map(([name, n]) => ({ name, n }));
-  }
-  let byNameCache = null;
-  function idByName(name) {
-    if (!byNameCache) { byNameCache = new Map(); Object.keys(core().BLOCKS).forEach((n) => { byNameCache.set(core().nameOf('minecraft:' + n).toLowerCase(), 'minecraft:' + n); byNameCache.set(n.replace(/_/g, ' '), 'minecraft:' + n); }); }
-    const k = name.toLowerCase().trim();
-    return byNameCache.get(k) || byNameCache.get(k.replace(/^minecraft:/, '').replace(/_/g, ' ')) || null;
+  // The section itself lives in builds-mats.js; this is its window onto the rest of Builds.
+  let matsApi = null;
+  function matSources() {
+    const st = S();
+    const farms = B().farms.FARMS.map((f) => ({ key: 'farm:' + f.id, name: f.name, icon: f.icon, kind: f.cat || 'farm' }));
+    const recs = (mem.sessionOnly || []).filter((r) => mem.files.has(r.id)).concat(st.files || []);
+    const yours = recs.map((r) => ({ key: 'file:' + r.id, name: (st.meta['file:' + r.id] || {}).name || r.name, icon: null, kind: 'yours' }));
+    let shape = null;
+    try { shape = { key: 'shape', name: shapeSchem().name, icon: null, kind: 'shape' }; } catch (e) { /* no shape yet */ }
+    return yours.concat(shape ? [shape] : [], farms);
   }
   function materialsSide() {
-    const st = S();
-    const usePaste = st.matSrc === 'paste';
-    if (usePaste && !st.paste) st.paste = { text: '' };
-    const key = usePaste ? 'paste' : (UI.shownKey || st.stage || st.cur);
-    let rows;
-    if (usePaste) rows = parsePaste(st.paste.text).map((e) => { const id = idByName(e.name); return { item: id || 'text:' + e.name, block: id, n: e.n, stack: id ? core().stackOf(id) : 64, label: id ? core().nameOf(id) : e.name }; });
-    else { const s = effective(key); rows = s ? core().materials(s).map((m) => Object.assign(m, { label: core().nameOf(m.item) })) : []; }
-    if (st.sort === 'name') rows.sort((a, b) => a.label.localeCompare(b.label));
-    const ticks = st.ticks[key] || {};
-    const total = rows.reduce((a, r) => a + r.n, 0), done = rows.filter((r) => ticks[r.item]).length;
-    const prog = h('div.bd-prog', { role: 'img', 'aria-label': done + ' of ' + rows.length + ' gathered' }, h('span', { style: { width: (rows.length ? done / rows.length * 100 : 0) + '%' } }));
-    const progTxt = h('span.bd-count', done + ' of ' + rows.length + ' gathered');
-    const units = [['items', 'Items'], ['stacks', 'Stacks'], ['boxes', 'Shulker boxes']];
-    const unitSeg = h('div.seg.bd-units', { role: 'radiogroup', 'aria-label': 'Amounts as' }, units.map(([id, t]) => h('button', { type: 'button', role: 'radio', 'aria-checked': String(st.units === id), class: st.units === id ? 'on' : null, onclick: () => { save((b) => { b.units = id; }); patch(); } }, t)));
-    const sortSeg = h('div.seg.bd-sort', { role: 'radiogroup', 'aria-label': 'Sort materials' }, [['count', 'Most first'], ['name', 'A–Z']].map(([id, t]) => h('button', { type: 'button', role: 'radio', 'aria-checked': String(st.sort === id), class: st.sort === id ? 'on' : null, onclick: () => { save((b) => { b.sort = id; }); patch(); } }, t)));
-    const list = h('div.bd-mats', { role: 'list' }, rows.map((r) => {
-      const a = amount(r.n, r.stack, st.units), on = !!ticks[r.item];
-      const cb = h('input', { type: 'checkbox', checked: on, 'aria-label': 'Gathered ' + r.label, onchange: () => {
-        save((b) => { const t = b.ticks[key] || (b.ticks[key] = {}); if (cb.checked) t[r.item] = 1; else delete t[r.item]; if (!Object.keys(t).length) delete b.ticks[key]; });
-        row.classList.toggle('done', cb.checked);
-        const T = S().ticks[key] || {}, d = rows.filter((x) => T[x.item]).length;
-        progTxt.textContent = d + ' of ' + rows.length + ' gathered';
-        prog.firstChild.style.width = (rows.length ? d / rows.length * 100 : 0) + '%';
-        prog.setAttribute('aria-label', d + ' of ' + rows.length + ' gathered');
-      } });
-      const row = h('label.bd-mat' + (on ? '.done' : ''), { role: 'listitem' },
-        h('span.check', cb, h('span')),
-        h('span.bd-mat-ico', r.block ? TH.icon(core().iconOf(r.block), { size: 24 }) : h('span.bd-mat-noico')),
-        h('span.bd-mat-name', r.label),
-        h('span.bd-mat-amt', h('b', a.main), a.sub ? h('small', a.sub) : null));
-      return row;
-    }));
-    const copy = h('button.btn.small', { type: 'button', onclick: () => {
-      const text = keyName(key) + ' — materials\n' + rows.map((r) => { const a = amount(r.n, r.stack, st.units); return (ticks[r.item] ? '[x] ' : '[ ] ') + r.label + ': ' + a.main; }).join('\n');
-      const ok = () => toast('Materials list copied');
-      const fb = () => { const ta = h('textarea', { value: text, style: { position: 'fixed', opacity: 0 } }); document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); ok(); } catch (e) { toast('Could not copy'); } ta.remove(); };
-      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(ok, fb); else fb();
-    } }, glyph('copy'), 'Copy as text');
-    const clear = h('button.btn.small.ghost', { type: 'button', disabled: !done, onclick: () => { save((b) => { delete b.ticks[key]; }); patch(); } }, 'Clear ticks');
-    const swaps = key !== 'paste' && key !== 'shape' ? Object.keys(st.swaps[key] || {}).length : 0;
-    const srcSeg = h('div.seg.bd-src', { role: 'radiogroup', 'aria-label': 'Materials source' },
-      h('button', { type: 'button', role: 'radio', 'aria-checked': String(!usePaste), class: !usePaste ? 'on' : null, onclick: () => { save((b) => { b.matSrc = 'stage'; }); patch(); } }, 'From the stage'),
-      h('button', { type: 'button', role: 'radio', 'aria-checked': String(!!usePaste), class: usePaste ? 'on' : null, onclick: () => { save((b) => { b.matSrc = 'paste'; if (!b.paste) b.paste = { text: '' }; }); patch(); } }, 'Pasted list'));
-    const linked = h('div.bd-linked', usePaste ? h('span', 'Pasted Litematica list') : [h('span.bd-linked-lbl', 'Linked to'), h('b', keyName(key)), swaps ? h('span.pill.bd-custom', swaps + ' swapped') : null]);
-    const main = h('section.panel.bd-pan.bd-mat-panel.has-sel', { 'aria-label': 'Materials' },
-      h('div.bd-pan-head', h('h3', 'Materials'), h('span.bd-count', fmtN(total) + ' items · ' + rows.length + ' kinds')),
-      srcSeg, linked,
-      h('div.bd-mat-tools', unitSeg, sortSeg),
-      h('div.bd-mat-progress', prog, progTxt),
-      rows.length ? list : h('p.bd-note', usePaste ? 'Paste a list below.' : 'Nothing on the stage yet.'),
-      h('div.bd-actions', copy, clear, swaps ? h('button.btn.small.ghost', { type: 'button', onclick: () => go('library') }, glyph('swap'), 'Edit swaps') : null));
-    const out = [main];
-    if (usePaste) {
-      const ta = h('textarea.field.bd-paste', { rows: 7, placeholder: 'Paste the material list from Litematica (the text table or CSV), or lines like "Stone Bricks 64".', 'aria-label': 'Litematica material list', value: st.paste.text || '' });
-      let tm = 0;
-      ta.addEventListener('input', () => { clearTimeout(tm); tm = setTimeout(() => { save((b) => { b.paste = { text: ta.value, at: Date.now() }; }); const keep = ta.selectionStart; patch(); const t2 = UI.side.querySelector('.bd-paste'); if (t2) { t2.focus(); try { t2.setSelectionRange(keep, keep); } catch (e) { /* ignore */ } } }, 450); });
-      out.push(h('section.panel.bd-pan', { 'aria-label': 'Paste a material list' }, h('div.bd-pan-head', h('h3', 'Paste a list')),
-        h('p.bd-note', 'In Litematica open the Material List, use "Write to file" or copy the table, and paste it here. Names the tool knows get their textures.'), ta));
+    if (!matsApi) {
+      matsApi = {
+        S, save, effective, keyName, glyph, sources: matSources,
+        stageKey: () => UI.shownKey || S().stage || S().cur,
+        openFile, download: downloadBlob, refresh: () => patch(),
+        view3d: (key) => { if (key === 'shape') { save((b) => { b.section = 'create'; }); if (UI.shownKey !== 'shape') show('shape', { animate: true, layer: 'top' }); patch(); } else pickKey(key); },
+      };
+      B().mats.init(matsApi);
     }
-    return out;
+    return B().mats.render();
+  }
+  /** Open the Materials section with this build / list as the source (the 'Material list' keys around Builds). */
+  function toMats(key) {
+    save((b) => { b.matSrc = key; b.section = 'materials'; });
+    patch();
+    const top = UI.wrap.getBoundingClientRect().top;
+    if (top < 0) window.scrollBy({ top: top - 90, behavior: reduced() ? 'auto' : 'smooth' });
   }
 
   /* ======================================================================
@@ -1010,6 +960,26 @@
       if (!(b.v >= 3)) { b.browse = true; b.v = 3; }   // the Library opens as a browser first
       if (!b.meta || typeof b.meta !== 'object') b.meta = {};
       if (!b.lib || typeof b.lib !== 'object') b.lib = structuredClone(DEFAULTS.lib);
+      // materials (v4): saved lists, have counts, list options; the one old pasted list becomes a saved list once
+      if (!Array.isArray(b.lists)) b.lists = [];
+      if (!b.have || typeof b.have !== 'object') b.have = {};
+      b.mats = Object.assign(structuredClone(DEFAULTS.mats), b.mats && typeof b.mats === 'object' ? b.mats : {});
+      if (!b.mats.pick || typeof b.mats.pick !== 'object') b.mats.pick = {};
+      if (!['items', 'stacks', 'boxes', 'dc'].includes(b.units)) b.units = 'items';
+      if (!['count', 'name', 'group'].includes(b.sort)) b.sort = 'count';
+      if (!(b.v >= 4)) {
+        const txt = b.paste && typeof b.paste.text === 'string' ? b.paste.text : '';
+        if (txt.trim()) {
+          const id = TH.util.uid('l');
+          b.lists.unshift({ id, name: 'Pasted list', text: txt, at: b.paste.at || Date.now() });
+          if (b.ticks.paste) { b.ticks['list:' + id] = b.ticks.paste; }
+          if (b.matSrc === 'paste') b.matSrc = 'list:' + id;
+        }
+        delete b.ticks.paste;
+        b.paste = null;
+        b.v = 4;
+      }
+      if (typeof b.matSrc !== 'string' || b.matSrc === 'paste') b.matSrc = 'stage';
     },
     render,
   });

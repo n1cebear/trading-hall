@@ -182,6 +182,10 @@ TH.app = (function () {
       u.style.setProperty('--s', (((i * 37) % 60) - 30) + 'px');
       art.appendChild(u);
     }
+    if (current && current.id === 'enchanting') {   // the bookshelves of the enchanting room, to both sides of the title
+      const shelf = (side) => { const e = document.createElement('i'); e.className = 'th-shelf ' + side; e.innerHTML = '<b></b><b></b>'; return e; };
+      art.prepend(shelf('l'), shelf('r'));
+    }
     head.appendChild(art);
   }
 

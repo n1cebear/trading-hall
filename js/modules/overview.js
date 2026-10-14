@@ -207,7 +207,6 @@
         h('span.lp-wall', { 'aria-hidden': 'true', style: { backgroundImage: `url("${tex(t.wall)}")` } }),
         h('span.lp-glow', { 'aria-hidden': 'true' }),
         h('div.lp-place', { 'aria-hidden': 'true' }, h('div.lp-scene.lp-scene-' + t.id, SCENES[t.id]())),
-        h('kbd.lp-key', { 'aria-hidden': 'true' }, String(i + 1)),
         h('div.lp-label', { 'aria-hidden': 'true' },
           h('span.lp-kick', t.kicker, soon),
           h('span.lp-title', mod.name),

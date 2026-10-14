@@ -29,10 +29,8 @@
   const LIMIT = 29999984;                  // world border
   const DIMS = { ow: 'Overworld', ne: 'Nether' };
   const DIM_ICON = { ow: 'block/grass_block_side', ne: 'block/netherrack' };
-  const SAMPLE = [
-    { id: 'p1', name: 'Base', dim: 'ow', x: 800, y: 70, z: -1200 },
-    { id: 'p2', name: 'Base (Nether side)', dim: 'ne', x: 102, y: 64, z: -146 },
-  ];
+  // the old demo portals (never entered by the user) are removed from saves on load
+  const OLD_SAMPLE = [{ id: 'p1', name: 'Base', dim: 'ow', x: 800, y: 70, z: -1200 }, { id: 'p2', name: 'Base (Nether side)', dim: 'ne', x: 102, y: 64, z: -146 }];
 
   const S = () => TH.store.get().portal;
   const save = () => TH.store.update(() => {}, { silent: true });
@@ -58,6 +56,7 @@
     minus: 'M2 7h12v2H2z',
     fit: 'M1 1h5v2H3v3H1zM10 1h5v5h-2V3h-3zM1 10h2v3h3v2H1zM13 10h2v5h-5v-2h3z',
     link: 'M2 7h5V5l4 3-4 3V9H2zM9 2h5v12H9v-2h3V4H9z',
+    right: 'M5 2h2l5 6-5 6H5l5-6z',
   };
   const glyph = (k) => {
     const s = h('span.pt-ico', { 'aria-hidden': 'true' });
@@ -120,15 +119,6 @@
     const current = () => ({ dim: st.dir, x: st.x, y: st.y, z: st.z });
 
     // ---------- converter ----------
-    const dirBtns = ['ow', 'ne'].map((d) => h('button', { type: 'button', role: 'radio', 'data-d': d,
-      onclick: () => setDir(d) }, DIMS[d], h('span.pt-arrow', { 'aria-hidden': 'true' }, '→'), DIMS[other(d)]));
-    const dirSeg = h('div.seg.pt-dir', { role: 'radiogroup', 'aria-label': 'Convert from' }, dirBtns);
-    dirSeg.addEventListener('keydown', (e) => {
-      const step = { ArrowRight: 1, ArrowLeft: -1, ArrowDown: 1, ArrowUp: -1 }[e.key];
-      if (!step) return;
-      e.preventDefault(); const d = other(st.dir); setDir(d); dirBtns.find((b) => b.dataset.d === d).focus();
-    });
-
     const sideHead = (role) => {
       const ico = h('span.pt-dim-ico'), name = h('span.pt-dim-name'), cap = h('span.pt-dim-cap', role === 'src' ? 'From' : 'To');
       return { el: h('div.pt-dim', ico, h('span.pt-dim-txt', cap, name)), set: (d) => { ico.replaceChildren(TH.icon(DIM_ICON[d], { size: 20 })); name.textContent = DIMS[d]; } };
@@ -173,16 +163,21 @@
     const dstBox = h('div.pt-dst', h('div.pt-side-head', dstHead.el), well,
       h('div.pt-keys', copyKey(() => coordTxt(dst()), () => DIMS[other(st.dir)]), saveKey(() => Object.assign({ dim: other(st.dir) }, dst())), dstSeed));
 
-    const ratioOp = h('b.pt-op'), ratioTxt = h('span.pt-op-txt');
     const art = portalArt(true);
-    const gate = h('div.pt-gate', h('div.pt-art-wrap', art), h('div.pt-ratio', ratioOp, ratioTxt));
+    const gIcoL = h('span.pt-gico'), gIcoR = h('span.pt-gico'), gNameL = h('span.pt-gname'), gNameR = h('span.pt-gname');
+    const arrow = () => h('span.pt-garrow', { 'aria-hidden': 'true' }, glyph('right'));
+    const gate = h('button.pt-gate', { type: 'button', onclick: () => setDir(other(st.dir)) },
+      h('span.pt-gside', gIcoL, gNameL), arrow(), h('div.pt-art-wrap', art), arrow(), h('span.pt-gside', gIcoR, gNameR));
+    const gateHint = h('span.pt-ghint', 'Press to swap the direction');
+    tip(gate, 'Swap the direction (convert the other way)');
+    const gateWrap = h('div.pt-gatewrap', gate, gateHint);
 
     const statusEl = h('div.pt-status', { 'aria-live': 'polite' });
     const seed = h('input.field.pt-seed', { id: 'pt-seed', type: 'text', value: st.seed || '', placeholder: 'World seed (optional)', autocomplete: 'off', spellcheck: false,
       oninput: () => { st.seed = seed.value; save(); update(); } });
     const calcPanel = h('section.panel.pt-pan.pt-calc', { 'aria-labelledby': 'pt-h-calc' },
-      h('div.pt-pan-head', h('h3', { id: 'pt-h-calc' }, 'Converter'), dirSeg),
-      srcBox, gate, dstBox, statusEl,
+      h('div.pt-pan-head', h('h3', { id: 'pt-h-calc' }, 'Converter')),
+      srcBox, gateWrap, dstBox, statusEl,
       h('div.pt-seedrow', h('label.pt-eyebrow', { for: 'pt-seed' }, 'Seed'), seed));
 
     function setDir(d) {
@@ -204,7 +199,9 @@
 
     function update(keep) {
       const d = st.dir;
-      dirBtns.forEach((b) => { const on = b.dataset.d === d; b.classList.toggle('on', on); b.setAttribute('aria-checked', String(on)); b.tabIndex = on ? 0 : -1; });
+      gIcoL.replaceChildren(TH.icon(DIM_ICON[d], { size: 44 })); gIcoR.replaceChildren(TH.icon(DIM_ICON[other(d)], { size: 44 }));
+      gNameL.textContent = DIMS[d]; gNameR.textContent = DIMS[other(d)];
+      gate.setAttribute('aria-label', 'Converting from ' + DIMS[d] + ' to ' + DIMS[other(d)] + '. Press to swap the direction.');
       srcHead.set(d); dstHead.set(other(d));
       calcPanel.dataset.dir = d;
       ['x', 'y', 'z'].forEach((k) => {
@@ -215,8 +212,6 @@
       const r = dst();
       ['x', 'y', 'z'].forEach((k) => { outs[k].textContent = fmt(r[k]); });
       well.setAttribute('aria-label', DIMS[other(d)] + ' ' + r.x + ' ' + r.y + ' ' + r.z);
-      ratioOp.textContent = d === 'ow' ? '÷ 8' : '× 8';
-      ratioTxt.textContent = d === 'ow' ? 'X and Z, rounded down · Y stays' : 'X and Z · Y stays';
       [srcSeed, dstSeed].forEach((a) => {
         const u = seedUrl(a._dim());
         if (u) { a.href = u; a.removeAttribute('aria-disabled'); } else { a.removeAttribute('href'); a.setAttribute('aria-disabled', 'true'); }
@@ -534,9 +529,13 @@
     short: 'Portal',
     icon: 'mc:block/crying_obsidian',
     init(store) {
-      store.define('portal', { dir: 'ow', x: 800, y: 70, z: -1200, seed: '', portals: SAMPLE });
+      store.define('portal', { dir: 'ow', x: 0, y: 64, z: 0, seed: '', portals: [] });
       const s = store.get().portal;
       if (!Array.isArray(s.portals)) s.portals = [];
+      // drop the demo portals and the demo coordinates from older saves, but only when untouched
+      const same = (p, q) => p.id === q.id && p.name === q.name && p.dim === q.dim && p.x === q.x && p.y === q.y && p.z === q.z;
+      s.portals = s.portals.filter((p) => !OLD_SAMPLE.some((q) => same(p, q)));
+      if (s.x === 800 && s.y === 70 && s.z === -1200 && !s.portals.length) { s.x = 0; s.y = 64; s.z = 0; }
     },
     render,
   });

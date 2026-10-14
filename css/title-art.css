@@ -1,0 +1,48 @@
+/* =====================================================================
+   Title art: a little scene of particles behind every tool's page title (js/core/app.js titleArt adds
+   <div class="th-art"><u>...</u></div> as the last child of .page-head). Every tool has its own look and motion.
+   Only transform + opacity animate; under data-perf="lite" and reduced motion the particles stay invisible.
+   ===================================================================== */
+.page-head { position: relative; isolation: isolate; }
+.page-head > .th-art {
+  position: absolute; grid-column: 1 / -1; grid-row: 1; inset: -38px 0 -14px; z-index: -1; pointer-events: none; overflow: hidden;
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 16%, #000 84%, transparent 100%); mask-image: linear-gradient(90deg, transparent 0, #000 16%, #000 84%, transparent 100%);
+}
+.th-art u { position: absolute; left: var(--x); bottom: 6px; width: var(--z); height: var(--z); text-decoration: none; opacity: 0; will-change: transform, opacity;
+  animation: th-rise var(--d) ease-in-out infinite; animation-delay: var(--w); }
+@media (prefers-reduced-motion: reduce) { .th-art u { animation: none; opacity: 0; } }
+/* the old runes in the Enchanting picker moved up here */
+.ec-art u { display: none !important; }
+
+@keyframes th-rise { 0% { transform: translateY(0) scale(.6); opacity: 0; } 18% { opacity: .95; } 70% { opacity: .5; } 100% { transform: translateY(-96px) scale(1); opacity: 0; } }
+
+/* ----- Enchanting: sparkles of enchanting-table light rise straight up ----- */
+:root[data-tool="enchanting"] .th-art u {
+  background: color-mix(in srgb, var(--accent) 85%, #fff 15%); color: color-mix(in srgb, var(--accent) 60%, transparent);
+  box-shadow: var(--z) 0 0 -1px currentColor, calc(var(--z) * -1) 0 0 -1px currentColor, 0 var(--z) 0 -1px currentColor, 0 calc(var(--z) * -1) 0 -1px currentColor, 0 0 12px 2px color-mix(in srgb, var(--accent) 55%, transparent);
+}
+
+/* ----- Trading Hall: emerald shards tumble upward ----- */
+@keyframes th-shard { 0% { transform: translate(0, 0) rotate(0) scale(.6); opacity: 0; } 15% { opacity: .95; } 55% { transform: translate(calc(var(--s) * .5), -50px) rotate(160deg) scale(1); opacity: .8; } 100% { transform: translate(var(--s), -100px) rotate(320deg) scale(.9); opacity: 0; } }
+:root[data-tool="hall"] .th-art u { animation-name: th-shard; background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 55%, #fff 45%), var(--accent) 55%, color-mix(in srgb, var(--accent) 70%, #000)); box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 55%, transparent); }
+
+/* ----- Armor Trims: slow diagonal twinkles, like gems catching light ----- */
+@keyframes th-twinkle { 0% { transform: translate(0, 0) rotate(45deg) scale(.4); opacity: 0; } 25% { transform: translate(calc(var(--s) * .3), -24px) rotate(45deg) scale(1.1); opacity: .95; } 45% { opacity: .35; } 62% { opacity: .9; } 100% { transform: translate(var(--s), -80px) rotate(45deg) scale(.5); opacity: 0; } }
+:root[data-tool="trims"] .th-art u { animation-name: th-twinkle; background: color-mix(in srgb, var(--accent) 55%, #fff 45%); box-shadow: 0 0 10px 1px color-mix(in srgb, var(--accent) 60%, transparent); }
+
+/* ----- Builds: little blocks drop in from above and settle, as if placed ----- */
+@keyframes th-place { 0% { transform: translateY(-84px) scale(1); opacity: 0; } 30% { opacity: .95; } 62% { transform: translateY(0) scale(1, 1); opacity: .95; } 70% { transform: translateY(0) scale(1.18, .8); opacity: .9; } 80% { transform: translateY(0) scale(1); opacity: .8; } 100% { transform: translateY(0) scale(1); opacity: 0; } }
+:root[data-tool="builds"] .th-art u { animation-name: th-place; background: var(--accent); box-shadow: inset calc(var(--z) / -4) calc(var(--z) / -4) 0 rgb(0 0 0 / .28), inset calc(var(--z) / 4) calc(var(--z) / 4) 0 rgb(255 255 255 / .3); }
+
+/* ----- Block Palettes: pixels in a handful of palette tones swirl up ----- */
+@keyframes th-swatch { 0% { transform: translate(0, 0) rotate(0) scale(.5); opacity: 0; } 20% { opacity: .95; } 100% { transform: translate(var(--s), -92px) rotate(90deg) scale(1.05); opacity: 0; } }
+:root[data-tool="palettes"] .th-art u { animation-name: th-swatch; background: var(--accent); }
+:root[data-tool="palettes"] .th-art u:nth-child(4n + 2) { background: color-mix(in srgb, var(--accent) 55%, #fff 45%); }
+:root[data-tool="palettes"] .th-art u:nth-child(4n + 3) { background: color-mix(in srgb, var(--accent) 60%, #6b3cff 40%); }
+:root[data-tool="palettes"] .th-art u:nth-child(4n) { background: color-mix(in srgb, var(--accent) 50%, #ffd27a 50%); }
+
+/* ----- Portal: purple portal particles drift sideways toward the middle ----- */
+@keyframes th-warp { 0% { transform: translate(calc(var(--s) * 2), 20px) scale(.5); opacity: 0; } 25% { opacity: .95; } 100% { transform: translate(0, -78px) scale(1); opacity: 0; } }
+:root[data-tool="portal"] .th-art u { animation-name: th-warp; background: #b45cff; box-shadow: 0 0 10px 1px rgb(168 70 255 / .6); }
+:root[data-tool="portal"] .th-art u:nth-child(3n) { background: #e08bff; }
+:root[data-tool="portal"] .th-art u:nth-child(5n) { background: #7a2dd6; }

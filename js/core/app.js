@@ -167,6 +167,24 @@ TH.app = (function () {
     }
   }
 
+  /** A little scene of rising particles behind the page title; each tool has its own look in css/title-art.css. */
+  function titleArt(root) {
+    const head = root.querySelector('.page-head');
+    if (!head || head.querySelector(':scope > .th-art')) return;
+    const art = document.createElement('div');
+    art.className = 'th-art'; art.setAttribute('aria-hidden', 'true');
+    for (let i = 0; i < 18; i++) {
+      const u = document.createElement('u');
+      u.style.setProperty('--x', (3 + ((i * 61) % 94)) + '%');
+      u.style.setProperty('--d', (6 + (i % 5) * 1.3).toFixed(1) + 's');
+      u.style.setProperty('--w', '-' + ((i * 1.9) % 9).toFixed(1) + 's');
+      u.style.setProperty('--z', (i % 3 === 0 ? 9 : i % 3 === 1 ? 6 : 4) + 'px');
+      u.style.setProperty('--s', (((i * 37) % 60) - 30) + 'px');
+      art.appendChild(u);
+    }
+    head.appendChild(art);
+  }
+
   function render() {
     const state = TH.store.get();
     const nav = document.getElementById('nav');
@@ -195,6 +213,7 @@ TH.app = (function () {
     const root = h('div.module.module-' + current.id + (view.dataset.mod !== current.id ? '.enter' : ''));
     try {
       current.render(root, state);
+      titleArt(root);
     } catch (err) {
       // one broken module must never take the whole app down
       console.error(err);
@@ -476,7 +495,8 @@ TH.app = (function () {
     TH.store.subscribe(render);
     window.addEventListener('hashchange', route);
     // load the saved language's official game names before the first paint
-    TH.i18n.setLang(TH.store.get().settings.lang || 'en_us').then(route);
+    const savedLang = ['en_us', 'de_de', 'fr_fr', 'es_es', 'it_it', 'pt_br', 'nl_nl', 'sv_se', 'da_dk', 'no_no'].includes(TH.store.get().settings.lang) ? TH.store.get().settings.lang : 'en_us';
+    Promise.all([TH.i18n.setLang(savedLang), TH.ui.setLang(savedLang)]).then(route);
   }
 
   /** Global footer: (c) + current year, and an About toggle that expands the footer upward (aria-expanded, Esc closes). */
@@ -582,7 +602,9 @@ TH.app = (function () {
   /** Language picker: custom listbox (button shows a short code, the list shows full names). Game terms only; UI stays English. */
   function initLang() {
     const wrap = document.getElementById('lang'), btn = document.getElementById('langBtn'), list = document.getElementById('langList'), codeEl = document.getElementById('langCode');
-    const langs = TH.i18n.languages;
+    // the page text (and the game's names) come in ten languages: English first, then the big ones, then a few Germanic ones
+    const ALLOWED = ['en_us', 'de_de', 'fr_fr', 'es_es', 'it_it', 'pt_br', 'nl_nl', 'sv_se', 'da_dk', 'no_no'];
+    const langs = ALLOWED.map((c) => TH.i18n.languages.find((l) => l.code === c)).filter(Boolean);
     const label = (l) => (l.region && langs.filter((x) => x.name === l.name).length > 1 ? `${l.name} (${l.region})` : l.name);
     let cur = TH.store.get().settings.lang || 'en_us';
     if (!langs.some((l) => l.code === cur)) cur = 'en_us';
@@ -593,7 +615,7 @@ TH.app = (function () {
     const paint = () => {
       const l = curLang();
       codeEl.textContent = langShort(l);
-      btn.dataset.tip = 'Game names language: ' + label(l);
+      btn.dataset.tip = 'Language: ' + label(l);
       opts.forEach((o) => o.setAttribute('aria-selected', String(o.dataset.code === cur)));
     };
     let active = 0, typed = '', typedT;
@@ -623,7 +645,7 @@ TH.app = (function () {
       if (code === cur) return;
       cur = code;
       paint();
-      TH.i18n.setLang(code).then(() => TH.store.update((s) => { s.settings.lang = code; }));
+      Promise.all([TH.i18n.setLang(code), TH.ui.setLang(code)]).then(() => TH.store.update((s) => { s.settings.lang = code; }));
     };
     btn.addEventListener('click', (e) => { e.stopPropagation(); isOpen() ? close(true) : open(); });
     btn.addEventListener('keydown', (e) => {

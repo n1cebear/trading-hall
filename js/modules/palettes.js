@@ -288,7 +288,7 @@
     const copyBtn = h('button.btn.small', { type: 'button', onclick: copyList }, glyph('copy'), 'Copy list');
     const moreBtn = h('button.btn.small', { type: 'button', onclick: moreLike }, glyph('wand'), 'More like this');
     const editBtn = h('button.btn.small', { type: 'button', onclick: editCopy }, glyph('edit'), 'Edit a copy');
-    const shuffleBtn = h('button.btn.small', { type: 'button', onclick: () => { st.seed = (Math.random() * 1e9) | 0; save(); paintNow(); } }, glyph('dice'), 'Shuffle');
+    const shuffleBtn = h('button.btn.small.pl-shuffle', { type: 'button', 'aria-label': 'Shuffle', onclick: () => { st.seed = (Math.random() * 1e9) | 0; save(); paintNow(); } }, glyph('dice'), h('span.pl-lbl', 'Shuffle'));
     tip(shuffleBtn, 'Paint the mosaic again with the same palette');
     tip(moreBtn, 'Generate a new palette around this one\'s main block');
     tip(editBtn, 'Open a copy of this palette in Make');
@@ -446,7 +446,7 @@
     const sBtn = h('button.btn.small', { type: 'button', onclick: () => { const run = () => { const D = st.draft; const g = D.length ? generate(D[0], KINDS[Math.floor(rnd() * KINDS.length)]) : surprise(); st.draft = g.blocks.slice(0, MAXB); save(); patchMake(); }; if (colReady) run(); else loadColours().then(run); } }, glyph('wand'), 'Fill it for me');
     tip(sBtn, 'Builds a palette around your first block (or a random one)');
     const make = h('div.pl-main-in',
-      h('section.panel.pl-pan', { 'aria-label': 'Your palette' },
+      h('section.panel.pl-pan.pl-pan-slots', { 'aria-label': 'Your palette' },
         h('div.pl-pan-head', h('h3', 'Your palette'), h('span.pl-count', 'up to ' + MAXB + ' blocks')),
         slots, h('div.pl-make-acts', saveBtn, sBtn, clearBtn)),
       h('section.panel.pl-pan', { 'aria-label': 'Suggestions' },
@@ -532,8 +532,8 @@
   TH.app.register({
     id: 'palettes',
     name: 'Block Palettes',
-    short: 'Palettes',
-    icon: () => h('span.pl-navico', ['block/cherry_planks', 'block/pink_concrete', 'block/purple_concrete', 'block/white_concrete'].map((t) => h('i', { style: { backgroundImage: 'url("' + TH.icon.tex(t) + '")' } }))),
+    short: 'Palette',
+    icon: () => h('span.pl-navico', ['block/cherry_planks', 'block/stone_bricks', 'block/bricks', 'block/oak_planks'].map((t) => h('i', { style: { backgroundImage: 'url("' + TH.icon.tex(t) + '")' } }))),
     init(store) {
       store.define('palettes', { tab: 'browse', sel: 'c0', mode: 'mix', seed: 7, tag: 'all', q: '', fav: [], mine: [], draft: [], gen: null });
       const s = store.get().palettes;

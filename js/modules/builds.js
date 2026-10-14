@@ -230,7 +230,7 @@
     const runBtn = h('button.btn.small.bd-run', { type: 'button', 'aria-pressed': 'false', hidden: true, onclick: () => { if (!V || !V.hasRun()) return; V.setRun(!V.run); syncRun(); } }, glyph('run'), h('span', 'Run the machine'));
     tip(runBtn, 'Play the machine: the plants grow, the observer fires and the pistons move');
     const phaseCap = h('div.bd-phase', { 'aria-live': 'polite', hidden: true });
-    stage.append(h('div.bd-label', title, meta, runBtn, phaseCap), h('div.bd-frametools', { role: 'group', 'aria-label': 'View' }, zoomOut, zoomIn, resetV), hint, drop, loading);
+    stage.append(h('div.bd-label', title, meta), h('div.bd-runbox', runBtn, phaseCap), h('div.bd-frametools', { role: 'group', 'aria-label': 'View' }, zoomOut, zoomIn, resetV), hint, drop, loading);
 
     // ---- animation bar ----
     const playBtn = h('button.btn.small.bd-vk.bd-play', { type: 'button', 'aria-label': 'Pause', onclick: () => { if (!V) return; if (V.playing && V.mode !== 'still') V.pause(); else { if (S().mode === 'still') setMode('loop'); V.play(); } } }, glyph('pause'));

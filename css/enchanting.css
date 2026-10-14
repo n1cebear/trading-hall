@@ -1409,3 +1409,81 @@
 .ec-pickpanel.has-open .ec-art u { animation-play-state: paused; }
 @media (prefers-reduced-motion: reduce) { .ec-art u { animation: none; opacity: .5; } }
 @media (max-width: 640px) { .ec-shelf { width: 34%; opacity: .4; } .ec-crow { padding: 30px 0 26px; } }
+
+/* the material key stays for plain items (bow ...): muted, but still the way back to the materials */
+.ec-pickpanel .ec-cslot-mat.is-empty:not(.is-open) .ec-combo-ph { color: var(--muted); }
+
+/* phones: the two keys sit side by side, compact, and each grid opens under the pair */
+@media (max-width: 640px) {
+  :root:root:root .ec-pickpanel { display: block; }
+  :root:root:root .ec-pickpanel > .ec-crow { display: flex; flex-direction: row; flex-wrap: nowrap; align-items: flex-end; justify-content: center; gap: 10px; padding: 8px 0 6px; }
+  :root:root:root .ec-pickpanel .ec-cslot { flex: 1 1 0; min-width: 0; order: 0; margin-top: 0; }
+  :root:root:root .ec-pickpanel .ec-combo { width: 100%; min-width: 0; height: 52px; padding: 0 10px 0 9px; gap: 8px; justify-content: flex-start; }
+  :root:root:root .ec-pickpanel .ec-combo-val { gap: 8px; min-width: 0; }
+  :root:root:root .ec-pickpanel .ec-combo-name { font-size: 13px; }
+  :root:root:root .ec-pickpanel .ec-combo-val > .mc, :root:root:root .ec-pickpanel .ec-combo-val .ec-item-ico > .mc { --mc: 28px !important; }
+  :root:root:root .ec-pickpanel .ec-area { order: 0; }
+  :root:root:root .ec-area-mat + .ec-area-item .ec-area-in { padding-top: 24px; }
+}
+
+/* ===== Phones / one column (<= 980px): summary bar on top, full-size keys, overview compact =====
+   The Anvil plan (and the My plan shopping list) sits at the bottom when the page is one column, so the top of the page gets
+   a compact bar: the Single item / My plan slider (moved here by placeMode in enchanting.js, the same element) and one summary
+   row (item icon + name, what is picked + the cost, a full-size key that scrolls down to the anvil order / shopping list).
+   Rule of thumb: everything you tap stays full size (keys >= 36-40px), overview / summary pieces get compact. */
+.ec-mobar { display: none; }
+@media (max-width: 980px) {
+  .ec-mobar { display: flex; flex-direction: column; gap: 12px; margin-bottom: var(--ec-gap, 16px); }
+  .ec-mobar-mode:empty { display: none; }
+  :root:root:root:root .ec-mobar .ec-modecards { width: 100%; min-height: 0; margin: 0; }
+  :root:root:root:root .ec-mobar .ec-modecard { min-height: 40px; padding: 4px 10px; gap: 8px; }
+  :root:root:root .ec-mobar .ec-modecard-ico > .mc { --mc: 20px !important; }
+  :root:root:root .ec-mosum { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 10px 10px 10px 14px; }
+  .ec-mosum-ico { display: grid; place-items: center; width: 32px; height: 32px; }
+  .ec-mosum-text { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+  .ec-mosum-name { font: 400 13px/1.2 var(--display); color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ec-mosum-meta { font: 400 12px/1.3 var(--font); color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ec-mosum-meta b { font: 400 13px/1 var(--mono); color: var(--text); font-variant-numeric: tabular-nums; }
+  .ec-mosum.bad .ec-mosum-meta b { color: #ff6b6b; font-family: var(--font); font-weight: 700; }
+  :root:root:root .ec-mosum-go { min-height: 40px; padding: 0 14px; gap: 8px; white-space: nowrap; flex: none; }
+  .ec-mosum-arrow { font-size: 15px; line-height: 1; }
+  /* the slider left the Anvil plan panel: its first row gets the panel's top padding back */
+  :root:root:root .ec-plan > .ec-plan-body { padding-top: 16px; }
+  :root:root:root .ec-plan > .ec-edit-line { margin-top: 14px; }
+  /* nothing picked yet: the empty Anvil plan only repeated the prompt above, so it waits off screen */
+  .ec-side:has(.ec-plan-body > .ec-empty:only-child) { display: none; }
+}
+@media (max-width: 380px) {
+  :root:root:root .ec-mosum { grid-template-columns: auto minmax(0, 1fr); }
+  :root:root:root .ec-mosum-go { grid-column: 1 / -1; width: 100%; justify-content: center; }
+}
+
+/* phones: the keys you tap stay full size (level chips, I want / Already on it); chips wrap with the hall chip under them */
+@media (max-width: 640px) {
+  :root:root:root .ec-ench-list .ec-ench .ec-ench-side { flex-wrap: wrap; row-gap: 8px; }
+  :root:root:root .ec-ench-side .lvl-chips.ec-lv { flex-wrap: wrap; gap: 6px; }
+  :root:root:root .lvl-chips.ec-lv button { min-width: 44px; height: 38px; font-size: 13px; }
+  :root:root:root .ec-ownseg button { min-height: 40px; }
+  .ec-ownhint { flex-basis: 100%; }
+  /* My plan overview: the progress panel is a summary, so it gets compact (number + spent share in one row) */
+  :root:root:root .ec-progress { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "big spent" "bar bar" "xp xp" "chips chips" "meta meta"; row-gap: 10px; }
+  :root:root:root .ec-progress .ec-xp { font-size: 40px; }
+  :root:root:root .ec-pg-spent { align-items: flex-end; }
+  :root:root:root .ec-pg-meta { flex-direction: row; flex-wrap: wrap; gap: 4px 14px; }
+}
+/* phones, My plan: the plan item's identity is a compact row; Edit / Finished / remove are one row of full-size keys */
+@media (max-width: 640px) {
+  :root:root:root .ec-pi-split { padding: 14px; gap: 12px; }
+  :root:root:root .ec-pi-id { flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: flex-start; text-align: left; gap: 4px 12px; }
+  :root:root:root .ec-pi-id .ec-pi-icon { width: 40px; height: 40px; }
+  :root:root:root .ec-pi-id .ec-pi-icon > .mc { --mc: 32px !important; }
+  :root:root:root .ec-pi-aside { align-items: stretch; width: 100%; }
+  :root:root:root:root .ec-pi-aside .ec-pi-actions { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; align-items: stretch; gap: 8px; width: 100%; margin: 0; }
+  :root:root:root .ec-pi-aside .ec-pi-row { display: contents; }
+  :root:root:root:root .ec-pi-aside .ec-pi-actions .btn { width: auto; min-height: 40px; padding: 0 12px; font-size: 13px; justify-content: center; }
+  :root:root:root:root .ec-pi-aside .ec-pi-actions .btn.ec-pi-x { order: 3; min-width: 44px; padding: 0; }
+  :root:root:root:root .ec-pi.done .ec-pi-actions .btn.ec-pi-x { min-width: 40px; min-height: 36px; }
+}
+@media print { .ec-mobar { display: none !important; } }
+/* phones: the full item preview in the Anvil plan only takes the height its lines need (the summary bar on top names the item already) */
+@media (max-width: 640px) { :root:root:root:root .ec-preview { min-height: 0; padding: 6px 4px 2px; } :root:root:root .ec-pv-row { gap: 16px; } }

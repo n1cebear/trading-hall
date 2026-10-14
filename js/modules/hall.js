@@ -757,7 +757,7 @@
           h('div.hl-side-total', bumpNum('tot', t.total), h('span', t.total === 1 ? 'villager' : 'villagers')),
           h('div.hl-side-split', bumpNum('lib', t.stalls), t.stalls === 1 ? ' librarian · ' : ' librarians · ', bumpNum('oth', t.trades), ' other')),
         t.total ? wsList(hall, { key: 'side' }) : h('p.hl-side-empty', 'Nothing planned yet.'),
-        t.total ? h('button.btn.ghost.small.hl-side-save', { type: 'button', onclick: savePreset }, TH.icon('item/writable_book', { size: 16 }), 'Save as preset') : null,
+        t.total && step > 0 ? h('button.btn.ghost.small.hl-side-save', { type: 'button', onclick: savePreset }, TH.icon('item/writable_book', { size: 16 }), 'Save as preset') : null,
         wizardNav(step)));
   }
 
@@ -842,6 +842,8 @@
     const showPrev = prevPlan && planSig(hall) !== prevPlan.sig;
     const ico = (name) => TH.icon(name, { size: 30 });
     const icons = { bare: 'item/iron_pickaxe', blueprint: 'map', generators: 'emerald', all: 'block/bookshelf' };
+    /* one readable line per built-in on the card; the full description lives in the card's tooltip */
+    const blurb = { blueprint: 'Key books plus the emerald makers', bare: 'The seven books every world needs', generators: 'No books, just emerald makers', all: 'Every librarian book at max level' };
 
     /** { stalls, trades (null = keeps yours), books: ['Mending', 'Prot IV ×3'], profs: [[profId, n]] } */
     const sumOfPreset = (p) => {
@@ -867,7 +869,7 @@
       if (match && match.id === p.id && !edited) return;
       if (isCustomPlan) prevPlan = { sig: planSig(hall), plan: structuredClone(Object.fromEntries(PLAN_KEYS.map((k) => [k, hall[k]]))) };
       applyPreset(p);
-      if (isCustomPlan) toast(`Loaded “${p.name}” — “Previous plan” at the top switches back`);
+      if (isCustomPlan) toast(`Loaded “${p.name}” — “Previous plan” under Your own switches back`);
     };
     const restore = () => {
       const s = prevPlan;
@@ -875,53 +877,95 @@
       upd((x) => { for (const k of PLAN_KEYS) x[k] = structuredClone(s.plan[k]); });
       toast('Switched back to your previous plan');
     };
+    const renamePreset = (p) => TH.util.ask({ text: 'Rename preset', input: p.name, ok: 'Rename' }).then((name) => {
+      if (!name || name === p.name) return;
+      TH.store.update((st) => { const x = st.customPresets.find((c) => c.id === p.id); if (x) x.name = name; });
+      toast(`Renamed to “${name}”`);
+    });
 
-    /** One equal-height preset strip: icon | name + description + key books | librarians / others + workstation icons | check. */
-    const strip = (o) => {
+    /** Hover details (app tooltip): full description, the books and the other villagers. */
+    const details = (o) => () => {
       const s = o.sum;
-      const profs = s ? s.profs.slice(0, 5) : [];
-      return h('li.hl-preset-item' + (o.tileCls || ''),
-        h('button.hl-preset' + (o.on ? '.is-on' : '') + (s ? '' : '.is-slim'), {
-          type: 'button', 'aria-pressed': String(!!o.on), 'data-focus': 'preset-' + o.key, onclick: o.onPick,
-        },
-          h('span.hl-preset-icon', { 'aria-hidden': 'true' }, o.icon),
-          h('span.hl-preset-main',
-            h('b.hl-preset-name', o.title),
-            h('span.hl-preset-desc', o.desc),
-            s ? h('span.hl-preset-books', s.books.length ? s.books.slice(0, 6).join(' · ') + (s.books.length > 6 ? '  +' + (s.books.length - 6) : '') : 'No books') : null),
-          s ? h('span.hl-preset-meta',
-            h('span.hl-preset-counts',
-              h('span', h('b', s.stalls), s.stalls === 1 ? ' librarian' : ' librarians'),
-              s.trades == null ? h('span', 'keeps your trades') : h('span', h('b', s.trades), ' other')),
-            h('span.hl-preset-profs', { 'aria-hidden': 'true' },
-              profs.map(([pid]) => h('span', { title: PROF[pid] ? profName(PROF[pid]) : pid }, TH.icon.prof(pid, { size: 18 }))),
-              s.profs.length > 5 ? h('small', '+' + (s.profs.length - 5)) : null)) : null,
-          h('span.hl-preset-check', { 'aria-hidden': 'true' })),
-        o.reco ? TH.util.reco() : null,
-        o.del ? h('button.x-btn.hl-preset-del', {
-          type: 'button', title: 'Delete preset', 'aria-label': 'Delete preset ' + o.title, onclick: o.del,
-        }, '✕') : null);
+      const out = [h('div.th-tooltip-title', o.title), o.long ? h('div.th-tooltip-sub', o.long) : null];
+      if (s) {
+        out.push(h('div.th-tooltip-sub', s.books.length ? 'Books: ' + s.books.slice(0, 10).join(' · ') + (s.books.length > 10 ? ' +' + (s.books.length - 10) : '') : 'No books'));
+        if (s.profs.length) out.push(h('div.th-tooltip-sub', 'Also: ' + s.profs.map(([pid, n]) => (PROF[pid] ? wsName(PROF[pid]) : pid) + (n > 1 ? ' ×' + n : '')).join(' · ')));
+      }
+      return out;
     };
-    const presetStrip = (p, icon, extra) => strip(Object.assign({
-      key: p.id, title: p.name, desc: p.desc + (edited && match && match.id === p.id ? ' · you changed it since' : ''), icon, sum: sumOfPreset(p), on: !!match && match.id === p.id, onPick: () => pick(p),
+
+    /**
+     * One preset card (a choice, not a form row): big icon on a glow pedestal, Monocraft name, one readable line,
+     * the counts as small pills and the workstations it brings. Selected = accent ring + glow, name lit (no checkbox).
+     */
+    const card = (o) => {
+      const s = o.sum;
+      const profs = s ? s.profs.slice(0, 6) : [];
+      const btn = h('button.hl-pc' + (o.on ? '.is-on' : '') + (o.cls || ''), {
+        type: 'button', 'aria-pressed': String(!!o.on), 'data-focus': 'preset-' + o.key, onclick: o.onPick,
+        'aria-label': o.title + '. ' + (o.long || o.desc) + (s ? ' ' + plural(s.stalls, 'librarian') + (s.trades == null ? ', keeps your trades.' : ', ' + s.trades + ' other.') : ''),
+      },
+        h('span.hl-pc-ico', { 'aria-hidden': 'true' }, o.icon),
+        h('span.hl-pc-text',
+          h('b.hl-pc-name', o.title),
+          h('span.hl-pc-desc', o.desc)),
+        s ? h('span.hl-pc-meta', { 'aria-hidden': 'true' },
+          h('span.hl-pc-pills',
+            h('span.hl-pc-pill', h('b', s.stalls), s.stalls === 1 ? ' librarian' : ' librarians'),
+            s.trades == null ? h('span.hl-pc-pill', 'keeps your trades') : h('span.hl-pc-pill', h('b', s.trades), ' other')),
+          h('span.hl-pc-profs',
+            profs.map(([pid]) => TH.icon.prof(pid, { size: 18 })),
+            s.profs.length > 6 ? h('small', '+' + (s.profs.length - 6)) : null)) : null);
+      // a re-render (picking a card) detaches the card under the pointer: never show a tooltip for a card that is gone
+      if (o.tip !== false) TH.util.tooltip(btn, () => (btn.isConnected ? details(o)() : null));
+      return h('li.hl-pc-item' + (o.on ? '.is-on' : ''),
+        btn,
+        o.reco ? TH.util.reco() : null,
+        o.keys ? h('span.hl-pc-keys', o.keys) : null);
+    };
+    /** saved presets: the counts are pills already, so the line just says when it was saved */
+    const ownBlurb = (p) => { const last = String(p.desc || '').split(' · ').pop(); return /^saved /.test(last) ? 'Your preset, ' + last : (p.desc || 'Your preset'); };
+    const presetCard = (p, extra) => card(Object.assign({
+      key: p.id, title: p.name, sum: sumOfPreset(p), on: !!match && match.id === p.id, onPick: () => pick(p),
+      desc: edited && match && match.id === p.id ? 'Edited since you picked it' : (blurb[p.id] || ownBlurb(p)),
+      long: p.desc,
     }, extra));
+    const keyBtn = (label, ch, fn, cls) => {
+      const b = h('button.hl-pc-key' + (cls || ''), { type: 'button', 'aria-label': label, onclick: fn }, ch);
+      TH.util.tooltip(b, () => (b.isConnected ? label : null));
+      return b;
+    };
 
-    const own = h('li.hl-preset-item.hl-own', h('button.hl-own-btn' + (match && match.id === 'empty' ? '.is-on' : ''), {
-      type: 'button', 'aria-pressed': String(!!match && match.id === 'empty'), 'data-focus': 'preset-empty', onclick: () => pick(blank),
-    }, h('span.hl-own-plus', { 'aria-hidden': 'true' }, '+'), h('span.hl-own-text', h('b', 'Create your own'), h('span', 'Start empty and pick every book and villager yourself'))));
+    const builtCards = builtIn.slice().sort((a, b) => (b.id === 'blueprint') - (a.id === 'blueprint'))
+      .map((p) => presetCard(p, { icon: ico(icons[p.id] || 'item/chest_minecart'), reco: p.id === 'blueprint' }));
+    const builtSel = !!match && builtIn.some((p) => p.id === match.id);
 
+    const ownOn = !!match && match.id === 'empty';
+    const ownCards = [
+      card({ key: 'empty', title: 'Create your own', desc: 'Start empty, pick every villager', long: 'Start with an empty plan and pick every book and villager yourself.', icon: h('span.hl-pc-plus', '+'), on: ownOn, onPick: () => pick(blank), cls: '.is-ghost', tip: false }),
+      isCustomPlan ? card({ key: 'current', title: 'Current plan', desc: 'Your own plan, as you left it', long: 'Your own plan, as you left it. Press Next to edit it.', icon: ico('item/writable_book'), sum: sumOfPlan(hall), on: true, onPick: () => {} }) : null,
+      showPrev ? card({ key: 'previous', title: 'Previous plan', desc: 'Your plan before this preset', long: 'Your plan before you picked a preset. Pick it to switch back.', icon: ico('item/writable_book'), sum: sumOfPlan(prevPlan.plan), onPick: restore }) : null,
+      custom.map((p) => presetCard(p, {
+        icon: ico('item/writable_book'),
+        keys: [
+          keyBtn('Rename preset', '✎', () => renamePreset(p)),
+          keyBtn('Delete preset', '✕', () => TH.util.guard(true, `Delete preset “${p.name}”?`, () => TH.store.update((st) => { st.customPresets = st.customPresets.filter((x) => x.id !== p.id); }), 'Delete'), '.is-del'),
+        ],
+      })),
+      t.total && (isCustomPlan || edited) ? card({ key: 'save', title: 'Save as preset', desc: 'Keep this plan for later', long: 'Save the current plan as your own preset.', icon: ico('item/name_tag'), onPick: savePreset, cls: '.is-ghost', tip: false }) : null,
+    ];
+    const ownSel = ownOn || isCustomPlan || (!!match && custom.some((p) => p.id === match.id));
+
+    /* happy-villager sparkles rising behind the starter cards (CSS only; positions / timing per sparkle) */
+    const fx = [[6, 7.5, 0, 6], [17, 9, 3.2, 4], [29, 8, 6.1, 6], [41, 10, 1.4, 4], [53, 8.5, 4.6, 6], [64, 9.5, 2.2, 4], [76, 8, 5.4, 6], [88, 9, .8, 4], [95, 10.5, 3.8, 4]];
     return h('div.hl-presets',
-            h('ul.hl-preset-grid',
-        own,
-        builtIn.slice().sort((a, b) => (b.id === 'blueprint') - (a.id === 'blueprint')).map((p) => presetStrip(p, ico(icons[p.id] || 'item/chest_minecart'), { reco: p.id === 'blueprint', tileCls: p.id === 'blueprint' ? '.is-reco' : '' })),
-        isCustomPlan ? strip({ key: 'current', title: 'Current plan', desc: 'Your own plan, as you left it. Press Next to edit it.', icon: ico('item/writable_book'), sum: sumOfPlan(hall), on: true, onPick: () => {} }) : null,
-        showPrev ? strip({ key: 'previous', title: 'Previous plan', desc: 'Your plan before you picked a preset. Pick it to switch back.', icon: ico('item/writable_book'), sum: sumOfPlan(prevPlan.plan), onPick: restore }) : null),
-      custom.length ? [
-        h('h3.section-title.hl-sec-title', 'Your presets'),
-        h('ul.hl-preset-grid', custom.map((p) => presetStrip(p, ico('item/writable_book'), {
-          del: () => TH.util.guard(true, `Delete preset “${p.name}”?`, () => TH.store.update((st) => { st.customPresets = st.customPresets.filter((x) => x.id !== p.id); }), 'Delete'),
-        }))),
-      ] : null,
+      h('section.hl-pset.hl-pscene' + (builtSel ? '.has-sel' : ''), { 'aria-labelledby': 'hl-pset-start' },
+        h('div.hl-ps-fx', { 'aria-hidden': 'true' }, fx.map(([x, d, w, z]) => h('u', { style: `--x:${x}%;--d:${d}s;--w:-${w}s;--z:${z}px` }))),
+        h('h3.hl-pset-title', { id: 'hl-pset-start' }, 'Starter presets'),
+        h('ul.hl-pgrid', builtCards)),
+      h('section.hl-pset' + (ownSel ? '.has-sel' : ''), { 'aria-labelledby': 'hl-pset-own' },
+        h('h3.hl-pset-title', { id: 'hl-pset-own' }, 'Your own'),
+        h('ul.hl-pgrid', ownCards)),
     );
   }
 
@@ -2244,6 +2288,7 @@
   TH.app.register({
     id: 'hall',
     name: 'Trading Hall',
+    short: 'Hall',
     icon: 'mc:emerald',
     init(store) {
       store.define('hall', DEFAULTS);

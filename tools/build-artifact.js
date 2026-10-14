@@ -32,7 +32,7 @@ const walk = (dir) => {
 };
 ['css', 'js', 'fonts', 'assets/mc'].forEach(walk);
 // language files: a popular subset (the artifact publish has a file limit); the others fall back to English
-const LANGS = new Set('en_us en_gb de_de fr_fr es_es es_mx it_it pt_br pt_pt nl_nl pl_pl ru_ru uk_ua tr_tr cs_cz sv_se da_dk nb_no fi_fi hu_hu ro_ro ja_jp ko_kr zh_cn zh_tw'.split(' '));
+const LANGS = new Set('en_us en_gb de_de fr_fr es_es es_mx it_it pt_br pt_pt nl_nl pl_pl ru_ru uk_ua tr_tr cs_cz sv_se da_dk no_no fi_fi hu_hu ro_ro ja_jp ko_kr zh_cn zh_tw'.split(' '));
 for (let i = files.length - 1; i >= 0; i--) { const m = files[i].match(/^js\/data\/lang\/(.+)\.js$/); if (m && m[1] !== 'index' && !LANGS.has(m[1])) files.splice(i, 1); }
 files.push('icon.svg');
 // block + item textures travel as ONE script of data URIs (an artifact version holds at most 512 files)

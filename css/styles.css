@@ -979,3 +979,18 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; }
   -webkit-backdrop-filter: none !important; backdrop-filter: none !important;
 }
 :root[data-perf="lite"] .atmosphere .mob { display: none; }
+
+/* logo lockup: "n1cebear's" stays lowercase, "TOOLBOX" is smaller, capitalised and spread to the same width; the stack is centred on the glass */
+.brand h1 { display: flex; flex-direction: column; gap: .3em; line-height: 1; letter-spacing: .5px; }
+.brand h1 span { display: block; line-height: 1; }
+.brand h1 span:first-child { padding-top: .08em; }
+.brand h1 span:last-child { font-size: .8em; letter-spacing: .06em; text-transform: uppercase; text-align: justify; text-align-last: justify; color: var(--muted); }
+
+/* phones: six tabs in one row, labels small enough to never be cut off */
+@media (max-width: 640px) {
+  .nav-item { font-size: 8.5px; letter-spacing: 0; gap: 4px; padding-left: 1px; padding-right: 1px; }
+  .nav-item .nav-name { text-overflow: clip; white-space: nowrap; }
+}
+
+/* every tab icon sits in the same 18px box, whatever its own size (the Palettes 2x2 is 16px) */
+.nav-item .nav-icon { display: inline-grid; place-items: center; width: 18px; height: 18px; }

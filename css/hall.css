@@ -88,58 +88,10 @@
 .hl-sum > span { display: inline-flex; align-items: center; gap: 6px; }
 .hl-sum b { color: var(--text); font: 500 14px var(--mono); font-variant-numeric: tabular-nums; }
 
-/* ============ wizard: presets overview ============
-   One list of equal-height strips (DESIGN.md: strips over uneven card grids; any count, never a ragged last row):
-   icon | name, one-line description, key books | librarians / others + up to 5 workstation icons | check.
-   Order: Current plan (only when the plan matches no preset; shown selected) / Previous plan (undo after a switch),
-   the built-ins, "Your presets" (delete button beside the strip), then "Start from scratch" as its own slim strip.
-   Narrow (< 620px of list width): the counts + icons move under the text, so every strip still has the same height. */
-.hl-presets { container: hl-presets / inline-size; }
-.hl-sec-title { margin: 22px 2px 10px; }
-.hl-presets > .hl-sec-title:first-child { margin-top: 4px; }
-.hl-preset-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
-.hl-preset-scratch { margin-top: 22px; }
-.hl-preset-item { position: relative; display: flex; align-items: center; gap: 8px; min-width: 0; }
-.hl-preset {
-  position: relative; flex: 1; min-width: 0; min-height: 80px; padding: 10px 14px;
-  display: grid; grid-template-columns: 44px minmax(0, 1fr) auto 20px; align-items: center; column-gap: 14px; row-gap: 8px;
-  text-align: left; cursor: pointer; color: var(--text);
-  border-radius: var(--radius); background: var(--panel); border: 1px solid var(--line); box-shadow: var(--shadow);
-  transition: border-color .15s, transform .15s, box-shadow .15s;
-}
-.hl-preset.is-slim { min-height: 64px; grid-template-columns: 44px minmax(0, 1fr) 20px; }
-.hl-preset:hover { border-color: var(--line-2); transform: translateY(-1px); }
-.hl-preset.is-on {   /* pressed-in slot (styles.css --sel-edge / --sel-slot): dark top-left, accent bottom-right, no ring */
-  border-color: var(--sel-edge);
-  background: linear-gradient(160deg, var(--sel-soft), var(--panel) 55%);
-  box-shadow: var(--sel-slot);
-}
-.hl-preset-icon { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 4px; background: var(--slot); box-shadow: var(--slot-shadow); border: 1px solid var(--line); }
-.hl-preset-main { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
-.hl-preset-name { font: 400 15px/1.2 var(--display); }
-.hl-preset-desc, .hl-preset-books { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.hl-preset-desc { color: var(--muted); font-size: 12.5px; }
-.hl-preset-books { color: var(--faint); font-size: 11.5px; }
-.hl-preset-meta { display: grid; grid-template-columns: 112px 118px; align-items: center; gap: 12px; }
-.hl-preset-counts { display: flex; flex-direction: column; gap: 2px; font-size: 12px; color: var(--muted); white-space: nowrap; }
-.hl-preset-counts b { font: 500 14px/1.1 var(--mono); color: var(--text); font-variant-numeric: tabular-nums; }
-.hl-preset-profs { display: flex; align-items: center; gap: 4px; min-width: 0; }
-.hl-preset-profs small { font: 500 11px var(--mono); color: var(--muted); }
-.hl-preset-check { width: 20px; height: 20px; border-radius: 3px; border: 1px solid var(--line-2); background: var(--slot); box-shadow: var(--slot-shadow); }
-.hl-preset.is-on .hl-preset-check, .hl-strip.is-on .hl-tick {
+.hl-strip.is-on .hl-tick {
   background: var(--sel) center / 12px 12px no-repeat; border-color: color-mix(in srgb, var(--sel) 60%, #000);
   box-shadow: inset 2px 2px 0 rgb(255 255 255 / .3), inset -2px -2px 0 color-mix(in srgb, var(--sel) 60%, #000);
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 7 7' shape-rendering='crispEdges'%3E%3Cpath fill='%23062014' d='M6 1h1v1H6zM5 2h1v1H5zM4 3h1v1H4zM3 4h1v1H3zM2 5h1v1H2zM1 4h1v1H1zM0 3h1v1H0z'/%3E%3C/svg%3E");
-}
-.hl-preset-del { flex: none; }
-@container hl-presets (max-width: 620px) {
-  .hl-preset { grid-template-columns: 40px minmax(0, 1fr) 20px; column-gap: 12px; padding: 10px 12px; }
-  .hl-preset-icon { width: 40px; height: 40px; align-self: start; }
-  .hl-preset-check { grid-column: 3; grid-row: 1; align-self: start; }
-  .hl-preset-meta { grid-column: 2 / -1; grid-row: 2; display: flex; justify-content: space-between; gap: 10px; }
-  .hl-preset-counts { flex-direction: row; gap: 12px; }
-  .hl-preset.is-slim .hl-preset-check { align-self: center; }
-  .hl-preset.is-slim .hl-preset-icon { align-self: center; }
 }
 
 /* ============ strips (books, trades, review, next up) ============ */
@@ -494,7 +446,6 @@ button.hl-strip-main { cursor: pointer; }
 @keyframes hl-sheet-up { from { transform: translateY(100%); } to { transform: none; } }
 @media (prefers-reduced-motion: reduce) {
   .module-hall *, .module-hall *::before, .module-hall *::after { animation: none !important; transition: none !important; }
-  .hl-preset:hover { transform: none; }
 }
 
 /* ============ responsive ============ */
@@ -876,29 +827,6 @@ button.hl-strip-main { cursor: pointer; }
 .hl-combo-col { min-width: 0; }
 .hl-combo .hl-books-hint { display: none; }
 
-/* ---- Presets: tiles ---- */
-.hl-preset-grid { list-style: none; margin: 0 0 22px; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 16px; align-items: stretch; }
-.hl-preset-grid > .hl-preset-item { display: flex; min-width: 0; }
-.hl-preset-grid .hl-preset { flex: 1; display: grid; grid-template-columns: 44px minmax(0, 1fr) 20px; grid-template-areas: "icon main check" "meta meta meta"; align-items: start; row-gap: 12px; padding: 14px 16px; min-height: 0; height: 100%; text-align: left; }
-.hl-preset-grid .hl-preset-icon { grid-area: icon; }
-.hl-preset-grid .hl-preset-main { grid-area: main; }
-.hl-preset-grid .hl-preset-check { grid-area: check; }
-.hl-preset-grid .hl-preset-meta { grid-area: meta; display: flex; justify-content: space-between; align-items: center; gap: 10px; }
-.hl-preset-grid .hl-preset-counts { flex-direction: row; gap: 14px; }
-.hl-preset-grid .hl-preset-desc, .hl-preset-grid .hl-preset-books { white-space: normal; overflow: visible; }
-.hl-preset-grid .hl-preset-books { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.hl-preset-grid .is-reco { grid-column: span 2; }
-.hl-preset-grid .is-reco .hl-preset { border-top: 3px solid var(--accent); padding-top: 16px; }
-.hl-preset-grid .is-reco .hl-preset-name { font-size: 17px; }
-@media (max-width: 640px) { .hl-preset-grid .is-reco { grid-column: auto; } }
-/* "Create your own": an open tile, not a preset */
-.hl-own { min-width: 0; display: flex; }
-.hl-own-btn { flex: 1; display: flex; align-items: center; gap: 14px; padding: 16px; text-align: left; color: var(--muted); cursor: pointer; background: transparent; border: 2px dashed color-mix(in srgb, var(--muted) 40%, transparent); border-radius: var(--radius, 8px); box-shadow: none; transition: color .15s, border-color .15s; }
-.hl-own-btn:hover { color: var(--text); border-color: var(--accent); }
-.hl-own-btn.is-on { color: var(--text); border-style: solid; border-color: var(--accent); }
-.hl-own-plus { display: grid; place-items: center; flex: none; width: 44px; height: 44px; font: 400 26px var(--display); color: var(--accent); border: 2px dashed color-mix(in srgb, var(--accent) 55%, transparent); border-radius: var(--radius, 8px); }
-.hl-own-text { display: flex; flex-direction: column; gap: 4px; min-width: 0; font-size: 12.5px; }
-.hl-own-text b { font: 400 15px var(--display); color: var(--text); }
 
 /* breathing room for the tick and the left edge of every stripe */
 .hl-card .hl-strip-main { padding-left: 16px; }
@@ -906,16 +834,6 @@ button.hl-strip-main { cursor: pointer; }
 .hl-copychips .hl-strip-main { padding-left: 92px; }
 .hl-card .hl-tag { height: 24px; min-height: 24px; }
 
-/* presets: equal tiles; the recommended one is marked with accent text and an accent top edge */
-.hl-preset-grid { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
-.hl-preset-grid .is-reco { grid-column: auto; }
-.hl-preset-grid .hl-preset-name { display: flex; align-items: baseline; flex-wrap: wrap; font-size: 15px; }
-.hl-preset-grid .is-reco .hl-preset-name { font-size: 15px; }
-.hl-preset-grid .hl-preset { align-content: start; }
-.hl-preset-grid .hl-preset-name { display: block; }
-.hl-preset-grid .hl-preset-name .th-reco { display: block; margin: 0 0 4px; }
-.hl-preset-grid > .hl-preset-item, .hl-preset-grid > .hl-own { align-items: stretch; }
-.hl-own-btn { height: 100%; align-items: center; }
 
 /* ---- stripes: same height with one or many villagers, centred; the x is quiet text (red on hover) ---- */
 .hl-card-row, .hl-card.hl-cols { align-items: center; }
@@ -929,20 +847,6 @@ button.hl-strip-main { cursor: pointer; }
 :root:root .hl-vcol .hl-del { width: 14px; height: 14px; min-height: 0; padding: 0; border: 0; background: none !important; box-shadow: none !important; font-size: 10px; line-height: 14px; color: var(--faint); }
 :root:root .hl-vcol .hl-del:hover { color: var(--danger); }
 
-/* ---- preset tiles: tall, a big icon on top, books and counts pinned to the bottom ---- */
-.hl-preset-grid { grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); }
-.hl-preset-grid .hl-preset { display: flex; flex-direction: column; align-items: stretch; gap: 12px; padding: 18px; min-height: 100%; }
-.hl-preset-grid .hl-preset-icon { width: 60px; height: 60px; align-self: flex-start; }
-.hl-preset-grid .hl-preset-icon .mc { --mc: 40px !important; }
-.hl-preset-grid .hl-preset-main { flex: 1; display: flex; flex-direction: column; gap: 6px; }
-.hl-preset-grid .hl-preset-books { margin-top: auto; padding-top: 6px; }
-.hl-preset-grid .hl-preset-meta { margin-top: 2px; }
-.hl-preset-grid .hl-preset-check { position: absolute; top: 14px; right: 14px; }
-.hl-preset-grid .hl-preset-item { position: relative; }
-.hl-preset-grid .hl-preset { text-align: left; }
-.hl-preset-grid .is-reco .hl-preset { border-top-width: 0; }
-.hl-preset-grid .hl-own-btn { flex-direction: column; justify-content: center; text-align: center; gap: 12px; padding: 18px; }
-.hl-preset-grid .hl-own-text { align-items: center; }
 
 /* ---- steps inside "Total so far": three quiet keys, the current one lit ---- */
 .hl-steps { display: none; }
@@ -955,11 +859,6 @@ button.hl-strip-main { cursor: pointer; }
 .hl-mini li.is-current .hl-mini-n { background: var(--accent); color: var(--on-accent, #0b0b10); }
 .hl-mini li.is-done .hl-mini-n { color: var(--accent); }
 .hl-mini-t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-/* preset tiles: a big bare icon, counts and workstation icons stacked so nothing runs out of the tile */
-.hl-preset-grid .hl-preset-icon { width: auto; height: 72px; align-self: center; justify-content: center; background: none !important; border: 0 !important; box-shadow: none !important; }
-.hl-preset-grid .hl-preset-icon .mc { --mc: 64px !important; }
-.hl-preset-grid .hl-preset-meta { flex-direction: column; align-items: flex-start; gap: 8px; }
-.hl-preset-profs { flex-wrap: wrap; row-gap: 4px; }
 
 /* pixel cube */
 .hl-cube { width: 108px; height: 114px; image-rendering: pixelated; filter: none; }
@@ -1046,4 +945,133 @@ button.hl-strip-main { cursor: pointer; }
 @media (min-width: 1000px) {
   .hl-dash { height: auto; }
   .hl-map .hc-viewport { flex: none; height: var(--stage-h); min-height: 0; }
+}
+
+/* Villagers step section headings ("Librarians and books", "Other villagers") */
+.hl-sec-title { margin: 22px 2px 10px; }
+
+/* ============ phones: overviews compact, controls full size ============
+   Dashboard (stacked: progress, canvas, Next up): the progress panel is an overview, so its cube shrinks and the stats
+   pair up in two columns; its Edit / Check an offer keys stay full size. Wizard: the "Total so far" overview (stacked
+   under the step) lists the workstations in two columns (the librarian row with its books spans both); Back / Next
+   keep their full-size floating row. */
+@media (max-width: 640px) {
+  .hl-prog { gap: 14px; }
+  .hl-prog-main { gap: 14px; }
+  :root .hl-cube-wrap, :root .hl-cube, :root .hl-col:has(.hl-side.has-detail) .hl-cube-wrap, :root .hl-col:has(.hl-side.has-detail) .hl-cube { width: 72px; height: 76px; }
+  .hl-prog-text h3 { white-space: normal; }
+  .hl-pstats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 16px; padding-top: 0; }
+  .hl-pstat-lbl { white-space: normal; line-height: 1.25; }
+  .hl-side-panel .hl-ws-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 16px; }
+  .hl-side-panel .hl-ws-row:has(.hl-ws-books) { grid-column: 1 / -1; }
+  /* category heads are signposts, not controls: slimmer on phones so the cards come sooner */
+  :root:root:root .hl-group-head { min-height: 52px; padding: 8px 14px; margin-bottom: 10px; }
+  :root:root:root .hl-group-head h3 { font-size: 16px; letter-spacing: 1.2px; }
+  /* duplicated books: the name keeps its own full row, the villager columns go under it (left edge = the tick's) */
+  :root .hl-card.hl-cols { flex-wrap: wrap; row-gap: 4px; padding: 6px 12px 10px 0; }
+  :root .hl-card.hl-cols .hl-cols-main { flex: 1 1 100%; max-width: none; }
+  :root .hl-card.hl-cols .hl-cols-v { flex: 1 1 100%; justify-content: flex-start; padding-left: 22px; }
+  :root .hl-cols-v > .hl-vcol:first-child { margin-left: 0; }
+  /* single books: their tier keys start on the same line as the duplicated ones */
+  .hl-strips-2 .hl-card .hl-card-head > .hl-strip-lv { justify-content: flex-start; padding-left: 30px; }
+  /* names wrap instead of being cut ("Pumpkins / Melons → Emerald") */
+  .hl-card .hl-card-name > b { white-space: normal; text-overflow: clip; }
+}
+
+/* ============ wizard: presets (Start step, hall.js stepStart) ============
+   A choice, not a form: two sections of equal cards (Starter presets / Your own), the same card language as the Builds
+   library and Block Palettes (raised card, hover lift with a soft accent shadow, selected = accent ring + glow and a lit
+   Monocraft name, no checkbox). Each card: big icon on a faint glow pedestal, name, ONE readable line, the counts as small
+   pills, the workstations it brings; the full description + books live in the app tooltip. A section with the chosen
+   card lights its eyebrow (.has-sel, as Enchanting / Builds / Portal). Columns by the list's own width: 4 / 2 / 1;
+   below 520px the cards turn into compact rows (icon left). Scene: a faint emerald glow and pixel floor behind the
+   starter cards with a few happy-villager sparkles rising through the gaps (transform / opacity only; dead in Lite). */
+.hl-presets { container: hl-presets / inline-size; display: flex; flex-direction: column; gap: 40px; padding: 6px 0 12px; }
+.hl-pset { position: relative; isolation: isolate; min-width: 0; }
+.hl-pset-title { margin: 0 0 18px 2px; font: 400 13px/1.2 var(--display); text-transform: uppercase; letter-spacing: 1.4px; color: var(--muted); transition: color .2s, text-shadow .2s; }
+.hl-pset.has-sel .hl-pset-title { color: var(--accent); text-shadow: 0 0 8px color-mix(in srgb, var(--accent) 60%, transparent), 0 0 18px color-mix(in srgb, var(--accent) 30%, transparent); }
+.hl-pgrid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: stretch; }
+@container hl-presets (min-width: 520px) { .hl-pgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px; } }
+@container hl-presets (min-width: 940px) { .hl-pgrid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 24px; } }
+
+.hl-pc-item { position: relative; display: flex; min-width: 0; }
+.hl-pc {
+  position: relative; isolation: isolate; flex: 1; min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto 1fr;
+  justify-items: center; align-items: start; gap: 14px; padding: 26px 18px 20px; margin: 0;
+  border: 0; border-radius: var(--neu-r-tile, var(--radius)); color: var(--text); font: inherit; text-align: center; cursor: pointer;
+  background: var(--neu-bg, var(--panel)); box-shadow: var(--neu-raised-sm, 0 2px 0 rgb(0 0 0 / .45), inset 0 1px 0 rgb(255 255 255 / .06));
+  transition: transform .2s, box-shadow .25s, border-color .2s;
+}
+.hl-pc:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+@media (hover: hover) {
+  .hl-pc:hover { transform: translateY(-3px); box-shadow: var(--neu-raised-sm, 0 2px 0 rgb(0 0 0 / .45)), 0 12px 24px -12px color-mix(in srgb, var(--accent) 55%, transparent); }
+  .hl-pc-item:hover > .th-reco, .hl-pc-item:hover > .hl-pc-keys { transform: translateY(-3px); }
+}
+.hl-pc-item > .th-reco, .hl-pc-keys { transition: transform .2s, opacity .15s; }
+.hl-pc.is-on, .hl-pc.is-on:hover { box-shadow: var(--neu-raised-sm, 0 2px 0 rgb(0 0 0 / .45)), 0 0 0 2px color-mix(in srgb, var(--accent) 65%, transparent), 0 10px 26px -10px color-mix(in srgb, var(--accent) 55%, transparent); }
+.hl-pc-ico { position: relative; display: grid; place-items: center; width: 84px; height: 62px; }
+.hl-pc-ico::before { content: ''; position: absolute; left: 6px; right: 6px; bottom: -2px; height: 22px; z-index: -1; border-radius: 50%;
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--accent) 22%, transparent), transparent); }
+.hl-pc-ico .mc { --mc: 48px !important; filter: drop-shadow(0 3px 0 rgb(0 0 0 / .28)); transition: filter .2s; }
+.hl-pc.is-on .hl-pc-ico .mc { filter: drop-shadow(0 0 7px color-mix(in srgb, var(--accent) 55%, transparent)) drop-shadow(0 3px 0 rgb(0 0 0 / .28)); }
+.hl-pc-text { display: flex; flex-direction: column; align-items: center; gap: 7px; min-width: 0; width: 100%; }
+.hl-pc-name { font: 400 15px/1.3 var(--display); letter-spacing: .3px; overflow-wrap: anywhere; transition: color .2s, text-shadow .2s; }
+.hl-pc.is-on .hl-pc-name { color: var(--accent); text-shadow: 0 0 8px color-mix(in srgb, var(--accent) 50%, transparent); }
+.hl-pc-desc { max-width: 100%; font: 500 12.5px/1.45 var(--font); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hl-pc-meta { align-self: end; display: flex; flex-direction: column; align-items: center; gap: 12px; min-width: 0; max-width: 100%; }
+.hl-pc-pills, .hl-pc-profs { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; min-width: 0; }
+.hl-pc-pills { gap: 8px; }
+.hl-pc-pill { display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 9px; white-space: nowrap; border-radius: var(--neu-r-xs, 4px);
+  font: 500 11.5px/1 var(--font); color: var(--muted); background: color-mix(in srgb, var(--text) 7%, transparent); }
+.hl-pc-pill b { font: 500 12px/1 var(--mono); color: var(--text); font-variant-numeric: tabular-nums; }
+.hl-pc-profs { gap: 6px; min-height: 18px; }
+.hl-pc-profs small { font: 500 11px var(--mono); color: var(--muted); }
+/* open cards: Create your own, Save as preset (dashed until chosen) */
+.hl-pc.is-ghost { grid-template-rows: auto auto; align-content: center; background: transparent; box-shadow: none; border: 2px dashed color-mix(in srgb, var(--muted) 34%, transparent); padding: 24px 16px 18px; }
+@media (hover: hover) { .hl-pc.is-ghost:hover { border-color: color-mix(in srgb, var(--accent) 55%, transparent); box-shadow: none; } }
+.hl-pc.is-ghost.is-on { border-color: transparent; background: var(--neu-bg, var(--panel)); }
+.hl-pc.is-ghost .hl-pc-ico::before { display: none; }
+.hl-pc-plus { display: grid; place-items: center; width: 48px; height: 48px; border-radius: var(--neu-r-ctl, var(--radius)); font: 400 30px/1 var(--display); color: var(--accent); background: color-mix(in srgb, var(--accent) 11%, transparent); }
+/* your presets: rename / delete keys in the top-right corner, on hover / focus (always on touch screens) */
+.hl-pc-keys { position: absolute; top: 10px; right: 10px; z-index: 2; display: flex; gap: 6px; opacity: 0; }
+.hl-pc-item:hover > .hl-pc-keys, .hl-pc-item:focus-within > .hl-pc-keys { opacity: 1; }
+@media (hover: none) { .hl-pc-keys { opacity: 1; } }
+.hl-pc-key { display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 0; cursor: pointer; border-radius: var(--neu-r-xs, 4px); font: 400 13px/1 var(--font); color: var(--muted);
+  background: var(--neu-bg, var(--panel-2)); box-shadow: var(--neu-raised-xs, 0 1px 0 rgb(0 0 0 / .45), inset 0 1px 0 rgb(255 255 255 / .06)); }
+.hl-pc-key:hover { color: var(--text); }
+.hl-pc-key.is-del:hover { color: var(--danger); }
+.hl-pc-key:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* scene behind the starter cards */
+.hl-pscene::before { content: ''; position: absolute; inset: -18px -24px -22px; z-index: -2; pointer-events: none;
+  background:
+    radial-gradient(ellipse 50% 70% at 50% 58%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 74%),
+    linear-gradient(color-mix(in srgb, var(--accent) 6%, transparent) 1px, transparent 1px) 0 0 / 24px 24px,
+    linear-gradient(90deg, color-mix(in srgb, var(--accent) 6%, transparent) 1px, transparent 1px) 0 0 / 24px 24px;
+  -webkit-mask-image: radial-gradient(ellipse 62% 90% at 50% 55%, #000 25%, transparent 80%); mask-image: radial-gradient(ellipse 62% 90% at 50% 55%, #000 25%, transparent 80%); }
+.hl-ps-fx { position: absolute; inset: -18px 0 -10px; z-index: -1; overflow: hidden; pointer-events: none; }
+.hl-ps-fx u { position: absolute; left: var(--x); bottom: 0; width: var(--z); height: var(--z); text-decoration: none; opacity: 0;
+  background: color-mix(in srgb, var(--accent) 80%, #fff 20%); color: color-mix(in srgb, var(--accent) 55%, transparent);
+  box-shadow: var(--z) 0 0 -1px currentColor, calc(var(--z) * -1) 0 0 -1px currentColor, 0 var(--z) 0 -1px currentColor, 0 calc(var(--z) * -1) 0 -1px currentColor;
+  animation: hl-spark var(--d) ease-in-out infinite; animation-delay: var(--w); }
+@keyframes hl-spark { 0% { transform: translateY(0) scale(.6); opacity: 0; } 20% { opacity: .7; } 70% { opacity: .4; } 100% { transform: translateY(-220px) scale(1); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .hl-ps-fx { display: none; } .hl-pc:hover { transform: none; } }
+
+/* phones / narrow lists: compact rows, icon left, everything else beside it; names wrap, never cut */
+@container hl-presets (max-width: 519.98px) {
+  .hl-pset-title { margin-bottom: 14px; }
+  .hl-pc { grid-template-columns: 52px minmax(0, 1fr); grid-template-rows: auto; justify-items: start; align-items: center; column-gap: 14px; row-gap: 10px; padding: 14px 16px; text-align: left; }
+  .hl-pc:not(.is-ghost) .hl-pc-ico { grid-row: span 2; align-self: start; }
+  .hl-pc-ico { width: 52px; height: 48px; }
+  .hl-pc-ico::before { left: 4px; right: 4px; height: 16px; }
+  .hl-pc-ico .mc { --mc: 32px !important; }
+  .hl-pc-text { align-items: flex-start; gap: 4px; }
+  .hl-pc-desc { white-space: normal; }
+  .hl-pc-meta { grid-column: 2; align-self: auto; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+  .hl-pc-pills, .hl-pc-profs { justify-content: flex-start; }
+  .hl-pc-profs:empty { display: none; }
+  .hl-pc.is-ghost { padding: 12px 14px; }
+  .hl-pc-plus { width: 40px; height: 40px; font-size: 24px; }
+  .hl-pc-item:has(> .hl-pc-keys) .hl-pc-text { padding-right: 64px; }
+  .hl-pc-keys { top: 12px; }
+  .hl-pscene::before { inset: -14px -12px -16px; }
 }

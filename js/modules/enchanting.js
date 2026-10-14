@@ -685,13 +685,10 @@ TH.anvil = (function () {
       if (P.mat.key && p.mat) P.changed.add('mat');
       P.mat.key = mKey;
     }
-    // an item that comes in one form only (bow, elytra ...) needs no material: that field slides away and the item field takes the row
-    const plainItem = p.item && isPlain(it);
-    P.el.classList.toggle('is-plain', !!plainItem);
-    P.mat.wrap.inert = !!plainItem;
+    // an item that comes in one form only (bow, elytra ...) needs no material, but the material key stays: it is the way back to the materials
     P.mat.wrap.classList.toggle('has-sel', p.mat);
     P.mat.wrap.classList.toggle('is-empty', !p.mat);
-    const matTxt = p.mat ? matName(s.material) : noMat ? 'not needed for this item' : 'none chosen';
+    const matTxt = p.mat ? matName(s.material) : noMat ? 'not needed for this item, press to pick one' : 'none chosen';
     P.mat.btn.setAttribute('aria-label', 'Material: ' + matTxt + '. ' + (s.matOpen ? 'Hide the materials' : 'Show all materials'));
 
     // item field
@@ -1420,6 +1417,79 @@ TH.anvil = (function () {
     return modeEl;
   }
 
+  /* ---------- phones: the compact summary bar on top ----------
+     <= 980px the page is one column and the Anvil plan / shopping list sits at the very bottom. The bar on top holds the
+     Single item / My plan slider (the same persistent element, moved here, see placeMode) and one compact summary row:
+     the item, what is picked, the cost, and a full-size key that scrolls to the anvil order. Hidden on wide screens. */
+  const mqNarrow = window.matchMedia ? window.matchMedia('(max-width: 980px)') : { matches: false };
+
+  function mobar(sum) {
+    return h('div.ec-mobar', h('div.ec-mobar-mode'), sum);
+  }
+  function mobarSum(icon, name, meta, btn, cls) {
+    return h('section.panel.ec-mosum' + (cls || ''), { 'aria-label': 'Summary', 'aria-live': 'polite' },
+      h('span.ec-mosum-ico', icon),
+      h('div.ec-mosum-text', h('b.ec-mosum-name', name), h('span.ec-mosum-meta', meta)),
+      btn);
+  }
+  const jumpKey = (label, title, enabled, sel, focusKey) => h('button.btn.primary.ec-mosum-go', {
+    type: 'button', disabled: !enabled, 'data-focus': focusKey, title,
+    onclick: () => jumpTo(sel),
+  }, h('span', label), h('span.ec-mosum-arrow', { 'aria-hidden': 'true' }, '↓'));
+
+  /** Smooth scroll to a segment, clear of the sticky top bar; focus lands on it for keyboard / screen reader users. */
+  function jumpTo(sel) {
+    const el = document.querySelector('.module-enchanting ' + sel);
+    if (!el) return;
+    const tb = document.querySelector('.topbar');
+    el.style.scrollMarginTop = ((tb ? tb.offsetHeight : 0) + 12) + 'px';
+    if (!el.hasAttribute('tabindex')) el.setAttribute('tabindex', '-1');
+    el.focus({ preventScroll: true });
+    el.scrollIntoView({ behavior: reduceMotion() ? 'auto' : 'smooth', block: 'start' });
+  }
+
+  function renderMobarSingle(s, plan) {
+    const p = pk(s);
+    if (!p.item) return mobar(null);
+    const nSel = Object.keys(s.selected).filter((id) => s.selected[id] > 0).length;
+    const ench = nSel + Object.keys(s.existing).length > 0;
+    const usable = !!(plan && (plan.ok || plan.partial));
+    const has = !!(plan && !plan.error && plan.books.length);
+    let meta, bad = false;
+    if (!ready(s)) meta = 'Now pick a material';
+    else if (!nSel) meta = 'No enchantments picked yet';
+    else if (plan && plan.error) { meta = 'Can’t be planned'; bad = true; }
+    else if (!has) meta = 'Already has everything you picked';
+    else {
+      bad = !usable;
+      meta = [nSel + ' enchantment' + (nSel === 1 ? '' : 's') + ' · ',
+        usable ? [h('b', plan.totalLevels), ' level' + (plan.totalLevels === 1 ? '' : 's')] : h('b', 'Too Expensive!')];
+    }
+    return mobar(mobarSum(
+      TH.icon.item(s.item, effMat(s.item, s.material), { size: 32, glint: ench }),
+      gearLabel(s) || itemName(s.item, s.material), meta,
+      jumpKey('Anvil order', has ? 'Jump to the cheapest anvil order' : 'Pick enchantments first', has, '.ec-side', 'ec-mo-go'),
+      bad ? '.bad' : ''));
+  }
+
+  /** Moves the slider between its desktop home (top of the right panel) and the phone bar, without a re-render. */
+  function placeMode(root) {
+    if (!modeEl) return;
+    root = root || document.querySelector('.module-enchanting');
+    if (!root) return;
+    const slot = root.querySelector('.ec-mobar-mode');
+    if (mqNarrow.matches && slot) {
+      if (modeEl.parentNode === slot) return;
+      if (modeEl.parentNode && !root.querySelector('.ec-modehome')) modeEl.before(h('span.ec-modehome', { hidden: true }));
+      slot.append(modeEl);
+    } else {
+      const home = root.querySelector('.ec-modehome');
+      if (home) home.replaceWith(modeEl);
+    }
+  }
+  if (mqNarrow.addEventListener) mqNarrow.addEventListener('change', () => { placeMode(); queueFitSide(); });
+  window.addEventListener('resize', () => placeMode(), { passive: true });   // backup for browsers that are slow to fire the media change
+
   function renderModeSwitch(s, vertical) {
     const n = s.plan.filter((x) => !x.done).length;
     const total = s.plan.length;
@@ -1751,9 +1821,15 @@ TH.anvil = (function () {
       h('button.btn.primary', { type: 'button', 'data-focus': 'ec-pv-add', onclick: newItem }, '+ Add another item'),
       h('button.btn', { type: 'button', onclick: () => window.print() }, 'Print'));
 
-    return h('div.ec-layout.ec-layout-single',
+    // phones: the slider + one compact line on top, with a key down to the shopping list (the progress panel follows right below)
+    const moBar = mobar(mobarSum(TH.icon('item/writable_book', { size: 32 }),
+      open.length ? open.length + (open.length === 1 ? ' item' : ' items') + ' to do' : 'Everything finished',
+      bookTotal ? [h('b', gotBooks + '/' + bookTotal), ' books got'] : 'No books to get',
+      jumpKey('Books to get', 'Jump to the shopping list', true, '.ec-side', 'ec-mo-books')));
+
+    return [moBar, h('div.ec-layout.ec-layout-single',
       h('div.ec-main', h('div.ec-toprow', head), h('section.ec-pv-list', { 'aria-label': 'Anvil to-do checklist' }, sortBar, list)),
-      h('div.ec-side', h('aside.panel.ec-plan.ec-pvshop', { 'aria-label': 'Shopping list' }, renderModeCards(s), planTools, h('div.ec-plan-body', bookBox, matBox, doneList), actions)));
+      h('div.ec-side', h('aside.panel.ec-plan.ec-pvshop', { 'aria-label': 'Shopping list' }, renderModeCards(s), planTools, h('div.ec-plan-body', bookBox, matBox, doneList), actions)))];
   }
 
   /* ---------- page ---------- */
@@ -1800,12 +1876,14 @@ TH.anvil = (function () {
       h('div.page-head', h('div', h('h2', 'Enchanting'))),
       // the Single item / My plan switch sits centred on top of the right column (grid area "mode", enchanting.css)
       planMode ? renderPlanView(state, s) : [
+        renderMobarSingle(s, plan),
         renderGear(state),
         h('div.ec-layout.ec-layout-single',
           h('div.ec-main', renderPicker(s), isReady ? renderSelect(state, s) : renderWait(s)),
           h('div.ec-side', renderPlan(state, s, plan || { steps: [], books: [], skipped: [] }))),
       ],
     ]);
+    placeMode(root);   // phones: the slider sits in the summary bar on top
     root.querySelectorAll('[title]').forEach((el) => TH.util.tooltip(el)); // app tooltip instead of native title
     if (prevWait) queueMicrotask(() => growIn(root.querySelector('.ec-rowbox'), fromH));
     queueMicrotask(fitSide);   // right after the swap, before the first paint (no jump)
@@ -1879,7 +1957,7 @@ TH.anvil = (function () {
   }
 
   TH.app.register({
-    id: 'enchanting', name: 'Enchanting', icon: 'mc:enchanted_book',
+    id: 'enchanting', name: 'Enchanting', short: 'Enchant', icon: 'mc:enchanted_book',
     init(store) {
       store.define('enchanting', DEFAULTS);
       migrate(store.get().enchanting);

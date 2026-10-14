@@ -429,3 +429,34 @@
 .tr-tgt button.on { text-shadow: 0 0 5px color-mix(in srgb, var(--accent) 40%, transparent); }
 .tr-tgt button.on .mc { filter: drop-shadow(0 0 3px color-mix(in srgb, var(--accent) 45%, transparent)); }
 .tr-tgt button.on, .tr-tgt button[aria-checked="true"] { box-shadow: 0 0 8px -3px color-mix(in srgb, var(--accent) 35%, transparent), inset 0 0 0 1px color-mix(in srgb, var(--accent) 28%, transparent); }
+
+/* ===== Phones / one column (<= 860px): preview first and compact, then the controls at full size, the results last =====
+   The columns dissolve (display: contents) so the segments can be ordered on their own: Preview, Armor, Trim, Skin,
+   Saved outfits, Materials (the shopping list comes after everything that changes it). Wider screens keep their columns. */
+@media (max-width: 860px) {
+  .tr-layout { display: flex; flex-direction: column; align-items: stretch; }
+  .tr-layout > .tr-col { display: contents; }
+  .tr-layout .tr-viewer { order: 0; }
+  .tr-layout .tr-hud { order: 1; }
+  .tr-layout .tr-browser { order: 2; }
+  .tr-layout .tr-skin { order: 3; }
+  .tr-layout .tr-saved { order: 4; }
+  .tr-layout .tr-mats { order: 5; }
+}
+@media (max-width: 640px) {
+  /* compact preview: a shorter stage, tighter bars; its keys keep a full touch size */
+  .module-trims { --tr-stage-h: clamp(240px, 66vw, 320px); }
+  :root:root .tr-viewer { gap: 10px; }
+  :root:root .tr-vbar .tr-vbtn { height: 36px; }
+  :root:root .tr-vbar .tr-vbtn:not(.tr-bgbtn) { width: 38px; }
+  :root:root .tr-anims .tr-anim { min-height: 36px; }
+  /* trim material: two rows of big tiles instead of eleven tiny ones */
+  :root:root:root .tr-tiles { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; }
+  :root:root:root .tr-tile { aspect-ratio: auto; height: 44px; max-height: none; }
+  :root:root:root .tr-tile .mc { --mc: 24px !important; }
+  /* the target switch and the randomise keys at a full touch size */
+  :root:root .tr-sub-mat { flex-wrap: wrap; row-gap: 10px; }
+  :root:root .tr-tgt button { min-height: 36px; min-width: 44px; }
+  :root:root:root .tr-rnd { gap: 8px; flex-wrap: wrap; }
+  :root:root:root .tr-rnd .btn { min-height: 36px; padding: 0 12px; }
+}

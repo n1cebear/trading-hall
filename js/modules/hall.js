@@ -677,7 +677,8 @@
       ),
       h('div.hl-wiz-layout',
         h('section.hl-wiz-body', { 'aria-label': STEPS[step].t }, body),
-        wizardSide(hall, step)),
+        wizardSide(hall, step),
+        h('div.hl-wiz-navbar', wizardNav(step))),   // stacked screens: the row floats over the whole page, not just over the panel
     );
     queueFitSide();
   }
@@ -792,6 +793,8 @@
     const sy = side.scrollTop, ns = wizardSide(state.hall, step);
     ns.style.maxHeight = side.style.maxHeight;
     side.replaceWith(ns);
+    const nb = document.querySelector('.hl-wiz-navbar');
+    if (nb) nb.replaceChildren(wizardNav(step));
     ns.scrollTop = sy;
     window.scrollTo(0, y);
     fitSide();

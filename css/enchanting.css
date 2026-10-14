@@ -1372,14 +1372,12 @@
 .ec-combo-val > .mc.ec-mat-block { --mc: 30px !important; }
 .ec-combo-name { font-size: 17px; }
 .ec-combo-ph { font-size: 15px; }
-.ec-pickpanel.has-open .ec-crow { padding-top: 0; }
 @media (max-width: 640px) { :root:root .ec-combo { min-width: 0; height: 60px; } .ec-cslot { align-items: stretch; } }
 
 /* ===== picker scene (.ec-art): bookshelves left and right, runes rising between them, over the accent glow ===== */
 .ec-art { position: absolute; inset: 0; z-index: -1; overflow: hidden; border-radius: inherit; pointer-events: none; opacity: 0; transition: opacity .35s; }
 .ec-pickpanel:not(.has-open) .ec-art { opacity: 1; }
 .ec-crow { padding: 40px 0 36px; }
-.ec-pickpanel.has-open .ec-crow { padding-top: 0; }
 .ec-shelf { --sp1: color-mix(in srgb, var(--accent) 52%, var(--bg)); --sp2: color-mix(in srgb, var(--accent) 24%, var(--text) 14%); --sp3: color-mix(in srgb, var(--accent) 34%, var(--bg)); --sp4: color-mix(in srgb, var(--text) 24%, var(--bg));
   --plank: color-mix(in srgb, var(--accent) 16%, var(--text) 18%);
   position: absolute; bottom: 0; width: 27%; display: flex; flex-direction: column-reverse; opacity: .55;
@@ -1487,3 +1485,17 @@
 @media print { .ec-mobar { display: none !important; } }
 /* phones: the full item preview in the Anvil plan only takes the height its lines need (the summary bar on top names the item already) */
 @media (max-width: 640px) { :root:root:root:root .ec-preview { min-height: 0; padding: 6px 4px 2px; } :root:root:root .ec-pv-row { gap: 16px; } }
+
+/* "None" on the material key for items that have no material */
+.ec-combo-name.is-none { color: var(--muted); }
+
+/* phones: the single-item bar is the item preview itself (Minecraft tooltip), with the cost line and the Anvil order key inside it */
+@media (max-width: 980px) {
+  :root:root:root .ec-mosum.ec-mopv { display: flex; flex-direction: column; align-items: stretch; gap: 12px; padding: 12px 14px 12px; }
+  .ec-mopv .ec-pv-sec { padding: 0; margin: 0; }
+  .ec-mopv .ec-preview { margin: 0; }
+  .ec-mopv .mct-line.more { opacity: .7; }
+  .ec-mopv-foot { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px; }
+  .ec-mopv-foot .ec-mosum-meta { white-space: normal; }
+  :root:root:root .ec-mopv-foot .ec-mosum-go { grid-column: auto; width: auto; }
+}

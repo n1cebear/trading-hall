@@ -173,12 +173,12 @@ TH.app = (function () {
     if (!head || head.querySelector(':scope > .th-art')) return;
     const art = document.createElement('div');
     art.className = 'th-art'; art.setAttribute('aria-hidden', 'true');
-    for (let i = 0; i < 18; i++) {
+    for (let i = 0; i < 30; i++) {
       const u = document.createElement('u');
-      u.style.setProperty('--x', (3 + ((i * 61) % 94)) + '%');
-      u.style.setProperty('--d', (6 + (i % 5) * 1.3).toFixed(1) + 's');
+      u.style.setProperty('--x', (2 + ((i * 37) % 96)) + '%');
+      u.style.setProperty('--d', (6 + (i % 5) * 1.1).toFixed(1) + 's');
       u.style.setProperty('--w', '-' + ((i * 1.9) % 9).toFixed(1) + 's');
-      u.style.setProperty('--z', (i % 3 === 0 ? 9 : i % 3 === 1 ? 6 : 4) + 'px');
+      u.style.setProperty('--z', (i % 3 === 0 ? 12 : i % 3 === 1 ? 8 : 5) + 'px');
       u.style.setProperty('--s', (((i * 37) % 60) - 30) + 'px');
       art.appendChild(u);
     }

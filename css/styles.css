@@ -994,3 +994,14 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; }
 
 /* every tab icon sits in the same 18px box, whatever its own size (the Palettes 2x2 is 16px) */
 .nav-item .nav-icon { display: inline-grid; place-items: center; width: 18px; height: 18px; }
+
+/* phones: one look for every tab. The count badge (Enchanting 0/2, Hall 0/40) always floats at the top right of the icon, so no tab
+   reserves a second row for it, and the freed room goes to a bigger icon and label. */
+@media (max-width: 640px) {
+  :root:root:root .nav-item { position: relative; font-size: 9.5px; gap: 5px; padding-block: 10px 8px; }
+  :root:root:root .nav-item .nav-icon { width: 28px; height: 28px; }
+  :root:root:root .nav-item .nav-icon .mc { --mc: 28px !important; }
+  :root:root:root .nav-item .nav-badge, :root:root:root .nav-item .nav-soon { position: absolute; top: 4px; right: calc(50% - 30px); left: auto; bottom: auto; margin: 0; padding: 2px 4px; font-size: 8px; line-height: 1; letter-spacing: .2px; z-index: 2; box-shadow: none; }
+  :root:root:root .nav-item.active .nav-badge, :root:root:root .nav-item.active .nav-soon { background: rgb(0 0 0 / .3); color: inherit; border-color: transparent; }
+  .pl-navico { transform: scale(1.5); }
+}

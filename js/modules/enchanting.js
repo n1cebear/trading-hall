@@ -573,7 +573,7 @@ TH.anvil = (function () {
     const real = ok && !generic;
     return [
       h('span.ec-item-ico', real ? itemIcon(it.id, s.material, 32) : genericIcon(it, 32)),
-      h('span.ec-item-name', h('span', real ? itemName(it.id, s.material) : genericLabel(it))),
+      h('span.ec-item-name', h('span', real ? itemName(it.id, effMat(it.id, s.material)) : genericLabel(it))),
       it.since ? h('span.ec-new', it.since) : null,
     ];
   }
@@ -677,25 +677,28 @@ TH.anvil = (function () {
     const genericItem = !p.mat && !isPlain(it);       // item chosen, material not yet: material-less name
 
     // material field: icon + name, or the empty prompt
-    const mKey = (p.mat ? s.material : noMat ? '-none' : '-') + '|' + lang;
+    const plainNow = p.item && isPlain(it);
+    const mKey = (plainNow ? '-none' : p.mat ? s.material : '-') + '|' + lang;
     if (P.mat.key !== mKey) {
-      P.mat.tile.replaceChildren(...(p.mat
-        ? [matIconEl(s.material), h('span.ec-combo-name', matName(s.material))]
-        : [h('span.ec-combo-ph', noMat ? 'Not needed' : 'Choose a material')]));
-      if (P.mat.key && p.mat) P.changed.add('mat');
+      P.mat.tile.replaceChildren(...(plainNow
+        ? [h('span.ec-combo-name.is-none', 'None')]
+        : p.mat
+          ? [matIconEl(s.material), h('span.ec-combo-name', matName(s.material))]
+          : [h('span.ec-combo-ph', 'Choose a material')]));
+      if (P.mat.key && p.mat && !plainNow) P.changed.add('mat');
       P.mat.key = mKey;
     }
     // an item that comes in one form only (bow, elytra ...) needs no material, but the material key stays: it is the way back to the materials
-    P.mat.wrap.classList.toggle('has-sel', p.mat);
-    P.mat.wrap.classList.toggle('is-empty', !p.mat);
-    const matTxt = p.mat ? matName(s.material) : noMat ? 'not needed for this item, press to pick one' : 'none chosen';
+    P.mat.wrap.classList.toggle('has-sel', p.mat && !plainNow);
+    P.mat.wrap.classList.toggle('is-empty', !p.mat && !plainNow);
+    const matTxt = plainNow ? 'none, this item has no material. Press to pick one' : p.mat ? matName(s.material) : 'none chosen';
     P.mat.btn.setAttribute('aria-label', 'Material: ' + matTxt + '. ' + (s.matOpen ? 'Hide the materials' : 'Show all materials'));
 
     // item field
     const iKey = (p.item ? s.item + '|' + (genericItem ? '-' : effMat(s.item, s.material)) : '-') + '|' + lang;
     if (P.item.key !== iKey) {
       P.item.tile.replaceChildren(...(p.item
-        ? [h('span.ec-item-ico', genericItem ? genericIcon(it, 32) : itemIcon(it.id, s.material, 32)), h('span.ec-combo-name', genericItem ? genericLabel(it) : itemName(it.id, s.material))]
+        ? [h('span.ec-item-ico', genericItem ? genericIcon(it, 32) : itemIcon(it.id, s.material, 32)), h('span.ec-combo-name', genericItem ? genericLabel(it) : itemName(it.id, effMat(it.id, s.material)))]
         : [h('span.ec-combo-ph', 'Choose an item')]));
       if (P.item.key && p.item) P.changed.add('item');
       P.item.key = iKey;
@@ -704,7 +707,7 @@ TH.anvil = (function () {
     P.item.badge.textContent = it.since || '';
     P.item.wrap.classList.toggle('has-sel', p.item);
     P.item.wrap.classList.toggle('is-empty', !p.item);
-    const itemTxt = p.item ? (genericItem ? genericLabel(it) : itemName(it.id, s.material)) : 'none chosen';
+    const itemTxt = p.item ? (genericItem ? genericLabel(it) : itemName(it.id, effMat(it.id, s.material))) : 'none chosen';
     P.item.btn.setAttribute('aria-label', 'Item: ' + itemTxt + '. ' + (s.itemOpen ? 'Hide the items' : 'Show all items'));
 
     // full material grid
@@ -728,7 +731,7 @@ TH.anvil = (function () {
       b.className = 'ec-item' + (on ? ' on' : '') + (ok ? '' : ' na') + (x.since ? ' has-since' : '');
       b.disabled = !ok;
       b.setAttribute('aria-pressed', String(on));
-      const name = !p.mat ? genericLabel(x) : ok ? itemName(id, s.material) : genericName(id);
+      const name = !p.mat ? genericLabel(x) : ok ? itemName(id, effMat(id, s.material)) : genericName(id);
       b.setAttribute('aria-label', name);
       b._tip = !ok ? 'Not available in ' + matName(s.material) : on ? name + ' · picked' : name;
     });
@@ -1035,7 +1038,7 @@ TH.anvil = (function () {
   }
 
   /** Minecraft-style item slot + tooltip for the gear as it will look (existing + picked enchants). */
-  function renderPreview(s) {
+  function renderPreview(s, cap) {
     const fin = Object.assign({}, s.existing);
     Object.keys(s.selected).forEach((id) => {
       Object.keys(fin).forEach((x) => { if (x !== id && conflictList(id, [x]).length) delete fin[x]; });
@@ -1044,10 +1047,12 @@ TH.anvil = (function () {
     const ids = sortIds(Object.keys(fin));
     const ench = ids.length > 0;
     const custom = gearLabel(s);
-    const lines = ids.map((id) => {
+    const shown = cap && ids.length > cap ? ids.slice(0, cap - 1) : ids;   // phones: a short list with a "+n more" line
+    const lines = shown.map((id) => {
       const curse = byId[id] && byId[id].category === 'curse';
       return h('div.mct-line' + (curse ? '.curse' : '') + '', lvlName(id, fin[id]));
     });
+    if (shown.length < ids.length) lines.push(h('div.mct-line.more', '+' + (ids.length - shown.length) + ' more'));
     // first section of the Anvil plan panel (flat, no box of its own); the tooltip itself stays Minecraft-styled
     return h('div.ec-pv-sec',
       h('div.ec-preview', { role: 'group', 'aria-label': 'Preview', 'aria-live': 'polite' },
@@ -1465,11 +1470,11 @@ TH.anvil = (function () {
       meta = [nSel + ' enchantment' + (nSel === 1 ? '' : 's') + ' · ',
         usable ? [h('b', plan.totalLevels), ' level' + (plan.totalLevels === 1 ? '' : 's')] : h('b', 'Too Expensive!')];
     }
-    return mobar(mobarSum(
-      TH.icon.item(s.item, effMat(s.item, s.material), { size: 32, glint: ench }),
-      gearLabel(s) || itemName(s.item, s.material), meta,
-      jumpKey('Anvil order', has ? 'Jump to the cheapest anvil order' : 'Pick enchantments first', has, '.ec-side', 'ec-mo-go'),
-      bad ? '.bad' : ''));
+    // the item preview (the Minecraft tooltip) is the summary; the key to the anvil order lives inside it
+    return mobar(h('section.panel.ec-mosum.ec-mopv' + (bad ? '.bad' : ''), { 'aria-label': 'Item preview', 'aria-live': 'polite' },
+      renderPreview(s, 5),
+      h('div.ec-mopv-foot', h('span.ec-mosum-meta', meta),
+        jumpKey('Anvil order', has ? 'Jump to the cheapest anvil order' : 'Pick enchantments first', has, '.ec-side', 'ec-mo-go'))));
   }
 
   /** Moves the slider between its desktop home (top of the right panel) and the phone bar, without a re-render. */

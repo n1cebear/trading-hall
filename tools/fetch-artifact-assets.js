@@ -5,6 +5,7 @@
 const fs = require('fs');
 const path = require('path');
 const root = path.join(__dirname, '..');
+// entity / trim / misc textures stay on 1.21.11 (26.x moved them); blocks and items follow js/core/icons.js VERSION
 const VERSION = '1.21.11';
 const RAW = `https://raw.githubusercontent.com/InventivetalentDev/minecraft-assets/${VERSION}/assets/minecraft/textures/`;
 const API = (d) => `https://api.github.com/repos/InventivetalentDev/minecraft-assets/contents/assets/minecraft/textures/${d.slice(0, -1)}?ref=${VERSION}`;

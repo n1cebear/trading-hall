@@ -163,7 +163,7 @@
   function keyName(key) {
     if (!key) return '';
     if (key.startsWith('farm:')) { const f = B().farms.FARMS.find((x) => x.id === key.slice(5)); return f ? f.name : 'Farm'; }
-    if (key.startsWith('file:')) { const r = fileRec(key.slice(5)); const m = mem.files.get(key.slice(5)); return (m && m.name) || (r && r.name) || 'File'; }
+    if (key.startsWith('file:')) { const r = fileRec(key.slice(5)); const m = mem.files.get(key.slice(5)); const meta = S().meta && S().meta[key]; return (meta && meta.name) || (m && m.name) || (r && r.name) || 'File'; }
     if (key === 'shape') { const s = shapeSchem(); return s ? s.name : 'Shape'; }
     if (key === 'paste') return 'Pasted material list';
     return '';
@@ -353,7 +353,7 @@
     if (!s) return;
     UI.shown = s; UI.shownKey = key;
     if (S().stage !== key) save((b) => { b.stage = key; });
-    UI.title.textContent = s.name;
+    UI.title.textContent = keyName(key) || s.name;
     const n = core().volume(s);
     UI.meta.textContent = s.size[0] + ' × ' + s.size[1] + ' × ' + s.size[2] + ' · ' + fmtN(n) + ' blocks';
     UI.layer.max = s.size[1];
@@ -671,7 +671,7 @@
     const st = S(), m = st.meta[key] || {}, rec = fileRec(key.slice(5));
     if (!rec) return null;
     const upd = (fn) => { save((b) => { const x = b.meta[key] || (b.meta[key] = {}); fn(x); }); };
-    const name = h('input.field', { type: 'text', value: m.name || rec.name, 'aria-label': 'Name', maxlength: 60, onchange: (e) => { upd((x) => { x.name = e.target.value.trim() || rec.name; }); UI.title.textContent = e.target.value.trim() || rec.name; } });
+    const name = h('input.field', { type: 'text', value: m.name || rec.name, 'aria-label': 'Name', maxlength: 60, oninput: (e) => { upd((x) => { x.name = e.target.value.trim() || rec.name; }); if (UI.shownKey === key) UI.title.textContent = e.target.value.trim() || rec.name; } });
     const useSeg = h('div.seg.bd-useseg', { role: 'radiogroup', 'aria-label': 'How you use it' }, [['', 'Not a farm'], ['afk', 'AFK'], ['semi', 'Semi-AFK'], ['manual', 'Manual']].map(([id, t]) =>
       h('button', { type: 'button', role: 'radio', 'aria-checked': String((m.use || '') === id), class: (m.use || '') === id ? 'on' : null, onclick: () => { upd((x) => { x.use = id || null; }); patch(); } }, t)));
     const tags = m.tags || [];
@@ -707,7 +707,7 @@
       f.useText ? [h('div.bd-sub', 'How you use it'), h('p.bd-use-text', f.useText)] : null,
       f.tags && f.tags.length ? h('div.bd-tagrow', f.tags.map((t) => h('span.pill.bd-tag', (t === 'no-redstone' ? 'No redstone' : t === 'redstone' ? 'Redstone' : TAG_LABEL[t] || t)))) : null,
       h('div.bd-sub', 'You need'),
-      h('ul.bd-needs', top.map((m) => h('li', TH.icon(core().iconOf(m.block), { size: 18 }), h('span.bd-needs-n', fmtN(m.n)), h('span', core().nameOf(m.item)))),
+      h('ul.bd-needs', top.map((m) => h('li', core().blockIcon(m.block, { size: 18 }), h('span.bd-needs-n', fmtN(m.n)), h('span', core().nameOf(m.item)))),
         mats.length > top.length ? h('li', h('button.bd-link', { type: 'button', onclick: () => toMats('farm:' + f.id) }, '+ ' + (mats.length - top.length) + ' more in Materials')) : null),
       h('button.bd-link', { type: 'button', onclick: () => toMats('farm:' + f.id) }, 'Full material list, recipes and packing →'),
       h('div.bd-sub', 'Build it'),
@@ -735,12 +735,12 @@
         const fam = core().def(r.id).fam;
         btn.after(blockPicker({ ids: core().familyOf(fam), current: cur, original: r.id, onPick: (id) => setSwap(key, r.id, id), label: 'Replace ' + core().nameOf(r.id) }));
       } },
-      TH.icon(core().iconOf(cur), { size: 24 }),
+      core().blockIcon(cur, { size: 24 }),
       h('span.bd-swap-txt', h('span.bd-swap-name', core().nameOf(cur)), to ? h('span.bd-swap-was', 'was ' + core().nameOf(r.id)) : h('span.bd-swap-was', 'Click to replace')),
       h('span.bd-swap-n', fmtN(r.n)), glyph('swap', 'bd-swap-ico'));
       return btn;
     };
-    const lockRow = (r) => tip(h('div.bd-lockrow', { tabindex: 0 }, TH.icon(core().iconOf(r.id), { size: 20 }), h('span.bd-swap-name', core().nameOf(r.id)), h('span.bd-swap-n', fmtN(r.n)), glyph('lock', 'bd-lock-ico')),
+    const lockRow = (r) => tip(h('div.bd-lockrow', { tabindex: 0 }, core().blockIcon(r.id, { size: 20 }), h('span.bd-swap-name', core().nameOf(r.id)), h('span.bd-swap-n', fmtN(r.n)), glyph('lock', 'bd-lock-ico')),
       () => [h('div.th-tooltip-title', core().nameOf(r.id) + ' stays'), h('div.th-tooltip-sub', core().replaceable(r.id).why)]);
     const name = keyName(key);
     const panel = h('section.panel.bd-pan.bd-custom-panel' + (n ? '.has-sel' : ''), { 'aria-label': 'Customise blocks' },
@@ -780,7 +780,7 @@
         out.push(h('div.bd-pick-grp', G[g] || g));
         out.push(h('div.bd-pick-grid', groups.get(g).map((n) => {
           const id = 'minecraft:' + n, on = core().parse(o.current).name === n, orig = o.original && core().parse(o.original).name === n;
-          const b = h('button.btn.bd-pick-tile' + (on ? '.on' : ''), { type: 'button', 'aria-pressed': String(on), 'aria-label': core().nameOf(id), onclick: () => o.onPick(id) }, TH.icon(core().iconOf(id), { size: 24 }), orig ? h('span.bd-pick-orig', { 'aria-hidden': 'true' }) : null);
+          const b = h('button.btn.bd-pick-tile' + (on ? '.on' : ''), { type: 'button', 'aria-pressed': String(on), 'aria-label': core().nameOf(id), onclick: () => o.onPick(id) }, core().blockIcon(id, { size: 24 }), orig ? h('span.bd-pick-orig', { 'aria-hidden': 'true' }) : null);
           return tip(b, () => [h('div.th-tooltip-title', core().nameOf(id)), orig ? h('div.th-tooltip-sub', 'The original block') : null].filter(Boolean));
         })));
       });
@@ -802,6 +802,12 @@
     toast('Reading ' + f.name + '…');
     try {
       const s = await B().io.load(f);
+      if (!s.name || /^(unnamed|untitled|schematic|structure|default|template|new)$/i.test(String(s.name).trim())) {
+        // "castle_final-v2.litematic" -> "Castle Final V2" (shortened to 36 characters)
+        let n = f.name.replace(/\.[^.]+$/, '').replace(/[_\-+.]+/g, ' ').replace(/\s+/g, ' ').trim();
+        n = n.replace(/\b([a-z])/g, (m) => m.toUpperCase());
+        s.name = (n.length > 36 ? n.slice(0, 35).trim() + '…' : n) || 'Imported build';
+      }
       const id = TH.util.uid('f');
       mem.files.set(id, s);
       let kept = true;
@@ -970,7 +976,7 @@
           save((b) => { (which === 2 ? b.shape.block2 : b.shape.block)[kind] = id; });
           regen(); syncCreateHeads();
         } }));
-      } }, TH.icon(core().iconOf(cur), { size: 24 }), h('span.bd-swap-txt', h('span.bd-swap-name', core().nameOf(cur)), h('span.bd-swap-was', label)), glyph('swap', 'bd-swap-ico'));
+      } }, core().blockIcon(cur, { size: 24 }), h('span.bd-swap-txt', h('span.bd-swap-name', core().nameOf(cur)), h('span.bd-swap-was', label)), glyph('swap', 'bd-swap-ico'));
       return btn;
     };
     return h('section.panel.bd-pan.bd-blocks-panel', { 'aria-label': 'Blocks' },

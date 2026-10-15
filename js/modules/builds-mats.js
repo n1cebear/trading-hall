@@ -158,6 +158,12 @@ TH.builds.mats = (function () {
     Object.entries(R.NAMES).forEach(([n, label]) => { if (!n.startsWith('tag:') && n !== 'redstone_wire') put(label, 'minecraft:' + n); });
     Object.keys(C.BLOCKS).forEach((n) => { const d = C.BLOCKS[n], it = 'minecraft:' + (d.item || n); put(C.nameOf('minecraft:' + n), it); put(n.replace(/_/g, ' '), it); });
     R.allIds().forEach((id) => { put(R.nameOf(id), id); put(R.bare(id).replace(/_/g, ' '), id); });
+    // every block and item of the game version (js/data/block-db.js): its English name and the id in words
+    const DB = TH.data && TH.data.blockDb;
+    if (DB) {
+      Object.entries(DB.names).forEach(([n, label]) => put(label, 'minecraft:' + ((C.def('minecraft:' + n) || {}).item || n)));
+      Object.keys(DB.b).forEach((n) => { const it = 'minecraft:' + ((C.def('minecraft:' + n) || {}).item || n); put(C.nameOf('minecraft:' + n), it); put(n.replace(/_/g, ' '), it); });
+    }
     const L = (TH.langData && TH.langData.en_us) || {};
     Object.keys(L).forEach((k) => { const m = k.match(/^(?:block|item)\.minecraft\.([a-z0-9_]+)$/); if (m) put(L[k], 'minecraft:' + m[1]); });
     return byName;
@@ -371,6 +377,8 @@ TH.builds.mats = (function () {
   function iconFor(id, size) {
     const s = String(id || '');
     if (!s || isTextItem(s)) return h('span.mt-noico', { 'aria-hidden': 'true' });
+    // blocks: the inventory look (isometric model, or the item sprite for doors, torches, plants ...)
+    if (TH.icon.block && TH.icon.block.has(s)) return TH.icon.block(s, { size, fallback: iconKeyOf(s) || undefined });
     const key = found.get(s) || iconKeyOf(s);
     if (key) return TH.icon(key, { size });
     const n = RC().bare(s);
@@ -429,7 +437,7 @@ TH.builds.mats = (function () {
       const n = r.unit ? Math.round(r.q * stack * (r.unit === 'st' ? 1 : r.unit === 'sb' ? 27 : 54)) : r.n;
       const e = m.get(item);
       if (e) { e.n += n; e.have0 += r.have || 0; }
-      else m.set(item, { item, n, have0: r.have || 0, done0: !!r.done, label: id && (core().BLOCKS[RC().bare(id)] || RC().knows(id) || RC().NAMES[RC().bare(id)]) ? null : r.name.trim() });
+      else m.set(item, { item, n, have0: r.have || 0, done0: !!r.done, label: id && (core().known(id) || RC().knows(id) || RC().NAMES[RC().bare(id)] || (TH.data.blockDb && TH.data.blockDb.names[RC().bare(id)])) ? null : r.name.trim() });
     });
     v = { title: p.title, rows: [...m.values()].filter((r) => r.n > 0) };
     if (parseCache.size > 20) parseCache.clear();
@@ -514,12 +522,15 @@ TH.builds.mats = (function () {
     M.unitSeg = seg('Amounts as', [['items', 'Items'], ['stacks', 'Stacks'], ['boxes', 'Shulkers'], ['dc', 'Chests']], () => U(), (v) => { save((b) => { b.units = v; }); syncUnits(); },
       { items: 'Single items. A number you type counts as items', stacks: 'Stacks (64, 16 or 1 per slot). A number you type counts as stacks', boxes: 'Shulker boxes (27 slots). A number you type counts as shulker boxes', dc: 'Double chests (54 slots). A number you type counts as double chests' });
     M.rows = h('div.mt-rows', { role: 'list' });
+    // column labels: only shown when the list is wide enough for the extra columns (css/materials.css)
+    M.colItems = h('span.mt-ch-items');
+    M.colHead = h('div.mt-colhead', { 'aria-hidden': 'true' }, h('span.mt-ch-need', 'Needed'), M.colItems, h('span.mt-ch-have', 'Have'), h('span.mt-ch-still', 'Still needed'));
     M.empty = h('p.mt-note.mt-empty', { hidden: true });
     M.acts = h('div.mt-actions.mt-lacts');
     M.list = h('section.panel.mt-pan.mt-list', { 'aria-label': 'Material list' },
       h('div.mt-pan-head', M.listTitle, M.listCount),
       h('div.mt-tools', h('div.mt-tools-a', M.q, hideSw, rawSw), h('div.mt-tools-b', M.sortSeg, M.unitSeg)),
-      M.rows, M.empty, M.acts);
+      M.colHead, M.rows, M.empty, M.acts);
     // side: the source card + packing in one panel, raw materials below
     M.card = h('div.mt-card');
     M.packBody = h('div.mt-packbody');
@@ -833,9 +844,10 @@ TH.builds.mats = (function () {
     const plusSt = r.stack > 1 ? tip(h('button.mt-qk', { type: 'button', 'aria-label': 'Add a stack of ' + r.name, onclick: () => bump(r, r.stack) }, gl('plus', 'mt-qk-plus'), unitIco('st', 12)), 'Add one stack (' + r.stack + ')') : null;
     const plusSb = tip(h('button.mt-qk', { type: 'button', 'aria-label': 'Add a shulker box of ' + r.name, onclick: () => bump(r, r.stack * 27) }, gl('plus', 'mt-qk-plus'), unitIco('sb', 14)), 'Add one shulker box (' + fmt(r.stack * 27) + ')');
     const det = h('div.mt-det', { hidden: !open });
+    const itemsC = h('div.mt-items'), stillC = h('div.mt-still');   // wide lists only: the exact count and what is still missing
     const el = h('div.mt-row' + (done ? '.done' : '') + (open ? '.open' : ''), { role: 'listitem', 'data-item': r.item },
-      chk, h('span.mt-ico', iconFor(r.item, 32)), h('div.mt-namecell', nameBtn, rkey), need, have.wrap, h('div.mt-quick', plusSt, plusSb), det);
-    el._r = r; el._cb = cb; el._need = need; el._have = have; el._det = det; el._btns = [nameBtn, rkey].filter(Boolean);
+      chk, h('span.mt-ico', iconFor(r.item, 32)), h('div.mt-namecell', nameBtn, rkey), need, itemsC, have.wrap, stillC, h('div.mt-quick', plusSt, plusSb), det);
+    el._r = r; el._cb = cb; el._need = need; el._have = have; el._det = det; el._items = itemsC; el._still = stillC; el._btns = [nameBtn, rkey].filter(Boolean);
     M.rowEls.set(r.item, el);
     fillNeed(el);
     if (open) fillDet(el);
@@ -848,6 +860,10 @@ TH.builds.mats = (function () {
     const sub = u === 'items' ? (r.stack > 1 && r.n >= r.stack ? h('span.mt-need-sub', bits(r.n, r.stack, 'stacks')) : null) : h('span.mt-need-sub', h('span.mt-bit', h('b', fmt(r.n))));
     const still = hv > 0 && left > 0 ? h('span.mt-left', '−' + fmt(left)) : null;
     el._need.replaceChildren(main, h('span.mt-need-line', sub, still));
+    // wide columns: the other reading of the amount, and what is still missing in the picked unit
+    el._items.replaceChildren(...(u === 'items' ? (r.stack > 1 && r.n >= r.stack ? bits(r.n, r.stack, 'stacks') : []) : [h('span.mt-bit', h('b', fmt(r.n)))]));
+    el._still.replaceChildren(isDone(r) ? gl('check', 'mt-still-ok') : hv > 0 ? h('span.mt-still-n', bits(left, r.stack, u)) : h('span.mt-still-all', '–'));
+    if (M.colItems) M.colItems.textContent = u === 'items' ? 'Stacks' : 'Items';
     tip(el._need, () => [h('div.th-tooltip-title', amountWords(r.n, r.stack, u === 'items' ? 'boxes' : u)), h('div.th-tooltip-sub', fmt(r.n) + ' items' + (r.stack !== 64 ? ' · stacks of ' + r.stack : '')),
       hv > 0 && left > 0 ? h('div.th-tooltip-sub', 'still ' + amountWords(left, r.stack, u === 'items' ? 'stacks' : u)) : null].filter(Boolean));
   }
@@ -993,11 +1009,21 @@ TH.builds.mats = (function () {
   }
 
   /* ---- packing: one card per container, its slots as icons on one quiet well ---- */
-  function packRows() {
+  /** The rows to pack: the list itself, or (switch 'Raw materials') everything broken down to what you mine and farm. */
+  function packSource() {
     const d = M.d;
-    if (MS().pack !== 'sorted') return d.rows;
+    if (MS().packRaw && !d.raw) {
+      const R = RC();
+      return R.raw(d.base, ropts()).rows.map((x) => ({ item: x.item, n: x.n, stack: stackOf(x.item), name: R.nameOf(x.item), grp: isTextItem(x.item) ? 'misc' : R.groupOf(x.item) }))
+        .sort((a, b) => b.n - a.n);
+    }
+    return d.rows;
+  }
+  function packRows() {
+    const rows = packSource();
+    if (MS().pack !== 'sorted') return rows;
     const go = GROUP_ORDER(), gi = (g) => { const i = go.indexOf(g); return i < 0 ? 99 : i; };
-    return d.rows.map((r, i) => [r, i]).sort((a, b) => gi(a[0].grp) - gi(b[0].grp) || a[1] - b[1]).map((x) => x[0]);
+    return rows.map((r, i) => [r, i]).sort((a, b) => gi(a[0].grp) - gi(b[0].grp) || a[1] - b[1]).map((x) => x[0]);
   }
   const CONT = { box: ['Shulker box', 'Shulker boxes', 'Box '], dc: ['Double chest', 'Double chests', 'Chest '] };
   function buildPack() {
@@ -1008,6 +1034,8 @@ TH.builds.mats = (function () {
     const contSeg = seg('Container', [['box', 'Shulker boxes'], ['dc', 'Double chests']], () => (MS().cont === 'dc' ? 'dc' : 'box'), (v) => { save((b) => { b.mats.cont = v; }); M.packAll = false; buildPack(); });
     const modeSeg = seg('Packing', [['tight', 'Tight'], ['sorted', 'Sorted']], () => (MS().pack === 'sorted' ? 'sorted' : 'tight'), (v) => { save((b) => { b.mats.pack = v; }); buildPack(); },
       { tight: 'Fewest containers: big items first, each kept in one container where it fits', sorted: 'Related blocks together: by group, in list order, container by container' });
+    const whatSeg = M.d.raw ? null : seg('What to pack', [['list', 'The list'], ['raw', 'Raw materials']], () => (MS().packRaw ? 'raw' : 'list'), (v) => { save((b) => { b.mats.packRaw = v === 'raw'; }); M.packAll = false; buildPack(); },
+      { list: 'Pack the blocks of the list as they are', raw: 'Pack what you actually gather: the list broken down to raw materials' });
     const grid = h('div.mt-boxes');
     const FIRST = 6;
     const showN = M.packAll ? bins.length : Math.min(bins.length, FIRST);
@@ -1018,7 +1046,7 @@ TH.builds.mats = (function () {
       fmt(slots) + ' slots in ' + bins.length + ' ' + (bins.length === 1 ? CONT[cont][0] : CONT[cont][1]).toLowerCase() + (free ? ', ' + free + ' slots free' : ', completely full')) : h('span.mt-count', 'Nothing to pack');
     M.packBody.replaceChildren(...[
       h('div.mt-pan-head', h('h3', 'Packing'), count),
-      h('div.mt-tools-b', contSeg, modeSeg),
+      h('div.mt-tools-b', ...[whatSeg, contSeg, modeSeg].filter(Boolean)),
       grid, more,
       bins.length ? h('div.mt-actions', tip(h('button.btn.mt-key', { type: 'button', onclick: () => copy(packText(), 'Packing copied') }, gl('copy'), 'Copy packing'), 'Every container with what goes in it, as text')) : null].filter(Boolean));
     dimPack();

@@ -82,7 +82,7 @@
 .mt-paste { width: 100%; height: auto; min-height: 170px; padding: 10px 12px; resize: vertical; font: 400 12.5px/1.45 var(--mono); }
 
 /* ---------- grid: list | side ---------- */
-.mt-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(380px, 540px); gap: var(--mt-gap); align-items: start; }
+.mt-grid { display: grid; grid-template-columns: minmax(0, 1fr) clamp(380px, 38%, 760px); gap: var(--mt-gap); align-items: start; }
 .mt-side { display: flex; flex-direction: column; gap: var(--mt-gap); min-width: 0; }
 @media (max-width: 1100px) { .mt-grid { grid-template-columns: minmax(0, 1fr); } }
 
@@ -105,7 +105,7 @@
 .mt-chk { grid-area: chk; }
 .mt-chk::after { content: ''; position: absolute; inset: -9px; }   /* a finger-sized hit area around the 22px tick */
 .mt-ico { grid-area: ico; display: grid; place-items: center; width: 32px; height: 32px; }
-.mt-namecell { grid-area: name; display: flex; align-items: center; gap: 8px; min-width: 0; }
+.mt-namecell { grid-area: name; display: flex; align-items: center; gap: 4px; min-width: 0; }
 .mt-name { display: flex; align-items: center; min-width: 0; min-height: 40px; padding: 0; border: 0; background: none; color: var(--text); text-align: left; cursor: pointer; font: inherit; }
 .mt-label { min-width: 0; font: 400 13px/1.3 var(--display); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mt-name:hover .mt-label, .mt-row.open .mt-label { color: var(--accent); }
@@ -278,3 +278,51 @@
 :root[data-tool="materials"] .th-art u { animation-name: th-mat; border-radius: 2px; background: var(--accent); box-shadow: inset calc(var(--z) / -4) calc(var(--z) / -4) 0 rgb(0 0 0 / .25); }
 :root[data-tool="materials"] .th-art u:nth-child(3n) { background: color-mix(in srgb, var(--accent) 55%, #fff 45%); }
 :root[data-tool="materials"] .th-art u:nth-child(5n) { background: #9a5fb5; }
+
+/* quick-add keys and the have field have no box of their own: the boxes show when the stripe is hovered (the key then has its own hover) */
+:root:root:root .mt-qk { background: transparent; }
+:root:root:root .mt-row:hover .mt-qk, :root:root:root .mt-row:focus-within .mt-qk { background: color-mix(in srgb, var(--text) 7%, transparent); }
+:root:root:root .mt-qk:hover { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); }
+:root:root:root .mt-hv { background: transparent; box-shadow: none; border-color: transparent; transition: background .15s, box-shadow .15s; }
+:root:root:root .mt-hv::placeholder { color: var(--faint); }
+:root:root:root .mt-row:hover .mt-hv, :root:root:root .mt-hv:focus { background: var(--neu-well, color-mix(in srgb, var(--text) 6%, transparent)); box-shadow: var(--neu-inset-sm, inset 0 1px 3px rgb(0 0 0 / .35)); }
+
+/* inventory-style block icons (js/core/block-icons.js): drawn at 2x, so scale smoothly, not pixelated */
+.mc.mc-iso img { image-rendering: auto; object-fit: contain; }
+
+/* ---------- wide list: the free width becomes columns (needed | items or stacks | have | still needed | quick keys) ---------- */
+.mt-items, .mt-still, .mt-colhead { display: none; }
+@container (min-width: 820px) {
+  .mt-row, .mt-colhead {
+    grid-template-columns: 22px 32px minmax(160px, 1fr) minmax(104px, auto) 96px 132px minmax(96px, auto) 92px;
+    grid-template-areas: "chk ico name need items have still quick" "det det det det det det det det";
+    column-gap: 18px;
+  }
+  .mt-colhead { display: grid; align-items: end; padding: 0 8px; margin: 0 -8px -10px; font: 400 10.5px/1.2 var(--display); text-transform: uppercase; letter-spacing: 1px; color: var(--faint); }
+  .mt-ch-need { grid-area: need; text-align: right; }
+  .mt-ch-items { grid-area: items; text-align: right; }
+  .mt-ch-have { grid-area: have; text-align: right; padding-right: 9px; }
+  .mt-ch-still { grid-area: still; text-align: right; white-space: nowrap; }
+  .mt-need .mt-need-line { display: none; }
+  .mt-items { grid-area: items; display: flex; justify-content: flex-end; align-items: center; gap: 6px; color: var(--muted); }
+  .mt-items .mt-bit b { font: 500 12px/1 var(--font); }
+  .mt-still { grid-area: still; display: flex; justify-content: flex-end; align-items: center; color: var(--text); }
+  .mt-still-n { display: inline-flex; align-items: center; gap: 6px; }
+  .mt-still-all { color: var(--faint); }
+  .mt-still-ok { width: 12px; height: 12px; color: var(--accent); }
+  .mt-quick { justify-content: flex-end; }
+  .mt-det { padding-left: 76px; }
+}
+/* not quite wide: no separate items / stacks column (the second reading stays under the amount), more room for names */
+@container (min-width: 820px) and (max-width: 979px) {
+  .mt-row, .mt-colhead { grid-template-columns: 22px 32px minmax(150px, 1fr) minmax(96px, auto) 124px minmax(84px, auto) 92px; grid-template-areas: "chk ico name need have still quick" "det det det det det det det"; column-gap: 16px; }
+  .mt-items, .mt-ch-items { display: none; }
+  .mt-need .mt-need-line { display: inline-flex; }
+  .mt-need .mt-need-line .mt-left { display: none; }
+}
+/* the side panel at wide screens: 2-3 containers per row, raw materials in two columns */
+.mt-side { container-type: inline-size; }
+@container (min-width: 600px) {
+  .mt-boxes { grid-template-columns: repeat(auto-fill, minmax(176px, 1fr)); gap: 16px 14px; }
+  .mt-rawlist { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 28px; }
+}

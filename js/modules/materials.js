@@ -10,7 +10,7 @@
 
   function render(root) {
     const api = TH.builds && TH.builds.api;
-    root.append(h('div.page-head.mt-phead', h('h2', 'Materials')));
+    root.append(h('div.page-head.mt-phead', h('h2', 'Material List')));
     if (!api) { root.append(h('div.panel.mt-boot', 'The Materials tool could not start.')); return; }
     if (!api.isReady()) {
       root.append(h('div.panel.mt-boot', api.loadError() ? 'The Materials tool could not load. Check the connection and reload.' : 'Loading the material list…'));
@@ -23,7 +23,7 @@
 
   TH.app.register({
     id: 'materials',
-    name: 'Materials',
+    name: 'Material List',
     short: 'List',
     icon: 'mc:block/shulker_box',
     render,

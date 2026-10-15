@@ -119,7 +119,7 @@ TH.builds = TH.builds || {};
   cube('quartz_block', 'block/quartz_block_top', 'block/quartz_block_side', 'block/quartz_block_bottom', { grp: 'nether' });
   cube('smooth_quartz', 'block/quartz_block_bottom', null, null, { grp: 'nether' });
   cube('quartz_bricks', 'block/quartz_bricks', null, null, { grp: 'nether' });
-  cube('quartz_pillar', 'block/quartz_pillar_top', 'block/quartz_pillar', 'block/quartz_pillar_top', { grp: 'nether', axis: true });
+  cube('quartz_pillar', 'block/quartz_pillar_top', 'block/quartz_pillar_side', 'block/quartz_pillar_top', { grp: 'nether', axis: true });
   cube('chiseled_quartz_block', 'block/chiseled_quartz_block_top', 'block/chiseled_quartz_block', 'block/chiseled_quartz_block_top', { grp: 'nether' });
   cube('nether_wart_block', 'block/nether_wart_block', null, null, { grp: 'nether' });
   cube('warped_wart_block', 'block/warped_wart_block', null, null, { grp: 'nether' });
@@ -131,7 +131,7 @@ TH.builds = TH.builds || {};
   cube('end_stone', 'block/end_stone', null, null, { grp: 'end' });
   cube('end_stone_bricks', 'block/end_stone_bricks', null, null, { grp: 'end' });
   cube('purpur_block', 'block/purpur_block', null, null, { grp: 'end' });
-  cube('purpur_pillar', 'block/purpur_pillar_top', 'block/purpur_pillar', 'block/purpur_pillar_top', { grp: 'end', axis: true });
+  cube('purpur_pillar', 'block/purpur_pillar_top', 'block/purpur_pillar_side', 'block/purpur_pillar_top', { grp: 'end', axis: true });
   cube('prismarine', 'block/prismarine', null, null, { grp: 'end' });
   cube('prismarine_bricks', 'block/prismarine_bricks', null, null, { grp: 'end' });
   cube('dark_prismarine', 'block/dark_prismarine', null, null, { grp: 'end' });
@@ -324,10 +324,55 @@ TH.builds = TH.builds || {};
   const GROUP_ORDER = ['stone', 'deep', 'sand', 'wood', 'colour', 'nether', 'end', 'mineral', 'ore', 'natural', 'glass', 'leaves', 'light', 'farm', 'redstone', 'misc'];
 
   const UNKNOWN = { t: '#unknown', s: '#unknown', b: '#unknown', shape: 'cube', unknown: true, fam: null, fn: null };
+  /*
+   * Blocks not in BLOCKS come from the game's block database (js/data/block-db.js, every block of the current version):
+   * shape (cube / slab / stairs / wall / fence / carpet / cross; panes draw as fences, any other shape as a cube with
+   * its side texture), top / side / bottom textures, translucency, leaves, light, tint. Building shapes swap within
+   * their family; plain building cubes join the 'cube' family, machines and odd blocks never swap.
+   */
+  const DB_SHAPE = { cube: 'cube', slab: 'slab', stairs: 'stairs', wall: 'wall', fence: 'fence', pane: 'fence', carpet: 'carpet', cross: 'cross' };
+  const DB_BUILD = /(bricks?|tiles|planks|stone|wool|concrete|terracotta|polished|chiseled|^cut_|smooth|_block$|tuff|sulfur|cinnabar|copper$|deepslate|blackstone|sandstone|moss|mud|calcite|basalt|prismarine|purpur|quartz|_log$|_wood$|_stem$|hyphae)/;
+  const DB_FUNC = /crafter|vault|spawner|command|structure|jigsaw|redstone|observer|piston|dispenser|dropper|tnt|sculk_(sensor|shrieker|catalyst)|target|lamp|bulb|furnace|smoker|chest|barrel|hopper|beacon|conduit|respawn|lodestone|anvil|table|loom|grindstone|stonecutter|lectern|composter|cauldron|bell|honey|slime|note_block|jukebox|daylight|rail|button|pressure_plate|trapdoor|door|fence_gate|bed$|sign$|banner$|shulker|creaking_heart|heavy_core|trial|copper_golem/;
+  /** A viewer shape for the database's 'other' blocks (buttons, plates, rails, fans, lanterns ...); else a cube. */
+  function dbOther(name, flags) {
+    if (/_button$/.test(name)) return 'button';
+    if (/pressure_plate$/.test(name)) return 'plate';
+    if (/_trapdoor$|^snow$|leaf_litter|pink_petals|wildflowers|lily_pad|glow_lichen|sculk_vein|resin_clump|^vine$/.test(name)) return 'carpet';
+    if (/rail$/.test(name)) return 'rail';
+    if (/torch$/.test(name)) return 'torch';
+    if (/_fence_gate$|_bars$/.test(name)) return 'fence';
+    if (/^(farmland|dirt_path)$/.test(name)) return 'farmland';
+    if (/_door$|_bed$|chest$|shulker_box$|_head$|_skull$|_banner$|_sign$|anvil|cauldron|lectern|stonecutter|grindstone|enchanting_table|end_portal_frame|daylight|composter|bell|vault|heavy_core|decorated_pot|campfire|cake|beacon|conduit|sniffer_egg|dried_ghast|copper_golem_statue|_shelf$|hopper|brewing_stand|piston|moving_piston|sculk_sensor|sculk_shrieker|honey_block|slime_block|scaffolding|chorus|mushroom|dragon_egg|end_gateway|end_portal$|nether_portal|cactus|bubble_column|structure_void|light$|barrier/.test(name)) return 'cube';
+    if (flags & 64 || flags & 4 || /coral|_fan$|lantern|chain$|candle|pointed_dripstone|sulfur_spike|propagule|azalea|dripleaf|spore_blossom|sea_pickle|turtle_egg|frogspawn|cocoa|stem$|crop$|pitcher|fire$|tripwire|lever|end_rod|lightning_rod|potted_|flower_pot|shelf_mushroom|red_shrub/.test(name)) return 'cross';
+    return 'cube';
+  }
+  const dbCache = new Map();
+  function dbDef(name) {
+    if (dbCache.has(name)) return dbCache.get(name);
+    const D = TH.data && TH.data.blockDb, e = D && D.b[name];
+    let d = null;
+    if (e) {
+      const k = (t) => (t && t !== 'missingno' ? (String(t).includes('/') ? t : 'block/' + t) : null);
+      const tsb = [].concat(e[1] || []), flags = e[2] || 0;
+      const t = k(tsb[0]), s = k(tsb[1] || tsb[0]), b = k(tsb[2] || tsb[0]);
+      if (t || s) {
+        const shape = DB_SHAPE[e[0]] || dbOther(name, flags);
+        const functional = DB_FUNC.test(name);
+        const fam = functional ? null : { slab: 'slab', stairs: 'stairs', wall: 'wall', carpet: 'carpet' }[shape] || (shape === 'fence' && e[0] === 'fence' ? 'fence' : null)
+          || (shape === 'cube' && e[0] === 'cube' ? (flags & 8 ? 'leaves' : flags & 2 ? 'glass' : DB_BUILD.test(name) ? 'cube' : null) : null);
+        d = { t: t || s, s: s || t, b: b || s || t, shape, fam, grp: 'misc', db: true,
+          cut: flags & 2 ? 'translucent' : (flags & 4) || e[0] === 'pane' ? 'cutout' : null, leafy: !!(flags & 8), glow: !!(flags & 16), tint: e[3] || null };
+        if (!(flags & 1)) { const m = name.match(/^(.+)_wall_(torch|sign|hanging_sign|banner|fan)$/); if (m) d.item = m[1] + '_' + m[2]; }
+        if (d.tint && name === 'grass_block') d.tint = { t: d.tint };
+      }
+    }
+    dbCache.set(name, d);
+    return d;
+  }
   /** Definition for a block state id (unknown blocks get a neutral cube). */
   function def(id) {
     const p = parse(id);
-    return (p.ns === 'minecraft' && BLOCKS[p.name]) || UNKNOWN;
+    return (p.ns === 'minecraft' && (BLOCKS[p.name] || dbDef(p.name))) || UNKNOWN;
   }
   const known = (id) => def(id) !== UNKNOWN;
   /** Is this block one the user may swap? Returns { ok, why }. */
@@ -356,9 +401,10 @@ TH.builds = TH.builds || {};
   const titleCase = (s) => s.split('_').map((w) => (w ? w[0].toUpperCase() + w.slice(1) : w)).join(' ');
   function nameOf(id) {
     const p = parse(id);
-    const d = BLOCKS[p.name];
+    const d = BLOCKS[p.name] || dbDef(p.name);
     const n = d && d.item ? d.item : p.name;
-    return lang('block.' + p.ns + '.' + p.name) || lang('item.' + p.ns + '.' + n) || lang('block.' + p.ns + '.' + n) || titleCase(n);
+    const dbn = TH.data && TH.data.blockDb && TH.data.blockDb.names;   // English names of the game version (where not the id in title case)
+    return lang('block.' + p.ns + '.' + p.name) || lang('item.' + p.ns + '.' + n) || lang('block.' + p.ns + '.' + n) || (dbn && (dbn[p.name] || dbn[n])) || titleCase(n);
   }
   /** Icon key for TH.icon: the item sprite when there is one, else the block's side texture. */
   function iconOf(id) {
@@ -366,6 +412,13 @@ TH.builds = TH.builds || {};
     if (d.icon) return d.icon;
     const t = d.s || d.t;
     return t && t[0] !== '#' ? t : 'item/barrier';
+  }
+
+  /** The inventory-style icon of a block (TH.icon.block: isometric model or item sprite), else the flat texture. */
+  function blockIcon(id, opts) {
+    const p = parse(id);
+    if (TH.icon.block && TH.icon.block.has(p.base)) return TH.icon.block(p.base, Object.assign({ fallback: iconOf(id) }, opts));
+    return TH.icon(iconOf(id), opts);
   }
 
   /* ======================================================================
@@ -512,7 +565,7 @@ TH.builds = TH.builds || {};
   const UNSTACK = new Set(['water_bucket', 'lava_bucket', 'minecart', 'hopper_minecart']);
   /** One placed block -> { item, n } (double slabs count 2, water is a bucket per source). */
   function itemOf(id) {
-    const p = parse(id), d = BLOCKS[p.name];
+    const p = parse(id), d = p.ns === 'minecraft' ? BLOCKS[p.name] || dbDef(p.name) : null;
     let item = (d && d.item) || p.name, n = 1;
     if (d && d.shape === 'slab' && p.props.type === 'double') n = 2;
     if (p.name === 'piston_head' || p.name === 'moving_piston' || p.name === 'bubble_column') return null;
@@ -534,7 +587,7 @@ TH.builds = TH.builds || {};
   }
 
   TH.builds.core = {
-    AIR, parse, isAir, stateOf, withBase, BLOCKS, GROUPS: G, GROUP_ORDER, COLORS, def, known, replaceable, familyOf, buildingBlocks, nameOf, iconOf, titleCase,
+    AIR, parse, isAir, stateOf, withBase, BLOCKS, GROUPS: G, GROUP_ORDER, COLORS, def, known, replaceable, familyOf, buildingBlocks, nameOf, iconOf, blockIcon, titleCase,
     create, idx, inside, pal, get, set, fromFunction, volume, counts, bbox, trim, compact, layers, merge, translate, clone, applySwaps, rle, unrle,
     itemOf, stackOf, materials,
   };

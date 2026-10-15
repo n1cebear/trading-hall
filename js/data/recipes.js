@@ -225,7 +225,7 @@ TH.data.recipes = (function () {
     craft(w + '_button', [[planks, 1]], 1, 'A');
     craft(w + '_pressure_plate', [[planks, 2]], 1, 'AA');
     craft(w + '_sign', [[planks, 6], ['stick', 1]], 3, 'AAA/AAA/.B.');
-    craft(w + '_hanging_sign', [[slog, 6], ['chain', 2]], 6, 'B.B/AAA/AAA');
+    craft(w + '_hanging_sign', [[slog, 6], ['iron_chain', 2]], 6, 'B.B/AAA/AAA');
     ['stairs', 'slab', 'fence', 'fence_gate', 'door', 'trapdoor', 'button', 'pressure_plate', 'sign', 'hanging_sign'].forEach((s) => { BASE_OF[w + '_' + s] = planks; });
   });
   craft('bamboo_block', [['bamboo', 9]], 1, P3);
@@ -257,7 +257,7 @@ TH.data.recipes = (function () {
   craft('soul_torch', [['coal', 1], ['stick', 1], ['soul_soil', 1]], 4, 'A/B/C');
   craft('lantern', [['iron_nugget', 8], ['torch', 1]], 1, RING);
   craft('soul_lantern', [['iron_nugget', 8], ['soul_torch', 1]], 1, RING);
-  craft('chain', [['iron_ingot', 1], ['iron_nugget', 2]], 1, 'B/A/B');
+  craft('iron_chain', [['iron_ingot', 1], ['iron_nugget', 2]], 1, 'B/A/B');   // 'chain' before 1.21.9
   craft('iron_bars', [['iron_ingot', 6]], 16, 'AAA/AAA');
   craft('iron_door', [['iron_ingot', 6]], 3, 'AA/AA/AA');
   craft('iron_trapdoor', [['iron_ingot', 4]], 1, P2);
@@ -327,7 +327,7 @@ TH.data.recipes = (function () {
     leather: 'item/leather', slime_ball: 'item/slime_ball', honey_bottle: 'item/honey_bottle', snowball: 'item/snowball', kelp: 'item/kelp',
     dried_kelp: 'item/dried_kelp', melon_slice: 'item/melon_slice', amethyst_shard: 'item/amethyst_shard', pointed_dripstone: 'item/pointed_dripstone',
     popped_chorus_fruit: 'item/popped_chorus_fruit', chorus_fruit: 'item/chorus_fruit', iron_nugget: 'item/iron_nugget', gold_nugget: 'item/gold_nugget',
-    gunpowder: 'item/gunpowder', nether_wart: 'item/nether_wart', bamboo: 'item/bamboo', blaze_rod: 'item/blaze_rod', chain: 'item/chain',
+    gunpowder: 'item/gunpowder', nether_wart: 'item/nether_wart', bamboo: 'item/bamboo', blaze_rod: 'item/blaze_rod', iron_chain: 'item/iron_chain',
     lantern: 'item/lantern', soul_lantern: 'item/soul_lantern', bucket: 'item/bucket', water_bucket: 'item/water_bucket', lava_bucket: 'item/lava_bucket',
     raw_iron: 'item/raw_iron', raw_gold: 'item/raw_gold', raw_copper: 'item/raw_copper', bow: 'item/bow', minecart: 'item/minecart',
     hopper: 'item/hopper', repeater: 'item/repeater', comparator: 'item/comparator', torch: 'block/torch', soul_torch: 'block/soul_torch',

@@ -12,8 +12,13 @@ window.TH = window.TH || {};
  *   options: { size: 16, glint: false, title, cls }
  */
 TH.icon = (function () {
-  const VERSION = '1.21.11';
+  // block + item textures (and js/data/block-db.js) follow the newest release; entity / trim / misc textures stay on
+  // 1.21.11 because 26.x moved them (entity/blaze -> entity/blaze/..., trims/color_palettes ...) and Trims reads those paths
+  const VERSION = '26.3';
+  const ENTITY_VERSION = '1.21.11';
   const BASE = `https://cdn.jsdelivr.net/gh/InventivetalentDev/minecraft-assets@${VERSION}/assets/minecraft/textures/`;
+  const BASE_OLD = `https://cdn.jsdelivr.net/gh/InventivetalentDev/minecraft-assets@${ENTITY_VERSION}/assets/minecraft/textures/`;
+  const baseFor = (p) => (/^(block|item)\//.test(p) ? BASE : BASE_OLD);
   // textures that have no flat sprite in the game files
   const EXTERNAL = { shield: 'https://minecraft.wiki/images/Invicon_Shield.png', anvil: 'https://minecraft.wiki/images/Invicon_Anvil.png' };
 
@@ -51,7 +56,7 @@ TH.icon = (function () {
   const path = (key) => ALIAS[key] || (key.includes('/') ? key : 'item/' + key);
   /** CDN / wiki URL for a key (used by the service worker warm-up and as the local fallback). */
   function remote(key) {
-    return EXTERNAL[key] || BASE + path(key) + '.png';
+    return EXTERNAL[key] || baseFor(path(key)) + path(key) + '.png';
   }
   /** Local file path for a key (what tools/fetch-icons.js writes). */
   const localPath = (key) => LOCAL_BASE + (EXTERNAL[key] ? 'external/' + key : path(key)) + '.png';
@@ -74,7 +79,7 @@ TH.icon = (function () {
   function glintTex() {
     if (glintState) return;
     glintState = 1;
-    const raw = (BUNDLED ? LOCAL_BASE : BASE) + 'misc/enchanted_glint_item.png', root = document.documentElement.style;
+    const raw = (BUNDLED ? LOCAL_BASE : BASE_OLD) + 'misc/enchanted_glint_item.png', root = document.documentElement.style;
     root.setProperty('--mc-glint-tex', `url("${raw}")`);
     const img = new Image();
     img.crossOrigin = 'anonymous';
@@ -168,7 +173,7 @@ TH.icon = (function () {
     ['entity/wolf/wolf', 64, 32, 4, 4, 6, 6, 4], ['entity/illager/pillager', 64, 64, 8, 8, 8, 10, 3], ['entity/armadillo', 64, 64, 43, 17, 7, 5, 4],
   ];
   /** URL of any texture path (entity/..., item/...). Entity skins always come from the CDN mirror (cached by sw.js). */
-  icon.tex = (p) => (packed(p) || (BUNDLED ? new URL(LOCAL_BASE + p + '.png', document.baseURI).href : BASE + p + '.png'));   // absolute: also used from CSS (url() resolves against css/)
+  icon.tex = (p) => (packed(p) || (BUNDLED ? new URL(LOCAL_BASE + p + '.png', document.baseURI).href : baseFor(p) + p + '.png'));   // absolute: also used from CSS (url() resolves against css/)
 
   icon.aliases = ALIAS;
   icon.external = EXTERNAL;

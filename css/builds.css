@@ -414,196 +414,58 @@
   .bd-layer-lbl { min-width: 48px; text-align: right; }
 }
 
-/* =====================================================================
-   MATERIALS (js/modules/builds-mats.js): the smart material list. The stage folds away and the section takes the full
-   width: source + totals on top, the list on the left, packing and raw materials beside it (stacked below 1100px).
-   Everything inside a segment is flat (no boxes in boxes, no dividers); slots and fields are the only wells.
-   ===================================================================== */
-.bd-layout.is-mats { grid-template-columns: minmax(0, 1fr); }
-.bd-layout.is-mats .bd-viewer { display: none; }
-.bd-mx { display: flex; flex-direction: column; gap: var(--bd-gap); min-width: 0; }
-.bd-mgrid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(360px, 470px); gap: var(--bd-gap); align-items: start; }
-.bd-mside { display: flex; flex-direction: column; gap: var(--bd-gap); min-width: 0; }
-@media (max-width: 1100px) { .bd-mgrid { grid-template-columns: minmax(0, 1fr); } }
-.bd-mx.dropping .bd-mhead { outline: 2px dashed var(--accent); outline-offset: 4px; }
-
-/* ---------- head: source key, its keys, the totals ---------- */
-.bd-mhead { gap: 18px; }
-.bd-mh-top { display: flex; align-items: center; flex-wrap: wrap; gap: 14px 18px; min-width: 0; }
-.bd-msrc { flex: 1 1 360px; max-width: 620px; }
-.bd-msrc .bd-ckey-txt { flex: 1 1 auto; }
-.bd-msrc-eye { font: 400 10.5px/1.2 var(--display); text-transform: uppercase; letter-spacing: 1px; color: var(--muted); }
-.bd-msrc-chg { flex: none; display: inline-flex; align-items: center; gap: 7px; margin-left: 8px; font: 600 12px var(--font); color: var(--muted); }
-.bd-msrc:hover .bd-msrc-chg, .bd-msrc[aria-expanded="true"] .bd-msrc-chg { color: var(--accent); }
-.bd-msrc-chev, .bd-mrow-chev { width: 9px; height: 9px; transition: transform .15s; }
-.bd-msrc[aria-expanded="true"] .bd-msrc-chev { transform: rotate(180deg); }
-.bd-mh-keys { display: flex; flex-wrap: wrap; gap: 10px; margin-left: auto; }
-.bd-mh-keys .btn, .bd-macts .btn, .bd-mpack .bd-actions .btn { gap: 7px; }
-.bd-mh-keys .bd-ico { width: 11px; height: 11px; }
-.bd-mstats { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 16px 22px; }
-.bd-mstat { display: flex; flex-direction: column; gap: 3px; min-width: 0; cursor: default; }
-.bd-mstat b { font: 400 22px/1.15 var(--display); color: var(--text); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.bd-mstat span { font: 500 12px var(--font); color: var(--muted); }
-.bd-mstat:first-child b { color: var(--accent); }
-.bd-mprog-txt { font: 500 12.5px var(--font); color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
-
-/* ---------- source picker: folds open under the head, flat, a search well and keys ---------- */
-.bd-mpick { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
-.bd-mpick[hidden], .bd-madd[hidden], .bd-mdet[hidden] { display: none; }
-.bd-mpick-top { display: flex; align-items: center; gap: 10px; }
-.bd-mpick-top .field { flex: 1 1 0; min-width: 0; }
-.bd-mpick-top .btn { flex: none; height: 36px; padding-block: 0; }
-.bd-mpick-body { max-height: 420px; overflow-y: auto; display: flex; flex-direction: column; gap: 18px; padding: 4px 6px 10px 2px; margin-right: -6px; }
-.bd-mpick-grp { display: flex; flex-direction: column; gap: 10px; }
-.bd-mpick-grp[hidden], .bd-mpick-opts > [hidden] { display: none; }
-.bd-mpick-lbl, .bd-msub, .bd-mgrp { font: 400 11px/1.2 var(--display); text-transform: uppercase; letter-spacing: 1.1px; color: var(--muted); }
-.bd-mpick-opts { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 10px; }
-.bd-mopt { display: flex; align-items: center; justify-content: flex-start; gap: 10px; width: 100%; min-width: 0; min-height: 44px; padding: 5px 12px 5px 8px; text-align: left; color: var(--text); font-weight: 500; }
-.bd-mopt-ico { display: grid; place-items: center; flex: none; width: 28px; height: 28px; color: var(--accent); }
-.bd-mopt-ico .bd-ico { width: 14px; height: 14px; }
-.bd-mopt-name { min-width: 0; font: 400 12.5px/1.25 var(--display); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.bd-mopt-row { display: flex; align-items: center; gap: 4px; min-width: 0; }
-.bd-mopt-row .bd-mopt { flex: 1 1 auto; }
-.bd-mopt-row .bd-x { width: 32px; height: 32px; }
-.bd-mren { flex: 1 1 auto; }
-
-/* ---------- add / edit a list ---------- */
-.bd-madd { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
-.bd-madd-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px 14px; }
-.bd-madd-head .bd-msrc-eye { font-size: 11.5px; color: var(--accent); }
-.bd-madd-status { margin: 0; font-size: 12.5px; color: var(--muted); }
-.bd-madd .bd-paste { min-height: 170px; }
-.bd-madd .bd-actions .bd-ico { width: 11px; height: 11px; }
-
-/* ---------- the list ---------- */
-.bd-mlist { container-type: inline-size; }
-.bd-mtools { display: flex; flex-direction: column; gap: 12px; }
-.bd-mtools-a { display: flex; align-items: center; flex-wrap: wrap; gap: 12px 22px; }
-.bd-mq { flex: 1 1 200px; }
-.bd-msw { display: inline-flex; align-items: center; gap: 10px; min-height: 36px; font: 500 12.5px var(--font); color: var(--muted); cursor: pointer; white-space: nowrap; }
-.bd-msw:hover { color: var(--text); }
-.bd-mtools-b { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
-.bd-mtools-b .seg button { padding: 5px 11px; font-size: 12.5px; }
-.bd-mrows { display: flex; flex-direction: column; gap: 2px; margin: 0 -8px; }
-.bd-mgrp { margin: 16px 8px 4px; }
-.bd-mgrp:first-child { margin-top: 2px; }
-.bd-mgrp[hidden], .bd-mrow[hidden] { display: none; }
-.bd-mrow {
-  display: grid; grid-template-columns: 22px 32px minmax(0, 1fr) 78px minmax(92px, auto);
-  grid-template-areas: "chk ico name have amt" "det det det det det";
-  align-items: center; column-gap: 14px; padding: 4px 8px; border-radius: var(--radius); transition: background .12s;
-}
-.bd-mrow:hover { background: color-mix(in srgb, var(--text) 4%, transparent); }
-:root[data-neu] .bd-mrow:hover { background: color-mix(in srgb, var(--neu-lo, #000) 14%, transparent); }
-.bd-mrow-chk { grid-area: chk; }
-.bd-mrow-chk::after { content: ''; position: absolute; inset: -9px; }   /* a finger-sized hit area around the 22px tick */
-.bd-mrow-ico { grid-area: ico; display: grid; place-items: center; width: 32px; height: 32px; }
-.bd-mrow-name { grid-area: name; display: flex; align-items: center; gap: 9px; min-width: 0; min-height: 40px; padding: 0; border: 0; background: none; color: var(--text); text-align: left; cursor: pointer; font: inherit; }
-.bd-mrow-label { min-width: 0; font: 400 13px/1.3 var(--display); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.bd-mrow-tag { flex: none; font: 600 11px var(--font); color: var(--muted); }
-.bd-mrow-chev { flex: none; color: var(--faint); }
-.bd-mrow-name:hover .bd-mrow-label { color: var(--accent); }
-.bd-mrow-name:hover .bd-mrow-tag, .bd-mrow-name[aria-expanded="true"] .bd-mrow-tag { color: var(--accent); }
-.bd-mrow-name[aria-expanded="true"] .bd-mrow-chev { transform: rotate(180deg); color: var(--accent); }
-.bd-mrow-name:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
-.bd-have { grid-area: have; width: 100%; height: 30px; padding: 0 9px; text-align: right; font: 500 12.5px var(--font); font-variant-numeric: tabular-nums; }
-.bd-mrow .bd-mat-amt { grid-area: amt; }
-.bd-mrow.done .bd-mrow-label { color: var(--faint); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--muted) 60%, transparent); }
-.bd-mrow.done .bd-mrow-ico { opacity: .45; }
-.bd-mrow.done .bd-mat-amt b { color: var(--faint); }
-.bd-noico { display: inline-block; width: 14px; height: 14px; border-radius: 2px; background: color-mix(in srgb, var(--muted) 30%, transparent); }
-.mc.bd-noico-mc::before { content: ''; width: 50%; height: 50%; border-radius: 2px; background: color-mix(in srgb, var(--muted) 30%, transparent); }
-.bd-mempty { margin: 6px 0; text-align: center; }
-.bd-mempty[hidden] { display: none; }
-.bd-macts { margin-top: 4px; }
-
-/* a row opened: recipes as little item formulas, the raw materials behind it */
-.bd-mdet { grid-area: det; display: flex; flex-direction: column; align-items: flex-start; gap: 10px; padding: 6px 0 16px 68px; min-width: 0; }
-.bd-msub { margin-top: 4px; }
-.bd-rcps { display: flex; flex-direction: column; gap: 10px; width: 100%; }
-.bd-rcp { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 14px; min-width: 0; }
-.bd-rcp-m { flex: none; min-width: 116px; font: 400 11px/1.2 var(--display); text-transform: uppercase; letter-spacing: .8px; color: var(--muted); }
-.bd-rcp.used .bd-rcp-m { color: var(--accent); }
-.bd-rcp.off { opacity: .45; }
-.bd-rcp-tags { display: inline-flex; align-items: center; gap: 12px; }
-.bd-rtag { font: 700 10.5px var(--font); text-transform: uppercase; letter-spacing: .7px; color: var(--muted); }
-.bd-rtag.best { color: var(--accent); }
-.bd-ruse { font-size: 12px; }
-.bd-rcp-note { flex-basis: 100%; padding-left: 130px; font-size: 12px; color: var(--muted); }
-.bd-rf { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 6px; min-width: 0; }
-.bd-rq { display: inline-flex; align-items: center; gap: 5px; padding: 2px 8px 2px 3px; border-radius: 5px; background: color-mix(in srgb, var(--text) 6%, transparent); cursor: default; }
-.bd-rq-ico { display: grid; place-items: center; width: 22px; height: 22px; }
-.bd-rq-n { font: 500 12px var(--mono); color: var(--text); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.bd-rq-name { min-width: 0; max-width: 190px; font: 400 11.5px/1.25 var(--display); color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.bd-rq-plus { color: var(--faint); font: 500 12px var(--mono); }
-.bd-rq-to { display: inline-grid; place-items: center; width: 18px; color: var(--accent); }
-.bd-rq-to .bd-ico { width: 12px; height: 12px; }
-.bd-rraw { display: flex; flex-wrap: wrap; gap: 8px; }
-.bd-mdet-have { display: none; align-items: center; gap: 10px; font: 500 12.5px var(--font); color: var(--muted); }
-.bd-mdet-have .bd-have { width: 110px; height: 36px; }
-.bd-mdet .bd-link { padding: 4px 0; }
-
-/* narrow list (phones, the stacked layout): the have field moves into the opened row */
-@container (max-width: 560px) {
-  .bd-mrow { grid-template-columns: 22px 28px minmax(0, 1fr) auto; grid-template-areas: "chk ico name amt" "det det det det"; column-gap: 12px; padding: 4px 6px; }
-  .bd-mrow > .bd-have { display: none; }
-  .bd-mdet-have { display: flex; }
-  .bd-mdet { padding-left: 0; }
-  .bd-mrow-tag { display: none; }
-  .bd-rcp-m { min-width: 0; flex-basis: 100%; }
-  .bd-rcp-note { padding-left: 0; }
-  .bd-mrows { margin: 0 -6px; }
-}
-
-/* ---------- packing: every container drawn slot by slot (flat cards on the segment, slots are wells) ---------- */
-.bd-psum { margin: 0; }
-.bd-cboxes { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 24px 22px; }
-.bd-cbox { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
-.bd-cbox-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
-.bd-cbox-name { font: 400 13px/1.2 var(--display); color: var(--text); }
-.bd-cbox-fill { font: 500 12px var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }
-.bd-cbox-sub { margin-top: -4px; font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.bd-cgrid { display: grid; grid-template-columns: repeat(9, minmax(0, 1fr)); gap: 3px; }
-.bd-slot { position: relative; display: grid; place-items: center; aspect-ratio: 1; min-width: 0; border-radius: 3px; background: var(--slot, var(--bg-2)); box-shadow: var(--slot-shadow); transition: opacity .15s; }
-:root[data-neu] .bd-slot { background: var(--neu-well); box-shadow: var(--neu-inset-xs); border-radius: var(--neu-r-xs, 4px); }
-.bd-slot.is-empty { opacity: .5; }
-.bd-slot.done { opacity: .32; }
-.bd-slot b { position: absolute; right: 2px; bottom: 1px; font: 400 10px/1 var(--display); color: #fff; text-shadow: 1px 1px 0 #3f3f3f; pointer-events: none; }
-.bd-cmore { align-self: flex-start; }
-
-/* ---------- raw materials / crafting steps (side) ---------- */
-.bd-rawlist { display: flex; flex-direction: column; gap: 4px; }
-.bd-rawrow { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; align-items: center; gap: 12px; min-height: 30px; }
-.bd-rawrow-ico { display: grid; place-items: center; width: 24px; height: 24px; }
-.bd-rawrow-name { min-width: 0; font: 400 12.5px/1.3 var(--display); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.bd-rawrow-n { font: 500 12.5px var(--mono); color: var(--accent); white-space: nowrap; font-variant-numeric: tabular-nums; }
-.bd-steps2 { display: flex; flex-direction: column; gap: 16px; }
-.bd-step { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
-.bd-step-spare { font-size: 11.5px; color: var(--muted); }
-.bd-mraw .bd-msw { align-self: flex-start; }
-
 /* the compact library panel: browse + material list on one line */
 .bd-morerow { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 18px; }
 
-@media (max-width: 640px) {
-  .bd-mhead { gap: 14px; }
-  .bd-msrc { flex-basis: 100%; max-width: none; }
-  .bd-msrc-chg span { display: none; }
-  .bd-mh-keys { width: 100%; margin-left: 0; }
-  .bd-mh-keys .btn { flex: 1 1 0; justify-content: center; min-height: 40px; }
-  .bd-mstats { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 14px; }
-  .bd-mstat b { font-size: 17px; }
-  .bd-mstat span { font-size: 11.5px; }
-  .bd-mat-progress { flex-wrap: wrap; gap: 8px 12px; }
-  .bd-mat-progress .bd-prog { flex-basis: 100%; }
-  .bd-mtools-b .seg { width: 100%; }
-  .bd-mtools-b .seg button { flex: 1 1 0; min-width: 0; padding: 8px 4px; }
-  .bd-mq { flex-basis: 100%; }
-  .bd-mpick-opts { grid-template-columns: minmax(0, 1fr); }
-  .bd-mpick-body { max-height: 360px; }
-  .bd-cboxes { grid-template-columns: minmax(0, 1fr); }
-  .bd-macts .btn, .bd-mpack .bd-actions .btn, .bd-madd .bd-actions .btn { min-height: 40px; }
+/* =====================================================================
+   VIEWER: speed keys + SYMMETRY panel (js/modules/builds.js syncSym, builds-view.js setSymmetry). The panel sits under
+   the animation bar inside the viewer segment: plain rows, no box of its own.
+   ===================================================================== */
+/* speed: body font with tabular figures and equal keys, so "0.5×" never runs into its neighbour (Monocraft drew ½ as a
+   squeezed "1/2" and its × wide) */
+.module-builds .bd-speeds button { flex: 0 0 auto; width: 40px; min-width: 0; padding: 5px 0; justify-content: center; white-space: nowrap;
+  font: 600 12px/1.2 var(--font); letter-spacing: 0; font-variant-numeric: tabular-nums; }
+
+.bd-sym { display: flex; flex-direction: column; gap: 12px; padding-top: 2px; }
+.bd-sym[hidden] { display: none; }
+.bd-sym-row { display: grid; grid-template-columns: 34px minmax(90px, 1fr) 54px 34px minmax(190px, 1.15fr); align-items: center; gap: 14px; min-width: 0; }
+.bd-sym-ax { font: 400 13px/1 var(--display); }
+.bd-sym-at { font: 600 12px var(--font); color: var(--text); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.bd-sym-res { min-width: 0; font: 500 12.5px/1.35 var(--font); color: var(--muted); font-variant-numeric: tabular-nums; }
+.bd-sym-res.bad, .bd-hovtip .bd-sym-bad { color: var(--danger); }
+.bd-sym-row.off .bd-sym-at, .bd-sym-row.off .bd-sym-res { color: var(--faint); }
+.module-builds .slider.bd-sym-pos:disabled { opacity: .4; cursor: default; }
+.module-builds .bd-sym .btn:disabled { opacity: .45; cursor: default; }
+.bd-sym-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 14px; }
+.bd-sym-sum { flex: 1 1 220px; min-width: 0; margin: 0; font: 500 12.5px/1.4 var(--font); color: var(--muted); text-wrap: pretty; }
+:root .module-builds .slider.bd-sym-pos::-webkit-slider-runnable-track {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 38%, var(--slot, var(--neu-well))) var(--fill, 0%), var(--slot, var(--neu-well)) var(--fill, 0%));
 }
-@media (prefers-reduced-motion: reduce) {
-  .bd-msrc-chev, .bd-mrow-chev, .bd-mrow, .bd-slot { transition: none; }
+:root[data-neu] .module-builds .slider.bd-sym-pos::-webkit-slider-runnable-track {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 34%, var(--neu-well)) var(--fill, 0%), var(--neu-well) var(--fill, 0%));
+}
+/* the Symmetry key sits on the stage before the zoom keys; a square glyph key when the viewer is narrow */
+@container (max-width: 760px) { .bd-symkey, .bd-bar-layer .bd-vk { width: 34px; padding: 0; justify-content: center; } }
+@media (max-width: 640px) { .bd-label { max-width: calc(100% - 196px); } }
+/* narrow viewer: the result goes under its slider */
+@container (max-width: 640px) {
+  .bd-sym-row { grid-template-columns: 34px minmax(0, 1fr) 50px 34px; gap: 8px 12px; }
+  .bd-sym-res { grid-column: 2 / -1; }
+}
+/* narrow viewer: the speed keys stay (they used to be hidden). The play group opens up, so the speeds wrap to the second
+   line next to the view toggles, the layer slider gets its own line */
+@container (max-width: 470px) {
+  .bd-abar > .bd-bar-grp:first-child { display: contents; }
+  .bd-abar .bd-speeds { display: inline-flex; }
+}
+/* phones: what you tap is about 40px */
+@media (max-width: 640px) {
+  .bd-abar .bd-vk { height: 40px; }
+  .bd-abar .bd-vk.sq, .bd-abar .bd-play, .bd-abar .bd-bar-layer .bd-vk { width: 40px; }
+  .bd-abar .seg button { padding-block: 10px; }
+  .bd-sym-row { grid-template-columns: 40px minmax(0, 1fr) 48px 40px; }
+  .bd-sym .bd-vk { height: 40px; }
+  .bd-sym .bd-vk.sq { width: 40px; }
+  .bd-sym-foot .btn { flex: 1 1 0; justify-content: center; }
+  .bd-sym-sum { flex-basis: 100%; }
 }

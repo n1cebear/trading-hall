@@ -1,12 +1,19 @@
 /**
- * Recipes (Java 1.21) for the Builds material list: a small rule-based engine, no UI.
+ * Recipes (Java 1.21) for the material list: a small rule-based engine, no UI.
  *
- *   TH.data.recipes.recipesFor(id)        -> [{ method, in: [[id, n], ...], out, note? }]   every way to make the item
+ *   TH.data.recipes.recipesFor(id)        -> [{ method, in: [[id, n], ...], out, note?, grid?, shapeless?, tool? }]
+ *                                            every way to make the item
  *   TH.data.recipes.best(id, opts)        -> the recipe that needs the fewest base items (null = raw: mined / found / farmed)
  *   TH.data.recipes.raw(rows, opts)       -> { rows: [{ item, n }], steps: [{ item, method, crafts, made, need, recipe }] }
  *                                            the whole list expanded to raw materials, batches rounded up per step
  *   TH.data.recipes.describe(recipe, id)  -> '6× Polished Tuff → 4× Polished Tuff Stairs (crafting table)'
  *   opts = { sc: true (prefer the stonecutter), pick: { [id]: recipe index chosen by the user } }
+ *
+ * Crafting recipes carry the shape the game uses: `grid` = 9 cells of the 3 x 3 crafting grid (row by row, top left
+ * aligned like the recipe book; null = empty), `shapeless` = true when the items may go anywhere (they are laid out in
+ * order). Patterns are written 'AAA/A.A/AAA': rows split by '/', A-D = the 1st-4th input, '.' = empty, '*' = shapeless.
+ * Every pattern is checked against the input counts when the table is built (a mismatch throws, so a typo cannot ship).
+ * Conversions carry the `tool` texture (water bucket, axe, shears).
  *
  * Ids are 'minecraft:<name>' (bare names work too); 'tag:planks' etc. stand for "any planks". Only recipes we are sure
  * about are listed; anything without a rule counts as raw (you mine it, farm it or find it). Fuel for smelting is not
@@ -19,13 +26,38 @@ TH.data.recipes = (function () {
   const R = Object.create(null);   // bare output name -> [recipe]
   const bare = (id) => { const s = String(id || ''); if (s.startsWith('tag:')) return s; const i = s.indexOf(':'); return (i >= 0 ? s.slice(i + 1) : s).replace(/\[.*$/, ''); };
   const full = (n) => (n.startsWith('tag:') ? n : 'minecraft:' + n);
-  function add(out, method, ins, n, note) {
-    (R[out] || (R[out] = [])).push({ method, in: ins.map(([i, c]) => [i, c]), out: n, note: note || null });
+
+  /** 'AAA/A.A/AAA' + inputs -> { grid: 9 cells, shapeless } (validated against the counts). */
+  function layout(out, ins, pat) {
+    if (!pat) return null;
+    const ids = ins.map(([i]) => i);
+    if (pat === '*') {
+      const cells = [];
+      ins.forEach(([i, c]) => { for (let k = 0; k < c; k++) cells.push(i); });
+      if (cells.length > 9) throw new Error('recipes: too many items for ' + out);
+      while (cells.length < 9) cells.push(null);
+      return { grid: cells, shapeless: true };
+    }
+    const rows = pat.split('/');
+    if (rows.length > 3 || rows.some((r) => r.length > 3)) throw new Error('recipes: bad pattern for ' + out);
+    const grid = new Array(9).fill(null), seen = ins.map(() => 0);
+    rows.forEach((r, y) => { for (let x = 0; x < r.length; x++) { const ch = r[x]; if (ch === '.') continue; const k = ch.charCodeAt(0) - 65; if (!(k >= 0 && k < ids.length)) throw new Error('recipes: bad key in ' + out); grid[y * 3 + x] = ids[k]; seen[k]++; } });
+    ins.forEach(([, c], k) => { if (seen[k] !== c) throw new Error('recipes: pattern of ' + out + ' does not match its inputs'); });
+    return { grid, shapeless: false };
   }
-  const craft = (out, ins, n, note) => add(out, 'crafting', ins, n, note);
+  function add(out, method, ins, n, note, pat, tool) {
+    const r = { method, in: ins.map(([i, c]) => [i, c]), out: n, note: note || null };
+    const lay = method === 'crafting' ? layout(out, ins, pat) : null;
+    if (lay) { r.grid = lay.grid; r.shapeless = lay.shapeless; }
+    if (tool) r.tool = tool;
+    (R[out] || (R[out] = [])).push(r);
+  }
+  /** craft(output, [[input, count], ...], made, pattern, note) */
+  const craft = (out, ins, n, pat, note) => add(out, 'crafting', ins, n, note, pat);
   const cut = (out, from, n) => add(out, 'stonecutting', [[from, 1]], n);
   const smelt = (out, from) => add(out, 'smelting', [[from, 1]], 1);
-  const convert = (out, from, note) => add(out, 'conversion', [[from, 1]], 1, note);
+  const convert = (out, from, note, tool) => add(out, 'conversion', [[from, 1]], 1, note, null, tool);
+  const P2 = 'AA/AA', P3 = 'AAA/AAA/AAA', RING = 'AAA/ABA/AAA', STAIRS = 'A../AA./AAA';
 
   const COLORS = ['white', 'orange', 'magenta', 'light_blue', 'yellow', 'lime', 'pink', 'gray', 'light_gray', 'cyan', 'purple', 'blue', 'brown', 'green', 'red', 'black'];
 
@@ -78,9 +110,9 @@ TH.data.recipes = (function () {
   const BASE_OF = Object.create(null);   // shaped item -> the block whose texture / family it shares
   SHAPES.forEach(([pre, base, has]) => {
     const srcs = [[base, 1]].concat(cutSources(base));
-    if (has.includes('s')) { BASE_OF[pre + '_slab'] = base; craft(pre + '_slab', [[base, 3]], 6); srcs.forEach(([f, k]) => cut(pre + '_slab', f, 2 * k)); }
-    if (has.includes('t')) { BASE_OF[pre + '_stairs'] = base; craft(pre + '_stairs', [[base, 6]], 4); srcs.forEach(([f, k]) => cut(pre + '_stairs', f, k)); }
-    if (has.includes('w')) { BASE_OF[pre + '_wall'] = base; craft(pre + '_wall', [[base, 6]], 6); srcs.forEach(([f, k]) => cut(pre + '_wall', f, k)); }
+    if (has.includes('s')) { BASE_OF[pre + '_slab'] = base; craft(pre + '_slab', [[base, 3]], 6, 'AAA'); srcs.forEach(([f, k]) => cut(pre + '_slab', f, 2 * k)); }
+    if (has.includes('t')) { BASE_OF[pre + '_stairs'] = base; craft(pre + '_stairs', [[base, 6]], 4, STAIRS); srcs.forEach(([f, k]) => cut(pre + '_stairs', f, k)); }
+    if (has.includes('w')) { BASE_OF[pre + '_wall'] = base; craft(pre + '_wall', [[base, 6]], 6, 'AAA/AAA'); srcs.forEach(([f, k]) => cut(pre + '_wall', f, k)); }
   });
 
   // 2x2 crafting, 4 -> 4
@@ -89,14 +121,14 @@ TH.data.recipes = (function () {
     ['polished_deepslate', 'cobbled_deepslate'], ['deepslate_bricks', 'polished_deepslate'], ['deepslate_tiles', 'deepslate_bricks'],
     ['polished_tuff', 'tuff'], ['tuff_bricks', 'polished_tuff'], ['end_stone_bricks', 'end_stone'], ['quartz_bricks', 'quartz_block'],
     ['polished_basalt', 'basalt'], ['mud_bricks', 'packed_mud'], ['cut_copper', 'copper_block'], ['copper_grate', 'copper_block'],
-  ].forEach(([o, i]) => craft(o, [[i, 4]], 4));
-  craft('quartz_pillar', [['quartz_block', 2]], 2);
+  ].forEach(([o, i]) => craft(o, [[i, 4]], 4, P2));
+  craft('quartz_pillar', [['quartz_block', 2]], 2, 'A/A');
   // chiseled = two slabs stacked
   [['chiseled_stone_bricks', 'stone_brick_slab'], ['chiseled_sandstone', 'sandstone_slab'], ['chiseled_red_sandstone', 'red_sandstone_slab'],
     ['chiseled_quartz_block', 'quartz_slab'], ['purpur_pillar', 'purpur_slab'], ['chiseled_nether_bricks', 'nether_brick_slab'],
     ['chiseled_polished_blackstone', 'polished_blackstone_slab'], ['chiseled_deepslate', 'cobbled_deepslate_slab'], ['chiseled_tuff', 'tuff_slab'],
     ['chiseled_tuff_bricks', 'tuff_brick_slab'], ['chiseled_copper', 'cut_copper_slab'],
-  ].forEach(([o, i]) => craft(o, [[i, 2]], 1));
+  ].forEach(([o, i]) => craft(o, [[i, 2]], 1, 'A/A'));
   // furnace
   [['stone', 'cobblestone'], ['smooth_stone', 'stone'], ['cracked_stone_bricks', 'stone_bricks'], ['smooth_sandstone', 'sandstone'],
     ['smooth_red_sandstone', 'red_sandstone'], ['smooth_quartz', 'quartz_block'], ['cracked_nether_bricks', 'nether_bricks'],
@@ -105,170 +137,170 @@ TH.data.recipes = (function () {
     ['nether_brick', 'netherrack'], ['popped_chorus_fruit', 'chorus_fruit'], ['dried_kelp', 'kelp'],
   ].forEach(([o, i]) => smelt(o, i));
   // blocks from items
-  craft('sandstone', [['sand', 4]], 1);
-  craft('red_sandstone', [['red_sand', 4]], 1);
-  craft('bricks', [['brick', 4]], 1);
-  craft('nether_bricks', [['nether_brick', 4]], 1);
-  craft('red_nether_bricks', [['nether_brick', 2], ['nether_wart', 2]], 1);
-  craft('quartz_block', [['quartz', 4]], 1);
-  craft('purpur_block', [['popped_chorus_fruit', 4]], 4);
-  craft('prismarine', [['prismarine_shard', 4]], 1);
-  craft('prismarine_bricks', [['prismarine_shard', 9]], 1);
-  craft('dark_prismarine', [['prismarine_shard', 8], ['black_dye', 1]], 1);
-  craft('sea_lantern', [['prismarine_shard', 4], ['prismarine_crystals', 5]], 1);
-  craft('mossy_cobblestone', [['cobblestone', 1], ['moss_block', 1]], 1);
-  craft('mossy_cobblestone', [['cobblestone', 1], ['vine', 1]], 1);
-  craft('mossy_stone_bricks', [['stone_bricks', 1], ['moss_block', 1]], 1);
-  craft('mossy_stone_bricks', [['stone_bricks', 1], ['vine', 1]], 1);
-  craft('packed_mud', [['mud', 1], ['wheat', 1]], 1);
-  craft('nether_brick_fence', [['nether_bricks', 4], ['nether_brick', 2]], 6);
+  craft('sandstone', [['sand', 4]], 1, P2);
+  craft('red_sandstone', [['red_sand', 4]], 1, P2);
+  craft('bricks', [['brick', 4]], 1, P2);
+  craft('nether_bricks', [['nether_brick', 4]], 1, P2);
+  craft('red_nether_bricks', [['nether_brick', 2], ['nether_wart', 2]], 1, 'AB/BA');
+  craft('quartz_block', [['quartz', 4]], 1, P2);
+  craft('purpur_block', [['popped_chorus_fruit', 4]], 4, P2);
+  craft('prismarine', [['prismarine_shard', 4]], 1, P2);
+  craft('prismarine_bricks', [['prismarine_shard', 9]], 1, P3);
+  craft('dark_prismarine', [['prismarine_shard', 8], ['black_dye', 1]], 1, RING);
+  craft('sea_lantern', [['prismarine_shard', 4], ['prismarine_crystals', 5]], 1, 'ABA/BBB/ABA');
+  craft('mossy_cobblestone', [['cobblestone', 1], ['moss_block', 1]], 1, '*');
+  craft('mossy_cobblestone', [['cobblestone', 1], ['vine', 1]], 1, '*');
+  craft('mossy_stone_bricks', [['stone_bricks', 1], ['moss_block', 1]], 1, '*');
+  craft('mossy_stone_bricks', [['stone_bricks', 1], ['vine', 1]], 1, '*');
+  craft('packed_mud', [['mud', 1], ['wheat', 1]], 1, '*');
+  craft('nether_brick_fence', [['nether_bricks', 4], ['nether_brick', 2]], 6, 'ABA/ABA');
   BASE_OF.nether_brick_fence = 'nether_bricks';
-  craft('dripstone_block', [['pointed_dripstone', 4]], 1);
-  craft('amethyst_block', [['amethyst_shard', 4]], 1);
-  craft('glowstone', [['glowstone_dust', 4]], 1);
-  craft('snow_block', [['snowball', 4]], 1);
-  craft('clay', [['clay_ball', 4]], 1);
-  craft('honey_block', [['honey_bottle', 4]], 1);
-  craft('bone_block', [['bone_meal', 9]], 1);
-  craft('bone_meal', [['bone', 1]], 3);
-  craft('packed_ice', [['ice', 9]], 1);
-  craft('blue_ice', [['packed_ice', 9]], 1);
-  craft('hay_block', [['wheat', 9]], 1);
-  craft('melon', [['melon_slice', 9]], 1);
-  craft('dried_kelp_block', [['dried_kelp', 9]], 1);
-  craft('slime_block', [['slime_ball', 9]], 1);
-  craft('moss_carpet', [['moss_block', 2]], 3);
+  craft('dripstone_block', [['pointed_dripstone', 4]], 1, P2);
+  craft('amethyst_block', [['amethyst_shard', 4]], 1, P2);
+  craft('glowstone', [['glowstone_dust', 4]], 1, P2);
+  craft('snow_block', [['snowball', 4]], 1, P2);
+  craft('clay', [['clay_ball', 4]], 1, P2);
+  craft('honey_block', [['honey_bottle', 4]], 1, P2);
+  craft('bone_block', [['bone_meal', 9]], 1, P3);
+  craft('bone_meal', [['bone', 1]], 3, '*');
+  craft('packed_ice', [['ice', 9]], 1, P3);
+  craft('blue_ice', [['packed_ice', 9]], 1, P3);
+  craft('hay_block', [['wheat', 9]], 1, P3);
+  craft('melon', [['melon_slice', 9]], 1, P3);
+  craft('dried_kelp_block', [['dried_kelp', 9]], 1, P3);
+  craft('slime_block', [['slime_ball', 9]], 1, P3);
+  craft('moss_carpet', [['moss_block', 2]], 3, 'AA');
   // storage blocks (9 -> 1)
   [['iron_block', 'iron_ingot'], ['gold_block', 'gold_ingot'], ['diamond_block', 'diamond'], ['emerald_block', 'emerald'], ['lapis_block', 'lapis_lazuli'],
     ['coal_block', 'coal'], ['redstone_block', 'redstone'], ['netherite_block', 'netherite_ingot'], ['copper_block', 'copper_ingot'],
     ['raw_iron_block', 'raw_iron'], ['raw_gold_block', 'raw_gold'], ['raw_copper_block', 'raw_copper'],
-  ].forEach(([o, i]) => craft(o, [[i, 9]], 1));
-  craft('iron_nugget', [['iron_ingot', 1]], 9);
-  craft('gold_nugget', [['gold_ingot', 1]], 9);
+  ].forEach(([o, i]) => craft(o, [[i, 9]], 1, P3));
+  craft('iron_nugget', [['iron_ingot', 1]], 9, '*');
+  craft('gold_nugget', [['gold_ingot', 1]], 9, '*');
 
   /* ======================================================================
    * Colours: concrete, terracotta, glass, wool, carpet
    * ====================================================================== */
   COLORS.forEach((c) => {
     const dye = c + '_dye';
-    craft(c + '_concrete_powder', [['sand', 4], ['gravel', 4], [dye, 1]], 8);
-    convert(c + '_concrete', c + '_concrete_powder', 'Place the powder in water');
-    craft(c + '_terracotta', [['terracotta', 8], [dye, 1]], 8);
+    craft(c + '_concrete_powder', [['sand', 4], ['gravel', 4], [dye, 1]], 8, '*');
+    convert(c + '_concrete', c + '_concrete_powder', 'Place the powder in water', 'item/water_bucket');
+    craft(c + '_terracotta', [['terracotta', 8], [dye, 1]], 8, RING);
     smelt(c + '_glazed_terracotta', c + '_terracotta');
-    craft(c + '_stained_glass', [['glass', 8], [dye, 1]], 8);
-    craft(c + '_stained_glass_pane', [[c + '_stained_glass', 6]], 16);
-    craft(c + '_stained_glass_pane', [['glass_pane', 8], [dye, 1]], 8);
-    if (c !== 'white') craft(c + '_wool', [['white_wool', 1], [dye, 1]], 1);
-    craft(c + '_carpet', [[c + '_wool', 2]], 3);
+    craft(c + '_stained_glass', [['glass', 8], [dye, 1]], 8, RING);
+    craft(c + '_stained_glass_pane', [[c + '_stained_glass', 6]], 16, 'AAA/AAA');
+    craft(c + '_stained_glass_pane', [['glass_pane', 8], [dye, 1]], 8, RING);
+    if (c !== 'white') craft(c + '_wool', [['white_wool', 1], [dye, 1]], 1, '*');
+    craft(c + '_carpet', [[c + '_wool', 2]], 3, 'AA');
     BASE_OF[c + '_carpet'] = c + '_wool';
     BASE_OF[c + '_stained_glass_pane'] = c + '_stained_glass';
   });
-  craft('white_wool', [['string', 4]], 1);
-  craft('glass_pane', [['glass', 6]], 16);
+  craft('white_wool', [['string', 4]], 1, P2);
+  craft('glass_pane', [['glass', 6]], 16, 'AAA/AAA');
   BASE_OF.glass_pane = 'glass';
 
   /* ======================================================================
    * Wood: planks, wood, stripped, stairs, slabs, fences, gates, doors, trapdoors, signs
    * ====================================================================== */
   const WOODS = [
-    // [wood, log, wood block, stripped log, stripped wood]
+    // [wood, log, wood block]
     ['oak', 'oak_log', 'oak_wood'], ['spruce', 'spruce_log', 'spruce_wood'], ['birch', 'birch_log', 'birch_wood'], ['jungle', 'jungle_log', 'jungle_wood'],
     ['acacia', 'acacia_log', 'acacia_wood'], ['dark_oak', 'dark_oak_log', 'dark_oak_wood'], ['mangrove', 'mangrove_log', 'mangrove_wood'],
     ['cherry', 'cherry_log', 'cherry_wood'], ['pale_oak', 'pale_oak_log', 'pale_oak_wood'], ['crimson', 'crimson_stem', 'crimson_hyphae'], ['warped', 'warped_stem', 'warped_hyphae'],
     ['bamboo', 'bamboo_block', null],
   ];
-  const PLANKS = new Set();
+  const AXE = 'item/iron_axe';
   WOODS.forEach(([w, log, wood]) => {
     const planks = w + '_planks', slog = 'stripped_' + log, swood = wood ? 'stripped_' + wood : null, k = w === 'bamboo' ? 2 : 4;
-    PLANKS.add(planks);
-    [log, slog, wood, swood].filter(Boolean).forEach((src) => craft(planks, [[src, 1]], k));
-    convert(slog, log, 'Use an axe on it');
-    if (wood) { craft(wood, [[log, 4]], 3); craft(swood, [[slog, 4]], 3); convert(swood, wood, 'Use an axe on it'); BASE_OF[swood] = slog; }
+    [log, slog, wood, swood].filter(Boolean).forEach((src) => craft(planks, [[src, 1]], k, '*'));
+    convert(slog, log, 'Use an axe on it', AXE);
+    if (wood) { craft(wood, [[log, 4]], 3, P2); craft(swood, [[slog, 4]], 3, P2); convert(swood, wood, 'Use an axe on it', AXE); BASE_OF[swood] = slog; }
     BASE_OF[slog] = log;
-    craft(w + '_stairs', [[planks, 6]], 4);
-    craft(w + '_slab', [[planks, 3]], 6);
-    craft(w + '_fence', [[planks, 4], ['stick', 2]], 3);
-    craft(w + '_fence_gate', [['stick', 4], [planks, 2]], 1);
-    craft(w + '_door', [[planks, 6]], 3);
-    craft(w + '_trapdoor', [[planks, 6]], 2);
-    craft(w + '_button', [[planks, 1]], 1);
-    craft(w + '_pressure_plate', [[planks, 2]], 1);
-    craft(w + '_sign', [[planks, 6], ['stick', 1]], 3);
-    craft(w + '_hanging_sign', [[slog, 6], ['chain', 2]], 6);
+    craft(w + '_stairs', [[planks, 6]], 4, STAIRS);
+    craft(w + '_slab', [[planks, 3]], 6, 'AAA');
+    craft(w + '_fence', [[planks, 4], ['stick', 2]], 3, 'ABA/ABA');
+    craft(w + '_fence_gate', [['stick', 4], [planks, 2]], 1, 'ABA/ABA');
+    craft(w + '_door', [[planks, 6]], 3, 'AA/AA/AA');
+    craft(w + '_trapdoor', [[planks, 6]], 2, 'AAA/AAA');
+    craft(w + '_button', [[planks, 1]], 1, 'A');
+    craft(w + '_pressure_plate', [[planks, 2]], 1, 'AA');
+    craft(w + '_sign', [[planks, 6], ['stick', 1]], 3, 'AAA/AAA/.B.');
+    craft(w + '_hanging_sign', [[slog, 6], ['chain', 2]], 6, 'B.B/AAA/AAA');
     ['stairs', 'slab', 'fence', 'fence_gate', 'door', 'trapdoor', 'button', 'pressure_plate', 'sign', 'hanging_sign'].forEach((s) => { BASE_OF[w + '_' + s] = planks; });
   });
-  craft('bamboo_block', [['bamboo', 9]], 1);
-  convert('stripped_bamboo_block', 'bamboo_block', 'Use an axe on it');
-  craft('bamboo_mosaic', [['bamboo_slab', 2]], 1);
-  craft('bamboo_mosaic_stairs', [['bamboo_mosaic', 6]], 4);
-  craft('bamboo_mosaic_slab', [['bamboo_mosaic', 3]], 6);
+  craft('bamboo_block', [['bamboo', 9]], 1, P3);
+  convert('stripped_bamboo_block', 'bamboo_block', 'Use an axe on it', AXE);
+  craft('bamboo_mosaic', [['bamboo_slab', 2]], 1, 'A/A');
+  craft('bamboo_mosaic_stairs', [['bamboo_mosaic', 6]], 4, STAIRS);
+  craft('bamboo_mosaic_slab', [['bamboo_mosaic', 3]], 6, 'AAA');
   BASE_OF.bamboo_mosaic_stairs = BASE_OF.bamboo_mosaic_slab = 'bamboo_mosaic';
   // "any planks": sticks, chests and friends take planks of any wood
-  craft('stick', [['tag:planks', 2]], 4);
-  craft('tag:planks', [['tag:logs', 1]], 4);
-  craft('crafting_table', [['tag:planks', 4]], 1);
-  craft('chest', [['tag:planks', 8]], 1);
-  craft('barrel', [['tag:planks', 6], ['tag:wooden_slabs', 2]], 1);
-  craft('tag:wooden_slabs', [['tag:planks', 3]], 6);
-  craft('composter', [['tag:wooden_slabs', 7]], 1);
-  craft('bookshelf', [['tag:planks', 6], ['book', 3]], 1);
-  craft('chiseled_bookshelf', [['tag:planks', 6], ['tag:wooden_slabs', 3]], 1);
-  craft('book', [['paper', 3], ['leather', 1]], 1);
-  craft('paper', [['sugar_cane', 3]], 3);
-  craft('ladder', [['stick', 7]], 3);
-  craft('scaffolding', [['bamboo', 6], ['string', 1]], 6);
-  craft('note_block', [['tag:planks', 8], ['redstone', 1]], 1);
+  craft('stick', [['tag:planks', 2]], 4, 'A/A');
+  craft('tag:planks', [['tag:logs', 1]], 4, '*');
+  craft('crafting_table', [['tag:planks', 4]], 1, P2);
+  craft('chest', [['tag:planks', 8]], 1, 'AAA/A.A/AAA');
+  craft('barrel', [['tag:planks', 6], ['tag:wooden_slabs', 2]], 1, 'ABA/A.A/ABA');
+  craft('tag:wooden_slabs', [['tag:planks', 3]], 6, 'AAA');
+  craft('composter', [['tag:wooden_slabs', 7]], 1, 'A.A/A.A/AAA');
+  craft('bookshelf', [['tag:planks', 6], ['book', 3]], 1, 'AAA/BBB/AAA');
+  craft('chiseled_bookshelf', [['tag:planks', 6], ['tag:wooden_slabs', 3]], 1, 'AAA/BBB/AAA');
+  craft('book', [['paper', 3], ['leather', 1]], 1, '*');
+  craft('paper', [['sugar_cane', 3]], 3, 'AAA');
+  craft('ladder', [['stick', 7]], 3, 'A.A/AAA/A.A');
+  craft('scaffolding', [['bamboo', 6], ['string', 1]], 6, 'ABA/A.A/A.A');
+  craft('note_block', [['tag:planks', 8], ['redstone', 1]], 1, RING);
 
   /* ======================================================================
    * Light, metal, redstone, misc
    * ====================================================================== */
-  craft('torch', [['coal', 1], ['stick', 1]], 4);
-  craft('soul_torch', [['coal', 1], ['stick', 1], ['soul_soil', 1]], 4);
-  craft('lantern', [['iron_nugget', 8], ['torch', 1]], 1);
-  craft('soul_lantern', [['iron_nugget', 8], ['soul_torch', 1]], 1);
-  craft('chain', [['iron_ingot', 1], ['iron_nugget', 2]], 1);
-  craft('iron_bars', [['iron_ingot', 6]], 16);
-  craft('iron_door', [['iron_ingot', 6]], 3);
-  craft('iron_trapdoor', [['iron_ingot', 4]], 1);
-  craft('bucket', [['iron_ingot', 3]], 1);
-  craft('redstone_lamp', [['redstone', 4], ['glowstone', 1]], 1);
-  craft('jack_o_lantern', [['carved_pumpkin', 1], ['torch', 1]], 1);
-  convert('carved_pumpkin', 'pumpkin', 'Use shears on it');
-  craft('lodestone', [['chiseled_stone_bricks', 8], ['iron_ingot', 1]], 1);
-  craft('target', [['redstone', 4], ['hay_block', 1]], 1);
-  craft('end_rod', [['blaze_rod', 1], ['popped_chorus_fruit', 1]], 4);
-  craft('furnace', [['cobblestone', 8]], 1);
-  craft('smoker', [['tag:logs', 4], ['furnace', 1]], 1);
-  craft('blast_furnace', [['iron_ingot', 5], ['furnace', 1], ['smooth_stone', 3]], 1);
-  craft('hopper', [['iron_ingot', 5], ['chest', 1]], 1);
-  craft('redstone_torch', [['redstone', 1], ['stick', 1]], 1);
-  craft('repeater', [['stone', 3], ['redstone_torch', 2], ['redstone', 1]], 1);
-  craft('comparator', [['stone', 3], ['redstone_torch', 3], ['quartz', 1]], 1);
-  craft('observer', [['cobblestone', 6], ['redstone', 2], ['quartz', 1]], 1);
-  craft('piston', [['tag:planks', 3], ['cobblestone', 4], ['iron_ingot', 1], ['redstone', 1]], 1);
-  craft('sticky_piston', [['piston', 1], ['slime_ball', 1]], 1);
-  craft('dropper', [['cobblestone', 7], ['redstone', 1]], 1);
-  craft('dispenser', [['cobblestone', 7], ['redstone', 1], ['bow', 1]], 1);
-  craft('bow', [['stick', 3], ['string', 3]], 1);
-  craft('rail', [['iron_ingot', 6], ['stick', 1]], 16);
-  craft('powered_rail', [['gold_ingot', 6], ['stick', 1], ['redstone', 1]], 6);
-  craft('detector_rail', [['iron_ingot', 6], ['stone_pressure_plate', 1], ['redstone', 1]], 6);
-  craft('activator_rail', [['iron_ingot', 6], ['stick', 2], ['redstone_torch', 1]], 6);
-  craft('lever', [['stick', 1], ['cobblestone', 1]], 1);
-  craft('stone_button', [['stone', 1]], 1);
-  craft('stone_pressure_plate', [['stone', 2]], 1);
-  craft('tripwire_hook', [['iron_ingot', 1], ['stick', 1], ['tag:planks', 1]], 2);
-  craft('trapped_chest', [['chest', 1], ['tripwire_hook', 1]], 1);
-  craft('daylight_detector', [['glass', 3], ['quartz', 3], ['tag:wooden_slabs', 3]], 1);
-  craft('tnt', [['gunpowder', 5], ['sand', 4]], 1);
-  craft('minecart', [['iron_ingot', 5]], 1);
-  craft('hopper_minecart', [['hopper', 1], ['minecart', 1]], 1);
-  craft('armor_stand', [['stick', 6], ['smooth_stone_slab', 1]], 1);
-  craft('anvil', [['iron_block', 3], ['iron_ingot', 4]], 1);
-  craft('cauldron', [['iron_ingot', 7]], 1);
-  craft('flower_pot', [['brick', 3]], 1);
-  craft('item_frame', [['stick', 8], ['leather', 1]], 1);
-  craft('crafter', [['iron_ingot', 5], ['crafting_table', 1], ['redstone', 2], ['dropper', 1]], 1);
+  craft('torch', [['coal', 1], ['stick', 1]], 4, 'A/B');
+  craft('soul_torch', [['coal', 1], ['stick', 1], ['soul_soil', 1]], 4, 'A/B/C');
+  craft('lantern', [['iron_nugget', 8], ['torch', 1]], 1, RING);
+  craft('soul_lantern', [['iron_nugget', 8], ['soul_torch', 1]], 1, RING);
+  craft('chain', [['iron_ingot', 1], ['iron_nugget', 2]], 1, 'B/A/B');
+  craft('iron_bars', [['iron_ingot', 6]], 16, 'AAA/AAA');
+  craft('iron_door', [['iron_ingot', 6]], 3, 'AA/AA/AA');
+  craft('iron_trapdoor', [['iron_ingot', 4]], 1, P2);
+  craft('bucket', [['iron_ingot', 3]], 1, 'A.A/.A.');
+  craft('redstone_lamp', [['redstone', 4], ['glowstone', 1]], 1, '.A./ABA/.A.');
+  craft('jack_o_lantern', [['carved_pumpkin', 1], ['torch', 1]], 1, 'A/B');
+  convert('carved_pumpkin', 'pumpkin', 'Use shears on it', 'item/shears');
+  // Java 1.21.5 changed the centre of the lodestone from a netherite ingot to an iron ingot
+  craft('lodestone', [['chiseled_stone_bricks', 8], ['iron_ingot', 1]], 1, RING);
+  craft('target', [['redstone', 4], ['hay_block', 1]], 1, '.A./ABA/.A.');
+  craft('end_rod', [['blaze_rod', 1], ['popped_chorus_fruit', 1]], 4, 'A/B');
+  craft('furnace', [['cobblestone', 8]], 1, 'AAA/A.A/AAA');
+  craft('smoker', [['tag:logs', 4], ['furnace', 1]], 1, '.A./ABA/.A.');
+  craft('blast_furnace', [['iron_ingot', 5], ['furnace', 1], ['smooth_stone', 3]], 1, 'AAA/ABA/CCC');
+  craft('hopper', [['iron_ingot', 5], ['chest', 1]], 1, 'A.A/ABA/.A.');
+  craft('redstone_torch', [['redstone', 1], ['stick', 1]], 1, 'A/B');
+  craft('repeater', [['stone', 3], ['redstone_torch', 2], ['redstone', 1]], 1, 'BCB/AAA');
+  craft('comparator', [['stone', 3], ['redstone_torch', 3], ['quartz', 1]], 1, '.B./BCB/AAA');
+  craft('observer', [['cobblestone', 6], ['redstone', 2], ['quartz', 1]], 1, 'AAA/BBC/AAA');
+  craft('piston', [['tag:planks', 3], ['cobblestone', 4], ['iron_ingot', 1], ['redstone', 1]], 1, 'AAA/BCB/BDB');
+  craft('sticky_piston', [['piston', 1], ['slime_ball', 1]], 1, 'B/A');
+  craft('dropper', [['cobblestone', 7], ['redstone', 1]], 1, 'AAA/A.A/ABA');
+  craft('dispenser', [['cobblestone', 7], ['redstone', 1], ['bow', 1]], 1, 'AAA/ACA/ABA');
+  craft('bow', [['stick', 3], ['string', 3]], 1, '.AB/A.B/.AB');
+  craft('rail', [['iron_ingot', 6], ['stick', 1]], 16, 'A.A/ABA/A.A');
+  craft('powered_rail', [['gold_ingot', 6], ['stick', 1], ['redstone', 1]], 6, 'A.A/ABA/ACA');
+  craft('detector_rail', [['iron_ingot', 6], ['stone_pressure_plate', 1], ['redstone', 1]], 6, 'A.A/ABA/ACA');
+  craft('activator_rail', [['iron_ingot', 6], ['stick', 2], ['redstone_torch', 1]], 6, 'ABA/ACA/ABA');
+  craft('lever', [['stick', 1], ['cobblestone', 1]], 1, 'A/B');
+  craft('stone_button', [['stone', 1]], 1, 'A');
+  craft('stone_pressure_plate', [['stone', 2]], 1, 'AA');
+  craft('tripwire_hook', [['iron_ingot', 1], ['stick', 1], ['tag:planks', 1]], 2, 'A/B/C');
+  craft('trapped_chest', [['chest', 1], ['tripwire_hook', 1]], 1, '*');
+  craft('daylight_detector', [['glass', 3], ['quartz', 3], ['tag:wooden_slabs', 3]], 1, 'AAA/BBB/CCC');
+  craft('tnt', [['gunpowder', 5], ['sand', 4]], 1, 'ABA/BAB/ABA');
+  craft('minecart', [['iron_ingot', 5]], 1, 'A.A/AAA');
+  craft('hopper_minecart', [['hopper', 1], ['minecart', 1]], 1, 'A/B');
+  craft('armor_stand', [['stick', 6], ['smooth_stone_slab', 1]], 1, 'AAA/.A./ABA');
+  craft('anvil', [['iron_block', 3], ['iron_ingot', 4]], 1, 'AAA/.B./BBB');
+  craft('cauldron', [['iron_ingot', 7]], 1, 'A.A/A.A/AAA');
+  craft('flower_pot', [['brick', 3]], 1, 'A.A/.A.');
+  craft('item_frame', [['stick', 8], ['leather', 1]], 1, RING);
+  craft('crafter', [['iron_ingot', 5], ['crafting_table', 1], ['redstone', 2], ['dropper', 1]], 1, 'AAA/ABA/CDC');
 
   /* ======================================================================
    * Names, icons, groups
@@ -310,8 +342,11 @@ TH.data.recipes = (function () {
     white_dye: 'item/white_dye', orange_dye: 'item/orange_dye', magenta_dye: 'item/magenta_dye', light_blue_dye: 'item/light_blue_dye',
     yellow_dye: 'item/yellow_dye', lime_dye: 'item/lime_dye', pink_dye: 'item/pink_dye', gray_dye: 'item/gray_dye', light_gray_dye: 'item/light_gray_dye',
     cyan_dye: 'item/cyan_dye', purple_dye: 'item/purple_dye', blue_dye: 'item/blue_dye', brown_dye: 'item/brown_dye', green_dye: 'item/green_dye',
-    red_dye: 'item/red_dye', black_dye: 'item/black_dye',
+    red_dye: 'item/red_dye', black_dye: 'item/black_dye', pumpkin: 'block/pumpkin_side', crafting_table: 'block/crafting_table_front',
+    furnace: 'block/furnace_front',
   };
+  // the station of every method (the texture shown in the recipe pictures)
+  const STATION = { crafting: 'block/crafting_table_front', stonecutting: 'block/stonecutter_side', smelting: 'block/furnace_front' };
   // a name hint -> group (the builds table groups: stone, deep, sand, nether, end, wood, colour, mineral, ore, natural, glass, leaves, light, redstone, farm, misc)
   const GROUP_RULES = [
     [/^tag:|planks|_log$|_wood$|_stem$|hyphae|bamboo|bookshelf|^stick$|crafting_table|^chest$|barrel|ladder|scaffolding|composter|_sign$|_door$|_trapdoor$|_fence_gate$|^(oak|spruce|birch|jungle|acacia|dark_oak|mangrove|cherry|pale_oak|crimson|warped)_/, 'wood'],
@@ -447,6 +482,8 @@ TH.data.recipes = (function () {
     return ins + ' → ' + r.out + '× ' + nameOf(id) + ' (' + METHOD[r.method].toLowerCase() + ')' + (r.note ? ' · ' + r.note : '');
   }
   function iconKey(id) { return ICON[bare(id)] || null; }
+  /** The texture of the block or tool that does this recipe (crafting table, stonecutter, furnace, water bucket, axe...). */
+  function stationOf(r) { return r ? r.tool || STATION[r.method] || null : null; }
   const baseOf = (id) => { const b = BASE_OF[bare(id)]; return b ? full(b) : null; };
   /** Every item id the engine knows by name (outputs and inputs), for reading pasted lists. */
   function allIds() {
@@ -455,5 +492,5 @@ TH.data.recipes = (function () {
     return [...s].filter((n) => !n.startsWith('tag:')).map(full);
   }
 
-  return { recipesFor, best, bestIndex, cheapest, raw, describe, nameOf, iconKey, baseOf, groupOf, knows, allIds, METHOD, NAMES, COLORS, bare };
+  return { recipesFor, best, bestIndex, cheapest, raw, describe, nameOf, iconKey, stationOf, baseOf, groupOf, knows, allIds, METHOD, STATION, NAMES, COLORS, bare };
 })();

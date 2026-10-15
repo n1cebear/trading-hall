@@ -182,11 +182,13 @@ TH.app = (function () {
       u.style.setProperty('--s', (((i * 37) % 60) - 30) + 'px');
       art.appendChild(u);
     }
-    if (current && current.id === 'enchanting') {   // the bookshelves of the enchanting room, to both sides of the title
-      const shelf = (side) => { const e = document.createElement('i'); e.className = 'th-shelf ' + side; e.innerHTML = '<b></b><b></b>'; return e; };
-      art.prepend(shelf('l'), shelf('r'));
-    }
     head.appendChild(art);
+    if (current && current.id === 'enchanting') {   // the bookshelves of the enchanting room: one tall scene from the title down over the top of the item selector
+      const box = document.createElement('div');
+      box.className = 'th-shelves'; box.setAttribute('aria-hidden', 'true');
+      ['l', 'r'].forEach((side) => { const e = document.createElement('i'); e.className = 'th-shelf ' + side; e.innerHTML = '<b></b><b></b><b></b><b></b><b></b>'; box.appendChild(e); });
+      head.appendChild(box);
+    }
   }
 
   function render() {
@@ -339,7 +341,12 @@ TH.app = (function () {
   }
 
   /** The whole page runs at the sizing of a 90% browser zoom (a notch smaller reads better). No switch: it is just the default size. */
-  const applyZoom = () => { document.documentElement.style.zoom = '0.9'; };
+  const applyZoom = () => {
+    const z = innerWidth > 640 ? 0.97 : 0.93;   // desktop and phone sizes (a notch bigger than before: easier to read)
+    const root = document.documentElement;
+    if (root.style.zoom !== String(z)) { root.style.zoom = String(z); root.style.setProperty('--zoom', String(z)); }
+  };
+  window.addEventListener('resize', () => applyZoom(), { passive: true });
 
   function applyTheme() {
     const t = TH.store.get().settings.theme;

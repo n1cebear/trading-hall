@@ -620,7 +620,7 @@ TH.anvil = (function () {
       const btn = h('button.field.ec-combo', {
         type: 'button', id: 'ec-pick-' + k, 'data-focus': 'ec-pick-' + k, 'aria-expanded': 'false', 'aria-controls': 'ec-area-' + k,
         onclick: (ev) => toggleArea(k, ev),
-      }, val, badge, h('span.ec-caret', { 'aria-hidden': 'true' }, caretSvg()));
+      }, val, badge, k === 'item' ? h('span.ec-change', { 'aria-hidden': 'true' }, 'Change') : null, h('span.ec-caret', { 'aria-hidden': 'true' }, caretSvg()));
       const wrap = h('div.ec-cslot.ec-cslot-' + k, h('h3.ec-pick-label', { id: 'ec-lbl-' + k }, label), btn);
       return { k, wrap, btn, tile: val, badge, key: null, open: undefined, area: null, btns: new Map() };
     };
@@ -713,18 +713,21 @@ TH.anvil = (function () {
 
     // the look: which material the item is drawn in (names and the preview only; the enchanting rules do not care)
     {
-      const mats = p.item && !isPlain(it) ? it.materials : [];
-      const lk = mats.join() + '|' + s.material + '|' + lang;
+      const has = p.item && !isPlain(it);
+      const mats = has ? it.materials : MATS;   // an item without materials shows the same row, greyed out, so nothing jumps
+      const lk = mats.join() + '|' + (has ? s.material : '-') + '|' + lang;
       if (P.looks.key !== lk) {
         P.looks.key = lk;
+        P.looks.classList.toggle('is-off', !has);
         P.looks.replaceChildren(...(mats.length ? [h('span.ec-looks-lbl', 'Look'), ...mats.map((m) => {
-          const on = m === s.material;
-          const b = h('button.ec-look' + (on ? '.on' : ''), { type: 'button', role: 'radio', 'aria-checked': String(on), 'aria-label': matName(m), 'data-focus': 'ec-look-' + m,
+          const on = has && m === s.material;
+          const b = h('button.ec-look' + (on ? '.on' : ''), { type: 'button', role: 'radio', 'aria-checked': String(on), 'aria-label': matName(m), 'data-focus': 'ec-look-' + m, disabled: !has, tabindex: has ? null : '-1',
             onclick: () => set((e) => { e.material = m; e.matTouched = true; }) }, matIconEl(m));
           TH.util.tooltip(b, () => matName(m));
           return b;
         })] : []));
-        P.looks.hidden = !mats.length;
+        P.looks.hidden = false;
+        P.looks.setAttribute('aria-disabled', String(!has));
       }
     }
 

@@ -33,6 +33,7 @@
 .lp-pane[data-tool="builds"] { --tc: var(--c-build); }
 .lp-pane[data-tool="portal"] { --tc: var(--c-portal); }
 .lp-pane[data-tool="palettes"] { --tc: var(--c-pal); }
+.lp-pane[data-tool="materials"] { --tc: var(--c-mat); }
 .lp-stage.has-open .lp-pane.is-open { flex-grow: 5; }
 .lp-pane:focus-visible { outline: 2px solid var(--tc); outline-offset: -4px; }
 
@@ -240,7 +241,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .lp-stage *, .lp-stage *::before { animation: none !important; }
-  .lp-orb, .lp-flow, .lp-coin, .lp-ember, .lp-happy, .lp-twinkle { display: none; }
+  .lp-orb, .lp-flow, .lp-coin, .lp-ember, .lp-happy, .lp-twinkle, .lp-mpop { display: none; }
   .lp-pane, .lp-place, .lp-scene, .lp-label, .lp-detail > *, .lp-l, .lp-glow::before, .lp-book, .lp-frame, .lp-fan { transition-duration: .01s !important; transition-delay: 0s !important; }
 }
 
@@ -305,3 +306,15 @@
 .lp-sw { position: absolute; top: 0; width: 44px; height: 44px; border-radius: 6px; background-size: cover; background-position: center; image-rendering: pixelated; box-shadow: 0 8px 18px -8px rgb(0 0 0 / .6); animation: lp-sw-bob 4.2s ease-in-out infinite; animation-delay: var(--o, 0s); }
 @keyframes lp-sw-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-7px); } }
 .lp-pcube { animation: lp-sw-bob 5s ease-in-out infinite; animation-delay: var(--o, 0s); }
+
+/* materials scene: two shulker boxes, items rising out of the big one, a checklist ticking itself off */
+.lp-mbox { animation: lp-sw-bob 5.2s ease-in-out infinite; }
+.lp-mpops { position: absolute; inset: 0; }
+.lp-mpop { position: absolute; top: 150px; width: 30px; height: 30px; opacity: 0; animation: lp-mpop 4.5s ease-out infinite; animation-delay: var(--o, 0s); }
+@keyframes lp-mpop { 0% { transform: translate(0, 20px) scale(.5); opacity: 0; } 18% { opacity: 1; } 75% { opacity: .9; } 100% { transform: translate(var(--dx, 0), -110px) scale(1); opacity: 0; } }
+.lp-mlist { position: absolute; left: 238px; top: 60px; width: 96px; display: flex; flex-direction: column; gap: 12px; }
+.lp-mrow { display: flex; align-items: center; gap: 8px; }
+.lp-mrow i { flex: none; width: 14px; height: 14px; border-radius: 3px; background: color-mix(in srgb, var(--text) 14%, transparent); position: relative; }
+.lp-mrow i::after { content: ''; position: absolute; inset: 3px; border-radius: 1px; background: var(--tc); opacity: 0; animation: lp-mtick 3.6s steps(1) infinite; animation-delay: var(--o, 0s); }
+.lp-mrow b { flex: 1; height: 6px; border-radius: 2px; background: color-mix(in srgb, var(--text) 16%, transparent); }
+@keyframes lp-mtick { 0%, 45% { opacity: 0; } 46%, 100% { opacity: 1; } }

@@ -383,6 +383,118 @@ TH.builds = TH.builds || {};
     return out;
   }
 
+  /* ======================================================================
+   * Symmetry (pure, no DOM): mirror planes, the mismatch check, the mirrored preview
+   *
+   * A plane is { axis: 0 (x) | 1 (y) | 2 (z), m } with m = twice its position in block edges, so block c mirrors to
+   * m - 1 - c. m odd = the plane runs through the middle of block (m - 1) / 2, m even = between two blocks. Blocks are
+   * compared after mirroring their state (stairs facing east on one side match stairs facing west on the other; a top
+   * slab matches a bottom slab across Y); connection and on/off properties are ignored.
+   * ====================================================================== */
+  const SYM_IGNORE = new Set(['waterlogged', 'powered', 'lit', 'open', 'triggered', 'distance', 'persistent', 'power', 'north', 'south', 'east', 'west', 'up', 'down',
+    'in_wall', 'occupied', 'snowy', 'instrument', 'note', 'enabled', 'locked', 'delay', 'has_book', 'has_record', 'signal_fire', 'drag', 'disarmed', 'attached', 'bottom', 'unstable', 'hanging']);
+  const SWAP = (a, b) => (v) => (v === a ? b : v === b ? a : v);
+  const swapLR = (v) => v.replace(/left|right/g, (w) => (w === 'left' ? 'right' : 'left'));
+  /** The block state as it looks in a mirror across a plane on `axis`. */
+  function mirrorState(id, axis) {
+    const core = C(), p = core.parse(id), pr = p.props, ks = Object.keys(pr);
+    if (!ks.length) return id;
+    const o = {};
+    const fac = axis === 0 ? SWAP('east', 'west') : axis === 2 ? SWAP('north', 'south') : SWAP('up', 'down');
+    const tok = axis === 0 ? (v) => v.replace(/east|west/g, (w) => (w === 'east' ? 'west' : 'east')) : axis === 2 ? (v) => v.replace(/north|south/g, (w) => (w === 'north' ? 'south' : 'north')) : (v) => v;
+    for (const k of ks) {
+      let v = pr[k];
+      if (k === 'facing') v = fac(v);
+      else if (axis !== 1) {
+        if (k === 'shape') v = /^(north|south|east|west|ascending)/.test(v) ? tok(v) : swapLR(v);   // rails : stairs
+        else if (k === 'hinge' || (k === 'type' && (v === 'left' || v === 'right'))) v = swapLR(v);
+        else if (k === 'rotation') { const r = +v; v = String(axis === 0 ? (16 - r) % 16 : (24 - r) % 16); }
+      } else if (k === 'half' || k === 'type') v = SWAP('top', 'bottom')(v);
+      else if (k === 'face' || k === 'attachment') v = SWAP('floor', 'ceiling')(v);
+      o[k] = v;
+    }
+    return core.stateOf(p.base, o);
+  }
+  /** Comparison key of a state: the block plus the properties that matter for symmetry. */
+  function symKey(id) {
+    const p = C().parse(id), ks = Object.keys(p.props).filter((k) => !SYM_IGNORE.has(k)).sort();
+    return ks.length ? p.base + '[' + ks.map((k) => k + '=' + p.props[k]).join(',') + ']' : p.base;
+  }
+  /** Per palette index: class of the state (K, 0 = air) and of its mirror on each axis (KM[axis]). */
+  function symClasses(s) {
+    const core = C(), n = s.palette.length, cls = new Map(), K = new Int32Array(n), KM = [new Int32Array(n), new Int32Array(n), new Int32Array(n)];
+    const of = (id) => { const k = symKey(id); let c = cls.get(k); if (c == null) { c = cls.size + 1; cls.set(k, c); } return c; };
+    for (let i = 1; i < n; i++) {
+      const id = s.palette[i];
+      if (core.isAir(id)) continue;
+      K[i] = of(id);
+      for (let a = 0; a < 3; a++) KM[a][i] = of(mirrorState(id, a));
+    }
+    return { K, KM };
+  }
+  /** Bounding box of the solid blocks: [x0, y0, z0, x1, y1, z1] (inclusive) or null. */
+  function symBox(s, K) {
+    K = K || symClasses(s).K;
+    const [sx, sy, sz] = s.size, B = s.blocks;
+    let x0 = sx, y0 = sy, z0 = sz, x1 = -1, y1 = -1, z1 = -1;
+    for (let y = 0, i = 0; y < sy; y++) for (let z = 0; z < sz; z++) for (let x = 0; x < sx; x++, i++) {
+      if (!K[B[i]]) continue;
+      if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; if (z < z0) z0 = z; if (z > z1) z1 = z;
+    }
+    return x1 < 0 ? null : [x0, y0, z0, x1, y1, z1];
+  }
+  /** m of the plane through the middle of the build on that axis. */
+  function symCentre(s, axis, box) {
+    box = box === undefined ? symBox(s) : box;
+    return box ? box[axis] + box[axis + 3] + 1 : s.size[axis];
+  }
+  /**
+   * Check planes [{ axis, m }] in one pass each. -> { solid, res: [{ axis, m, diff, pct }], flags: Uint8Array per cell
+   * (bit 1 << axis set where the block has no matching mirror), diff: blocks that fail any plane }.
+   */
+  function symCheck(s, planes, cls) {
+    const [sx, sy, sz] = s.size, B = s.blocks, N = B.length, { K, KM } = cls || symClasses(s);
+    const flags = new Uint8Array(N);
+    let solid = 0;
+    for (let i = 0; i < N; i++) if (K[B[i]]) solid++;
+    const res = planes.map((pl) => {
+      const a = pl.axis, m = pl.m, KA = KM[a], bit = 1 << a, n = s.size[a], stride = a === 0 ? 1 : a === 1 ? sx * sz : sx;
+      let diff = 0;
+      for (let y = 0, i = 0; y < sy; y++) for (let z = 0; z < sz; z++) for (let x = 0; x < sx; x++, i++) {
+        const k = K[B[i]];
+        if (!k) continue;
+        const c = a === 0 ? x : a === 1 ? y : z, j = m - 1 - c;
+        if (j < 0 || j >= n || KA[B[i + (j - c) * stride]] !== k) { flags[i] |= bit; diff++; }
+      }
+      return { axis: a, m, diff, pct: solid ? (solid - diff) / solid : 1 };
+    });
+    let diff = 0;
+    for (let i = 0; i < N; i++) if (flags[i]) diff++;
+    return { solid, res, flags, diff };
+  }
+  /**
+   * The build as if it were perfectly symmetric: for each plane in turn the kept half (lower coordinates, or the upper
+   * ones when flip has that axis' bit) is mirrored onto the other half. Cells whose mirror falls outside the box are cleared.
+   */
+  function symMirror(s, planes, flip) {
+    const core = C(), [sx, sy, sz] = s.size;
+    const o = { name: s.name, size: s.size.slice(), palette: s.palette.slice(), blocks: new Uint16Array(s.blocks) };
+    const B = o.blocks;
+    for (const pl of planes) {
+      const a = pl.axis, m = pl.m, n = s.size[a], stride = a === 0 ? 1 : a === 1 ? sx * sz : sx, upper = !!(flip & (1 << a));
+      const len = o.palette.length, map = new Uint16Array(len);
+      for (let p = 1; p < len; p++) map[p] = core.isAir(o.palette[p]) ? 0 : core.pal(o, mirrorState(o.palette[p], a));
+      for (let y = 0, i = 0; y < sy; y++) for (let z = 0; z < sz; z++) for (let x = 0; x < sx; x++, i++) {
+        const c = a === 0 ? x : a === 1 ? y : z, j = m - 1 - c;
+        const write = upper ? c < j : c > j;   // this cell takes the mirror of the kept side
+        if (!write) continue;
+        B[i] = j < 0 || j >= n ? 0 : map[B[i + (j - c) * stride]];
+      }
+    }
+    return o;
+  }
+  TH.builds.sym = { mirrorState, key: symKey, classes: symClasses, box: symBox, centre: symCentre, check: symCheck, mirror: symMirror };
+
   TH.builds.mesh = mesh;
   TH.builds.atlasUV = atlasUV;
   if (typeof document === 'undefined') return;   // node tests: mesher only
@@ -514,7 +626,7 @@ TH.builds = TH.builds || {};
       schem: null, M: null, sig: '', yaw: 0.78, pitch: 0.52, zoom: 1, vel: 0, goal: null, auto: !reduced(), lastInput: 0, dist: 30, target: [0, 4, 0],
       t: 0, mode: 'loop', speed: 1, playing: true, phase: 'in', hold: 0, minY: 0, maxY: 999, slice: false, gridOn: true, outlineOn: false,
       dirty: true, raf: 0, last: 0, inView: true, w: 0, h: 0, accent: '#ff8a3d', onState: null, onHover: null, buildId: 0,
-      run: false, runIdx: 0, runT: 0, phaseSets: null, phaseInfo: null, onRun: null,
+      run: false, runIdx: 0, runT: 0, phaseSets: null, phaseInfo: null, onRun: null, symCfg: null,
     };
     const HOME = { yaw: 0.78, pitch: 0.52, zoom: 1 };
     const ZMIN = 0.35, ZMAX = 4, PMIN = -0.2, PMAX = 1.52;
@@ -763,6 +875,7 @@ TH.builds = TH.builds || {};
       if (S.atlas) { S.atlas.dispose(); S.atlas = null; }
       [S.grid, S.outline, S.hl].forEach((m) => { if (m) { S.root.remove(m); m.geometry.dispose(); if (m.material.map) m.material.map.dispose(); m.material.dispose(); } });
       S.grid = S.outline = S.hl = null;
+      clearSym();
     }
     /** Quads helper for overlay meshes. */
     function quadsGeo(list) {
@@ -848,6 +961,90 @@ TH.builds = TH.builds || {};
       return m;
     }
 
+    /* ---- symmetry overlay: translucent mirror planes + the blocks without a mirrored twin ---- */
+    const SYM_BAD = '#ff4664';
+    let symGrp = null;
+    function clearSym() {
+      if (!symGrp) return;
+      if (S.root) S.root.remove(symGrp);
+      symGrp.children.forEach((m) => { m.geometry.dispose(); m.material.dispose(); });
+      symGrp = null;
+    }
+    /** One mirror plane across the solid box: a faint sheet with a brighter rim. */
+    function symPlane(axis, m, box, grp) {
+      const s = S.schem, [sx, , sz] = s.size, pad = 0.8, rim = 0.07;
+      const lo = [box[0] - sx / 2 - pad, box[1] - pad, box[2] - sz / 2 - pad], hi = [box[3] + 1 - sx / 2 + pad, box[4] + 1 + pad, box[5] + 1 - sz / 2 + pad];
+      const at = m / 2 - (axis === 0 ? sx / 2 : axis === 2 ? sz / 2 : 0);
+      const u = axis === 0 ? 2 : 0, v = axis === 1 ? 2 : 1;   // the two in-plane axes
+      const P = (a, b, d) => { const p = [0, 0, 0]; p[axis] = at + (d || 0); p[u] = a; p[v] = b; return p; };
+      const rect = (a0, b0, a1, b1) => [P(a0, b0), P(a1, b0), P(a1, b1), P(a0, b1)];
+      // the rim also stands out of the plane a little, so a plane seen edge-on still shows as a line
+      const fin = (a0, b0, a1, b1) => [P(a0, b0, -rim), P(a1, b1, -rim), P(a1, b1, rim), P(a0, b0, rim)];
+      const mat = (op) => new THREE.MeshBasicMaterial({ color: new THREE.Color(S.accent), transparent: true, opacity: op, depthWrite: false, side: THREE.DoubleSide });
+      const sheet = new THREE.Mesh(quadsGeo([rect(lo[u], lo[v], hi[u], hi[v])]), mat(0.13));
+      const edge = new THREE.Mesh(quadsGeo([rect(lo[u], lo[v], hi[u], lo[v] + rim), rect(lo[u], hi[v] - rim, hi[u], hi[v]), rect(lo[u], lo[v] + rim, lo[u] + rim, hi[v] - rim), rect(hi[u] - rim, lo[v] + rim, hi[u], hi[v] - rim),
+        fin(lo[u], lo[v], hi[u], lo[v]), fin(lo[u], hi[v], hi[u], hi[v]), fin(lo[u], lo[v], lo[u], hi[v]), fin(hi[u], lo[v], hi[u], hi[v])]), mat(0.75));
+      sheet.renderOrder = 6; edge.renderOrder = 7;
+      grp.add(sheet, edge);
+    }
+    /** Inflated cubes on every flagged block. They land with the build and follow the layer range (same shader). */
+    function symMarks(flags, grp) {
+      const s = S.schem, [sx, sy, sz] = s.size, T = S.M.times, ox = sx / 2, oz = sz / 2, e = 0.52;
+      const on = (x, y, z) => x >= 0 && y >= 0 && z >= 0 && x < sx && y < sy && z < sz && flags[(y * sz + z) * sx + x] && T[(y * sz + z) * sx + x] >= 0;
+      let n = 0;
+      for (let i = 0; i < flags.length; i++) if (flags[i] && T[i] >= 0) n++;
+      if (!n) return;
+      const pos = new Float32Array(n * 72), c = new Float32Array(n * 72), t = new Float32Array(n * 24), nb = new Float32Array(n * 48), idx = new Uint32Array(n * 36);
+      let v = 0, k = 0;
+      for (let y = 0, i = 0; y < sy; y++) for (let z = 0; z < sz; z++) for (let x = 0; x < sx; x++, i++) {
+        if (!flags[i] || T[i] < 0) continue;
+        const cx = x - ox + 0.5, cy = y + 0.5, cz = z - oz + 0.5;
+        for (let f = 0; f < 6; f++) {
+          const F = FACES[f], X = x + F.n[0], Y = y + F.n[1], Z = z + F.n[2], next = on(X, Y, Z);
+          if (next && F.n[1] === 0) continue;   // a flagged neighbour in the same layer: the face between them never shows
+          const j = (Y * sz + Z) * sx + X;
+          for (let q = 0; q < 4; q++) {
+            const p = F.c[q], o = v * 3;
+            pos[o] = cx + (p[0] - 0.5) * 2 * e; pos[o + 1] = cy + (p[1] - 0.5) * 2 * e; pos[o + 2] = cz + (p[2] - 0.5) * 2 * e;
+            c[o] = cx; c[o + 1] = cy; c[o + 2] = cz;
+            t[v] = T[i]; nb[v * 2] = next ? T[j] : -1; nb[v * 2 + 1] = next ? Y : 0;
+            v++;
+          }
+          idx.set([v - 4, v - 3, v - 2, v - 4, v - 2, v - 1], k); k += 6;
+        }
+      }
+      const geo = new THREE.BufferGeometry(), F32 = (a, w) => new THREE.Float32BufferAttribute(a, w);
+      geo.setAttribute('position', F32(pos.subarray(0, v * 3), 3));
+      geo.setAttribute('aC', F32(c.subarray(0, v * 3), 3));
+      geo.setAttribute('aT', F32(t.subarray(0, v), 1));
+      geo.setAttribute('aN', F32(nb.subarray(0, v * 2), 2));
+      const IA = BA();
+      geo.setIndex(new IA(idx.subarray(0, k), 1));
+      const mat = new THREE.MeshBasicMaterial({ color: new THREE.Color(SYM_BAD), transparent: true, opacity: 0.5, depthWrite: false });
+      mat.onBeforeCompile = (sh) => { Object.assign(sh.uniforms, uni); sh.vertexShader = VERT_HEAD + sh.vertexShader.replace('#include <begin_vertex>', VERT_BODY); };
+      mat.customProgramCacheKey = () => 'bd-sym-marks';
+      const mesh2 = new THREE.Mesh(geo, mat);
+      mesh2.renderOrder = 8; mesh2.frustumCulled = false;
+      grp.add(mesh2);
+    }
+    function drawSym() {
+      clearSym();
+      const cfg = S.symCfg;
+      // only once the meshes of this very schematic are in (setSchematic draws it again when they arrive)
+      if (!cfg || !S.ready || !S.schem || !S.M || S.Mfor !== S.schem || cfg.schem !== S.schem || !cfg.planes.length) { S.dirty = true; wake(); return; }
+      const box = TH.builds.sym.box(S.schem) || [0, 0, 0, S.schem.size[0] - 1, S.schem.size[1] - 1, S.schem.size[2] - 1];
+      symGrp = new THREE.Group();
+      cfg.planes.forEach((p) => symPlane(p.axis, p.m, box, symGrp));
+      if (cfg.flags && cfg.flags.length === S.schem.blocks.length) symMarks(cfg.flags, symGrp);
+      S.root.add(symGrp);
+      S.dirty = true; wake();
+    }
+    /**
+     * Symmetry overlay. cfg = null (off) or { schem, planes: [{ axis, m }], flags: Uint8Array | null } where schem is the
+     * schematic the planes and flags belong to (ignored while another one is on the stage).
+     */
+    S.setSymmetry = (cfg) => { S.symCfg = cfg || null; if (S.ready) drawSym(); };
+
     /**
      * Show a schematic. opts.animate: replay the assemble from the start; otherwise show it complete.
      * opts.keepView: keep the camera (live shape editing). Returns a promise that resolves when textures are in.
@@ -867,7 +1064,7 @@ TH.builds = TH.builds || {};
       const ac = mkCanvas(cols * 16, rows * 16), ax = ac.getContext('2d');
       canv.forEach((c, i) => ax.drawImage(c, (i % cols) * 16, Math.floor(i / cols) * 16));
       clearContent();
-      S.M = M;
+      S.M = M; S.Mfor = schem;
       const tex = new THREE.CanvasTexture(ac);
       tex.magFilter = THREE.NearestFilter; tex.minFilter = THREE.NearestFilter; tex.generateMipmaps = false; tex.colorSpace = THREE.SRGBColorSpace;
       S.atlas = tex;
@@ -903,6 +1100,7 @@ TH.builds = TH.builds || {};
       else { S.t = Tend(); S.phase = S.mode === 'loop' && S.playing && !reduced() ? 'hold' : 'done'; S.hold = 0; }
       uni.uT.value = S.t;
       refreshOutline();
+      drawSym();
       hover(null);
       if (S.onState) S.onState(state());
       S.dirty = true; wake();
@@ -957,6 +1155,7 @@ TH.builds = TH.builds || {};
       S.grid = makeGrid(); S.root.add(S.grid);
       if (S.hl) S.hl.material.color = new THREE.Color(c);
       refreshOutline();
+      if (symGrp) drawSym();
     };
     /** Jump the clock to t seconds (null = the end) and draw one frame right away, even while hidden (tests, PNG). */
     S.seek = (t) => {

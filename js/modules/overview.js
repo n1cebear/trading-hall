@@ -39,9 +39,12 @@
     { id: 'trims', line: 'Every armor trim, live in 3D.', kicker: 'Armor trims', wall: 'block/deepslate_tiles',
       pitch: 'Dress a 3D character in any armor and trim, piece by piece, then get the shopping list.',
       points: ['Live 3D preview', 'Every pattern and material', 'Skins and saved outfits'], unit: 'templates' },
-    { id: 'builds', line: 'Materials and stacks for any build.', kicker: 'Build planning', wall: 'block/bricks',
-      pitch: 'Blocks, stacks and shulker boxes for any build, worked out for you.',
-      points: ['Material lists', 'Stacks and shulker boxes', 'Example builds'], unit: '' },
+    { id: 'builds', line: 'Farms and builds in 3D, block by block.', kicker: 'Build planning', wall: 'block/bricks',
+      pitch: 'Look at farms and builds in 3D, open your own schematics and shape domes, spheres and towers.',
+      points: ['3D viewer, layer by layer', 'Your own schematics', 'Shape generator'], unit: '' },
+    { id: 'materials', line: 'Every block, packed into shulker boxes.', kicker: 'Material lists', wall: 'block/barrel_side',
+      pitch: 'Paste a Litematica list or pick a build: recipes, raw materials and how it all packs into shulker boxes.',
+      points: ['Litematica lists read as is', 'Recipes drawn like the game', 'Shulker box packing'], unit: '' },
     { id: 'palettes', line: 'Block palettes that belong together.', kicker: 'Block palettes', wall: 'block/pink_concrete',
       pitch: 'Pick blocks that look good together. Browse 140 palettes, or build your own from the real block colours.',
       points: ['140 ready-made palettes', 'Matching blocks from real colours', 'Live mosaic preview'], unit: '' },
@@ -142,6 +145,20 @@
     ];
   }
 
+  function sceneMaterials() {
+    // two shulker boxes on the floor, items rising out of the open one, a slim checklist beside them
+    const box = (x, y, s, cls) => cube(s, { top: 'block/shulker_box', side: 'block/shulker_box' }, x, y, { cls });
+    const items = ['block/stone_bricks', 'block/oak_planks', 'block/glass', 'item/redstone', 'block/sea_lantern', 'item/iron_ingot'];
+    const pops = items.map((t, i) => h('span.lp-mpop', { style: { left: px(120 + (i % 3) * 34), '--o': (-i * 0.75).toFixed(2) + 's', '--dx': px(((i * 23) % 40) - 20) } }, TH.icon(t, { size: 30 })));
+    const rows = [0, 1, 2, 3].map((i) => h('span.lp-mrow', { style: { '--o': (-i * 0.9).toFixed(2) + 's' } }, h('i'), h('b')));
+    return [
+      layer(4, h('div.lp-halo')),
+      layer(12, box(36, 196, 60, '.lp-dim'), box(118, 168, 84, '.lp-mbox')),
+      layer(20, h('div.lp-mpops', pops)),
+      layer(26, h('div.lp-mlist', rows)),
+    ];
+  }
+
   function scenePalettes() {
     const sw = ['block/cherry_log', 'block/cherry_planks', 'block/pink_concrete', 'block/white_concrete', 'block/purple_concrete'];
     const swatches = sw.map((t, i) => h('i.lp-sw', { style: { left: px(22 + i * 50), backgroundImage: `url("${tex(t)}")`, '--o': (-i * 0.7).toFixed(2) + 's' } }));
@@ -176,7 +193,7 @@
     ];
   }
 
-  const SCENES = { enchanting: sceneEnchanting, hall: sceneHall, trims: sceneTrims, builds: sceneBuilds, palettes: scenePalettes, portal: scenePortal };
+  const SCENES = { enchanting: sceneEnchanting, hall: sceneHall, trims: sceneTrims, builds: sceneBuilds, materials: sceneMaterials, palettes: scenePalettes, portal: scenePortal };
 
   const reduced = () => !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
   const hovers = () => !!(window.matchMedia && matchMedia('(hover: hover)').matches);
@@ -283,7 +300,7 @@
     root.append(stage);
   }
 
-  // number keys 1-6 open the tools while the landing page is showing
+  // number keys 1-7 open the tools while the landing page is showing
   document.addEventListener('keydown', (e) => {
     if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
     if (!/^[1-9]$/.test(e.key)) return;

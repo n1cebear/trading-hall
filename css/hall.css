@@ -1084,3 +1084,10 @@ button.hl-strip-main { cursor: pointer; }
   .hl-wiz-navbar { display: block; position: sticky; bottom: calc(var(--bottom-bar, 0px) + 12px); z-index: 30; }
   .hl-wiz-navbar .th-act-row { position: static; padding: 10px; border-radius: var(--neu-r-md, var(--radius)); background: var(--neu-bg, var(--panel)); box-shadow: 0 10px 28px -8px rgb(0 0 0 / .6), 0 0 0 1px color-mix(in srgb, var(--accent) 18%, transparent); filter: none; }
 }
+
+/* duplicates (1/4, 2/4 ...): the number has no box of its own; the box (and the x) appear together on hover or focus */
+:root:root:root .hl-copychip { background: transparent; box-shadow: none; transition: background .15s; }
+:root:root:root .hl-copychip:hover, :root:root:root .hl-copychip:focus-within { background: color-mix(in srgb, var(--text) 8%, transparent); }
+:root:root:root .hl-copychip .x-btn { opacity: 0; transition: opacity .12s; }
+:root:root:root .hl-copychip:hover .x-btn, :root:root:root .hl-copychip:focus-within .x-btn { opacity: 1; }
+@media (hover: none) { :root:root:root .hl-copychip .x-btn { opacity: 1; } }

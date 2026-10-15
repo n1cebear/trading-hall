@@ -17,7 +17,7 @@
   --muted: #a4a3ae;
   --faint: #6b6a76;
   /* per-feature colours (see [data-tool] block below); dark values */
-  --c-hall: #17dd62; --c-ench: #b07cff; --c-trim: #4aedd9; --c-home: #f5c04a; --c-build: #ff8a3d; --c-portal: #ff5a4e; --c-pal: #ff7ab8;
+  --c-hall: #17dd62; --c-ench: #b07cff; --c-trim: #4aedd9; --c-home: #f5c04a; --c-build: #ff8a3d; --c-portal: #ff5a4e; --c-pal: #ff7ab8; --c-mat: #cfd64a;
   --on-accent: #04140a; --mix-hi: #fff;
   --accent: #17dd62;          /* default = Hall emerald; [data-tool] swaps the whole family */
   --accent-2: #7af0b3;
@@ -62,7 +62,7 @@
     --edge-hi: rgb(255 255 255 / .6); --edge-lo: rgb(90 60 20 / .18); --sel-sh: rgb(90 60 20 / .34);
     --shadow: 0 1px 0 var(--edge-hi) inset, 0 -2px 0 var(--edge-lo) inset, 0 8px 22px -14px rgb(70 45 10 / .45);
     --grid-line: rgb(90 60 20 / .045); --glow-a: rgb(38 71 184 / .10); --glow-b: rgb(18 134 79 / .10); --mob-op: .16;
-    --c-hall: #0b7a35; --c-ench: #7b3fc4; --c-trim: #0d7d76; --c-home: #8f5f0c; --c-build: #b85a12; --c-portal: #b3261e; --c-pal: #b3265f; --on-accent: #fbf5e6; --mix-hi: #000;
+    --c-hall: #0b7a35; --c-ench: #7b3fc4; --c-trim: #0d7d76; --c-home: #8f5f0c; --c-build: #b85a12; --c-portal: #b3261e; --c-pal: #b3265f; --c-mat: #69730b; --on-accent: #fbf5e6; --mix-hi: #000;
     color-scheme: light;
   }
 }
@@ -76,7 +76,7 @@
   --edge-hi: rgb(255 255 255 / .6); --edge-lo: rgb(90 60 20 / .18); --sel-sh: rgb(90 60 20 / .34);
   --shadow: 0 1px 0 var(--edge-hi) inset, 0 -2px 0 var(--edge-lo) inset, 0 8px 22px -14px rgb(70 45 10 / .45);
   --grid-line: rgb(90 60 20 / .045); --glow-a: rgb(38 71 184 / .10); --glow-b: rgb(18 134 79 / .10); --mob-op: .16;
-  --c-hall: #0b7a35; --c-ench: #7b3fc4; --c-trim: #0d7d76; --c-home: #8f5f0c; --c-build: #b85a12; --c-portal: #b3261e; --c-pal: #b3265f; --on-accent: #fbf5e6; --mix-hi: #000;
+  --c-hall: #0b7a35; --c-ench: #7b3fc4; --c-trim: #0d7d76; --c-home: #8f5f0c; --c-build: #b85a12; --c-portal: #b3261e; --c-pal: #b3265f; --c-mat: #69730b; --on-accent: #fbf5e6; --mix-hi: #000;
   color-scheme: light;
 }
 
@@ -91,6 +91,7 @@
 :root[data-tool="builds"] { --tc: var(--c-build); }
 :root[data-tool="portal"] { --tc: var(--c-portal); }
 :root[data-tool="palettes"] { --tc: var(--c-pal); }
+:root[data-tool="materials"] { --tc: var(--c-mat); }
 :root[data-tool] {
   --accent: var(--tc);
   --accent-2: color-mix(in srgb, var(--tc) 72%, var(--mix-hi));
@@ -256,7 +257,7 @@ h1, h2, h3 { margin: 0; }
 }
 /* full-bleed band behind the bar (own layer: keeps the bar's content out of the backdrop-filter containing block) */
 .topbar::before {
-  content: ''; position: absolute; z-index: -1; inset: 0 calc(50% - 50vw / 0.9);
+  content: ''; position: absolute; z-index: -1; inset: 0 calc(50% - 50vw / var(--zoom, 0.97));
   background: color-mix(in srgb, var(--bg) 94%, transparent);   /* no backdrop blur: it re-blurred the rising mobs every frame */
 }
 .brand { display: flex; align-items: center; gap: 13px; flex-shrink: 0; padding: 2px 8px 2px 4px; margin-left: -4px; border-radius: var(--radius); color: inherit; text-decoration: none; transition: background .2s; }
@@ -306,6 +307,7 @@ h1, h2, h3 { margin: 0; }
 .nav-item[data-tool="builds"] { --tc: var(--c-build); }
 .nav-item[data-tool="portal"] { --tc: var(--c-portal); }
 .nav-item[data-tool="palettes"] { --tc: var(--c-pal); }
+.nav-item[data-tool="materials"] { --tc: var(--c-mat); }
 /* Nav fit (app.js fitNav, measured, not a breakpoint): #nav[data-fit] = full | short | icons (inactive tabs icon-only,
    the active one keeps its label) | all (every tab icon-only) | tight (= all, and .topbar[data-brand="compact"] folds the brand
    to its hourglass; name stays in its aria-label + tooltip). No data-fit yet = short names. Phones ignore it (bottom bar). */
@@ -1004,4 +1006,10 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; }
   :root:root:root .nav-item .nav-badge, :root:root:root .nav-item .nav-soon { position: absolute; top: 4px; right: calc(50% - 30px); left: auto; bottom: auto; margin: 0; padding: 2px 4px; font-size: 8px; line-height: 1; letter-spacing: .2px; z-index: 2; box-shadow: none; }
   :root:root:root .nav-item.active .nav-badge, :root:root:root .nav-item.active .nav-soon { background: rgb(0 0 0 / .3); color: inherit; border-color: transparent; }
   .pl-navico { transform: scale(1.5); }
+}
+
+/* phones: seven tabs (Materials joined) in one row; the label shrinks a step so ENCHANT / PALETTE still fit a 48px tab */
+@media (max-width: 640px) {
+  :root:root:root .nav { gap: 3px; }
+  :root:root:root .nav .nav-item .nav-name { font-size: 9px; letter-spacing: 0; }
 }

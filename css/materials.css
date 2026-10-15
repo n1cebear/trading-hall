@@ -1,0 +1,280 @@
+/* =====================================================================
+   Materials (js/modules/materials.js + builds-mats.js): the smart material list as its own tool. Accent = gold-green
+   (--c-mat) via data-tool="materials". Tokens only; Classic has no data-neu, so every neumorphic token has a fallback.
+   Layout: title, the source key + Add a list (a panel only while the picker / form is open), then the list on the left
+   and ONE side panel on the right: the source card (stats, slim progress) on top of the Packing. Raw materials below it.
+   No dividers, no boxes in boxes: containers are one inset well each, slots are just icons with counts.
+   ===================================================================== */
+.module-materials { --mt-gap: 22px; }
+.mt-boot { padding: 40px 16px; text-align: center; color: var(--muted); }
+.mt-phead { margin: 12px 0 14px; }
+.mt-page { display: flex; flex-direction: column; gap: var(--mt-gap); min-width: 0; }
+.mt-page.dropping .mt-list { outline: 2px dashed var(--accent); outline-offset: 4px; }
+
+/* shared bits */
+.mt-gl { display: inline-block; flex: none; width: 11px; height: 11px; background: currentColor; -webkit-mask: var(--m) center / contain no-repeat; mask: var(--m) center / contain no-repeat; }
+.mt-eyebrow { font: 400 11px/1.2 var(--display); text-transform: uppercase; letter-spacing: 1.1px; color: var(--muted); }
+.mt-acc { color: var(--accent); }
+.mt-note { margin: 0; font-size: 12.5px; color: var(--muted); text-wrap: pretty; }
+.mt-note[hidden] { display: none; }
+.mt-count { display: inline-flex; align-items: center; gap: 6px; font: 500 12px var(--font); color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.mt-count b { font: 400 13px var(--display); color: var(--text); }
+.mt-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.mt-key { height: 34px; padding-block: 0; gap: 8px; font-size: 12.5px; white-space: nowrap; }
+.mt-link { align-self: flex-start; padding: 0; border: 0; background: none; cursor: pointer; font: 700 12.5px var(--font); color: var(--accent); }
+.mt-link:hover { text-decoration: underline; }
+.mt-x { display: grid; place-items: center; width: 32px; height: 32px; flex: none; padding: 0; border: 0; border-radius: var(--radius); background: transparent; color: var(--faint); cursor: pointer; }
+.mt-x:hover { color: var(--danger); background: color-mix(in srgb, var(--text) 7%, transparent); }
+.mt-noico { display: inline-block; width: 14px; height: 14px; border-radius: 2px; background: color-mix(in srgb, var(--muted) 30%, transparent); }
+.mc.mt-noico-mc::before { content: ''; width: 50%; height: 50%; border-radius: 2px; background: color-mix(in srgb, var(--muted) 30%, transparent); }
+.mt-pan { position: relative; min-width: 0; display: flex; flex-direction: column; gap: 16px; }
+.mt-pan-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; }
+.mt-pan-head h3 { margin: 0; font: 400 15px/1.2 var(--display); letter-spacing: .3px; }
+.mt-sw { display: inline-flex; align-items: center; gap: 10px; min-height: 36px; font: 500 12.5px var(--font); color: var(--muted); cursor: pointer; white-space: nowrap; }
+.mt-sw:hover { color: var(--text); }
+.mt-tools-b { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.mt-tools-b .seg button { padding: 5px 11px; font-size: 12.5px; }
+.module-materials .btn.on { border-color: var(--sel-edge); color: var(--accent); background: var(--accent-soft); box-shadow: var(--sel-slot); }
+:root[data-neu] .module-materials .btn.on { border-color: transparent; background: var(--neu-ctl-on); color: var(--accent); box-shadow: var(--neu-sel-inset-xs); transform: none; }
+.module-materials .btn:focus-visible, .mt-rkey:focus-visible, .mt-qk:focus-visible, .mt-name:focus-visible, .mt-x:focus-visible, .mt-stat:focus-visible, .mt-box-head:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* unit pictures: the shulker box texture, a pixel double chest, the stack glyph */
+.mt-uico { flex: none; }
+.mt-gl.mt-uico { width: 10px; height: 10px; color: var(--muted); }
+.mt-dc { display: inline-block; image-rendering: pixelated; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8' shape-rendering='crispEdges'%3E%3Crect x='0' y='1' width='8' height='6' fill='%235a3a17'/%3E%3Crect x='1' y='2' width='6' height='4' fill='%23a8702c'/%3E%3Crect x='1' y='3' width='6' height='1' fill='%235a3a17'/%3E%3Crect x='3' y='3' width='2' height='2' fill='%23cfcfcf'/%3E%3C/svg%3E") center / contain no-repeat; }
+.mt-bit { display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; }
+.mt-bit b { font: 400 13px/1 var(--display); color: inherit; font-variant-numeric: tabular-nums; }
+
+/* ---------- head: the source key and Add a list, centred; a panel only while something is open ---------- */
+.mt-head { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+.mt-head-row { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 14px; }
+.mt-head.has-open .mt-head-row { justify-content: flex-start; }
+.mt-srckey { height: 44px; padding: 0 14px 0 8px; gap: 10px; max-width: min(520px, 100%); }
+.mt-srckey .mt-thumb { width: 32px; height: 32px; }
+.mt-srckey-name { min-width: 0; font: 400 13.5px/1.2 var(--display); color: var(--accent); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mt-chev { width: 9px; height: 9px; color: var(--muted); transition: transform .15s; }
+.mt-srckey[aria-expanded="true"] .mt-chev { transform: rotate(180deg); }
+.mt-head-keys { display: flex; flex-wrap: wrap; gap: 12px; }
+.mt-head-keys .mt-key { height: 44px; padding-inline: 16px; }
+.mt-thumb { display: grid; place-items: center; flex: none; width: 40px; height: 40px; border-radius: 6px;
+  background: color-mix(in srgb, var(--accent) 9%, var(--neu-well, var(--bg-2))); box-shadow: var(--neu-inset-xs, inset 1px 1px 0 var(--edge-lo), inset -1px -1px 0 var(--edge-hi)); }
+.mt-thumb-file { color: var(--accent); }
+.mt-thumb-file .mt-gl { width: 16px; height: 16px; }
+
+/* source picker */
+.mt-pick, .mt-add { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.mt-pick[hidden], .mt-add[hidden], .mt-det[hidden] { display: none; }
+.mt-pick-top { display: flex; align-items: center; gap: 12px; }
+.mt-pick-top .field { flex: 1 1 0; min-width: 0; }
+.mt-pick-top .mt-key { height: 36px; }
+.mt-pick-body { max-height: 420px; overflow-y: auto; display: flex; flex-direction: column; gap: 20px; padding: 4px 6px 10px 2px; margin-right: -6px; }
+.mt-pick-grp { display: flex; flex-direction: column; gap: 10px; }
+.mt-pick-grp[hidden], .mt-pick-opts > [hidden] { display: none; }
+.mt-pick-opts { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+.mt-opt { display: flex; align-items: center; justify-content: flex-start; gap: 10px; width: 100%; min-width: 0; min-height: 44px; padding: 5px 12px 5px 8px; text-align: left; color: var(--text); font-weight: 500; }
+.mt-opt-ico { display: grid; place-items: center; flex: none; width: 28px; height: 28px; color: var(--accent); }
+.mt-opt-name { min-width: 0; font: 400 12.5px/1.25 var(--display); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mt-opt-row { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.mt-opt-row .mt-opt { flex: 1 1 auto; }
+.mt-ren { flex: 1 1 auto; }
+.mt-add-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px 14px; }
+.mt-add-status { margin: 0; font-size: 12.5px; color: var(--muted); }
+.mt-paste { width: 100%; height: auto; min-height: 170px; padding: 10px 12px; resize: vertical; font: 400 12.5px/1.45 var(--mono); }
+
+/* ---------- grid: list | side ---------- */
+.mt-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(380px, 540px); gap: var(--mt-gap); align-items: start; }
+.mt-side { display: flex; flex-direction: column; gap: var(--mt-gap); min-width: 0; }
+@media (max-width: 1100px) { .mt-grid { grid-template-columns: minmax(0, 1fr); } }
+
+/* ---------- the list ---------- */
+.mt-list { container-type: inline-size; }
+.mt-tools { display: flex; flex-direction: column; gap: 12px; }
+.mt-tools-a { display: flex; align-items: center; flex-wrap: wrap; gap: 12px 24px; }
+.mt-q { flex: 1 1 200px; }
+.mt-rows { display: flex; flex-direction: column; gap: 2px; margin: 0 -8px; }
+.mt-grp { margin: 16px 8px 4px; }
+.mt-grp:first-child { margin-top: 2px; }
+.mt-grp[hidden], .mt-row[hidden] { display: none; }
+.mt-row {
+  display: grid; grid-template-columns: 22px 32px minmax(0, 1fr) minmax(96px, auto) 124px auto;
+  grid-template-areas: "chk ico name need have quick" "det det det det det det";
+  align-items: center; column-gap: 14px; padding: 5px 8px; border-radius: var(--radius); transition: background .12s;
+}
+.mt-row:hover { background: color-mix(in srgb, var(--text) 4%, transparent); }
+:root[data-neu] .mt-row:hover { background: color-mix(in srgb, var(--neu-lo, #000) 14%, transparent); }
+.mt-chk { grid-area: chk; }
+.mt-chk::after { content: ''; position: absolute; inset: -9px; }   /* a finger-sized hit area around the 22px tick */
+.mt-ico { grid-area: ico; display: grid; place-items: center; width: 32px; height: 32px; }
+.mt-namecell { grid-area: name; display: flex; align-items: center; gap: 8px; min-width: 0; }
+.mt-name { display: flex; align-items: center; min-width: 0; min-height: 40px; padding: 0; border: 0; background: none; color: var(--text); text-align: left; cursor: pointer; font: inherit; }
+.mt-label { min-width: 0; font: 400 13px/1.3 var(--display); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mt-name:hover .mt-label, .mt-row.open .mt-label { color: var(--accent); }
+.mt-rkey { display: grid; place-items: center; flex: none; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 6px; cursor: pointer; background: transparent; opacity: .72; transition: opacity .12s, background .12s; }
+.mt-rkey:hover, .mt-rkey[aria-expanded="true"] { opacity: 1; background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.mt-need { grid-area: need; display: flex; flex-direction: column; align-items: flex-end; gap: 3px; min-width: 0; text-align: right; }
+.mt-need-main { display: inline-flex; align-items: center; gap: 8px; color: var(--accent); }
+.mt-need-main .mt-bit b { font-size: 13.5px; }
+.mt-need-line { display: inline-flex; align-items: center; gap: 8px; min-height: 13px; }
+.mt-need-sub { display: inline-flex; gap: 6px; color: var(--faint); }
+.mt-need-sub .mt-bit b { font: 500 11px/1 var(--font); }
+.mt-left { font: 600 11px/1 var(--font); color: var(--muted); font-variant-numeric: tabular-nums; }
+.mt-have { grid-area: have; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.mt-hv { width: 100%; height: 32px; padding: 0 9px; text-align: right; font: 500 12.5px var(--font); font-variant-numeric: tabular-nums; }
+.mt-hv.bad { color: var(--danger); }
+.mt-hv-help { display: flex; justify-content: flex-end; align-items: center; flex-wrap: wrap; gap: 2px 6px; min-height: 12px; font: 500 11px/1.1 var(--font); color: var(--muted); }
+.mt-hv-help:empty { display: none; }
+.mt-hv-help b { font-weight: 600; color: var(--text); }
+.mt-hv-help .mt-bit b { font: 500 11px/1 var(--font); color: var(--muted); }
+.mt-hv-help > span { display: inline-flex; align-items: center; gap: 4px; }
+.mt-hv-bad { color: var(--danger); }
+.mt-quick { grid-area: quick; display: flex; gap: 8px; }
+.mt-qk { display: inline-flex; align-items: center; justify-content: center; gap: 2px; width: 40px; height: 32px; padding: 0; border: 0; border-radius: var(--radius); cursor: pointer;
+  color: var(--muted); background: color-mix(in srgb, var(--text) 6%, transparent); transition: color .12s, background .12s; }
+.mt-qk:hover { color: var(--accent); background: color-mix(in srgb, var(--accent) 16%, transparent); }
+.mt-qk:active { transform: translateY(1px); }
+.mt-qk .mt-qk-plus { width: 7px; height: 7px; }
+.mt-qk .mt-gl.mt-uico { color: currentColor; }
+.mt-row.done .mt-label { color: var(--faint); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--muted) 60%, transparent); }
+.mt-row.done .mt-ico { opacity: .45; }
+.mt-row.done .mt-need-main { color: var(--faint); }
+.mt-row.done .mt-quick { visibility: hidden; }
+.mt-empty { margin: 6px 0; text-align: center; }
+.mt-lacts { margin-top: 4px; }
+
+/* a row opened: every recipe drawn, the raw materials, what it goes into */
+.mt-det { grid-area: det; display: flex; flex-direction: column; align-items: flex-start; gap: 16px; padding: 10px 0 18px 68px; min-width: 0; }
+.mt-rcps { display: flex; flex-wrap: wrap; gap: 18px 34px; }
+.mt-rcp { position: relative; display: flex; align-items: center; flex-wrap: wrap; gap: 10px 12px; }
+.mt-rcp.off { opacity: .4; }
+.mt-rcp.used .mt-rv { filter: drop-shadow(0 0 6px color-mix(in srgb, var(--accent) 30%, transparent)); }
+.mt-rcp-note { flex-basis: 100%; font-size: 12px; color: var(--muted); }
+.mt-best, .mt-inuse { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 5px; color: var(--gold); background: color-mix(in srgb, var(--gold) 14%, transparent); }
+.mt-inuse { color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.mt-best .mt-gl, .mt-inuse .mt-gl { width: 11px; height: 11px; }
+.mt-use { height: 30px; }
+.mt-det-raw { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 14px; }
+.mt-icons { display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* recipe pictures: slots without boxes, one quiet well per grid */
+.mt-rv { display: inline-flex; align-items: center; gap: 10px; }
+.mt-cg { position: relative; display: grid; grid-template-columns: repeat(3, 26px); grid-auto-rows: 26px; gap: 2px; padding: 4px; border-radius: 6px;
+  background: var(--neu-well, var(--slot, var(--bg-2))); box-shadow: var(--neu-inset-xs, var(--slot-shadow)); }
+.mt-cg1 { display: inline-flex; gap: 2px; padding: 4px; border-radius: 6px; background: var(--neu-well, var(--slot, var(--bg-2))); box-shadow: var(--neu-inset-xs, var(--slot-shadow)); }
+.mt-cg1 .mt-cell { width: 26px; height: 26px; }
+.mt-cg-mix { position: absolute; right: -9px; top: -9px; display: grid; place-items: center; width: 18px; height: 18px; border-radius: 4px; color: var(--accent); background: var(--panel); box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent); }
+.mt-cg-mix .mt-gl { width: 9px; height: 9px; }
+.mt-cell { position: relative; display: grid; place-items: center; min-width: 0; }
+.mt-n { position: absolute; right: -1px; bottom: -2px; font: 400 10px/1 var(--display); color: #fff; text-shadow: 1px 1px 0 #3f3f3f; pointer-events: none; }
+.mt-via { display: inline-flex; flex-direction: column; align-items: center; gap: 3px; color: var(--accent); }
+.mt-arrow { width: 13px; height: 13px; }
+.mt-flame { width: 10px; height: 10px; color: #ff9a3c; }
+.mt-out { display: inline-flex; padding: 4px; border-radius: 6px; background: color-mix(in srgb, var(--accent) 12%, var(--neu-well, var(--slot, var(--bg-2)))); box-shadow: var(--neu-inset-xs, var(--slot-shadow)); }
+.mt-out .mt-cell { width: 30px; height: 30px; }
+.mt-flow { display: inline-flex; align-items: center; gap: 4px; }
+.mt-flow .mt-cell { width: 24px; height: 24px; }
+.mt-flow .mt-via { flex-direction: row; gap: 3px; margin: 0 4px; }
+.mt-si { position: relative; display: inline-grid; place-items: center; width: 30px; height: 30px; }
+
+/* the recipe tooltip (the shared app tooltip, a little wider for the grid) */
+.th-tooltip:has(.mt-rtip) { max-width: 380px; padding: 9px 12px 11px; }
+.mt-rtip { display: flex; flex-direction: column; gap: 10px; }
+.mt-rtip-main { display: flex; align-items: center; gap: 12px; }
+.mt-rtip-others { display: flex; flex-direction: column; gap: 6px; }
+.mt-rtip-o { display: flex; align-items: center; gap: 8px; opacity: .85; }
+.mt-rtip-o.off { opacity: .35; }
+.mt-rtip-o .mt-cg { grid-template-columns: repeat(3, 18px); grid-auto-rows: 18px; padding: 3px; }
+.mt-rtip-o .mt-cg .mc, .mt-rtip-o .mt-cg1 .mc, .mt-rtip-o .mt-out .mc { --mc: 14px !important; }
+.mt-rtip-o .mt-cg1 .mt-cell, .mt-rtip-o .mt-out .mt-cell { width: 18px; height: 18px; }
+.mt-rtip-o .mt-via .mc { --mc: 14px !important; }
+.mt-rtip-raw { display: flex; flex-wrap: wrap; gap: 4px 8px; padding-top: 2px; }
+.mt-rtip-raw .mt-cell { width: 24px; height: 24px; }
+.mt-rtip .mt-best { width: 18px; height: 18px; }
+
+/* ---------- side: the source card on top of the packing, in one panel ---------- */
+.mt-pack { gap: 18px; }
+.mt-card { display: flex; flex-direction: column; gap: 12px; padding-bottom: 6px; }
+.mt-card-top { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.mt-card-txt { flex: 1 1 auto; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.mt-card-name { font: 400 15px/1.2 var(--display); color: var(--accent); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-shadow: 0 0 10px color-mix(in srgb, var(--accent) 35%, transparent); }
+.mt-card-sub { display: flex; flex-wrap: wrap; gap: 10px; font: 500 12px var(--font); color: var(--muted); }
+.mt-card-sub span + span { font-variant-numeric: tabular-nums; }
+.mt-card-keys { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; }
+.mt-card-keys .mt-key { height: 32px; padding-inline: 11px; }
+.mt-card-keys .mt-gl { width: 10px; height: 10px; }
+.mt-stats { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; }
+.mt-stat { display: inline-flex; align-items: center; gap: 5px; font: 500 12px var(--font); color: var(--muted); white-space: nowrap; cursor: default; border-radius: 3px; }
+.mt-stat b { font: 400 13px/1 var(--display); color: var(--text); font-variant-numeric: tabular-nums; }
+.mt-prog { display: flex; align-items: center; gap: 12px; }
+.mt-bar { flex: 1 1 auto; height: 4px; border-radius: 2px; overflow: hidden; background: color-mix(in srgb, var(--text) 11%, transparent); }
+.mt-bar > span { display: block; height: 100%; border-radius: inherit; background: var(--accent); transition: width .25s; }
+.mt-prog-n { font: 400 11.5px/1 var(--display); color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.mt-prog.is-done .mt-prog-n { color: var(--accent); }
+.mt-packbody { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.mt-boxes { display: grid; grid-template-columns: repeat(auto-fill, minmax(212px, 1fr)); gap: 18px 16px; }
+.mt-box { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
+.mt-box-head { display: flex; align-items: center; gap: 7px; min-width: 0; cursor: default; border-radius: 3px; }
+.mt-box-name { font: 400 12px/1.2 var(--display); color: var(--text); }
+.mt-box-fill { margin-left: auto; font: 500 11.5px var(--font); color: var(--muted); font-variant-numeric: tabular-nums; }
+.mt-well { container-type: inline-size; display: grid; grid-template-columns: repeat(9, minmax(0, 1fr)); gap: 1px; padding: 5px; border-radius: 7px;
+  background: var(--neu-well, var(--slot, var(--bg-2))); box-shadow: var(--neu-inset-xs, var(--slot-shadow)); }
+.mt-well .mt-cell { aspect-ratio: 1; transition: opacity .15s; }
+.mt-well .mt-cell .mc { --mc: min(24px, calc(100cqi / 9 - 5px)) !important; }
+.mt-well .mt-cell.e::before { content: ''; width: 3px; height: 3px; border-radius: 1px; background: color-mix(in srgb, var(--text) 9%, transparent); }
+.mt-well .mt-cell.done { opacity: .3; }
+.mt-more { align-self: flex-start; }
+
+/* raw materials / crafting steps */
+.mt-raw { gap: 14px; }
+.mt-raw .mt-sw { align-self: flex-start; }
+.mt-raw .mt-sw .mc { margin: 0; }
+.mt-rawlist { display: flex; flex-direction: column; gap: 4px; }
+.mt-rawrow { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; align-items: center; gap: 12px; min-height: 32px; }
+.mt-rawrow-ico { display: grid; place-items: center; width: 24px; height: 24px; }
+.mt-rawrow-name { min-width: 0; font: 400 12.5px/1.3 var(--display); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mt-rawrow-n { display: inline-flex; align-items: center; gap: 8px; color: var(--accent); }
+.mt-steps { display: flex; flex-direction: column; gap: 12px; }
+.mt-step { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.mt-step-x { font: 400 12px var(--display); color: var(--muted); }
+.mt-step-spare { font: 500 11.5px var(--font); color: var(--faint); }
+
+/* ---------- narrow list (phones, the squeeze): have + quick keys show in the opened row ---------- */
+@container (max-width: 600px) {
+  .mt-row { grid-template-columns: 22px 28px minmax(0, 1fr) auto; grid-template-areas: "chk ico name need" ". have have quick" "det det det det"; column-gap: 12px; padding: 4px 6px; }
+  .mt-row:not(.open) > .mt-have, .mt-row:not(.open) > .mt-quick { display: none; }
+  .mt-row.open > .mt-have { margin-top: 6px; }
+  .mt-row.open > .mt-quick { margin-top: 6px; align-self: start; }
+  .mt-hv { height: 40px; }
+  .mt-qk { width: 44px; height: 40px; }
+  .mt-hv-help { justify-content: flex-start; }
+  .mt-det { padding-left: 0; }
+  .mt-rows { margin: 0 -6px; }
+}
+
+@media (max-width: 640px) {
+  .module-materials { --mt-gap: 16px; }
+  .mt-head-row { gap: 10px; }
+  .mt-srckey { flex: 1 1 100%; max-width: none; }
+  .mt-head-keys { width: 100%; }
+  .mt-head-keys .mt-key { flex: 1 1 0; justify-content: center; }
+  .mt-key { height: 40px; }
+  .mt-tools-b .seg { width: 100%; }
+  .mt-tools-b .seg button { flex: 1 1 0; min-width: 0; padding: 8px 4px; }
+  .mt-q { flex-basis: 100%; }
+  .mt-pick-opts { grid-template-columns: minmax(0, 1fr); }
+  .mt-pick-body { max-height: 360px; }
+  .mt-card-top { flex-wrap: wrap; }
+  .mt-card-keys { width: 100%; justify-content: stretch; }
+  .mt-card-keys .mt-key { flex: 1 1 0; justify-content: center; height: 40px; }
+  .mt-boxes { grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); }
+  .mt-rkey { width: 36px; height: 36px; }
+  .mt-rcps { gap: 16px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mt-chev, .mt-row, .mt-well .mt-cell, .mt-bar > span, .mt-rkey, .mt-qk { transition: none; }
+}
+
+/* title art: little item stacks drop into place, like filling a shulker box */
+@keyframes th-mat { 0% { transform: translateY(-70px) rotate(0); opacity: 0; } 25% { opacity: .9; } 60% { transform: translateY(0) rotate(90deg); opacity: .9; } 100% { transform: translateY(0) rotate(90deg); opacity: 0; } }
+:root[data-tool="materials"] .th-art u { animation-name: th-mat; border-radius: 2px; background: var(--accent); box-shadow: inset calc(var(--z) / -4) calc(var(--z) / -4) 0 rgb(0 0 0 / .25); }
+:root[data-tool="materials"] .th-art u:nth-child(3n) { background: color-mix(in srgb, var(--accent) 55%, #fff 45%); }
+:root[data-tool="materials"] .th-art u:nth-child(5n) { background: #9a5fb5; }

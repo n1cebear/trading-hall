@@ -15,7 +15,7 @@
 }
 .ec-mode-row { grid-area: mode; display: flex; justify-content: center; min-width: 0; }
 .ec-main { grid-area: main; display: flex; flex-direction: column; gap: var(--ec-gap); min-width: 0; }
-.ec-main > .panel:last-child { flex: 1 0 auto; }
+.ec-main > .panel:last-child { flex: 0 0 auto; }   /* each segment is as tall as its content (an elytra has few enchantments: no stretching to the plan column) */
 .ec-side {
   grid-area: side; position: sticky; top: 85px; min-width: 0; max-height: calc(100vh - 101px);   /* 69px top bar + 16px gap (16px left below too) */
   display: flex; flex-direction: column; overflow-y: auto; border-radius: var(--radius);
@@ -1522,3 +1522,25 @@
 :root:root:root .ec-items-all .ec-item .ec-item-name { justify-content: center; min-height: 28px; height: auto; width: auto; }
 :root:root:root .ec-items-all .ec-item .ec-item-name > span { font-size: 11.5px; -webkit-line-clamp: 2; }
 @media (max-width: 640px) { :root:root:root .ec-items-all { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; } :root:root:root .ec-pickpanel .ec-cslot-item { flex: 1 1 100%; } }
+
+/* the Look row is always there; greyed out for items without a material (no jump when you go back to a material item) */
+.ec-looks.is-off .ec-look { opacity: .32; filter: grayscale(1); cursor: default; box-shadow: var(--neu-inset-xs, inset 0 1px 3px rgb(0 0 0 / .4)); }
+.ec-looks.is-off .ec-look:hover { transform: none; }
+.ec-looks.is-off .ec-looks-lbl { opacity: .5; }
+/* the picked item key says "Change" on hover: it opens all items again */
+:root:root .ec-cslot-item .ec-combo { position: relative; }
+.ec-change { position: absolute; inset: 0; display: grid; place-items: center; border-radius: inherit; pointer-events: none; opacity: 0; transition: opacity .15s;
+  font: 400 13px/1 var(--display); letter-spacing: 1.6px; text-transform: uppercase; color: var(--accent); text-shadow: 0 0 8px color-mix(in srgb, var(--accent) 50%, transparent);
+  background: color-mix(in srgb, var(--neu-bg, var(--panel)) 88%, transparent); }
+@media (hover: hover) { .ec-cslot-item.has-sel .ec-combo:hover .ec-change, .ec-cslot-item.has-sel .ec-combo:focus-visible .ec-change { opacity: 1; } }
+
+/* the bookshelves stand behind the item selector again, quietly, whether a grid is open or not */
+:root:root:root .ec-pickpanel > .ec-art { display: block; opacity: .75; transition: none; }
+.ec-pickpanel.has-open > .ec-art { opacity: .5; }
+.ec-pickpanel > .ec-art .ec-shelf { opacity: .5; }
+.ec-pickpanel::before { display: block; opacity: .9; }
+.ec-pickpanel.has-open::before { opacity: .55; }
+
+/* the page art (title shelves) reaches over this panel; it has no scene of its own */
+:root:root:root .ec-pickpanel > .ec-art { display: none; }
+.ec-pickpanel::before { display: none; }

@@ -1,19 +1,17 @@
 /**
- * Builds (orange accent): one tab, three sections around one 3D stage.
+ * Builds (orange accent): one tab, two sections around one 3D stage.
  *   Library   = our farms + schematic files you open (.schem, .litematic, .nbt, .schematic, .json); farm info,
  *               build steps, tips, and "Customise blocks" (swap decorative blocks, functional ones stay).
  *   Create    = shape generators (sphere, ellipsoid, circle, dome, cylinder, cone, pyramid, torus, tree), live preview.
- *   Materials = the smart material list (builds-mats.js): any build, kept file or saved list (pasted / .txt / .csv,
- *               Litematica tables read as is), ticks + have counts, recipes with the best way to make each block
- *               (data/recipes.js), raw materials, units and packing into shulker boxes / double chests.
- * (A fourth section, block palettes, will join the switch later.)
+ * The material list is its own tool, Materials (js/modules/materials.js + builds-mats.js): its "Material list" keys
+ * here set state.builds.matSrc and go to #/materials; TH.builds.api (end of this file) is its window onto Builds.
  *
  * Files: builds-core.js (data model + block table, loaded with the page), then on first visit builds-io.js (loader /
  * exporter), builds-shapes.js, builds-farms.js, builds-view.js (mesher + three.js viewer, which imports
  * js/vendor/three.lite.module.min.js itself), builds-mats.js (Materials) and ../data/recipes.js.
  *
  * state.builds = {
- *   v, section: 'library'|'create'|'materials', cur: 'farm:<id>'|'file:<id>', stage: key shown on the stage,
+ *   v, section: 'library'|'create', cur: 'farm:<id>'|'file:<id>', stage: key shown on the stage,
  *   mode: 'loop'|'once'|'still', speed, grid, outline, auto,
  *   shape: { kind, p: { [kind]: params }, block: { [kind]: id }, block2: { [kind]: id } },
  *   swaps: { [key]: { 'minecraft:stone_bricks': 'minecraft:deepslate_bricks' } },
@@ -93,6 +91,8 @@
     right: ['..#....', '..##...', '..###..', '..####.', '..###..', '..##...', '..#....'],
     run: ['#......', '####...', '#####..', '#######', '#####..', '####...', '#......'],
     file: ['####...', '#..##..', '#...##.', '#....#.', '#....#.', '#....#.', '######.'],
+    mirror: ['...#...', '#.....#', '##.#.##', '###.###', '##.#.##', '#.....#', '...#...'],
+    centre: ['...#...', '.#####.', '.#...#.', '##.#.##', '.#...#.', '.#####.', '...#...'],
   };
   const glyphURL = new Map();
   function glyph(name, cls) {
@@ -211,7 +211,7 @@
   function mount() {
     const wrap = h('div.bd-page');
     // ---- page head + section switch ----
-    const secs = [['library', 'Library'], ['create', 'Create'], ['materials', 'Materials']];
+    const secs = [['library', 'Library'], ['create', 'Create']];   // the material list is its own tool now (materials.js)
     const secBtns = secs.map(([id, label]) => h('button', { type: 'button', role: 'radio', 'data-sec': id, 'aria-checked': 'false', onclick: () => go(id) }, label));
     const secSeg = h('div.seg.bd-sections', { role: 'radiogroup', 'aria-label': 'Builds section' }, secBtns);
     secSeg.addEventListener('keydown', (e) => {
@@ -242,8 +242,8 @@
     const modes = [['loop', 'Loop', 'Build it, hold, take it apart and start again, forever'], ['once', 'Build', 'Build it once, block by block, and leave it standing'], ['still', 'Still', 'No animation: the finished build right away']];
     const modeBtns = modes.map(([id, label, t]) => tip(h('button', { type: 'button', role: 'radio', 'data-mode': id, 'aria-checked': 'false', onclick: () => setMode(id) }, label), t));
     const modeSeg = h('div.seg.bd-modes', { role: 'radiogroup', 'aria-label': 'Animation' }, modeBtns);
-    const speeds = [[0.5, '½×'], [1, '1×'], [2, '2×'], [4, '4×']];
-    const speedBtns = speeds.map(([v, label]) => h('button', { type: 'button', role: 'radio', 'data-speed': v, 'aria-checked': 'false', onclick: () => { save((b) => { b.speed = v; }); if (V) V.setSpeed(v); syncBar(); } }, label));
+    const speeds = [[0.5, '0.5×', 'Half speed'], [1, '1×', 'Normal speed'], [2, '2×', 'Double speed'], [4, '4×', 'Four times as fast']];
+    const speedBtns = speeds.map(([v, label, al]) => h('button', { type: 'button', role: 'radio', 'data-speed': v, 'aria-checked': 'false', 'aria-label': al, onclick: () => { save((b) => { b.speed = v; }); if (V) V.setSpeed(v); syncBar(); } }, label));
     const speedSeg = tip(h('div.seg.bd-speeds', { role: 'radiogroup', 'aria-label': 'Speed' }, speedBtns), 'Animation speed');
     const layer = h('input.slider.bd-layer', { type: 'range', min: 1, max: 1, value: 1, step: 1, 'aria-label': 'Show layers up to' });
     const layerLbl = h('span.bd-layer-lbl');
@@ -253,12 +253,15 @@
     const gridBtn = tip(h('button.btn.small.bd-vk.sq', { type: 'button', 'aria-label': 'Blueprint grid', onclick: () => { save((b) => { b.grid = !b.grid; }); if (V) V.setGrid(S().grid); syncBar(); } }, glyph('grid')), 'Blueprint grid');
     const outlineBtn = tip(h('button.btn.small.bd-vk.sq', { type: 'button', 'aria-label': 'Layer outline', onclick: () => { save((b) => { b.outline = !b.outline; }); if (V) V.setOutline(S().outline); syncBar(); } }, glyph('outline')), 'Outline of the top shown layer');
     const rotBtn = tip(h('button.btn.small.bd-vk.sq', { type: 'button', 'aria-label': 'Turn slowly', onclick: () => { save((b) => { b.auto = !b.auto; }); if (V) V.setAuto(S().auto); syncBar(); } }, glyph('rot')), 'Turn slowly while idle');
+    const symBtn = tip(h('button.btn.small.bd-vk.bd-symkey', { type: 'button', 'aria-pressed': 'false', 'aria-controls': 'bd-sym', onclick: () => { sym.open = !sym.open; symChanged(); } }, glyph('mirror'), h('span.bd-vlabel', 'Symmetry')), 'Mirror planes: check which blocks have no mirrored twin');
     const bar = h('div.bd-abar', { role: 'group', 'aria-label': 'Animation and view' },
       h('div.bd-bar-grp', playBtn, replayBtn, modeSeg, speedSeg),
       h('div.bd-bar-grp.bd-bar-layer', h('label.bd-bar-lbl', { for: 'bd-layer' }, 'Layer'), layer, layerLbl, sliceBtn),
       h('div.bd-bar-grp.bd-bar-end', gridBtn, outlineBtn, rotBtn));
     layer.id = 'bd-layer';
-    const viewer = h('section.panel.bd-viewer', { 'aria-label': '3D view' }, stage, bar);
+    stage.querySelector('.bd-frametools').prepend(symBtn);   // the Symmetry key sits with the view keys on the stage
+    const symPanel = symPanelUI();
+    const viewer = h('section.panel.bd-viewer', { 'aria-label': '3D view' }, stage, bar, symPanel.el);
 
     // ---- side ----
     const side = h('div.bd-side');
@@ -287,7 +290,7 @@
       hov.style.left = Math.round(x) + 'px'; hov.style.top = Math.round(y) + 'px';
     }
     function onHover(hit) {
-      const s = UI.shown;
+      const s = (V && V.schem) || UI.shown;   // the mirrored preview when it is on
       if (!hit || !s) { hov.classList.remove('on'); return; }
       const id = core().get(s, hit[0], hit[1], hit[2]);
       if (core().isAir(id)) { hov.classList.remove('on'); return; }
@@ -302,12 +305,13 @@
         props.length ? h('span.th-tooltip-sub', props.map(([k, v]) => k + ' ' + v.replace(/_/g, ' ')).join(' · ')) : null,
         !core().known(id) ? h('span.th-tooltip-sub', id) : null,
         swapped ? h('span.th-tooltip-sub', 'Swapped from ' + core().nameOf(oid)) : null,
+        symNote(s, hit),
         r.ok ? null : core().known(id) ? h('span.th-tooltip-tag', 'Functional') : h('span.th-tooltip-tag', 'Unknown block')].filter(Boolean));
       hov.classList.add('on');
       placeHov();
     }
 
-    UI = { wrap, layout, head, secBtns, stage, title, meta, runBtn, phaseCap, loading, playBtn, modeBtns, speedBtns, layer, layerLbl, sliceBtn, gridBtn, outlineBtn, rotBtn, side, viewer, fileIn, hov, onHover, shown: null, shownKey: null, picker: null };
+    UI = { wrap, layout, head, secBtns, stage, title, meta, runBtn, phaseCap, loading, playBtn, modeBtns, speedBtns, layer, layerLbl, sliceBtn, gridBtn, outlineBtn, rotBtn, symBtn, symPanel, side, viewer, fileIn, hov, onHover, shown: null, shownKey: null, picker: null };
     return UI;
   }
 
@@ -335,7 +339,10 @@
     });
   }
   window.addEventListener('hashchange', () => {
-    if (location.hash !== '#/builds' && V) { V.dispose(); if (UI) UI.hov.classList.remove('on'); }
+    if (location.hash !== '#/builds' && V) {
+      V.setSymmetry(null); V.dispose(); if (UI) UI.hov.classList.remove('on');
+      sym.cache = null; sym.cls = null; if (sym.timer) { clearTimeout(sym.timer); sym.timer = 0; }   // the flags are rebuilt on return
+    }
   });
 
   /** Put a schematic on the stage. opts: animate, keepView, layer: 'top'. */
@@ -352,10 +359,115 @@
     UI.layer.max = s.size[1];
     if (opts.layer === 'top' || +UI.layer.value > s.size[1] || !opts.keepView) UI.layer.value = s.size[1];
     if (V && V.ready) {
-      const ph = key.startsWith('farm:') ? B().farms.phases(key.slice(5), s) : null;
-      V.setSchematic(s, { animate: !!opts.animate, keepView: !!opts.keepView, keepZoom: !!opts.keepView, phases: ph, layer: opts.layer || (+UI.layer.value >= s.size[1] ? 'top' : null) }).then(() => { if (V) { V.setLayer(+UI.layer.value - 1); syncLayer(); syncRun(); } });
+      const st = stageSchem(s, key);   // the build, or its mirrored preview while the symmetry preview is on
+      const ph = st === s && key.startsWith('farm:') ? B().farms.phases(key.slice(5), s) : null;
+      V.setSchematic(st, { animate: !!opts.animate, keepView: !!opts.keepView, keepZoom: !!opts.keepView, phases: ph, layer: opts.layer || (+UI.layer.value >= s.size[1] ? 'top' : null) }).then(() => { if (V) { V.setLayer(+UI.layer.value - 1); syncLayer(); syncRun(); syncSym(); } });
     } else if (V) V.schem = s;
     syncLayer();
+    syncSym();
+  }
+
+  /* ======================================================================
+   * Symmetry: mirror planes on the stage (the maths is TH.builds.sym in builds-view.js)
+   * ====================================================================== */
+  const AX = ['X', 'Y', 'Z'], AX_ORDER = [0, 2, 1];
+  const AX_TIP = ['Mirror east and west: a plane across X', 'Mirror top and bottom: a plane across Y', 'Mirror north and south: a plane across Z'];
+  const sym = { open: false, on: [true, false, false], m: [1, 1, 1], preview: false, flip: 0, src: null, srcSig: '', cls: null, cache: null, staged: '', timer: 0 };
+  const symPlanes = () => AX_ORDER.filter((a) => sym.on[a]).map((a) => ({ axis: a, m: sym.m[a] }));
+  const symActive = () => sym.open && sym.on.some(Boolean) && !!(B() && B().sym);
+  /** Track the build on the stage; the planes go back to its centre when another build (or another size) comes on. */
+  function symFor(s, key) {
+    if (!s || !B().sym) return;
+    const sig = key + '|' + s.size.join('x');
+    if (sym.src === s && sym.srcSig === sig) return;
+    const keep = sym.srcSig === sig;   // the same build at the same size (block swaps): the planes stay where they are
+    sym.src = s; sym.srcSig = sig; sym.cache = null; sym.cls = null;
+    if (!keep) { const box = B().sym.box(s); for (let a = 0; a < 3; a++) sym.m[a] = B().sym.centre(s, a, box); }
+  }
+  /** What the stage shows: the build, or (preview on) the build with one half mirrored onto the other. */
+  function stageSchem(s, key) {
+    if (!s || !B().sym) return s;
+    symFor(s, key);
+    const pv = symActive() && sym.preview;
+    sym.staged = pv ? sym.srcSig + '|' + symPlanes().map((p) => p.axis + ':' + p.m).join() + '|' + sym.flip : '';
+    return pv ? B().sym.mirror(s, symPlanes(), sym.flip) : s;
+  }
+  /** Put the build (or its preview) on the stage again without moving the camera; only when that changes what is shown. */
+  function restage() {
+    sym.timer = 0;
+    if (!V || !V.ready || !UI.shown) return;
+    const was = sym.staged, key = UI.shownKey, s = UI.shown, st = stageSchem(s, key);
+    if (st === s && V.schem === s) return;
+    if (st !== s && sym.staged === was && V.schem && V.schem !== s) return;   // the same preview is already on the stage
+    const ph = st === s && key.startsWith('farm:') ? B().farms.phases(key.slice(5), s) : null;
+    V.setSchematic(st, { keepView: true, keepZoom: true, phases: ph }).then(() => { if (V) { V.setLayer(+UI.layer.value - 1); syncLayer(); syncRun(); syncSym(); } });
+  }
+  /** Something about the planes changed: redraw now (one pass, cheap), put the preview on the stage after a short pause. */
+  function symChanged(wait) {
+    syncSym();
+    if (sym.timer) clearTimeout(sym.timer);
+    sym.timer = setTimeout(restage, wait || 0);
+  }
+  function symResult() {
+    const s = sym.src, planes = symPlanes(), sig = planes.map((p) => p.axis + ':' + p.m).join();
+    if (!sym.cls || sym.cls.s !== s) sym.cls = { s, c: B().sym.classes(s) };
+    if (!sym.cache || sym.cache.s !== s || sym.cache.sig !== sig) sym.cache = { s, sig, r: B().sym.check(s, planes, sym.cls.c) };
+    return sym.cache.r;
+  }
+  const halfTxt = (v) => (Number.isInteger(v) ? String(v) : v.toFixed(1));
+  /** Tooltip line on a hovered block that has no mirrored twin. */
+  function symNote(s, hit) {
+    if (!symActive() || sym.preview || !sym.cache || s !== sym.src) return null;
+    const [sx, , sz] = s.size, f = sym.cache.r.flags[(hit[1] * sz + hit[2]) * sx + hit[0]];
+    if (!f) return null;
+    return h('span.th-tooltip-sub.bd-sym-bad', 'No mirrored twin across ' + AX.filter((n, a) => f & (1 << a)).join(' and '));
+  }
+  function symPanelUI() {
+    const rows = AX_ORDER.map((a) => {
+      const key = tip(h('button.btn.small.bd-vk.sq.bd-sym-ax', { type: 'button', 'aria-pressed': 'false', 'aria-label': 'Mirror plane across ' + AX[a], onclick: () => { sym.on[a] = !sym.on[a]; symChanged(); } }, AX[a]), AX_TIP[a]);
+      const slider = h('input.slider.bd-sym-pos', { type: 'range', min: 1, max: 1, value: 1, step: 1, 'aria-label': 'Position of the plane across ' + AX[a] });
+      slider.addEventListener('input', () => { sym.m[a] = +slider.value; symChanged(160); });
+      tip(slider, 'Move the plane in half-block steps (arrow keys work too)');
+      const at = h('span.bd-sym-at');
+      const centre = tip(h('button.btn.small.bd-vk.sq', { type: 'button', 'aria-label': 'Back to the centre', onclick: () => { if (!sym.src) return; sym.m[a] = B().sym.centre(sym.src, a); symChanged(); } }, glyph('centre')), 'Back to the centre of the build');
+      const res = h('span.bd-sym-res', { 'aria-live': 'polite' });
+      const el = h('div.bd-sym-row', key, slider, at, centre, res);
+      return { axis: a, el, key, slider, at, centre, res };
+    });
+    const prevBtn = tip(h('button.btn.small.bd-vk', { type: 'button', 'aria-pressed': 'false', onclick: () => { sym.preview = !sym.preview; symChanged(); } }, glyph('mirror'), h('span', 'Mirrored preview')), 'Show the build as if it were perfectly symmetric: one half mirrored onto the other. Your build is not changed.');
+    const flipBtn = tip(h('button.btn.small.bd-vk', { type: 'button', onclick: () => { symPlanes().forEach((p) => { sym.flip ^= 1 << p.axis; }); symChanged(); } }, glyph('swap'), h('span', 'Other half')), 'Mirror the other half instead');
+    const sum = h('p.bd-sym-sum', { 'aria-live': 'polite' });
+    const el = h('div.bd-sym', { id: 'bd-sym', role: 'group', 'aria-label': 'Symmetry', hidden: true }, ...rows.map((r) => r.el), h('div.bd-sym-foot', prevBtn, flipBtn, sum));
+    return { el, rows, prevBtn, flipBtn, sum };
+  }
+  function syncSym() {
+    if (!UI || !UI.symPanel) return;
+    const P = UI.symPanel, s = UI.shown, has = !!(s && B() && B().sym);
+    press(UI.symBtn, sym.open);
+    P.el.hidden = !sym.open;
+    if (has) symFor(s, UI.shownKey);
+    const active = has && symActive(), r = active ? symResult() : null;
+    P.rows.forEach((row) => {
+      const a = row.axis, on = sym.on[a], n = s ? s.size[a] : 1;
+      press(row.key, on);
+      row.el.classList.toggle('off', !on);
+      row.slider.max = String(Math.max(1, 2 * n - 1));
+      sym.m[a] = clamp(sym.m[a], 1, Math.max(1, 2 * n - 1));
+      row.slider.value = String(sym.m[a]);
+      row.slider.style.setProperty('--fill', ((sym.m[a] - 1) / Math.max(1, 2 * n - 2) * 100).toFixed(1) + '%');
+      row.slider.disabled = !on; row.centre.disabled = !on;
+      row.at.textContent = AX[a].toLowerCase() + ' ' + halfTxt((sym.m[a] - 1) / 2);
+      const q = r && r.res.find((x) => x.axis === a);
+      const pc = q ? (q.diff ? Math.min(99, Math.floor(q.pct * 100)) : 100) : 0;
+      row.res.textContent = !q ? 'Off' : !q.diff ? '100% symmetric across ' + AX[a] : pc + '% symmetric, ' + fmtN(q.diff) + (q.diff === 1 ? ' block differs' : ' blocks differ');
+      row.res.classList.toggle('bad', !!(q && q.diff));
+    });
+    press(P.prevBtn, sym.preview);
+    P.prevBtn.disabled = !active;
+    P.flipBtn.disabled = !active || !sym.preview;
+    P.sum.textContent = !active ? 'Turn on a plane to check the build.' : sym.preview ? 'One half mirrored onto the other. Your build is not changed.'
+      : r.diff ? fmtN(r.diff) + (r.diff === 1 ? ' block has no mirrored twin. It is marked red.' : ' blocks have no mirrored twin. They are marked red.') : 'Every block has its mirrored twin.';
+    if (V && V.ready) V.setSymmetry(active ? { schem: sym.preview ? V.schem : sym.src, planes: symPlanes(), flags: sym.preview ? null : r.flags } : null);
   }
 
   function setMode(m) {
@@ -405,7 +517,7 @@
     const st = S();
     if (st.section === sec) return;
     save((b) => { b.section = sec; });
-    // the stage follows the section: Library shows the chosen farm / file, Create the shape, Materials keeps what is shown
+    // the stage follows the section: Library shows the chosen farm / file, Create the shape
     if (sec === 'library' && UI.shownKey !== st.cur) show(st.cur, { animate: true, layer: 'top' });
     if (sec === 'create' && UI.shownKey !== 'shape') show('shape', { animate: true, layer: 'top' });
     patch();
@@ -417,13 +529,12 @@
     UI.wrap.dataset.sec = st.section;
     const browsing = st.section === 'library' && st.browse;
     UI.layout.classList.toggle('is-browse', browsing);
-    UI.layout.classList.toggle('is-mats', st.section === 'materials');
     if (UI.wasBrowse && !browsing && !reduced()) {   // the build comes in, the library folds up beside it
       [UI.viewer, UI.side].forEach((e) => { e.classList.add('bd-enter'); setTimeout(() => e.classList.remove('bd-enter'), 700); });
     }
     UI.wasBrowse = browsing;
     UI.picker = null;
-    const body = st.section === 'create' ? createSide() : st.section === 'materials' ? materialsSide() : librarySide();
+    const body = st.section === 'create' ? createSide() : librarySide();
     UI.side.replaceChildren(...body);
     syncBar(); syncLayer();
   }
@@ -707,10 +818,10 @@
         mem.sessionOnly = mem.sessionOnly || [];
         mem.sessionOnly.unshift({ id, name: s.name, size: s.size.slice(), session: true });
       }
-      if (opts.mats) {   // opened from Materials: keep the list in view, the build is on the stage and in the Library
-        save((b) => { b.cur = 'file:' + id; b.browse = false; b.matSrc = 'file:' + id; b.section = 'materials'; });
-        show('file:' + id, { layer: 'top' });
-        patch();
+      if (opts.mats) {   // opened from the Materials tool: it becomes its source, and it waits on the Builds stage and in the Library
+        save((b) => { b.cur = 'file:' + id; b.stage = 'file:' + id; b.browse = false; b.section = 'library'; b.matSrc = 'file:' + id; });
+        if (UI && UI.wrap.isConnected) { show('file:' + id, { layer: 'top' }); patch(); }
+        if (opts.done) opts.done();
       } else pickKey('file:' + id);
       const unknown = s.palette.filter((p, i) => i && !core().known(p)).length;
       toast('Opened ' + s.name + ' · ' + fmtN(core().volume(s)) + ' blocks' + (unknown ? ' · ' + unknown + ' unknown block type' + (unknown > 1 ? 's' : '') : '') + (kept ? '' : ' · too big to keep after a reload'));
@@ -894,8 +1005,8 @@
   /* ======================================================================
    * Materials
    * ====================================================================== */
-  // The section itself lives in builds-mats.js; this is its window onto the rest of Builds.
-  let matsApi = null;
+  // The material list is its own tool (js/modules/materials.js, UI in builds-mats.js); TH.builds.api is its window onto
+  // Builds: the lazy loader, the shared state.builds, the schematics by key, and the way back to the 3D stage.
   function matSources() {
     const st = S();
     const farms = B().farms.FARMS.map((f) => ({ key: 'farm:' + f.id, name: f.name, icon: f.icon, kind: f.cat || 'farm' }));
@@ -905,24 +1016,24 @@
     try { shape = { key: 'shape', name: shapeSchem().name, icon: null, kind: 'shape' }; } catch (e) { /* no shape yet */ }
     return yours.concat(shape ? [shape] : [], farms);
   }
-  function materialsSide() {
-    if (!matsApi) {
-      matsApi = {
-        S, save, effective, keyName, glyph, sources: matSources,
-        stageKey: () => UI.shownKey || S().stage || S().cur,
-        openFile, download: downloadBlob, refresh: () => patch(),
-        view3d: (key) => { if (key === 'shape') { save((b) => { b.section = 'create'; }); if (UI.shownKey !== 'shape') show('shape', { animate: true, layer: 'top' }); patch(); } else pickKey(key); },
-      };
-      B().mats.init(matsApi);
-    }
-    return B().mats.render();
-  }
-  /** Open the Materials section with this build / list as the source (the 'Material list' keys around Builds). */
+  TH.builds.api = {
+    load: () => loadAll(), isReady: () => ready, loadError: () => loadErr,
+    S, save, effective, keyName, glyph, sources: matSources, openFile, download: downloadBlob,
+    /** The build last on the Builds stage (what "stage" means as a material list source). */
+    stageKey: () => (UI && UI.wrap.isConnected && UI.shownKey) || S().stage || S().cur,
+    /** Show this build on the Builds stage (the shape opens in Create). */
+    view3d(key) {
+      save((b) => {
+        if (key === 'shape') { b.section = 'create'; b.stage = 'shape'; }
+        else if (/^(farm|file):/.test(key)) { b.cur = key; b.stage = key; b.section = 'library'; b.browse = false; }
+      });
+      location.hash = '#/builds';
+    },
+  };
+  /** Open the Materials tool with this build / list as the source (the 'Material list' keys around Builds). */
   function toMats(key) {
-    save((b) => { b.matSrc = key; b.section = 'materials'; });
-    patch();
-    const top = UI.wrap.getBoundingClientRect().top;
-    if (top < 0) window.scrollBy({ top: top - 90, behavior: reduced() ? 'auto' : 'smooth' });
+    save((b) => { b.matSrc = key; });
+    location.hash = '#/materials';
   }
 
   /* ======================================================================
@@ -951,7 +1062,7 @@
       ['swaps', 'ticks', 'shape'].forEach((k) => { if (!b[k] || typeof b[k] !== 'object') b[k] = structuredClone(DEFAULTS[k]); });
       ['p', 'block', 'block2'].forEach((k) => { if (!b.shape[k] || typeof b.shape[k] !== 'object') b.shape[k] = {}; });
       if (!Array.isArray(b.files)) b.files = [];
-      if (!['library', 'create', 'materials'].includes(b.section)) b.section = 'library';
+      if (!['library', 'create'].includes(b.section)) b.section = 'library';   // 'materials' moved out into its own tool
       if (typeof b.cur !== 'string' || !/^(farm|file):/.test(b.cur)) b.cur = 'farm:cow_crusher';
       if (b.cur.startsWith('file:') && !b.files.some((f) => 'file:' + f.id === b.cur)) b.cur = 'farm:cow_crusher';
       if (typeof b.stage !== 'string' || (b.stage.startsWith('file:') && !b.files.some((f) => 'file:' + f.id === b.stage))) b.stage = b.cur;

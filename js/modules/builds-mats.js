@@ -776,7 +776,13 @@ TH.builds.mats = (function () {
     const stat = (v, ico, word, t) => tip(h('span.mt-stat', { tabindex: 0 }, h('b', v), ico, word ? h('span', word) : null), t);
     M.prog = h('span.mt-bar', { role: 'img' }, h('span'));
     M.progN = h('span.mt-prog-n');
-    M.card.replaceChildren(
+    // a .litematic header can claim another block count than the data holds (edited or re-saved files): say so
+    let warn = null;
+    if (!info.key.startsWith('list:') && A.declared) {
+      const decl = A.declared(info.key), real = (() => { const sc = A.effective(info.key); return sc ? core().volume(sc) : 0; })();
+      if (decl > 0 && real > 0 && decl !== real) warn = h('p.mt-warn', 'The file header says ' + fmt(decl) + ' blocks, but ' + fmt(real) + ' are inside. This list counts what is really in the file.');
+    }
+    M.card.replaceChildren(...[
       h('div.mt-card-top', srcThumb(info, 32),
         h('div.mt-card-txt', h('span.mt-card-name', info.name), h('span.mt-card-sub', h('span', KIND[info.kind] || 'Build'), size ? h('span', size) : null)),
         h('div.mt-card-keys', keys)),
@@ -786,7 +792,8 @@ TH.builds.mats = (function () {
         stat(fmt(slots), unitIco('st', 12), null, fmt(slots) + ' stacks: one inventory slot each (64, 16 or 1 per stack)'),
         stat(dec(slots / 27), unitIco('sb', 14), null, dec(slots / 27) + ' shulker boxes (' + Math.ceil(slots / 27) + ' to carry it all)'),
         stat(dec(slots / 54), unitIco('dc', 14), null, dec(slots / 54) + ' double chests (' + Math.ceil(slots / 54) + ' to store it all)')),
-      h('div.mt-prog', M.prog, M.progN));
+      warn,
+      h('div.mt-prog', M.prog, M.progN)].filter(Boolean));
   }
   function syncProgress() {
     const d = M.d;

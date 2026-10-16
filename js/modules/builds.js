@@ -815,7 +815,7 @@
       save((b) => {
         b.files = b.files || [];
         if (data.length <= FILE_CAP) {
-          b.files.unshift({ id, name: s.name, size: s.size.slice(), palette: s.palette.slice(), data, added: Date.now() });
+          b.files.unshift({ id, name: s.name, size: s.size.slice(), palette: s.palette.slice(), data, added: Date.now(), declared: s.declared || 0 });
           while (b.files.length > MAX_FILES) { const old = b.files.pop(); delete b.swaps['file:' + old.id]; delete b.ticks['file:' + old.id]; }
         } else kept = false;
       });
@@ -1025,6 +1025,8 @@
   TH.builds.api = {
     load: () => loadAll(), isReady: () => ready, loadError: () => loadErr,
     S, save, effective, keyName, glyph, sources: matSources, openFile, download: downloadBlob,
+    /** The block count a .litematic header claims for a kept file (0 when unknown). */
+    declared(key) { if (!key || !key.startsWith('file:')) return 0; const id = key.slice(5), m = mem.files.get(id), r = fileRec(id); return (m && m.declared) || (r && r.declared) || 0; },
     /** The build last on the Builds stage (what "stage" means as a material list source). */
     stageKey: () => (UI && UI.wrap.isConnected && UI.shownKey) || S().stage || S().cur,
     /** Show this build on the Builds stage (the shape opens in Create). */

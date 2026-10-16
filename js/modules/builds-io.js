@@ -200,6 +200,7 @@ TH.builds = TH.builds || {};
     const W = Math.max(...list.map((g) => g.x0 + g.ax)) - mx, H = Math.max(...list.map((g) => g.y0 + g.ay)) - my, L = Math.max(...list.map((g) => g.z0 + g.az)) - mz;
     guard(W, H, L);
     const s = C().create(W, H, L, (root.Metadata && root.Metadata.Name) || name);
+    s.declared = (root.Metadata && Number(root.Metadata.TotalBlocks)) || 0;   // what the file header claims (it can be stale); the list counts the real blocks
     list.forEach((g) => {
       const palL = g.r.BlockStatePalette || [];
       const states = palL.map((e) => {

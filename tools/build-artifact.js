@@ -35,11 +35,11 @@ const walk = (dir) => {
 const LANGS = new Set('en_us en_gb de_de fr_fr es_es es_mx it_it pt_br pt_pt nl_nl pl_pl ru_ru uk_ua tr_tr cs_cz sv_se da_dk no_no fi_fi hu_hu ro_ro ja_jp ko_kr zh_cn zh_tw'.split(' '));
 for (let i = files.length - 1; i >= 0; i--) { const m = files[i].match(/^js\/data\/lang\/(.+)\.js$/); if (m && m[1] !== 'index' && !LANGS.has(m[1])) files.splice(i, 1); }
 files.push('icon.svg');
-// block + item textures travel as ONE script of data URIs (an artifact version holds at most 512 files)
+// block + item + mob_effect (potion effect) textures travel as ONE script of data URIs (an artifact version holds at most 512 files)
 {
   const data = {};
   for (let i = files.length - 1; i >= 0; i--) {
-    const m = files[i].match(/^assets\/mc\/((?:block|item)\/.+)\.png$/);
+    const m = files[i].match(/^assets\/mc\/((?:block|item|mob_effect)\/.+)\.png$/);
     if (!m) continue;
     data[m[1]] = 'data:image/png;base64,' + fs.readFileSync(path.join(root, files[i])).toString('base64');
     files.splice(i, 1);

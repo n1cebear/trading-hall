@@ -5,6 +5,7 @@
  * carries its own little living diorama built from real Minecraft textures (TH.icon / TH.icon.tex) plus CSS:
  *   Enchanting = enchanting table between bookshelves, a floating glinting book, a rune ring orbiting it and
  *                galactic glyphs streaming from the shelves into the book (like the real table particles).
+ *   Potion Brewing = a brewing stand with three potions bobbing over it and coloured bubbles rising.
  *   Trading Hall = a villager watching emeralds arc from an emerald block over to an enchanted book on a shelf.
  *   Trims = a hand of smithing templates fanned behind a diamond chestplate, trim materials gliding past below.
  *   Builds = a little house that assembles itself block by block on a blueprint grid, then dissolves and rebuilds.
@@ -33,6 +34,9 @@
     { id: 'enchanting', line: 'Books, anvil order and XP for every item.', kicker: 'Gear & books', wall: 'block/bookshelf',
       pitch: 'Plan every enchanted item. See exactly which books you still need and tick the anvil steps off one by one.',
       points: ['Cheapest anvil order', 'Books to get, per item', 'Level and XP costs'], unit: 'items done' },
+    { id: 'potions', line: 'Every potion, and how to brew it.', kicker: 'Brewing', wall: 'block/nether_bricks',
+      pitch: 'Find any potion by name, effect or ingredient, see the brewing chain step by step and plan a whole brewing session.',
+      points: ['Every potion in every form', 'Brewing chains drawn out', 'Planner with a shopping list'], unit: '' },
     { id: 'hall', line: 'Plan the hall and price every librarian.', kicker: 'Villager trading', wall: 'block/spruce_planks',
       pitch: 'Lay out your trading hall, price the emeralds and lock in every librarian.',
       points: ['Hall planner canvas', 'Book lists per librarian', 'Emerald totals'], unit: 'librarians' },
@@ -94,6 +98,21 @@
       layer(14, cube(80, { top: 'block/enchanting_table_top', side: 'block/enchanting_table_side' }, 111, 200, { hgt: 0.75 })),
       layer(20, h('div.lp-ring', ring), h('div.lp-flows', flow),
         at(132, 92, '.lp-book', h('div.lp-bob', TH.icon('enchanted_book', { size: 96, glint: true })))),
+    ];
+  }
+
+  function scenePotions() {
+    // a brewing stand with three potions bobbing over its arms and bubbles in potion colours rising from it
+    const B = (TH.potions && TH.potions.bottle) || ((id, f, size) => TH.icon('item/potion', { size }));
+    const cols = ['#33ebff', '#f82423', '#cd5cab', '#ffc700', '#c2ff66', '#8d82e6'];
+    const bubs = Array.from({ length: 14 }, (_, i) => h('span.lp-pbub', { style: { left: px(150 + ((i * 29) % 64)), '--c': cols[i % cols.length], '--o': (-i * 0.41).toFixed(2) + 's', '--dx': px(((i * 17) % 50) - 25), '--z': px(5 + (i % 3) * 3) } }));
+    const pots = [['swiftness', 44, 112], ['strong_healing', 148, 44], ['regeneration', 252, 112]].map(([id, x, y], i) =>
+      at(x, y, '.lp-ppot', h('div.lp-bob', { style: { animationDelay: (-i * 1.3).toFixed(1) + 's' } }, B(id, 'potion', 64))));
+    return [
+      layer(4, h('div.lp-halo')),
+      layer(10, at(116, 152, '.lp-pstand', TH.icon('item/brewing_stand', { size: 128 }))),
+      layer(18, ...pots),
+      layer(24, h('div.lp-pbubs', bubs)),
     ];
   }
 
@@ -193,7 +212,7 @@
     ];
   }
 
-  const SCENES = { enchanting: sceneEnchanting, hall: sceneHall, trims: sceneTrims, builds: sceneBuilds, materials: sceneMaterials, palettes: scenePalettes, portal: scenePortal };
+  const SCENES = { enchanting: sceneEnchanting, potions: scenePotions, hall: sceneHall, trims: sceneTrims, builds: sceneBuilds, materials: sceneMaterials, palettes: scenePalettes, portal: scenePortal };
 
   const reduced = () => !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
   const hovers = () => !!(window.matchMedia && matchMedia('(hover: hover)').matches);
@@ -300,7 +319,7 @@
     root.append(stage);
   }
 
-  // number keys 1-7 open the tools while the landing page is showing
+  // number keys 1-8 open the tools while the landing page is showing
   document.addEventListener('keydown', (e) => {
     if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
     if (!/^[1-9]$/.test(e.key)) return;

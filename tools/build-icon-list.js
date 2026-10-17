@@ -9,7 +9,7 @@ const root = path.join(__dirname, '..');
 const ctx = { window: {}, location: { protocol: 'https:' }, console };
 ctx.window = ctx;
 vm.createContext(ctx);
-for (const f of ['js/data/enchantments.js', 'js/data/villagers.js', 'js/data/trims.js', 'js/data/items.js', 'js/core/icons.js']) {
+for (const f of ['js/data/enchantments.js', 'js/data/villagers.js', 'js/data/trims.js', 'js/data/items.js', 'js/data/potions.js', 'js/core/icons.js']) {
   vm.runInContext(fs.readFileSync(path.join(root, f), 'utf8'), ctx, { filename: f });
 }
 const { TH } = ctx;
@@ -21,6 +21,13 @@ TH.data.items.forEach((it) => (it.materials || ['plain']).forEach((m) => keys.ad
 Object.values(TH.data.materials || {}).forEach((m) => { if (m && typeof m.icon === 'string') keys.add(m.icon); });
 TH.data.trimPatterns.forEach((p) => keys.add(TH.icon.trimKey(p.id)));
 TH.data.trimMaterials.forEach((m) => keys.add(TH.icon.trimMaterialKey(m.item)));
+// Potion Brewing: effect icons (mob_effect/<id>, 18 x 18), bottle layers of every form, ingredients, extras
+{
+  const P = TH.data.potions;
+  ['levitation'].concat(Object.keys(P.effects)).forEach((e) => keys.add('mob_effect/' + e));
+  P.forms.forEach((f) => { keys.add(f.tex); keys.add(f.liquid); });
+  Object.values(P.ingredients).concat(Object.values(P.extras)).forEach((d) => keys.add(d.tex));
+}
 
 // literal keys used directly in the code: TH.icon('…'), mc:… nav icons, CSS-free strings
 const literal = /TH\.icon\(\s*'([^']+)'|icon:\s*'mc:([^']+)'/g;
@@ -32,7 +39,7 @@ for (const dir of ['js/modules', 'js/core']) {
 }
 
 // icons named in data tables ('item/hopper', 'block/mud' …): every item/ and block/ literal in modules and data
-const lit2 = /'((?:item|block)\/[a-z0-9_]+)'/g;
+const lit2 = /'((?:item|block|mob_effect)\/[a-z0-9_]+)'/g;
 for (const dir of ['js/modules', 'js/data']) {
   for (const f of fs.readdirSync(path.join(root, dir))) {
     if (!f.endsWith('.js')) continue;

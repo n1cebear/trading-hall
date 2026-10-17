@@ -41,6 +41,14 @@
 :root[data-tool="palettes"] .th-art u:nth-child(4n + 3) { background: color-mix(in srgb, var(--accent) 60%, #6b3cff 40%); }
 :root[data-tool="palettes"] .th-art u:nth-child(4n) { background: color-mix(in srgb, var(--accent) 50%, #ffd27a 50%); }
 
+/* ----- Potion Brewing: bubbles in potion colours rise and wobble, like a brewing stand's bubbles ----- */
+@keyframes th-bubble { 0% { transform: translate(0, 0) scale(.4); opacity: 0; } 15% { opacity: .9; } 40% { transform: translate(calc(var(--s) * .25), -40px) scale(.8); } 65% { transform: translate(calc(var(--s) * -.15), -72px) scale(.95); opacity: .7; } 100% { transform: translate(calc(var(--s) * .2), -112px) scale(1.1); opacity: 0; } }
+:root[data-tool="potions"] .th-art u { animation-name: th-bubble; animation-timing-function: ease-in; border-radius: 2px; background: color-mix(in srgb, var(--accent) 30%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 85%, #fff 15%), inset calc(var(--z) / 4) calc(var(--z) / 4) 0 rgb(255 255 255 / .35); }
+:root[data-tool="potions"] .th-art u:nth-child(5n + 2) { background: rgb(248 36 35 / .3); box-shadow: inset 0 0 0 1px #f82423, inset calc(var(--z) / 4) calc(var(--z) / 4) 0 rgb(255 255 255 / .35); }
+:root[data-tool="potions"] .th-art u:nth-child(5n + 3) { background: rgb(255 199 0 / .3); box-shadow: inset 0 0 0 1px #ffc700, inset calc(var(--z) / 4) calc(var(--z) / 4) 0 rgb(255 255 255 / .35); }
+:root[data-tool="potions"] .th-art u:nth-child(5n + 4) { background: rgb(205 92 171 / .3); box-shadow: inset 0 0 0 1px #cd5cab, inset calc(var(--z) / 4) calc(var(--z) / 4) 0 rgb(255 255 255 / .35); }
+
 /* ----- Portal: purple portal particles drift sideways toward the middle ----- */
 @keyframes th-warp { 0% { transform: translate(calc(var(--s) * 2), 20px) scale(.5); opacity: 0; } 25% { opacity: .95; } 100% { transform: translate(0, -100px) scale(1); opacity: 0; } }
 :root[data-tool="portal"] .th-art u { animation-name: th-warp; background: #b45cff; box-shadow: 0 0 10px 1px rgb(168 70 255 / .6); }

@@ -1,11 +1,12 @@
 /**
  * Potion Brewing (azure accent, --c-pot): every potion of Java 26.3 and, above all, HOW TO BREW IT, step by step.
- *   Steps (first tab, the heart of the tool)  a slim picker column (search, recent + favourites, every potion) beside the
- *               stage: the potion bar (form, variant, favourite, add to plan), 'You need' (ingredients, blaze powder, glass
- *               bottles for N batches of 3), the order switch, and the big step flow (Fill glass bottles, Add Nether Wart,
- *               Add ..., each with the ingredient, an arrow and the bottle it makes). Below it, quieter: effects in every
- *               form, cautions, what to brew next, other sources. 'My plan' turns the stage into the merged brewing order
- *               for several potions (shared steps, bottles in threes) with a tick per step and Send to Material List.
+ *   Brew (first tab, the heart of the tool)  opens on 'What do you want to brew?' (search + popular bottles), then one
+ *               potion: a header (bottle, name, form keys, strength keys, favourite, Add to plan), 'You need' (every
+ *               ingredient with its recipe tooltip, blaze powder, glass bottles, rounds of 3) and the steps (Fill bottles,
+ *               Add Nether Wart, Add ...) beside the BREWING STAND PREVIEW (our drawing of the stand screen with the real item
+ *               textures: fuel, ingredient, three bottles; Back / Next / Play animate a brew). 'About this potion' is a
+ *               quiet disclosure under it. The 'My plan' chip opens the plan: merged brews with a tick each, the same stand
+ *               preview, the shopping list and Send to Material List.
  *   Library     filter bar (search, form, variant, type / ingredient / effect chips with live counts, sort) + cards; a card
  *               opens its steps.
  *   Ingredients every brewing ingredient: where it comes from and what it does at each stage.
@@ -13,9 +14,9 @@
  * Mechanics live in js/modules/potions-engine.js (pure, node-tested: tools/test-potions.js), data in js/data/potions.js.
  * Names are the game's own (TH.langData via tools/build-lang.js). Everything patches in place: no re-render animations.
  *
- * state.potions = { view: 'steps'|'library'|'ings'|'guide', mode: 'one'|'plan', sel, form, variant, q, types: [], ings: [],
+ * state.potions = { view: 'steps'|'library'|'ings'|'guide', screen: 'choose'|'potion'|'plan', adding, step, sel, form, variant, q, types: [], ings: [],
  *   ingMode, effs: [], sort, dir, alt, batches, plan: [{ pot, form, n }], ticks: { sig, done: [brew index] }, fav: [],
- *   recent: [], filtersOpen, pickOpen }
+ *   recent: [], filtersOpen, infoOpen }
  */
 (function () {
   'use strict';
@@ -73,6 +74,45 @@
     const d = D().ingredients[i] || D().extras[i];
     if (d && d.block && TH.icon.block && TH.icon.block.has && TH.icon.block.has('minecraft:' + i)) return TH.icon.block('minecraft:' + i, { size: size || 16, fallback: d.tex });
     return TH.icon(d ? d.tex : 'item/' + i, { size: size || 16 });
+  }
+  /** Icon of anything that shows up in an ingredient recipe picture. */
+  function partIcon(id, size) {
+    if (D().ingredients[id] || D().extras[id]) return ingIcon(id, size);
+    if (id === 'lingering_potion') return bottle('water', 'lingering', size);
+    return TH.icon(D().parts[id] || 'item/' + id, { size });
+  }
+  /**
+   * A recipe drawn like the Material List's recipe pictures (same .mt-* classes from css/materials.css: the 3x3 grid or the
+   * furnace slot, the station, the result with its count). js/data/recipes.js only knows building blocks, so the brewing
+   * ingredients' recipes live in js/data/potions.js (recipes).
+   */
+  function recipePic(rc, outId) {
+    const cell = (id, n) => h('span.mt-cell', id ? partIcon(id, 20) : null, id && n > 1 ? h('b.mt-n', String(n)) : null);
+    let input;
+    if (rc.method === 'smelting') input = h('span.mt-cg1', cell(rc.in));
+    else if (rc.shapeless) input = h('span.mt-cg.shapeless', Array.from({ length: 9 }, (_, i) => cell(rc.shapeless[i] || null)));
+    else input = h('span.mt-cg', rc.grid.map((x) => cell(x)));
+    return h('span.mt-rv', { 'data-m': rc.method }, input,
+      h('span.mt-via', TH.icon(D().parts[rc.method], { size: 18 }), h('span.po-step-arrow.is-sm', { 'aria-hidden': 'true' })),
+      h('span.mt-out', cell(outId, rc.out)));
+  }
+  /** Tooltip of an ingredient: its name, how it is crafted (picture) and where it comes from (icon + one line). */
+  function ingTip(id) {
+    const d = D().ingredients[id] || D().extras[id] || {};
+    const rcs = D().recipes[id] || [];
+    const src = D().obtain[id];
+    return h('div.mt-rtip.po-itip',
+      h('div.th-tooltip-title', ingName(id)),
+      rcs.length ? h('div.mt-rtip-main', recipePic(rcs[0], id)) : null,
+      rcs.length > 1 ? h('div.mt-rtip-others', rcs.slice(1).map((r) => h('div.mt-rtip-o', recipePic(r, id)))) : null,
+      rcs[0] && rcs[0].shapeless ? h('div.th-tooltip-sub', 'Any order in the crafting grid') : null,
+      d.where ? h('div.po-itip-src', src ? TH.icon(src, { size: 20 }) : null, h('span', d.where)) : null);
+  }
+  /** Ingredient icon with its recipe tooltip. */
+  function ingT(id, size) {
+    const w = h('span.po-it', ingIcon(id, size));
+    TH.util.tooltip(w, () => ingTip(id));
+    return w;
   }
 
   /**
@@ -279,32 +319,30 @@
   /* ================= render ================= */
   function render(root) {
     const st = S();
-    const E2 = { cards: new Map(), pickRows: new Map() };
-    let pq = '';   // the picker's own search (not saved; the library search is st.q)
+    const E2 = { cards: new Map() };
+    let pq = '';          // the chooser's search (not saved; the library search is st.q)
+    let stand = null;     // the brewing stand preview of the screen on show
 
     /* ----- head: Steps first ----- */
-    const tabsSeg = seg('Potion Brewing section', [['steps', 'Steps'], ['library', 'Library'], ['ings', 'Ingredients'], ['guide', 'Guide']], st.view, (v) => setView(v));
+    const tabsSeg = seg('Potion Brewing section', [['steps', 'Brew'], ['library', 'All potions'], ['ings', 'Ingredients'], ['guide', 'How it works']], st.view, (v) => setView(v));
     const head = h('div.page-head.po-head', h('h2', 'Potion Brewing'), h('div.po-tabs', tabsSeg));
 
     /* ================= shared actions ================= */
-    function select(id, opts) {
+    function select(id) {
       if (!E.pot(id)) return;
-      if (st.sel !== id) st.alt = 0;
-      st.sel = id;
-      st.mode = 'one';
+      if (st.sel !== id) { st.alt = 0; st.step = null; }
+      st.sel = id; st.screen = 'potion';
       st.recent = [id].concat(st.recent.filter((x) => x !== id)).slice(0, 8);
       save();
       E2.cards.forEach((c, k) => c.classList.toggle('on', k === id));
-      if (st.view !== 'steps') setView('steps');
-      else patchStage();
-      patchPick();
-      if (opts && opts.scroll && matchMedia('(max-width: 1000px)').matches) stage.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      if (st.view !== 'steps') setView('steps'); else patchSteps();
     }
     function setForm(f) {
       if (!FORMS.includes(f) || st.form === f) return;
-      st.form = f; save();
-      formSeg.set(f); pickForm.set(f);
-      if (st.view === 'library') patchList(); else { patchStage(); patchPick(); }
+      st.form = f; st.step = null; save();
+      if (formSeg) formSeg.set(f);
+      libForm.set(f);
+      if (st.view === 'library') patchList(); else patchSteps();
     }
     function toggleFav(id) {
       const i = st.fav.indexOf(id);
@@ -312,222 +350,294 @@
       save();
       const c = E2.cards.get(id);
       if (c) { const b = c.querySelector('.po-heart'); b.classList.toggle('on', i < 0); b.setAttribute('aria-pressed', String(i < 0)); }
-      if (st.view === 'steps') { patchStage(); patchPick(); }
+      if (st.view === 'steps') patchSteps();
       else if (st.types.includes('fav')) patchList(); else patchChips();
     }
-    function addToPlan(id, f, quiet) {
+    function addToPlan(id, f) {
       if (!E.reachable(id)) return;
       const step = f === 'arrow' ? 8 : 3;
       const ex = st.plan.find((x) => x.pot === id && x.form === f);
       if (ex) ex.n += step; else st.plan.push({ pot: id, form: f, n: step });
       save();
       TH.app.refreshBadges();
-      if (!quiet) toast('Added to the plan: ' + potName(id, f));
-      if (st.view === 'steps') { patchModeSeg(); if (st.mode === 'plan') patchStage(); }
+      toast('Added to your plan: ' + potName(id, f));
+      if (st.view === 'steps') patchSteps();
     }
-    function stat(v, label, small) { return h('div.po-stat' + (small ? '.is-sm' : ''), h('b', typeof v === 'number' ? fmt(v) : v), h('span', label)); }
     const nameTag = (id, f) => [h('span.po-nm', potName(id, f)), vTag(E.pot(id)) ? h('span.po-vtag', vTag(E.pot(id))) : null];
+    const planChip = () => (st.plan.length || st.screen === 'plan' ? h('button.btn.small.po-planchip' + (st.screen === 'plan' ? '.on' : ''), { type: 'button', 'aria-pressed': String(st.screen === 'plan'),
+      onclick: () => { st.screen = st.screen === 'plan' ? (st.sel ? 'potion' : 'choose') : 'plan'; save(); patchSteps(); } }, glyph('check'), 'My plan', st.plan.length ? h('em.po-tabn', String(st.plan.length)) : null) : null);
 
-    /* ================= STEPS: picker column ================= */
-    const pickQ = h('input.field.po-pickq', { type: 'search', placeholder: 'Choose a potion', 'aria-label': 'Choose a potion', autocomplete: 'off', spellcheck: false,
-      oninput: () => { pq = pickQ.value; patchPick(); },
-      onkeydown: (e) => { if (e.key === 'Enter') { const first = pickList.querySelector('.po-prk'); if (first) first.click(); } } });
-    const pickToggle = h('button.btn.po-picktg', { type: 'button', 'aria-expanded': 'false', onclick: () => { st.pickOpen = !st.pickOpen; save(); patchPick(); } }, glyph('down'), h('span', 'All potions'));
-    const toLibrary = h('button.btn.po-tolib', { type: 'button', onclick: () => setView('library') }, glyph('filter'), h('span', 'Filters'));
-    tip(toLibrary, 'The full library: filter by type, ingredient and effect, sort, compare');
-    const quickRow = h('div.po-quick', { 'aria-label': 'Recent and favourite potions' });
-    const pickList = h('div.po-picklist.th-scroll');
-    const pick = h('section.panel.po-pick', { 'aria-label': 'Choose a potion' },
-      h('div.po-pick-top', h('div.search.po-pick-s', pickQ), toLibrary),
-      quickRow, pickToggle, pickList);
-    function patchPick() {
-      // recent + favourites: one row of bottles
-      const ids = [...new Set(st.fav.concat(st.recent))].filter((id) => E.pot(id)).slice(0, 10);
-      quickRow.hidden = !ids.length;
-      quickRow.replaceChildren(...ids.map((id) => tip(h('button.po-rkey' + (id === st.sel && st.mode === 'one' ? '.on' : '') + (st.fav.includes(id) ? '.is-fav' : ''), { type: 'button', 'aria-label': potName(id, st.form), onclick: () => (st.mode === 'plan' ? addToPlan(id, st.form) : select(id, { scroll: true })) }, bottle(id, st.form, 28)),
-        () => potName(id, st.form) + (vTag(E.pot(id)) ? ' ' + vTag(E.pot(id)) : '') + (st.fav.includes(id) ? ' · favourite' : ''))));
-      // the list (desktop: always; phone: when searching or opened)
-      const qq = pq.trim().toLowerCase();
-      const list = allPots().filter((p) => {
-        if (!qq) return true;
-        const k = TH.i18n.lang + ':' + p.id;
-        if (!searchCache.has(k)) searchCache.set(k, searchText(p));
-        return qq.split(/\s+/).every((w) => searchCache.get(k).includes(w));
-      });
-      const open = !!qq || !!st.pickOpen;
-      pick.classList.toggle('is-open', open);
-      pickToggle.setAttribute('aria-expanded', String(open));
-      pickToggle.querySelector('.po-ico').replaceWith(glyph(open ? 'up' : 'down'));
-      E2.pickRows.clear();
-      pickList.replaceChildren(...(list.length ? list.map((p) => {
-        const on = p.id === st.sel && st.mode === 'one';
-        const add = h('button.po-prk-add', { type: 'button', 'aria-label': 'Add to plan', disabled: !E.reachable(p.id), onclick: (e) => { e.stopPropagation(); addToPlan(p.id, st.form); } }, glyph('plus'));
-        tip(add, 'Add to plan (' + FORM_LABEL[st.form].toLowerCase() + ')');
-        const row = h('div.po-prk' + (on ? '.on' : '') + (p.unbrewable ? '.is-na' : ''), { role: 'button', tabindex: '0', 'data-id': p.id,
-          onclick: () => { if (st.mode === 'plan') addToPlan(p.id, st.form); else select(p.id, { scroll: true }); if (matchMedia('(max-width: 1000px)').matches) { pq = ''; pickQ.value = ''; st.pickOpen = false; save(); patchPick(); } },
-          onkeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); row.click(); } } },
-          bottle(p.id, st.form, 24), h('span.po-prk-n', nameTag(p.id, 'potion')), add);
-        E2.pickRows.set(p.id, row);
-        return row;
-      }) : [h('p.po-hint', 'No potion matches.')]));
+    /* ================= BREW (Steps view): choose -> potion steps, or the plan ================= */
+    const stepsRoot = h('div.po-sv');
+    function patchSteps() {
+      if (stand) stand.stop();
+      stand = null;
+      const scr = st.screen === 'plan' ? 'plan' : (st.screen === 'choose' || !E.pot(st.sel)) ? 'choose' : 'potion';
+      root.dataset.poScreen = scr;
+      if (scr === 'choose') chooseScreen();
+      else if (scr === 'plan') planScreen();
+      else potionScreen();
     }
 
-    /* ================= STEPS: the stage ================= */
-    const modeSeg = seg('What to brew', [['one', 'One potion'], ['plan', 'My plan']], st.mode, (m) => { st.mode = m; save(); patchModeSeg(); patchStage(); patchPick(); }, '.po-modeseg');
-    const planN = h('em.po-tabn');
-    modeSeg.querySelector('[data-id="plan"]').append(planN);
-    function patchModeSeg() { modeSeg.set(st.mode); planN.textContent = st.plan.length ? String(st.plan.length) : ''; planN.hidden = !st.plan.length; }
-    const pickForm = seg('Bottle form', FORMS.map((f) => [f, FORM_LABEL[f], f === 'arrow' ? 'Tipped arrows: 8 arrows around 1 lingering potion' : null, h('span.po-fi', { 'data-f': f })]), st.form, (f) => setForm(f), '.po-forms');
-    const barIn = h('div.po-bar-in');
-    const bar = h('section.panel.po-bar', { 'aria-label': 'Potion' }, h('div.po-bar-top', modeSeg, pickForm), barIn);
-    const stepsPan = h('section.panel.po-steps', { 'aria-label': 'How to brew' });
-    const infoPan = h('section.panel.po-info', { 'aria-label': 'About this potion' });
-    const stage = h('div.po-stage', bar, stepsPan, infoPan);
+    /* ----- 1. What do you want to brew? ----- */
+    const POPULAR = ['swiftness', 'strength', 'fire_resistance', 'night_vision', 'invisibility', 'water_breathing', 'healing', 'regeneration', 'slow_falling', 'leaping', 'turtle_master', 'harming', 'poison', 'weakness'];
+    function chooseScreen() {
+      const adding = !!st.adding;
+      const field = h('input.field.po-ask-q', { type: 'search', placeholder: 'Potion, effect or ingredient', 'aria-label': 'What do you want to brew?', autocomplete: 'off', spellcheck: false, value: pq });
+      const grid = h('div.po-choose', { role: 'list' });
+      const fill = () => {
+        const qq = pq.trim().toLowerCase();
+        let list;
+        if (qq) {
+          list = allPots().filter((p) => { const k = TH.i18n.lang + ':' + p.id; if (!searchCache.has(k)) searchCache.set(k, searchText(p)); return qq.split(/\s+/).every((w) => searchCache.get(k).includes(w)); }).map((p) => p.id);
+        } else list = POPULAR;
+        grid.replaceChildren(...(list.length ? list.map((id) => {
+          const p = E.pot(id);
+          const b = h('button.po-ch' + (id === st.sel && !adding ? '.on' : '') + (p.unbrewable ? '.is-na' : ''), { type: 'button', role: 'listitem', disabled: adding && !E.reachable(id),
+            onclick: () => { pq = ''; if (adding) { st.adding = false; addToPlan(id, st.form); st.screen = 'plan'; save(); patchSteps(); } else select(id); } },
+            h('span.po-ch-bt', bottle(id, st.form, 48)), h('span.po-ch-n', nameTag(id, 'potion')));
+          tip(b, () => recipeTip(id, st.form));
+          return b;
+        }) : [h('p.po-hint', 'No potion matches. Try an effect (speed, healing) or an ingredient (sugar, ghast tear).')]));
+        label.textContent = qq ? list.length + (list.length === 1 ? ' match' : ' matches') : 'Popular';
+      };
+      field.addEventListener('input', () => { pq = field.value; fill(); });
+      field.addEventListener('keydown', (e) => { if (e.key === 'Enter') { const b = grid.querySelector('.po-ch:not(:disabled)'); if (b) b.click(); } });
+      const label = h('span.po-lbl');
+      const recent = st.recent.filter((id) => E.pot(id) && id !== st.sel).slice(0, 8);
+      const favs = st.fav.filter((id) => E.pot(id));
+      const quick = (title, ids) => (ids.length ? h('div.po-ask-row', h('span.po-lbl', title), h('div.po-quick', ids.map((id) => tip(h('button.po-rkey', { type: 'button', 'aria-label': potName(id), onclick: () => (adding ? (st.adding = false, addToPlan(id, st.form), st.screen = 'plan', save(), patchSteps()) : select(id)) }, bottle(id, st.form, 32)), () => potName(id) + (vTag(E.pot(id)) ? ' ' + vTag(E.pot(id)) : ''))))) : null);
+      const back = E.pot(st.sel) || adding ? h('button.btn.small.ghost', { type: 'button', onclick: () => { st.adding = false; st.screen = adding ? 'plan' : 'potion'; save(); patchSteps(); } }, glyph('back'), adding ? 'Back to my plan' : 'Back') : null;
+      stepsRoot.replaceChildren(h('section.panel.po-ask', { 'aria-label': 'Choose a potion' },
+        h('div.po-scene', { 'aria-hidden': 'true' }, h('i.po-stand'), h('i.po-bub'), h('i.po-bub'), h('i.po-bub')),
+        h('div.po-ask-top', back, h('div.po-ask-chips', planChip())),
+        h('h3.po-ask-h', adding ? 'Which potion do you want to add?' : 'What do you want to brew?'),
+        h('div.search.po-ask-s', field),
+        h('div.po-ask-form', h('span.po-lbl', 'As'), formKeys()),
+        favs.length ? quick('Favourites', favs) : null, quick('Recent', recent),
+        h('div.po-ask-row', label), grid));
+      fill();
+      if (matchMedia('(hover: hover)').matches) field.focus({ preventScroll: true });
+    }
+    /** The four bottle forms as one key row (shared by every screen). */
+    let formSeg = null;
+    function formKeys() {
+      formSeg = seg('Bottle form', FORMS.map((f) => [f, FORM_LABEL[f], f === 'arrow' ? '8 arrows around 1 lingering potion' : f === 'splash' ? 'Thrown: add gunpowder' : f === 'lingering' ? 'A cloud: add gunpowder, then dragon\'s breath' : 'Drink it', h('span.po-fi', { 'data-f': f })]), st.form, (f) => setForm(f), '.po-forms');
+      formSeg.querySelectorAll('.po-fi').forEach((s) => s.replaceChildren(bottle(E.reachable(st.sel) ? st.sel : 'swiftness', s.dataset.f, 16)));
+      return formSeg;
+    }
 
-    function patchStage() {
-      patchModeSeg();
-      pickForm.set(st.form);
-      pickForm.querySelectorAll('.po-fi').forEach((s) => s.replaceChildren(bottle(st.mode === 'one' && E.reachable(st.sel) ? st.sel : 'swiftness', s.dataset.f, 16)));
-      pickForm.hidden = st.mode === 'plan';
-      if (st.mode === 'plan') return patchPlanStage();
+    /* ----- 2. One potion: header, You need, the steps beside the brewing stand ----- */
+    function potionScreen() {
       const id = st.sel, p = E.pot(id), f = st.form, fav = st.fav.includes(id);
-      stage.style.setProperty('--pc', E.hex(E.color(id)));
-      /* bar: the potion, its variants, favourite, add to plan */
+      stepsRoot.style.setProperty('--pc', E.hex(E.color(id)));
       const fam = E.variants(id);
-      const famSeg = fam.length > 1 ? seg('Variant', fam.map((x) => { const q2 = E.pot(x); return [x, q2.v === 'n' ? 'Normal' : q2.v === 'long' ? '+ Extended' : (q2.tag || 'II') + ' Enhanced', q2.v === 'long' ? 'Redstone: longer' : q2.v === 'strong' ? 'Glowstone: stronger, shorter' : null]; }), id, (x) => select(x), '.po-fam') : null;
-      const favBtn = h('button.btn.small.po-favbtn' + (fav ? '.on' : ''), { type: 'button', 'aria-pressed': String(fav), 'aria-label': 'Favourite', onclick: () => toggleFav(id) }, glyph('heart'));
-      tip(favBtn, fav ? 'Favourite · click to remove' : 'Add to favourites');
+      const famSeg = fam.length > 1 ? seg('Strength', fam.map((x) => { const q2 = E.pot(x); return [x, q2.v === 'n' ? 'Normal' : q2.v === 'long' ? 'Longer +' : 'Stronger ' + (q2.tag || 'II'), q2.v === 'long' ? 'Extended with redstone' : q2.v === 'strong' ? 'Enhanced with glowstone: stronger, shorter' : null]; }), id, (x) => select(x), '.po-fam') : null;
+      const favBtn = tip(h('button.btn.small.po-favbtn' + (fav ? '.on' : ''), { type: 'button', 'aria-pressed': String(fav), 'aria-label': 'Favourite', onclick: () => toggleFav(id) }, glyph('heart')), fav ? 'Favourite · click to remove' : 'Add to favourites');
       const addBtn = h('button.btn.small', { type: 'button', disabled: !E.reachable(id), onclick: () => addToPlan(id, f) }, glyph('plus'), 'Add to plan');
-      barIn.replaceChildren(
-        h('div.po-bar-pot', h('span.po-bar-bt', bottle(id, f, 48, '.po-big')),
-          h('div.po-bar-t', h('h3.po-bar-name', potName(id, f)), h('div.po-dsub', effLines(id, f).map((l) => h('span.po-bar-eff', effIcon(l.e.id, 18), l.name, h('b', l.dur))), !p.effects.length ? h('span', L('effect.none') || 'No Effects') : null))),
-        h('div.po-bar-acts', famSeg, favBtn, addBtn));
+      const change = h('button.btn.small', { type: 'button', onclick: () => { st.screen = 'choose'; save(); patchSteps(); } }, glyph('back'), 'Other potion');
+      const header = h('section.panel.po-hd', { 'aria-label': 'Potion' },
+        h('div.po-hd-top', change, h('div.po-hd-acts', planChip(), favBtn, addBtn)),
+        h('div.po-hd-pot', h('span.po-bar-bt', bottle(id, f, 56, '.po-big')),
+          h('div.po-bar-t', h('h3.po-bar-name', potName(id, f)),
+            h('div.po-dsub', effLines(id, f).map((l) => h('span.po-bar-eff', effIcon(l.e.id, 18), l.name, h('b', l.dur))), !p.effects.length ? h('span', L('effect.none') || 'No Effects') : null))),
+        h('div.po-hd-keys', formKeys(), famSeg));
 
-      /* steps */
       const routes = E.reachable(id) ? E.paths(id) : [];
       const alt = Math.min(st.alt || 0, Math.max(0, routes.length - 1));
       const r = routes.length ? E.route(id, f, alt) : null;
       if (!r) {
-        stepsPan.replaceChildren(h('div.po-steps-head', h('h3', 'How to brew')),
-          h('div.po-none', h('span.po-none-bt', bottle(id, f, 56)), h('p', p.unbrewable ? 'This potion cannot be brewed. It only comes from the creative inventory or commands.' : 'Not brewable.')));
-      } else {
-        const n = Math.max(1, st.batches | 0);
-        const cost = E.cost(r, n), ops = E.brewOps(r);
-        const setB = (v) => { st.batches = Math.min(64, Math.max(1, v)); save(); patchStage(); };
-        const batch = h('div.po-batchbox', h('span.po-lbl', 'Batches'),
-          h('div.stepper.po-batch', h('button.step', { type: 'button', 'aria-label': 'Fewer batches', onclick: () => setB(n - 1) }, '−'),
-            h('input.stepper-input', { type: 'number', min: 1, max: 64, value: n, 'aria-label': 'Batches of three bottles', onchange: (e) => setB(parseInt(e.target.value, 10) || 1) }),
-            h('button.step', { type: 'button', 'aria-label': 'More batches', onclick: () => setB(n + 1) }, '+')),
-          h('span.po-batch-x', '= ' + fmt(cost.out) + ' ' + (f === 'arrow' ? 'tipped arrows' : 'bottles')));
-        const need = h('div.po-need',
-          Object.entries(cost.ingredients).map(([i, k]) => tip(h('span.po-need-i', h('span.po-need-ico', ingIcon(i, 32)), h('b', '×' + fmt(k))), () => ingName(i) + ' ×' + fmt(k))),
-          tip(h('span.po-need-i.is-fuel', h('span.po-need-ico', ingIcon('blaze_powder', 32)), h('b', powderText(cost.charges))), () => ingName('blaze_powder') + ': ' + cost.charges + ' of 20 fuel charges'),
-          tip(h('span.po-need-i', h('span.po-need-ico', ingIcon('glass_bottle', 32)), h('b', '×' + fmt(cost.bottles))), () => ingName('glass_bottle') + ' ×' + cost.bottles + ', filled with water'));
-        const alts = routes.length > 1 ? h('div.po-alts', { role: 'radiogroup', 'aria-label': 'Order' }, h('span.po-lbl', 'Order'), routes.map((rt, i) => {
-          const b = h('button.po-alt' + (i === alt ? '.on' : ''), { type: 'button', role: 'radio', 'aria-checked': String(i === alt), onclick: () => { st.alt = i; save(); patchStage(); } }, h('span.po-mini', rt.map((s) => ingIcon(s.ing, 16))));
-          tip(b, () => rt.map((s) => ingName(s.ing)).join(' → '));
-          return b;
-        })) : null;
-        // the big steps: fill the bottles, then one block per brew (and the arrow crafting)
-        const blocks = [bigStep({ verb: 'Fill glass bottles', ing: 'glass_bottle', out: ['water', 'potion'], time: 'At water', last: !r.length, n: 0 })];
-        r.forEach((s, i) => {
-          const craft = s.kind === 'craft';
-          blocks.push(bigStep({ verb: craft ? 'Craft with 8 arrows' : 'Add ' + ingName(s.ing), ing: s.ing, out: [s.to, craft ? 'arrow' : s.form], time: craft ? 'Crafting table' : '20 s', last: i === r.length - 1, n: i + 1 }));
-        });
-        stepsPan.replaceChildren(
-          h('div.po-steps-head', h('h3', 'How to brew'), h('span.po-steps-sum', h('img.po-stand-ico', { src: TH.icon.src('item/brewing_stand'), alt: '' }), ops + (ops === 1 ? ' brew' : ' brews') + ' · ' + secs(ops * 20 * n) + (n > 1 ? ' for ' + n + ' batches' : ''))),
-          h('div.po-needrow', h('span.po-lbl', 'You need'), need, batch),
-          alts || '',
-          h('div.po-flow', blocks));
-        watchFlow(stepsPan.querySelector('.po-flow'));
+        stepsRoot.replaceChildren(header, h('section.panel.po-steps', h('div.po-none', h('span.po-none-bt', bottle(id, f, 56)), h('p', p.unbrewable ? 'This potion cannot be brewed. It only comes from the creative inventory or commands.' : 'Not brewable.'))), infoPanel());
+        return;
       }
-      patchInfo();
+      const n = Math.max(1, st.batches | 0);
+      const cost = E.cost(r, n), ops = E.brewOps(r);
+      const setB = (v) => { st.batches = Math.min(64, Math.max(1, v)); save(); patchSteps(); };
+      const need = h('div.po-need',
+        Object.entries(cost.ingredients).map(([i, k]) => h('span.po-need-i', h('span.po-need-ico', ingT(i, 32)), h('b', '×' + fmt(k)))),
+        h('span.po-need-i.is-fuel', h('span.po-need-ico', ingT('blaze_powder', 32)), h('b', powderText(cost.charges))),
+        h('span.po-need-i', h('span.po-need-ico', ingT('glass_bottle', 32)), h('b', '×' + fmt(cost.bottles))));
+      const batch = h('div.po-batchbox',
+        h('div.stepper.po-batch', h('button.step', { type: 'button', 'aria-label': 'Fewer', onclick: () => setB(n - 1) }, '−'),
+          h('input.stepper-input', { type: 'number', min: 1, max: 64, value: n, 'aria-label': 'Rounds of three bottles', onchange: (e) => setB(parseInt(e.target.value, 10) || 1) }),
+          h('button.step', { type: 'button', 'aria-label': 'More', onclick: () => setB(n + 1) }, '+')),
+        h('span.po-batch-x', (n === 1 ? 'round' : 'rounds') + ' = ' + fmt(cost.out) + ' ' + (f === 'arrow' ? 'tipped arrows' : 'bottles')));
+      // the steps: fill the bottles, then one row per brew (and the arrow crafting)
+      const steps = [{ kind: 'fill', verb: 'Fill 3 glass bottles with water', ing: 'glass_bottle', from: null, to: ['water', 'potion'], time: 'at water' }];
+      r.forEach((s) => steps.push(s.kind === 'craft'
+        ? { kind: 'craft', verb: 'Craft: 8 arrows around the potion', ing: 'arrow', from: [s.from, 'lingering'], to: [s.to, 'arrow'], time: 'crafting table' }
+        : { kind: 'brew', verb: 'Add ' + ingName(s.ing), ing: s.ing, from: [s.from, s.form === 'splash' && s.ing === 'gunpowder' ? 'potion' : s.form === 'lingering' && s.ing === 'dragon_breath' ? 'splash' : s.form], to: [s.to, s.form], time: '20 s' }));
+      const cur = Math.min(st.step == null ? 1 : st.step, steps.length - 1);
+      const list = h('ol.po-slist', { 'aria-label': 'Steps' }, steps.map((s, i) => {
+        const el = h('li.po-srow' + (i === cur ? '.on' : '') + (i === steps.length - 1 ? '.is-last' : ''), { tabindex: '0', role: 'button', 'aria-label': s.verb,
+          onclick: () => loadStep(i), onkeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); loadStep(i); } } },
+          h('span.po-sr-ing', ingT(s.ing, 36)),
+          h('span.po-bs-arrow', { 'aria-hidden': 'true' }),
+          h('span.po-sr-out', bottle(s.to[0], s.to[1], 40)),
+          h('span.po-sr-t', h('b.po-sr-verb', s.verb), h('span.po-sr-res', '→ ', nameTag(s.to[0], s.to[1]))),
+          h('span.po-sr-time', s.time));
+        return el;
+      }));
+      const alts = routes.length > 1 ? h('div.po-alts', { role: 'radiogroup', 'aria-label': 'Order' }, h('span.po-lbl', 'Same result, other order'), routes.map((rt, i) => {
+        const b = h('button.po-alt' + (i === alt ? '.on' : ''), { type: 'button', role: 'radio', 'aria-checked': String(i === alt), onclick: () => { st.alt = i; st.step = null; save(); patchSteps(); } }, h('span.po-mini', rt.map((s) => ingIcon(s.ing, 16))));
+        tip(b, () => rt.map((s) => ingName(s.ing)).join(' → '));
+        return b;
+      })) : null;
+      stand = standView(steps.map((s) => standLoad(s)), cur, (i) => { st.step = i; save(); list.querySelectorAll('.po-srow').forEach((x, k) => x.classList.toggle('on', k === i)); });
+      function loadStep(i) { stand.go(i); }
+      stepsRoot.replaceChildren(header,
+        h('section.panel.po-steps', { 'aria-label': 'How to brew' },
+          h('div.po-steps-head', h('h3', 'How to brew'), h('span.po-steps-sum', h('img.po-stand-ico', { src: TH.icon.src('item/brewing_stand'), alt: '' }), ops + (ops === 1 ? ' brew' : ' brews') + ' · ' + secs(ops * 20 * n))),
+          h('div.po-needrow', h('span.po-lbl', 'You need'), need, batch),
+          h('div.po-brewgrid', h('div.po-brew-l', list, alts), stand.el)),
+        infoPanel());
     }
-    /** The connector arrow between steps only shows inside a row (a step that starts a new row has none). */
-    const flowRO = window.ResizeObserver ? new ResizeObserver((list) => list.forEach((en) => markRows(en.target))) : null;
-    function markRows(flow) {
-      let top = null;
-      const col = getComputedStyle(flow).flexDirection === 'column';
-      [...flow.children].forEach((el) => { const t = el.offsetTop; el.classList.toggle('is-rowstart', !col && top !== null && Math.abs(t - top) > 4); top = t; });
+    /** What the stand holds for a step: { top, fuel, inB: [[pot, form] x3], outB, verb, craft } */
+    function standLoad(s) {
+      if (s.kind === 'fill') return { verb: 'Put the 3 water bottles in the bottom slots', top: null, inB: [null, null, null], outB: [s.to, s.to, s.to], fill: true };
+      if (s.kind === 'craft') return { verb: s.verb, craft: true, pot: s.from[0] };
+      return { verb: 'Put ' + ingName(s.ing) + ' in the top slot', top: s.ing, inB: [s.from, s.from, s.from], outB: [s.to, s.to, s.to] };
     }
-    function watchFlow(flow) { if (flowRO) { if (watchFlow.last) flowRO.unobserve(watchFlow.last); flowRO.observe(flow); } watchFlow.last = flow; requestAnimationFrame(() => markRows(flow)); }
-    /** One big step: verb on top, ingredient, arrow, the bottle it makes, its name and time. */
-    function bigStep(o) {
-      const [pot, fm] = o.out;
-      const el = h('div.po-bs' + (o.last ? '.is-last' : ''), { role: 'group', 'aria-label': o.verb },
-        h('span.po-bs-verb', o.verb),
-        h('span.po-bs-row', h('span.po-bs-ing', ingIcon(o.ing, 40)), h('span.po-bs-arrow', { 'aria-hidden': 'true' }), h('span.po-bs-out', bottle(pot, fm, 56))),
-        h('span.po-bs-name', nameTag(pot, fm)),
-        h('span.po-bs-time', o.time));
-      tip(el.querySelector('.po-bs-ing'), () => ingName(o.ing));
-      return el;
+
+    /**
+     * The brewing stand preview: our own drawing of the stand screen (fuel slot + fuel bar at the left, bubbles, the
+     * ingredient slot, the progress arrow, three bottle slots joined by pipes, the real brewing stand texture in the
+     * middle). go(i) loads step i: the inputs sit in their slots, the arrow fills (20 s shown as ~1.6 s), then the bottles
+     * turn into the result. Previous / Next / Play; Play and the animation are off under reduced motion and Lite mode.
+     */
+    function standView(loads, start, onStep) {
+      const calm = () => matchMedia('(prefers-reduced-motion: reduce)').matches || document.documentElement.dataset.perf === 'lite';
+      const slot = (cls) => h('span.po-gslot.po-ss' + cls);
+      const sTop = slot('.is-top'), sFuel = slot('.is-fuel'), sB = [slot('.is-b1'), slot('.is-b2'), slot('.is-b3')];
+      const fuelBar = h('span.po-fuel', h('i'));
+      const arrow = h('span.po-parrow', h('i'));
+      const bubbles = h('span.po-pbub', h('i'), h('i'), h('i'));
+      const art = h('span.po-sart', { 'aria-hidden': 'true' }, TH.icon('item/brewing_stand', { size: 96 }));
+      const craft = h('div.po-scraft');
+      const gui = h('div.po-gui', { 'aria-hidden': 'true' }, art, h('span.po-pipes'), sFuel, fuelBar, bubbles, sTop, arrow, sB[0], sB[1], sB[2], craft);
+      const cap = h('p.po-scap', { 'aria-live': 'polite' });
+      const prev = h('button.btn.small', { type: 'button', onclick: () => go(i - 1) }, glyph('back'), 'Back');
+      const next = h('button.btn.small', { type: 'button', onclick: () => go(i + 1) }, 'Next', h('span.po-flip', glyph('back')));
+      const play = h('button.btn.small.po-play', { type: 'button', onclick: () => (timer ? stop() : playAll()) }, 'Play');
+      const count = h('span.po-scount');
+      const el = h('div.po-standbox', h('div.po-stand-head', h('span.po-lbl', 'Brewing stand'), count), gui, cap, h('div.po-stand-keys', prev, play, next));
+      let i = -1, timer = 0, t2 = 0;
+      const put = (s, x) => s.replaceChildren(...(x ? [x] : []));
+      function fillSlots(L, phase) {
+        const b = phase === 'out' ? L.outB : L.inB;
+        sB.forEach((s, k) => put(s, b && b[k] ? bottle(b[k][0], b[k][1], 36) : null));
+        put(sTop, phase === 'in' && L.top ? ingIcon(L.top, 36) : null);
+        put(sFuel, ingIcon('blaze_powder', 36));
+      }
+      function go(k, auto) {
+        k = Math.max(0, Math.min(loads.length - 1, k));
+        if (!auto) stop();
+        clearTimeout(t2);
+        i = k;
+        const L = loads[i];
+        onStep(i);
+        count.textContent = 'Step ' + (i + 1) + ' of ' + loads.length;
+        prev.disabled = i === 0; next.disabled = i === loads.length - 1;
+        gui.classList.toggle('is-craft', !!L.craft);
+        // fuel used so far (one charge per brew before this one)
+        const used = loads.slice(1, i).filter((x) => !x.craft && !x.fill).length;
+        fuelBar.firstChild.style.transform = 'scaleX(' + Math.max(0.05, 1 - used / D().FUEL_PER_POWDER) + ')';
+        if (L.craft) {
+          craft.replaceChildren(recipePic({ method: 'crafting', grid: ['arrow', 'arrow', 'arrow', 'arrow', 'lingering_potion', 'arrow', 'arrow', 'arrow', 'arrow'], out: 8 }, 'arrow'));
+          craft.querySelectorAll('.mt-cell').forEach((c, n) => { if (n === 4) c.replaceChildren(bottle(L.pot, 'lingering', 20)); });
+          const o = craft.querySelector('.mt-out .mt-cell'); if (o) o.replaceChildren(bottle(L.pot, 'arrow', 20), h('b.mt-n', '8'));
+          cap.textContent = 'Craft: 8 arrows around 1 lingering potion make 8 tipped arrows';
+          gui.classList.remove('is-brewing', 'is-done');
+          return;
+        }
+        sTop.classList.remove('is-used');
+        fillSlots(L, L.fill ? 'out' : 'in');
+        cap.textContent = L.verb + (L.fill ? '' : ', 3 bottles below, blaze powder on the left');
+        gui.classList.remove('is-brewing', 'is-done');
+        if (L.fill) return;
+        if (calm()) { gui.classList.add('is-done'); fillSlots(L, 'out'); put(sTop, ingIcon(L.top, 36)); sTop.classList.add('is-used'); return; }
+        sTop.classList.remove('is-used');
+        void gui.offsetWidth;
+        gui.classList.add('is-brewing');
+        t2 = setTimeout(() => { if (i !== k) return; gui.classList.remove('is-brewing'); gui.classList.add('is-done'); fillSlots(L, 'out'); put(sTop, ingIcon(L.top, 36)); sTop.classList.add('is-used'); }, 1700);
+      }
+      function playAll() {
+        if (calm()) return;
+        play.textContent = 'Stop';
+        let k = 0;
+        const tick = () => { go(k, true); k++; timer = k < loads.length ? setTimeout(tick, 2600) : (stop(), 0); };
+        tick();
+      }
+      function stop() { clearTimeout(timer); timer = 0; play.textContent = 'Play'; }
+      play.hidden = calm();
+      go(start);
+      return { el, go, stop: () => { stop(); clearTimeout(t2); } };
     }
-    /** Secondary facts under the steps: effects in every form, cautions, next brews, other sources. */
-    function patchInfo() {
-      infoPan.hidden = st.mode !== 'one';
-      if (st.mode !== 'one') return;
+
+    /** Quieter facts under the steps: effects in every form, cautions, next brews, other sources (a disclosure). */
+    function infoPanel() {
       const id = st.sel, f = st.form;
       const effs = E.effects(id, 'potion');
       const effBox = effs.length ? h('div.po-effs', effs.map((e) => {
         const info = D().effectInfo[e.id];
         return h('div.po-eff-row', effIcon(e.id, 18), h('div.po-eff-t', h('b', effName(e.id, e.amp)), info ? h('span', info(e.amp + 1)) : null));
       }), D().totals[id] ? h('div.po-eff-row.po-eff-tot', glyph('info'), h('span', D().totals[id])) : null)
-        : h('div.po-effs', h('div.po-eff-row', h('span.muted', id === 'water' ? 'No effects. As a splash or lingering bottle it puts out fire and hurts endermen, blazes, striders and snow golems.' : 'No effects: a base for other potions.')));
-      const forms = h('div.po-fgrid', { role: 'radiogroup', 'aria-label': 'Bottle form' }, FORMS.map((fm) => {
-        const ls = effLines(id, fm), on = fm === f;
-        const b = h('button.po-fcell' + (on ? '.on' : ''), { type: 'button', role: 'radio', 'aria-checked': String(on), onclick: () => setForm(fm) },
-          bottle(id, fm, 28), h('span.po-fcell-t', h('b', FORM_LABEL[fm]), ls.length ? ls.map((l) => h('span', l.dur)) : h('span', '—')));
-        tip(b, () => [h('div.th-tooltip-title', potName(id, fm)), h('div.th-tooltip-sub', fm === 'potion' ? 'Drink it: full duration' : fm === 'splash' ? 'Thrown: full duration on a direct hit, less further away (4 block radius)' : fm === 'lingering' ? 'A cloud for up to 30 s: 1/4 of the duration, instant effects at half strength' : 'Hits one target: 1/8 of the duration, 8 arrows per potion')]);
-        return b;
+        : h('div.po-effs', h('div.po-eff-row', h('span.muted', id === 'water' ? 'No effects. Thrown, it puts out fire and hurts endermen, blazes, striders and snow golems.' : 'No effects: a base for other potions.')));
+      const forms = h('div.po-fgrid', FORMS.map((fm) => {
+        const ls = effLines(id, fm);
+        return h('div.po-fcell' + (fm === f ? '.on' : ''), bottle(id, fm, 28), h('span.po-fcell-t', h('b', FORM_LABEL[fm]), ls.length ? ls.map((l) => h('span', l.dur)) : h('span', '—')));
       }));
       const cs = E.cautions(id, f);
       const cautions = cs.length ? h('div.po-sec', h('span.po-lbl', 'Good to know'), h('div.po-notes', cs.map((c) => h('div.po-note.is-' + c.k, glyph(c.k === 'no' ? 'no' : 'info'), h('span', c.t))))) : null;
       const src = (f === 'arrow' ? (D().arrowSources[id] || []) : []).concat(f === 'potion' || f === 'splash' ? (D().sources[id] || []) : []);
-      const srcBox = src.length ? h('div.po-sec', h('span.po-lbl', 'Where else'), h('ul.po-src', src.map((s) => h('li', s)))) : null;
-      const nx = E.reachable(id) ? E.next({ pot: id, form: f === 'arrow' ? 'lingering' : f }).filter((s) => s.kind !== 'craft') : [];
+      const srcBox = src.length ? h('div.po-sec', h('span.po-lbl', 'Also found'), h('ul.po-src', src.map((s) => h('li', s)))) : null;
+      const nx = E.reachable(id) ? E.next({ pot: id, form: f === 'arrow' ? 'lingering' : f }).filter((s) => s.kind === 'mix') : [];
       const nextBox = nx.length ? h('div.po-sec', h('span.po-lbl', 'Brew it further'), h('div.po-next', nx.map((s) => {
-        const target = s.to.pot;
-        const b = h('button.po-nx', { type: 'button', onclick: () => { if (s.kind === 'form') setForm(s.to.form); else select(target); } },
-          ingIcon(s.ing, 20), h('span.po-nx-arrow', { 'aria-hidden': 'true' }), bottle(target, s.to.form, 24), h('span.po-nx-n', potName(target, s.to.form) + (vTag(E.pot(target)) ? ' ' + vTag(E.pot(target)) : '')));
-        tip(b, () => ingName(s.ing) + ' → ' + potName(target, s.to.form));
+        const b = h('button.po-nx', { type: 'button', onclick: () => select(s.to.pot) }, ingIcon(s.ing, 20), h('span.po-nx-arrow', { 'aria-hidden': 'true' }), bottle(s.to.pot, s.to.form, 24), h('span.po-nx-n', potName(s.to.pot, s.to.form) + (vTag(E.pot(s.to.pot)) ? ' ' + vTag(E.pot(s.to.pot)) : '')));
+        tip(b, () => 'Add ' + ingName(s.ing));
         return b;
       }))) : null;
-      infoPan.replaceChildren(h('div.po-info-grid',
-        h('div.po-info-col', h('div.po-sec', h('span.po-lbl', 'Effects'), effBox), h('div.po-sec', h('span.po-lbl', 'In every form'), forms), cautions),
-        h('div.po-info-col', nextBox, srcBox)));
+      const det = h('details.panel.po-info', { open: !!st.infoOpen, ontoggle: () => { st.infoOpen = det.open; save(); } },
+        h('summary.po-info-sum', h('span', 'About this potion'), h('span.po-info-chev', { 'aria-hidden': 'true' })),
+        h('div.po-info-grid',
+          h('div.po-info-col', h('div.po-sec', h('span.po-lbl', 'Effects'), effBox), h('div.po-sec', h('span.po-lbl', 'Duration in every form'), forms), cautions),
+          h('div.po-info-col', nextBox, srcBox)));
+      return det;
     }
 
-    /* ----- plan mode: merged brews with tick-off ----- */
+    /* ----- 3. My plan: several potions, merged brews with a tick each, beside the stand ----- */
     let lastPlan = null;
-    const sendBtn = h('button.btn.primary', { type: 'button', onclick: sendToList }, glyph('send'), 'Send to Material List');
-    const copyBtn = h('button.btn', { type: 'button', onclick: copyShop }, glyph('copy'), 'Copy list');
-    tip(sendBtn, 'Saves the shopping list as a list in the Material List tool and opens it there');
     function planSig(items) { return items.map((x) => x.pot + '/' + x.form + '/' + x.n).join(','); }
-    function patchPlanStage() {
-      stage.style.setProperty('--pc', 'var(--accent)');
+    function planScreen() {
+      stepsRoot.style.setProperty('--pc', 'var(--accent)');
       const items = st.plan.filter((x) => E.pot(x.pot) && E.reachable(x.pot));
       const sig = planSig(items);
       if (!st.ticks || st.ticks.sig !== sig) { st.ticks = { sig, done: [] }; save(); }
-      // bar: the plan's potions with steppers
+      const back = h('button.btn.small', { type: 'button', onclick: () => { st.screen = E.pot(st.sel) ? 'potion' : 'choose'; save(); patchSteps(); } }, glyph('back'), E.pot(st.sel) ? 'Back to ' + potName(st.sel, st.form) : 'Back');
+      const add = h('button.btn.small', { type: 'button', onclick: () => { st.adding = true; st.screen = 'choose'; save(); patchSteps(); } }, glyph('plus'), 'Add a potion');
       const rows = items.map((it) => {
         const stepN = it.form === 'arrow' ? 8 : 1;
-        const set = (v) => { it.n = Math.max(stepN, Math.min(it.form === 'arrow' ? 8 * 64 : 999, v)); save(); TH.app.refreshBadges(); patchStage(); };
+        const set = (v) => { it.n = Math.max(stepN, Math.min(it.form === 'arrow' ? 8 * 64 : 999, v)); save(); TH.app.refreshBadges(); patchSteps(); };
         return h('div.po-prow', bottle(it.pot, it.form, 32),
           h('div.po-prow-t', h('span.po-prow-n', nameTag(it.pot, it.form)), h('span.po-prow-s', FORM_LABEL[it.form] + ' · ' + (it.form === 'arrow' ? 'arrows' : 'bottles'))),
           h('div.stepper', h('button.step', { type: 'button', 'aria-label': 'Fewer', onclick: () => set(it.n - stepN) }, '−'),
             h('input.stepper-input', { type: 'number', min: stepN, value: it.n, 'aria-label': 'How many', onchange: (e) => set(parseInt(e.target.value, 10) || stepN) }),
             h('button.step', { type: 'button', 'aria-label': 'More', onclick: () => set(it.n + stepN) }, '+')),
-          tip(h('button.po-heart.po-prm', { type: 'button', 'aria-label': 'Remove ' + potName(it.pot, it.form), onclick: () => { st.plan.splice(st.plan.indexOf(it), 1); save(); TH.app.refreshBadges(); patchStage(); } }, glyph('x')), 'Remove'));
+          tip(h('button.po-heart.po-prm', { type: 'button', 'aria-label': 'Remove ' + potName(it.pot, it.form), onclick: () => { st.plan.splice(st.plan.indexOf(it), 1); save(); TH.app.refreshBadges(); patchSteps(); } }, glyph('x')), 'Remove'));
       });
-      barIn.replaceChildren(items.length ? h('div.po-plist', rows) : h('div.po-pempty', h('span.po-none-bt', bottle('awkward', 'potion', 48)), h('p', 'Nothing planned yet.'), h('p.po-hint', 'Pick a form above, then press + next to a potion in the list (or tap it while My plan is on).')));
+      const header = h('section.panel.po-hd', { 'aria-label': 'My plan' },
+        h('div.po-hd-top', back, h('div.po-hd-acts', add)),
+        h('h3.po-bar-name', 'My plan'),
+        items.length ? h('div.po-plist', rows) : h('div.po-pempty', h('span.po-none-bt', bottle('awkward', 'potion', 48)), h('p', 'Nothing planned yet.'), h('p.po-hint', 'Press Add to plan on any potion, or Add a potion here.')));
       const res = lastPlan = E.plan(items);
-      if (!items.length) { stepsPan.replaceChildren(h('div.po-steps-head', h('h3', 'Brewing order'))); return; }
-      // you need
+      if (!items.length) { stepsRoot.replaceChildren(header); return; }
       const order = Object.keys(D().ingredients).concat(['blaze_powder', 'glass_bottle', 'arrow']);
       const shop = Object.entries(res.shopping || {}).filter(([, k]) => k > 0).sort((a, b) => order.indexOf(a[0]) - order.indexOf(b[0]));
-      const need = h('div.po-need', shop.map(([i, k]) => tip(h('span.po-need-i' + (i === 'blaze_powder' ? '.is-fuel' : ''), h('span.po-need-ico', ingIcon(i, 32)), h('b', '×' + fmt(k)), stacks(k) ? h('em', stacks(k)) : null),
-        () => ingName(i) + ' ×' + fmt(k) + (i === 'glass_bottle' ? ', filled with water' : i === 'blaze_powder' ? ' (fuel ' + res.powder + ')' : ''))));
-      // merged brews
+      const need = h('div.po-need', shop.map(([i, k]) => h('span.po-need-i' + (i === 'blaze_powder' ? '.is-fuel' : ''), h('span.po-need-ico', ingT(i, 32)), h('b', '×' + fmt(k)), stacks(k) ? h('em', stacks(k)) : null)));
+      const sendBtn = h('button.btn.small.primary', { type: 'button', onclick: sendToList }, glyph('send'), 'Send to Material List');
+      const copyBtn = h('button.btn.small', { type: 'button', onclick: copyShop }, glyph('copy'), 'Copy');
+      tip(sendBtn, 'Saves this shopping list in the Material List tool and opens it there');
+      // brews, the same ones in a row merged
       const merged = [];
       res.brews.forEach((b) => {
         const s = b.ing + '|' + b.slots.map((x) => x.from.pot + x.from.form + '>' + x.to.pot + x.to.form).join(',');
@@ -535,44 +645,43 @@
         if (last && last.sig === s) last.k++; else merged.push({ sig: s, b, k: 1 });
       });
       const done = new Set(st.ticks.done);
+      const prog = h('div.po-prog', h('span.bar', h('span')), h('span.po-prog-t'));
+      const patchProgress = () => {
+        const d = st.ticks.done.length, t = merged.length;
+        prog.querySelector('.bar > span').style.width = (t ? (d / t) * 100 : 0) + '%';
+        prog.querySelector('.po-prog-t').textContent = d + ' of ' + t + ' brews done';
+      };
       let idx = 0;
-      const blocks = merged.map((m, mi) => {
+      const cur = Math.min(st.step == null ? 0 : st.step, Math.max(0, merged.length - 1));
+      const list = h('ol.po-slist.is-plan', { 'aria-label': 'Brews' }, merged.map((m, mi) => {
         const from = idx + 1; idx += m.k;
-        const isDone = done.has(mi);
-        const slots = [0, 1, 2].map((j) => {
-          const s = m.b.slots[j];
-          if (!s) return tip(h('span.po-slot.is-free'), 'Free slot: a water bottle here makes a spare');
-          return tip(h('span.po-slot', bottle(s.to.pot, s.to.form, 32)), () => [h('div.th-tooltip-title', potName(s.to.pot, s.to.form) + (vTag(E.pot(s.to.pot)) ? ' ' + vTag(E.pot(s.to.pot)) : '')), h('div.th-tooltip-sub', 'from ' + potName(s.from.pot, s.from.form))]);
-        });
         const outs = new Map();
         m.b.slots.forEach((s) => { const k = s.to.pot + '|' + s.to.form; outs.set(k, (outs.get(k) || 0) + 1); });
-        const cb = h('input', { type: 'checkbox', checked: isDone, 'aria-label': 'Brew ' + from + ' done', onchange: (e) => {
+        const cb = h('input', { type: 'checkbox', checked: done.has(mi), 'aria-label': 'Brew ' + from + ' done', onclick: (e) => e.stopPropagation(), onchange: (e) => {
           const d = new Set(st.ticks.done); if (e.target.checked) d.add(mi); else d.delete(mi);
           st.ticks.done = [...d]; save();
           el.classList.toggle('is-done', e.target.checked); patchProgress();
         } });
-        const el = h('div.po-bs.po-pb' + (isDone ? '.is-done' : ''), { role: 'group', 'aria-label': 'Brew ' + from },
-          h('span.po-bs-verb', h('span.po-pb-n', m.k > 1 ? 'Brew ' + from + '–' + idx : 'Brew ' + from), h('label.check.po-pb-ck', cb, h('span'))),
-          h('span.po-bs-sub', 'Add ' + ingName(m.b.ing) + (m.k > 1 ? ' · ×' + m.k : '')),
-          h('span.po-bs-row', h('span.po-bs-ing', ingIcon(m.b.ing, 40)), h('span.po-bs-arrow', { 'aria-hidden': 'true' }), h('span.po-pb-slots', slots)),
-          h('span.po-pb-outs', [...outs.entries()].map(([k, c]) => { const [pp, ff] = k.split('|'); return h('span.po-pb-out', (c * m.k > 1 ? (c * m.k) + '× ' : '') + potName(pp, ff) + (vTag(E.pot(pp)) ? ' ' + vTag(E.pot(pp)) : '')); })));
-        tip(el.querySelector('.po-bs-ing'), () => ingName(m.b.ing));
+        const el = h('li.po-srow' + (mi === cur ? '.on' : '') + (done.has(mi) ? '.is-done' : ''), { tabindex: '0', role: 'button', onclick: () => stand.go(mi), onkeydown: (e) => { if (e.key === 'Enter') stand.go(mi); } },
+          h('label.check.po-pb-ck', { onclick: (e) => e.stopPropagation() }, cb, h('span')),
+          h('span.po-sr-ing', ingT(m.b.ing, 36)),
+          h('span.po-bs-arrow', { 'aria-hidden': 'true' }),
+          h('span.po-sr-slots', [0, 1, 2].map((j) => (m.b.slots[j] ? bottle(m.b.slots[j].to.pot, m.b.slots[j].to.form, 28) : h('span.po-sr-free')))),
+          h('span.po-sr-t', h('b.po-sr-verb', (m.k > 1 ? 'Brews ' + from + '–' + idx : 'Brew ' + from) + ': add ' + ingName(m.b.ing) + (m.k > 1 ? ' (' + m.k + ' times)' : '')),
+            h('span.po-sr-res', [...outs.entries()].map(([k, c]) => { const [pp, ff] = k.split('|'); return (c * m.k > 1 ? c * m.k + '× ' : '') + potName(pp, ff) + (vTag(E.pot(pp)) ? ' ' + vTag(E.pot(pp)) : ''); }).join(' · '))));
         return el;
-      });
-      const crafts = (res.crafts || []).map((c) => bigStep({ verb: 'Craft with 8 arrows', ing: 'arrow', out: [res.goals[c.goal].pot, 'arrow'], time: '×' + c.arrows + ' tipped arrows', last: true }));
-      const prog = h('div.po-prog', h('span.bar', h('span')), h('span.po-prog-t'));
-      function patchProgress() {
-        const d = st.ticks.done.length, t = merged.length;
-        prog.querySelector('.bar > span').style.width = (t ? (d / t) * 100 : 0) + '%';
-        prog.querySelector('.po-prog-t').textContent = d + ' / ' + t + ' steps done';
-      }
+      }), (res.crafts || []).map((c) => h('li.po-srow.is-last', h('span'), h('span.po-sr-ing', ingT('arrow', 36)), h('span.po-bs-arrow', { 'aria-hidden': 'true' }), h('span.po-sr-slots', bottle(res.goals[c.goal].pot, 'arrow', 28)),
+        h('span.po-sr-t', h('b.po-sr-verb', 'Craft: 8 arrows around each lingering potion'), h('span.po-sr-res', '×' + c.arrows + ' ' + potName(res.goals[c.goal].pot, 'arrow'))))));
+      stand = standView(merged.map((m) => ({ verb: 'Put ' + ingName(m.b.ing) + ' in the top slot', top: m.b.ing,
+        inB: [0, 1, 2].map((j) => m.b.slots[j] ? [m.b.slots[j].from.pot, m.b.slots[j].from.form] : null),
+        outB: [0, 1, 2].map((j) => m.b.slots[j] ? [m.b.slots[j].to.pot, m.b.slots[j].to.form] : null) })), cur, (i) => { st.step = i; save(); list.querySelectorAll('.po-srow').forEach((x, k) => x.classList.toggle('on', k === i)); });
       patchProgress();
-      stepsPan.replaceChildren(
-        h('div.po-steps-head', h('h3', 'Brewing order'), h('span.po-steps-sum', h('img.po-stand-ico', { src: TH.icon.src('item/brewing_stand'), alt: '' }), res.ops + (res.ops === 1 ? ' brew' : ' brews') + ' · ' + secs(res.seconds) + ' · ' + res.bottles + ' bottles')),
-        h('div.po-needrow', h('span.po-lbl', 'You need'), need, h('div.po-shop-acts', sendBtn, copyBtn)),
-        prog,
-        h('div.po-flow.is-plan', blocks, crafts));
-      watchFlow(stepsPan.querySelector('.po-flow'));
+      stepsRoot.replaceChildren(header,
+        h('section.panel.po-steps', { 'aria-label': 'Brewing order' },
+          h('div.po-steps-head', h('h3', 'Brewing order'), h('span.po-steps-sum', h('img.po-stand-ico', { src: TH.icon.src('item/brewing_stand'), alt: '' }), res.ops + (res.ops === 1 ? ' brew' : ' brews') + ' · ' + secs(res.seconds) + ' · ' + res.bottles + ' bottles')),
+          h('div.po-needrow', h('span.po-lbl', 'You need'), need, h('div.po-shop-acts', sendBtn, copyBtn)),
+          prog,
+          h('div.po-brewgrid', h('div.po-brew-l', list), stand.el)));
     }
     function shopLines() {
       if (!lastPlan) return [];
@@ -605,10 +714,10 @@
     const q = h('input.field.po-search', { type: 'search', placeholder: 'Search potions, effects or ingredients', 'aria-label': 'Search potions', value: st.q || '', autocomplete: 'off', spellcheck: false,
       oninput: () => { st.q = q.value; save(); patchList(); } });
     const fBtnN = h('em.po-fn');
-    const filtersBtn = h('button.btn.po-fbtn', { type: 'button', 'aria-expanded': String(!!st.filtersOpen), 'aria-controls': 'po-more', onclick: () => { st.filtersOpen = !st.filtersOpen; save(); syncFiltersOpen(); } }, glyph('filter'), h('span', 'Filters'), fBtnN);
-    const formSeg = seg('Bottle form', FORMS.map((f) => [f, FORM_LABEL[f], f === 'arrow' ? 'Tipped arrows: 8 arrows around 1 lingering potion' : null, h('span.po-fi', { 'data-f': f })]), st.form, (f) => setForm(f), '.po-forms');
-    const varSeg = seg('Variant', VARS.map(([id, t]) => [id, t, id === 'long' ? 'Redstone: longer duration' : id === 'strong' ? 'Glowstone: stronger effect, shorter' : null]), st.variant, (v) => { st.variant = v; save(); patchList(); }, '.po-vars');
-    formSeg.querySelectorAll('.po-fi').forEach((s) => s.replaceChildren(bottle('swiftness', s.dataset.f, 16)));
+    const filtersBtn = h('button.btn.po-fbtn', { type: 'button', 'aria-expanded': String(!!st.filtersOpen), 'aria-controls': 'po-more', onclick: () => { st.filtersOpen = !st.filtersOpen; save(); syncFiltersOpen(); } }, glyph('filter'), h('span', 'More filters'), fBtnN);
+    const libForm = seg('Bottle form', FORMS.map((f) => [f, FORM_LABEL[f], f === 'arrow' ? 'Tipped arrows: 8 arrows around 1 lingering potion' : null, h('span.po-fi', { 'data-f': f })]), st.form, (f) => setForm(f), '.po-forms');
+    const varSeg = seg('Strength', VARS.map(([id, t]) => [id, t, id === 'long' ? 'Redstone: longer duration' : id === 'strong' ? 'Glowstone: stronger effect, shorter' : null]), st.variant, (v) => { st.variant = v; save(); patchList(); }, '.po-vars');
+    libForm.querySelectorAll('.po-fi').forEach((s) => s.replaceChildren(bottle('swiftness', s.dataset.f, 16)));
     const sortRow = h('div.po-chips', { role: 'radiogroup', 'aria-label': 'Sort by' });
     const dirBtn = h('button.btn.small.po-dir', { type: 'button', onclick: () => { st.dir = st.dir === -1 ? 1 : -1; save(); patchSortRow(); patchList(); } });
     tip(dirBtn, () => (st.dir === -1 ? 'Descending · click for ascending' : 'Ascending · click for descending'));
@@ -671,12 +780,13 @@
     }
     const row = (label, ...kids) => h('div.po-row', h('span.po-lbl', label), h('div.po-row-in', kids));
     const more = h('div.po-more', { id: 'po-more' },
-      row('Sort', sortRow), row('Type', typeRow), row('Ingredients', h('div.po-ingwrap', ingRow, ingModeSeg)), row('Effects', effRow));
+      row('Ingredients', h('div.po-ingwrap', ingRow, ingModeSeg)), row('Effects', effRow), row('Sort', sortRow));
     function syncFiltersOpen() { filtersBtn.setAttribute('aria-expanded', String(!!st.filtersOpen)); more.classList.toggle('is-open', !!st.filtersOpen); filtersBtn.classList.toggle('on', !!st.filtersOpen); }
     const filters = h('section.panel.po-filters', { 'aria-label': 'Filters' },
       h('div.po-scene', { 'aria-hidden': 'true' }, h('i.po-stand'), h('i.po-bub'), h('i.po-bub'), h('i.po-bub')),
       h('div.po-frow', h('div.po-search-wrap.search', q), filtersBtn, clearBtn),
-      h('div.po-frow.po-segs', formSeg, varSeg),
+      h('div.po-frow.po-segs', libForm, varSeg),
+      h('div.po-typerow', typeRow),
       more);
     const grid = h('div.po-grid');
     const count = h('span.po-count');
@@ -706,7 +816,7 @@
     }
     function patchList() {
       patchChips();
-      formSeg.set(st.form);
+      libForm.set(st.form);
       const list = results(st);
       count.textContent = list.length + (list.length === 1 ? ' potion' : ' potions');
       E2.cards.clear();
@@ -726,7 +836,7 @@
         const modLine = mods.length ? h('div.po-iline', h('span.po-ilbl', 'Changes'), h('span.po-ires.po-imods', mods.map(([a, b]) => tip(h('button.po-imod', { type: 'button', onclick: () => select(b) }, bottle(a, 'potion', 18), h('span.po-step-arrow.is-sm', { 'aria-hidden': 'true' }), bottle(b, 'potion', 18)), () => potName(a) + (vTag(E.pot(a)) ? ' ' + vTag(E.pot(a)) : '') + ' → ' + potName(b) + (vTag(E.pot(b)) ? ' ' + vTag(E.pot(b)) : ''))))) : null;
         const formLine = d.role === 'form' ? h('div.po-iline', h('span.po-ilbl', 'Turns'), h('span.po-ires', id === 'gunpowder' ? 'any potion into a splash potion' : 'a splash potion into a lingering potion')) : null;
         return h('article.po-ing', { 'data-id': id },
-          h('div.po-ing-top', h('span.po-ing-ico', ingIcon(id, 32)), h('div.po-ing-t', h('h4', ingName(id)), h('span.po-src', SRC_LABEL[d.src] || d.src))),
+          h('div.po-ing-top', h('span.po-ing-ico', ingT(id, 32)), h('div.po-ing-t', h('h4', ingName(id)), h('span.po-src', SRC_LABEL[d.src] || d.src))),
           h('p.po-ing-w', d.where),
           line('From water', water), line('From awkward', awk), modLine, formLine,
           h('button.btn.small.po-ing-go', { type: 'button', onclick: () => { st.ings = [id]; st.types = []; st.effs = []; st.q = ''; q.value = ''; if (id === 'gunpowder' && st.form === 'potion') st.form = 'splash'; if (id === 'dragon_breath' && (st.form === 'potion' || st.form === 'splash')) st.form = 'lingering'; save(); setView('library'); } }, glyph('filter'), 'Show ' + used + ' potions'));
@@ -735,7 +845,7 @@
       return h('div.po-ingview',
         h('section.panel.po-ingpan', { 'aria-label': 'Ingredients' }, h('div.po-pan-head', h('h3', 'Ingredients'), h('span.po-count', Object.keys(D().ingredients).length + ' brewing ingredients')), h('div.po-inggrid', items)),
         h('section.panel.po-ingpan', { 'aria-label': 'Also needed' }, h('div.po-pan-head', h('h3', 'Also needed')),
-          h('div.po-inggrid.is-sm', Object.entries(ex).map(([id, d]) => h('article.po-ing', h('div.po-ing-top', h('span.po-ing-ico', ingIcon(id, 32)), h('div.po-ing-t', h('h4', ingName(id)))), h('p.po-ing-w', d.where))),
+          h('div.po-inggrid.is-sm', Object.entries(ex).map(([id, d]) => h('article.po-ing', h('div.po-ing-top', h('span.po-ing-ico', ingT(id, 32)), h('div.po-ing-t', h('h4', ingName(id)))), h('p.po-ing-w', d.where))),
             h('article.po-ing', h('div.po-ing-top', h('span.po-ing-ico', ingIcon('blaze_powder', 32)), h('div.po-ing-t', h('h4', ingName('blaze_powder')), h('span.po-src', 'Fuel'))), h('p.po-ing-w', 'One powder fuels 20 brews. The stand only uses fuel when a brew starts.')))));
     }
 
@@ -788,7 +898,6 @@
     }
 
     /* ================= shell ================= */
-    const stepsView = h('div.po-sv', pick, stage);
     const libView = h('div.po-lib', filters, listPanel);
     const body = h('div.po-body');
     let ingEl = null, guideEl = null;
@@ -797,10 +906,11 @@
       st.view = v; save();
       tabsSeg.set(v);
       root.dataset.poView = v;
+      if (v !== 'steps' && stand) { stand.stop(); stand = null; }
       if (v === 'library') { body.replaceChildren(libView); patchList(); }
       else if (v === 'ings') body.replaceChildren(ingEl || (ingEl = ingView()));
       else if (v === 'guide') body.replaceChildren(guideEl || (guideEl = guideView()));
-      else { body.replaceChildren(stepsView); patchStage(); patchPick(); }
+      else { body.replaceChildren(stepsRoot); patchSteps(); }
       if (root.isConnected) window.scrollTo({ top: 0 });
     }
     root.append(head, body);
@@ -816,19 +926,24 @@
     short: 'Brew',
     icon: () => bottle('swiftness', 'potion', 18),
     init(store) {
-      // a first visit opens on a real example: Splash Potion of Healing II
-      store.define('potions', { view: 'steps', mode: 'one', sel: 'strong_healing', form: 'splash', variant: 'all', q: '', types: [], ings: [], ingMode: 'all', effs: [], sort: 'game', dir: 1, alt: 0, batches: 1, plan: [], fav: [], recent: [], filtersOpen: false, pickOpen: false, ticks: null });
+      // a first visit opens on the question 'What do you want to brew?'
+      const fresh = !store.get().potions;
+      store.define('potions', { view: 'steps', screen: 'choose', sel: null, step: null, form: 'potion', variant: 'all', q: '', types: [], ings: [], ingMode: 'all', effs: [], sort: 'game', dir: 1, alt: 0, batches: 1, plan: [], fav: [], recent: [], filtersOpen: false, ticks: null, infoOpen: false });
       const s = store.get().potions;
       ['types', 'ings', 'effs', 'plan', 'fav', 'recent'].forEach((k) => { if (!Array.isArray(s[k])) s[k] = []; });
       // the first layout had Catalogue / Planner tabs
       if (s.view === 'plan') { s.view = 'steps'; s.mode = 'plan'; }
+      // the steps-first layout had a One potion / My plan switch (mode); now the plan is a screen of its own
+      if (!fresh && !['choose', 'potion', 'plan'].includes(s.screen)) s.screen = s.mode === 'plan' ? 'plan' : 'potion';
+      if (!['choose', 'potion', 'plan'].includes(s.screen)) s.screen = 'choose';
+      delete s.mode; delete s.pickOpen; s.adding = false;
+      if (s.step != null && !(s.step >= 0)) s.step = null;
       if (s.view === 'list' || !['steps', 'library', 'ings', 'guide'].includes(s.view)) s.view = 'steps';
-      if (s.mode !== 'plan') s.mode = 'one';
       if (!FORMS.includes(s.form)) s.form = 'potion';
       if (!['all', 'n', 'long', 'strong'].includes(s.variant)) s.variant = 'all';
       if (!SORTS.some(([id]) => id === s.sort)) s.sort = 'game';
       if (s.ingMode !== 'any') s.ingMode = 'all';
-      if (!TH.data.potions.potions.some((p) => p.id === s.sel)) s.sel = 'strong_healing';
+      if (s.sel != null && !TH.data.potions.potions.some((p) => p.id === s.sel)) { s.sel = null; s.screen = 'choose'; }
       s.plan = s.plan.filter((x) => x && TH.data.potions.potions.some((p) => p.id === x.pot) && FORMS.includes(x.form) && x.n > 0);
       s.fav = s.fav.filter((id) => TH.data.potions.potions.some((p) => p.id === id));
       s.types = s.types.filter((t) => TYPES.some(([id]) => id === t));

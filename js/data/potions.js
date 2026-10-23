@@ -206,6 +206,39 @@ TH.data.potions = {
   },
 
   /**
+   * How to make or find each ingredient, for the ingredient tooltips (minecraft.wiki crafting templates, Oct 2026).
+   * recipes: method 'crafting' with a 3x3 grid (row by row, null = empty) or shapeless inputs, or 'smelting'; out = count.
+   * obtain: an icon for where it comes from (a spawn egg = that mob drops it, a tool = gather it with that tool).
+   * parts: textures of things that only appear inside these pictures.
+   */
+  recipes: {
+    fermented_spider_eye: [{ method: 'crafting', shapeless: ['spider_eye', 'brown_mushroom', 'sugar'], out: 1 }],
+    glistering_melon_slice: [{ method: 'crafting', grid: ['gold_nugget', 'gold_nugget', 'gold_nugget', 'gold_nugget', 'melon_slice', 'gold_nugget', 'gold_nugget', 'gold_nugget', 'gold_nugget'], out: 1 }],
+    golden_carrot: [{ method: 'crafting', grid: ['gold_nugget', 'gold_nugget', 'gold_nugget', 'gold_nugget', 'carrot', 'gold_nugget', 'gold_nugget', 'gold_nugget', 'gold_nugget'], out: 1 }],
+    magma_cream: [{ method: 'crafting', shapeless: ['blaze_powder', 'slime_ball'], out: 1 }],
+    blaze_powder: [{ method: 'crafting', shapeless: ['blaze_rod'], out: 2 }],
+    sugar: [{ method: 'crafting', shapeless: ['sugar_cane'], out: 1 }, { method: 'crafting', shapeless: ['honey_bottle'], out: 3 }],
+    glass_bottle: [{ method: 'crafting', grid: [null, null, null, 'glass', null, 'glass', null, 'glass', null], out: 3 }],
+    turtle_helmet: [{ method: 'crafting', grid: [null, null, null, 'turtle_scute', 'turtle_scute', 'turtle_scute', 'turtle_scute', null, 'turtle_scute'], out: 1 }],
+    slime_block: [{ method: 'crafting', grid: ['slime_ball', 'slime_ball', 'slime_ball', 'slime_ball', 'slime_ball', 'slime_ball', 'slime_ball', 'slime_ball', 'slime_ball'], out: 1 }],
+    stone: [{ method: 'smelting', in: 'cobblestone', out: 1 }],
+    arrow: [{ method: 'crafting', grid: [null, 'flint', null, null, 'stick', null, null, 'feather', null], out: 4 }],
+    brewing_stand: [{ method: 'crafting', grid: [null, 'blaze_rod', null, 'cobblestone', 'cobblestone', 'cobblestone', null, null, null], out: 1 }],
+  },
+  obtain: {
+    nether_wart: 'block/soul_sand', redstone: 'block/redstone_ore', glowstone_dust: 'block/glowstone', gunpowder: 'item/creeper_spawn_egg',
+    dragon_breath: 'item/ender_dragon_spawn_egg', rabbit_foot: 'item/rabbit_spawn_egg', spider_eye: 'item/spider_spawn_egg', ghast_tear: 'item/ghast_spawn_egg',
+    pufferfish: 'item/fishing_rod', phantom_membrane: 'item/phantom_spawn_egg', breeze_rod: 'item/breeze_spawn_egg', cobweb: 'item/shears',
+    magma_cream: 'item/magma_cube_spawn_egg', blaze_powder: 'item/blaze_spawn_egg', turtle_helmet: 'item/turtle_spawn_egg', slime_block: 'item/slime_spawn_egg',
+  },
+  parts: {
+    spider_eye: 'item/spider_eye', brown_mushroom: 'block/brown_mushroom', sugar: 'item/sugar', gold_nugget: 'item/gold_nugget', melon_slice: 'item/melon_slice',
+    carrot: 'item/carrot', blaze_powder: 'item/blaze_powder', slime_ball: 'item/slime_ball', blaze_rod: 'item/blaze_rod', sugar_cane: 'item/sugar_cane',
+    honey_bottle: 'item/honey_bottle', glass: 'block/glass', turtle_scute: 'item/turtle_scute', cobblestone: 'block/cobblestone', flint: 'item/flint',
+    stick: 'item/stick', feather: 'item/feather', crafting: 'block/crafting_table_front', smelting: 'block/furnace_front',
+  },
+
+  /**
    * What each effect does (Java), level = amplifier + 1. Values from the wiki's Potion / Effect pages.
    * Short English; the tool shows them next to the effect icon.
    */

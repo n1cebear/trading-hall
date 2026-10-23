@@ -13,7 +13,10 @@
  *   elytra: false,                            // wear an elytra instead of the chestplate (3D view only)
  *   lastMaterial: 'quartz',                   // trim material used when a pattern is picked on a bare piece (quartz = default)
  *   sync: false,                              // "same for all": every edit goes to all pieces
- *   skin: { kind: 'steve'|'alex'|'name'|'file', name, data (dataURL), slim },   ('name'/'file' = the Player key)
+ *   skin: { kind: 'steve'|'alex'|'name'|'file', name, data (dataURL), slim, cape },   ('name'/'file' = the Player key)
+ *     cape = the looked-up player's equipped cape (64x32 PNG data URL) | null (none) | missing (not looked up yet: fetched in the background)
+ *   cape: true,                               // show the player's cape (and its elytra look); only matters when the skin has one
+ *   target: 'all' | piece,                    // what the Trim panel edits: every piece, or one piece (pattern + trim material)
  *   player: null | the last player skin while Steve/Alex is shown (same shape),
  *   anim: 'idle'|'walk'|'run'|'jump'|'sneak'|'mine'|'fight'|'swim'|'fly',   // viewer animation (never autoplays with reduced motion)
  *   saved: [{ id, name, outfit, skin?, updated }], savedId, saveName, renaming, renameText
@@ -100,7 +103,7 @@
 
   /* Skin kinds: 'name' (username lookup) and 'file' (upload) are the "Player" key, 'steve' / 'alex' the defaults. */
   const isPlayer = (k) => k === 'name' || k === 'file';
-  const DEFAULT_SKIN = (k) => ({ kind: k, name: '', data: null, slim: k === 'alex' });
+  const DEFAULT_SKIN = (k) => ({ kind: k, name: '', data: null, slim: k === 'alex', cape: null });
   /** Replace the active skin; a player skin being replaced by a default is stashed in s.player, a new player skin clears the stash. */
   function setSkin(s, next) {
     if (isPlayer(next.kind)) s.player = null;
@@ -142,11 +145,15 @@
     if (isPlayer(sk.kind) && !sk.data) sk.kind = 'steve';   // a player skin without pixels cannot be shown
     // Steve / Alex have a fixed arm model (Classic / Slim is disabled for them); player skins keep the user's choice
     sk.slim = sk.kind === 'steve' ? false : sk.kind === 'alex' ? true : typeof sk.slim === 'boolean' ? sk.slim : false;
+    // only a looked-up username has a cape; a missing field on a 'name' skin = not looked up yet (old saves), kept missing
+    if (sk.kind !== 'name') sk.cape = null;
+    else if (sk.cape !== undefined && typeof sk.cape !== 'string') sk.cape = null;
+    st.cape = st.cape !== false;
     // st.player = the last player skin, stashed while Steve / Alex is shown so "Player" can bring it back (null when none
     // or when the player skin is the active one, so the PNG is never stored twice). Old saves have no field -> null.
     const pl = st.player;
     st.player = !isPlayer(sk.kind) && pl && typeof pl === 'object' && isPlayer(pl.kind) && typeof pl.data === 'string'
-      ? { kind: pl.kind, name: typeof pl.name === 'string' ? pl.name : '', data: pl.data, slim: !!pl.slim } : null;
+      ? { kind: pl.kind, name: typeof pl.name === 'string' ? pl.name : '', data: pl.data, slim: !!pl.slim, cape: pl.kind === 'name' && typeof pl.cape === 'string' ? pl.cape : pl.kind === 'name' && pl.cape === undefined ? undefined : null } : null;
     if (!Array.isArray(st.saved)) st.saved = [];
     st.saved = st.saved.filter((g) => g && g.outfit && typeof g.name === 'string');
     if (typeof st.saveName !== 'string') st.saveName = '';
@@ -382,15 +389,48 @@
     try { j = await r.json(); } catch (e) { /* not JSON */ }
     return { status: r.status, j };
   };
-  /** The textures property of a Mojang profile (base64 JSON) -> { url, model }. */
+  /** The textures property of a Mojang profile (base64 JSON) -> { url, model, cape } (cape = the equipped cape's URL or null). */
   function decodeTextures(props) {
     try {
       const pr = (props || []).find((x) => x && x.name === 'textures') || (props || [])[0];
       if (!pr || !pr.value) return null;
-      const t = JSON.parse(atob(pr.value)), sk = t && t.textures && t.textures.SKIN;
+      const t = JSON.parse(atob(pr.value)), tx = (t && t.textures) || {}, sk = tx.SKIN;
       if (!sk) return null;
-      return { url: sk.url || null, model: sk.metadata && sk.metadata.model === 'slim' ? 'slim' : 'classic' };
+      return { url: sk.url || null, model: sk.metadata && sk.metadata.model === 'slim' ? 'slim' : 'classic', cape: (tx.CAPE && tx.CAPE.url) || null };
     } catch (e) { return null; }
+  }
+  /**
+   * Cape image -> 64x32 canvas (cape.png layout: the 10x16x1 cape box at uv 0,0, i.e. outer face at 1,1 and inner face at
+   * 12,1; the elytra wings at 22,0). HD capes (128x64, ...) are scaled down, legacy 22x17 capes sit in the top-left corner.
+   */
+  function capeFromImage(img) {
+    const w = img.naturalWidth || img.width, hh = img.naturalHeight || img.height;
+    const c = mkCanvas(64, 32), x = ctxOf(c);
+    x.imageSmoothingEnabled = false;
+    if (w >= 64 && w % 64 === 0 && hh * 2 === w) x.drawImage(img, 0, 0, w, hh, 0, 0, 64, 32);
+    else if (w <= 64 && hh <= 32 && w >= 22 && hh >= 17) x.drawImage(img, 0, 0);
+    else throw new Error('Not a cape texture');
+    return c;
+  }
+  /** True when the cape texture has its own elytra (the game then draws the elytra in the cape's look). */
+  function capeHasElytra(c) {
+    const d = ctxOf(c).getImageData(22, 0, 24, 22).data;
+    for (let i = 3; i < d.length; i += 4) if (d[i] > 8) return true;
+    return false;
+  }
+  /**
+   * The equipped Mojang cape of a profile as a 64x32 PNG data URL, or null (no cape / not reachable). `url` comes from the
+   * profile (textures.minecraft.net answers with CORS); crafatar's /capes/<uuid> is the fallback (404 = no cape).
+   * `known` = the profile was read, so a missing URL really means "no cape". OptiFine capes are not looked up.
+   */
+  async function fetchCape(uuid, url, known) {
+    const list = [];
+    if (url) list.push(String(url).replace(/^http:/, 'https:'));
+    if (uuid && (url || !known)) list.push('https://crafatar.com/capes/' + uuid);
+    for (const u of list) {
+      try { return capeFromImage(await withTimeout(loadImg(u), 7000, 'cape')).toDataURL('image/png'); } catch (e) { /* next source */ }
+    }
+    return null;
   }
   /**
    * Username -> skin. 1) playerdb.co: uuid + the profile's textures property (skin URL, `model: slim`).
@@ -399,33 +439,50 @@
    *    quietly), then name-based mirrors. Images load with crossOrigin=anonymous so the canvas / WebGL stay untainted.
    * The arm model comes from the profile when known, otherwise from the pixels. Returns { canvas, slim, via, uuid }.
    */
+  /** Username -> skin + cape: the skin lookup below, then the cape of the same profile (r.cape = PNG data URL or null). */
   async function fetchNamedSkin(name) {
     const cached = skinCacheGet(name);
-    if (cached) {
+    if (cached && cached.cape !== undefined) {   // entries from before capes were looked up have no `cape` field: look them up again
       try {
         const r = skinFromImage(await loadImg(cached.data));
         if (cached.model) r.slim = cached.model === 'slim';
-        return Object.assign(r, { via: 'cache', uuid: cached.uuid });
+        return Object.assign(r, { via: 'cache', uuid: cached.uuid, cape: cached.cape });
       } catch (e) { /* stale entry: look it up again */ }
     }
+    const r = await lookupSkin(name);
+    r.cape = await fetchCape(r.uuid, r.capeUrl, r.capeKnown);
+    skinCachePut(name, { uuid: r.uuid, model: r.slim ? 'slim' : 'classic', data: r.canvas.toDataURL('image/png'), cape: r.cape });
+    return r;
+  }
+  /** The cape of a player skin saved before capes existed (no lookup of the skin itself). Resolves to a data URL or null. */
+  async function fetchNamedCape(name) {
+    const cached = skinCacheGet(name);
+    if (cached && cached.cape !== undefined) return cached.cape;
+    const { j } = await anyJson('https://playerdb.co/api/player/minecraft/' + encodeURIComponent(name), 7000, 'playerdb');
+    const pl = j && j.code === 'player.found' && j.data && j.data.player;
+    if (!pl) return null;
+    const uuid = pl.raw_id || String(pl.id || '').replace(/-/g, '') || null, tx = decodeTextures(pl.properties);
+    return fetchCape(uuid, (tx && tx.cape) || pl.cape_texture || null, !!tx);
+  }
+  async function lookupSkin(name) {
     const n = encodeURIComponent(name), T = 7000;
     const img = (url) => withTimeout(loadImg(url), T, url);
-    let uuid = null, model = null, texUrl = null;
+    let uuid = null, model = null, texUrl = null, capeUrl = null, capeKnown = false;
     try {
       const { j } = await anyJson('https://playerdb.co/api/player/minecraft/' + n, T, 'playerdb');
       const pl = j && j.data && j.data.player;
       if (j && j.code === 'player.found' && pl) {
         uuid = pl.raw_id || String(pl.id || '').replace(/-/g, '') || null;
         texUrl = pl.skin_texture || null;
+        capeUrl = pl.cape_texture || null;
         const tx = decodeTextures(pl.properties);
-        if (tx) { texUrl = tx.url || texUrl; model = tx.model; }
+        if (tx) { texUrl = tx.url || texUrl; model = tx.model; capeUrl = tx.cape || capeUrl; capeKnown = true; }
       } else if (j && /invalid_username|not_found|notfound|unknown/i.test(String(j.code || ''))) throw notFoundErr(name);
     } catch (e) { if (e && e.notFound) throw e; }
     const https = (u) => String(u).replace(/^http:/, 'https:');
     const finish = (r, via) => {
       if (model) r.slim = model === 'slim';
-      r.via = via; r.uuid = uuid;
-      skinCachePut(name, { uuid, model: model || (r.slim ? 'slim' : 'classic'), data: r.canvas.toDataURL('image/png') });
+      r.via = via; r.uuid = uuid; r.capeUrl = capeUrl; r.capeKnown = capeKnown;
       return r;
     };
     const tryImages = async (list) => {
@@ -451,6 +508,7 @@
       if (sk) {
         if (!uuid && j.uuid) uuid = String(j.uuid).replace(/-/g, '');
         if (!model && j.textures.slim != null) model = j.textures.slim ? 'slim' : 'classic';
+        if (!capeKnown) { const cp = j.textures.cape; capeUrl = cp ? (cp.data ? 'data:image/png;base64,' + cp.data : cp.url || null) : null; capeKnown = true; }
         r = await tryImages(sk.data ? [['ashcon', 'data:image/png;base64,' + sk.data]] : sk.url ? [['ashcon', https(sk.url)]] : []);
         if (r) return r;
       }
@@ -815,6 +873,12 @@
       const w = S.wing;   // ElytraModel: right wing mirrors the left
       S.wings.l.rotation.set(w[0], -w[1], -w[2]); S.wings.r.rotation.set(w[0], w[1], w[2]);
       S.wings.l.position.y = S.wings.r.position.y = WING_PIV[1] - w[3];
+      if (S.cape.visible) {   // CapeLayer: xRot = 6deg + half the backward speed (+ a step bob). The cape hangs on the torso here, so the
+        // crouch lean (body xRot 0.5) already swings it out about as far as vanilla's +25deg; no extra angle for sneaking
+        const deg = 6 + S.amt * 16 + Math.sin(S.limb * 0.6662) * 2.5 * S.amt;
+        S.cape.rotation.x = deg * Math.PI / 180;
+        S.cape.position.set(0, S.capeChest ? 0.85 : 0, S.capeChest ? -3.1 : -2);   // over a chestplate it hangs a little further out
+      }
       const lift = Math.max(0, q[ROOT_Y]), sc = Math.max(0.55, 1 - lift * 0.04) * (q[ROOT_X] > 0.5 ? 0.9 : 1);
       S.shadow.scale.set(sc, sc, sc); S.shadow.material.opacity = 1 - Math.min(0.5, lift * 0.05);
     }
@@ -881,6 +945,15 @@
         g.add(new THREE.Mesh(geo, S.wingMat));
         g.visible = false; S.rig.add(g); S.wings[id] = g;
       });
+      // cape: vanilla's 10x16x1 box at uv 0,0 of the 64x32 cape texture, turned 180deg (like CapeLayer) so its outer face
+      // (texture 1,1) faces backwards; hung from the top of the torso, behind the back, swinging out around its top edge
+      S.capeMat = new THREE.MeshLambertMaterial({ alphaTest: 0.5, side: THREE.FrontSide });
+      const cgeo = boxGeometry({ box: [-5, -16, 0, 10, 16, 1], uv: [0, 0] }, 64, 32);
+      cgeo.rotateY(Math.PI);
+      S.cape = new THREE.Group();
+      S.cape.add(new THREE.Mesh(cgeo, S.capeMat));
+      S.cape.visible = false;
+      S.bones.torso.add(S.cape);
       PIECES.forEach((p) => {
         const m = mat();
         const meshes = armorParts[p].map((part) => {
@@ -1149,6 +1222,22 @@
       S.onElytra && S.onElytra(!!on);
       S.dirty = true; wake();
     };
+    /** The player's cape (canvas = 64x32 cape texture, null = none / hidden); chest = a chestplate is worn under it. */
+    S.setCape = (canvas, chest) => {
+      if (!S.ready) return;
+      if (canvas) { S.capeMat.map = canvasTex(canvas); S.capeMat.needsUpdate = true; }
+      S.cape.visible = !!canvas;
+      S.capeChest = !!chest;
+      if (S.bones) applyPose();
+      S.dirty = true; wake();
+    };
+    /** Point at one armor piece in the preview: the same short pop as a change (skipped under reduced motion). */
+    S.flash = (piece) => {
+      const pc = S.pieces[piece];
+      if (!S.ready || !pc || !pc.src || reduced()) return;
+      S.fx[piece] = performance.now();
+      S.dirty = true; wake();
+    };
     /* ---- backdrop terrain: one Lambert mesh per texture bucket of genTerrain(); old GPU buffers are freed on every switch ---- */
     S.setBackdrop = (T, canv) => {
       if (!S.ready) return;
@@ -1246,17 +1335,43 @@
         if (!gl) V.setGlint(false);
         else glintImg().then((img) => { if (cur().glint) V.setGlint(true, img); }).catch(() => { toast('Could not load the enchantment glint texture'); });
       }
-      const ey = !!st.elytra, esig = 'e' + ey;
+      // cape: shown on the back unless an elytra is worn; with an elytra, the wings take the cape's look (as in the game)
+      const capeData = st.cape && capeOf(st), ey = !!st.elytra;
+      const csig = capeData && !ey ? dataSig(capeData) + '|' + !!(st.outfit.chestplate.show) : 'none';
+      if (V.sig.cape !== csig) {
+        V.sig.cape = csig;
+        if (csig === 'none') V.setCape(null);
+        else capeCanvas(capeData).then((c) => { if (V.sig.cape === csig) V.setCape(c, st.outfit.chestplate.show); }).catch(() => { if (V.sig.cape === csig) V.setCape(null); });
+      }
+      const esig = 'e' + ey + (ey && capeData ? '|' + dataSig(capeData) : '');
       if (V.sig.elytra !== esig) {
         V.sig.elytra = esig;
         if (!ey) V.setElytra(false);
-        else elytraCanvas().then((c) => { if (V.sig.elytra === esig) V.setElytra(true, c); }).catch(() => { toast('Could not load the elytra texture'); });
+        else elytraFor(capeData).then((c) => { if (V.sig.elytra === esig) V.setElytra(true, c); }).catch(() => { toast('Could not load the elytra texture'); });
       }
     }).catch(() => { /* error shown in the viewer panel */ });
   }
   const glintImg = () => loadTex('misc/enchanted_glint_armor');
   const elytraCache = new Map();
   const elytraCanvas = () => memo(elytraCache, 'e', async () => { const img = await loadTex('entity/equipment/wings/elytra'); const c = mkCanvas(64, 32); c.getContext('2d').drawImage(img, 0, 0); return c; });
+  /** The active skin's cape (data URL) when it has one, else null. */
+  const capeOf = (st) => (st.skin.kind === 'name' && typeof st.skin.cape === 'string' ? st.skin.cape : null);
+  const capeCache = new Map();
+  const capeCanvas = (data) => memo(capeCache, dataSig(data) + '|' + data.length, async () => capeFromImage(await loadImg(data)));
+  /** Elytra texture: the cape's own (when the cape is shown and carries an elytra part), else the default elytra. */
+  const elytraFor = async (capeData) => {
+    if (capeData) { try { const c = await capeCanvas(capeData); if (capeHasElytra(c)) return c; } catch (e) { /* default elytra */ } }
+    return elytraCanvas();
+  };
+  /* Player skins saved before capes were looked up: fetch the cape once in the background (no toast when there is none). */
+  const capeAsked = new Set();
+  function fillCape(st) {
+    const sk = st.skin;
+    if (sk.kind !== 'name' || sk.cape !== undefined || !sk.name || capeAsked.has(sk.name.toLowerCase())) return;
+    capeAsked.add(sk.name.toLowerCase());
+    fetchNamedCape(sk.name).then((cape) => upd((s) => { if (s.skin.kind === 'name' && s.skin.name === sk.name && s.skin.cape === undefined) s.skin.cape = cape; }))
+      .catch(() => { /* services down: try again next visit */ });
+  }
   V.onRestore = () => syncViewer(cur());
 
   /* ======================================================================
@@ -1269,17 +1384,22 @@
    * the duplication cost, and the trim materials (one ingot / gem per trimmed piece).
    */
   function computeMaterials(st) {
-    const pcs = PIECES.filter((p) => st.outfit[p].show);
+    // pieces that are worn: shown in the preview, and the chestplate not swapped for the elytra
+    const elytraChest = !!st.elytra && st.outfit.chestplate.show && !!st.outfit.chestplate.pattern;
+    const pcs = PIECES.filter((p) => st.outfit[p].show && !(p === 'chestplate' && st.elytra));
     const trimmed = pcs.filter((p) => st.outfit[p].pattern && st.outfit[p].material);
     const byPat = {};
     trimmed.forEach((p) => { (byPat[st.outfit[p].pattern] = byPat[st.outfit[p].pattern] || []).push(p); });
-    const templates = D.trimPatterns.filter((p) => byPat[p.id]).map((p) => ({ id: p.id, qty: byPat[p.id].length, owned: !!st.owned[p.id], data: p, icon: TH.icon.trimKey(p.id), title: patName(p.id) }));
+    const templates = D.trimPatterns.filter((p) => byPat[p.id]).map((p) => ({ id: p.id, qty: byPat[p.id].length, pieces: byPat[p.id], owned: !!st.owned[p.id], data: p, icon: TH.icon.trimKey(p.id), title: patName(p.id) }));
     const ingredients = new Map();
     trimmed.forEach((p) => {
       const m = TRIMM[st.outfit[p].material];
-      const r = ingredients.get(m.id) || { id: m.id, qty: 0, icon: TH.icon.trimMaterialKey(m.item), name: matName(m.id), item: ingredientName(m) };
-      r.qty++; ingredients.set(m.id, r);
+      const r = ingredients.get(m.id) || { id: m.id, qty: 0, pieces: [], icon: TH.icon.trimMaterialKey(m.item), name: matName(m.id), item: ingredientName(m) };
+      r.qty++; r.pieces.push(p); ingredients.set(m.id, r);
     });
+    // per piece (shown in the list only when the pieces differ): what each worn piece is trimmed with
+    const perPiece = trimmed.map((p) => ({ piece: p, armor: st.outfit[p].armor, pattern: st.outfit[p].pattern, material: st.outfit[p].material }));
+    const mixed = new Set(perPiece.map((x) => x.pattern + '|' + x.material)).size > 1;
     const dupes = new Map();
     let diamonds = 0, copies = 0, finds = 0;
     templates.forEach((t) => {
@@ -1289,11 +1409,15 @@
       diamonds += t.copies * D.templateCopyDiamonds;
       if (t.copies) { const r = dupes.get(t.data.block) || { icon: t.data.blockIcon, name: blockName(t.data), qty: 0 }; r.qty += t.copies; dupes.set(t.data.block, r); }
     });
-    return { pcs, templates, ingredients: [...ingredients.values()], dupes: [...dupes.values()], diamonds, copies, finds, trimmed: trimmed.length };
+    return { pcs, templates, ingredients: [...ingredients.values()], dupes: [...dupes.values()], diamonds, copies, finds, trimmed: trimmed.length, perPiece, mixed, elytraChest };
   }
 
   function materialsText(st, M) {
     const L = ['Armor trim materials'];
+    if (M.mixed) {
+      L.push('', 'Per piece');
+      M.perPiece.forEach((x) => L.push('- ' + PIECE_NAME[x.piece] + ': ' + patName(x.pattern) + ', ' + matName(x.material)));
+    }
     if (M.templates.length) {
       L.push('', 'Smithing templates');
       M.templates.forEach((t) => L.push('- ' + t.qty + 'x ' + t.title + (t.owned ? ' (have the original' : ' (find the original in ' + t.data.source) + (t.copies ? ', copy it ' + t.copies + 'x' : '') + ')'));
@@ -1442,17 +1566,44 @@
     });
     if (c.sync && field === 'armor' && ARMOR[val].pieces) toast(ARMOR[val].name + ' only exists as a helmet — the other pieces kept their armor');
   }
-  /** Trim pattern on the given pieces (a row = all four, a piece preview = one). */
-  function setPattern(id, pieces) {
-    upd((s) => { pieces.forEach((p) => { const o = s.outfit[p]; o.pattern = id; if (id && !o.material) o.material = s.lastMaterial; }); });
+  /* ---- the Trim panel edits one scope: every piece ('all') or one piece (s.target). Pattern rows and the material row
+     both follow it; a piece preview in a pattern row edits exactly that piece and makes it the scope. ---- */
+  const scopePieces = (s) => (s.target === 'all' ? PIECES : [s.target]);
+  /** Trim pattern on the given pieces; a piece without a trim material yet gets the last used one. focus = make that piece the scope. */
+  function setPattern(id, pieces, focus) {
+    upd((s) => {
+      pieces.forEach((p) => { const o = s.outfit[p]; o.pattern = id; if (id && !o.material) o.material = s.lastMaterial; });
+      if (focus) { s.target = focus; s.focus = focus; }
+    });
   }
-  /** Trim material for the target: every piece ('all') or one piece. */
+  /** Trim material for the scope: every piece ('all') or one piece. */
   function setTrimMat(id) {
-    upd((s) => { (s.target === 'all' ? PIECES : [s.target]).forEach((p) => { s.outfit[p].material = id; }); s.lastMaterial = id; });
+    upd((s) => { scopePieces(s).forEach((p) => { s.outfit[p].material = id; }); s.lastMaterial = id; });
   }
-  /** Which pieces the trim material row edits ('all' or a piece). */
+  /** What the Trim panel edits ('all' or a piece); a piece pops in the preview so it is clear which one. */
   function setTarget(t) {
+    const was = cur().target;
     upd((s) => { s.target = t; if (t !== 'all') s.focus = t; });
+    if (t !== 'all' && t !== was) V.flash(t);
+  }
+  /** Copy one piece's pattern + trim material to every piece, then edit them together again. */
+  function copyLookToAll(src) {
+    upd((s) => {
+      const o = s.outfit[src];
+      PIECES.forEach((p) => { s.outfit[p].pattern = o.pattern; s.outfit[p].material = o.material; });
+      if (o.material) s.lastMaterial = o.material;
+      s.target = 'all';
+    });
+  }
+  /** A piece's trim look as one comparable key ('' = no trim). */
+  const lookKey = (o) => (o.pattern ? o.pattern + '|' + (o.material || '') : '');
+  /** The look most pieces share ({ key, n }); n = 1 with four pieces means every piece differs. */
+  function sharedLook(st) {
+    const cnt = new Map();
+    PIECES.forEach((p) => { const k = lookKey(st.outfit[p]); cnt.set(k, (cnt.get(k) || 0) + 1); });
+    let key = null, n = 0;
+    PIECES.forEach((p) => { const k = lookKey(st.outfit[p]); if (cnt.get(k) > n) { n = cnt.get(k); key = k; } });
+    return { key, n };
   }
 
   /* ---- randomisers: every one of them always lands on a value that differs from the current one ---- */
@@ -1600,8 +1751,8 @@
       goBtn.disabled = true; goBtn.classList.add('busy'); goBtn.textContent = 'Loading…';
       try {
         const r = await fetchNamedSkin(name);
-        upd((s) => { setSkin(s, { kind: 'name', name, data: r.canvas.toDataURL('image/png'), slim: r.slim }); });
-        toast('Loaded the skin of ' + name + (r.slim ? ' (slim arms)' : ''));
+        upd((s) => { setSkin(s, { kind: 'name', name, data: r.canvas.toDataURL('image/png'), slim: r.slim, cape: r.cape || null }); });
+        toast('Loaded the skin of ' + name + (r.slim ? ' (slim arms)' : '') + (r.cape ? ' with a cape' : ''));
       } catch (e) {
         toast(e && e.message ? e.message : 'Could not load the skin');
       } finally {
@@ -1651,6 +1802,9 @@
     const glintBtn = vbtn('glint', null, {'aria-label': 'Enchantment glint',  'aria-pressed': String(!!st.glint), 'data-focus': 'tr-glint', title: 'Enchantment glint on the armor', onclick: () => upd((s) => { s.glint = !s.glint; }) });
     V.onGlint = (on) => press(glintBtn, on);
     press(autoBtn, V.auto); press(elyBtn, !!st.elytra); press(glintBtn, !!st.glint);
+    // Cape: only when the looked-up player has one equipped; on = on the back, and the elytra takes its look
+    const capeBtn = vbtn('cape', 'Cape', { 'data-focus': 'tr-cape', onclick: () => upd((s) => { s.cape = !s.cape; }) });
+    withTip(capeBtn, () => { const c = cur(); return ['Cape', (c.skin.name || 'This player') + ' has a cape equipped', c.cape ? 'Click to hide it' : 'Click to show it', 'With the elytra on, the wings take the cape’s look']; });
     const bdIco = h('span.tr-bd-cur'), bdName = h('span.tr-vlabel.tr-bdname');
     const bgBtn = h('button.btn.small.tr-vbtn.tr-bgbtn', { type: 'button', 'data-focus': 'tr-backdrop', 'aria-label': 'Backdrop' }, bdIco, bdName, h('span.tr-chev', { 'aria-hidden': 'true' }));
     withTip(bgBtn, () => ['Backdrop', (BACKDROPS.find((b) => b.id === cur().backdrop) || BACKDROPS[0]).name]);
@@ -1678,7 +1832,7 @@
       h('button.btn.small.tr-vbtn.sq', { type: 'button', 'aria-label': 'Zoom in', onclick: () => V.zoomBy(1.2) }, '+'));
     const hint = h('div.tr-hint', { 'aria-hidden': 'true' }, 'Drag to rotate · scroll or pinch to zoom');
     const viewer = h('section.panel.tr-card.tr-viewer', { 'aria-label': '3D preview' },
-      h('div.tr-vbar', h('div.tr-vgrp', { role: 'group', 'aria-label': 'Preview options' }, elyBtn, glintBtn, autoBtn), h('div.tr-vgrp.end', { role: 'group', 'aria-label': 'View' }, bgMenu, studioLab, pngBtn)),
+      h('div.tr-vbar', h('div.tr-vgrp', { role: 'group', 'aria-label': 'Preview options' }, elyBtn, capeBtn, glintBtn, autoBtn), h('div.tr-vgrp.end', { role: 'group', 'aria-label': 'View' }, bgMenu, studioLab, pngBtn)),
       stage,
       h('div.seg.tr-anims', { role: 'radiogroup', 'aria-label': 'Animation' }, animBtns),
       h('div.tr-drop', { 'aria-hidden': 'true' }, 'Drop the skin PNG'));
@@ -1689,6 +1843,8 @@
       if (bdIco.dataset.id !== b.id) { bdIco.dataset.id = b.id; bdIco.replaceChildren(bdIcon(b)); }
     };
     viewer.setBd(st.backdrop);
+    viewer.setCape = (s) => { capeBtn.hidden = !capeOf(s); press(capeBtn, !!s.cape); };
+    viewer.setCape(st);
     if (V.error) stage.append(h('div.tr-error', V.error, h('br'), h('span', 'The flat previews still work.')));
     else {
       stage.append(V.el, hint, h('div.tr-frametools', { role: 'group', 'aria-label': 'View' }, zoomGrp, resetBtn));
@@ -1736,48 +1892,62 @@
     const skinHost = h('div', { style: { display: 'contents' } });
     const viewer = buildViewer(st);
 
-    /* ---- right: trim material row + one row per pattern (template + name, duplication cost, four pieces) ---- */
+    /* ---- right: scope (All pieces | one piece) + trim material row + one row per pattern (template + name, duplication
+       cost, four pieces). The scope decides what a material tile or a pattern name edits; a piece preview always edits
+       exactly that piece and makes it the scope, so "a different trim on the boots" is one click on the boots column. ---- */
+    const scopeName = (t) => (t === 'all' ? 'every piece' : 'the ' + PIECE_NAME[t].toLowerCase());
     const tiles = new Map();
     const tileRow = h('div.tr-tiles', { role: 'radiogroup', 'aria-label': 'Trim material' }, D.trimMaterials.map((m) => {
       const b = h('button.btn.tr-tile', { type: 'button', role: 'radio', 'aria-checked': 'false', 'aria-label': matName(m.id), 'data-focus': 'tr-trimmat-' + m.id, onclick: () => setTrimMat(m.id) },
         TH.icon.trimMaterial(m.item, { size: 22 }));
       tiles.set(m.id, b);
-      return withTip(b, [matName(m.id), ingredientName(m)]);
+      return withTip(b, () => [matName(m.id), ingredientName(m), 'Sets ' + scopeName(cur().target)]);
     }));
-    const TGT = [['all', 'All', 'All pieces'], ['helmet', 'Helmet', 'Helmet only'], ['chestplate', 'Chest', 'Chestplate only'], ['leggings', 'Legs', 'Leggings only'], ['boots', 'Boots', 'Boots only']];
     const tgtBtns = new Map();
-    const tgtSeg = radioKeys(h('div.seg.tr-seg.tr-tgt', { role: 'radiogroup', 'aria-label': 'Trim material applies to' }, TGT.map(([id, n, tip]) => {
-      const ico = id === 'all'
-        ? h('span.tr-tgt-all', 'All')
-        : TH.icon.item(id, 'diamond', { size: 20 });
-      const b = h('button', { type: 'button', role: 'radio', 'aria-checked': 'false', 'aria-label': tip, 'data-focus': 'tr-tgt-' + id, onclick: () => setTarget(id) }, ico);
+    const lookLine = (o) => (o.pattern ? patName(o.pattern) + ' · ' + matName(o.material) : 'No trim');
+    const tgtSeg = radioKeys(h('div.seg.tr-seg.tr-tgt', { role: 'radiogroup', 'aria-label': 'Trim applies to' }, ['all'].concat(PIECES).map((id) => {
+      const b = id === 'all'
+        ? h('button', { type: 'button', role: 'radio', 'aria-checked': 'false', 'aria-label': 'All pieces', 'data-focus': 'tr-tgt-all', onclick: () => setTarget('all') }, h('span.tr-tgt-all', 'All'))
+        : h('button', { type: 'button', role: 'radio', 'aria-checked': 'false', 'aria-label': PIECE_NAME[id], 'data-focus': 'tr-tgt-' + id, onclick: () => setTarget(id) },
+          h('canvas.tr-tgt-ico', { width: 16, height: 16, 'aria-hidden': 'true' }), h('span.tr-own', { 'aria-hidden': 'true' }));
       tgtBtns.set(id, b);
-      return withTip(b, [tip, id === 'all' ? 'A material pick sets every piece' : 'A material pick sets only this piece']);
+      return withTip(b, () => {
+        const c = cur();
+        if (id === 'all') {
+          const same = sharedLook(c).n === PIECES.length;
+          return ['All pieces', same ? lookLine(c.outfit.helmet) : 'The pieces have different trims', 'A pattern or material pick sets every piece'];
+        }
+        return [PIECE_NAME[id], lookLine(c.outfit[id]), 'A pattern or material pick sets only this piece'];
+      });
     })));
+    const linkBtn = h('button.btn.small.tr-linkall', { type: 'button', 'data-focus': 'tr-linkall', onclick: () => { const t = cur().target; if (t !== 'all') copyLookToAll(t); } }, 'Copy to all');
+    withTip(linkBtn, () => { const t = cur().target; return t === 'all' ? ['Copy to all'] : ['Copy to all', 'Gives every piece the ' + PIECE_NAME[t].toLowerCase() + '’s trim (' + lookLine(cur().outfit[t]) + ')', 'Then edits all pieces together again']; });
     const pats = [{ id: null }].concat(D.trimPatterns).map((p, i) => {
       const title = p.id ? patName(p.id) : 'No trim';
       const pcs = PIECES.map((pc) => {
         const cv = h('canvas.tr-thumb', { width: THUMB_UNITS * 6, height: THUMB_UNITS * 6 });
         const sw = h('span.tr-sw', { 'aria-hidden': 'true' });
-        const b = h('button.btn.tr-pt', { type: 'button', 'aria-pressed': 'false', 'aria-label': PIECE_NAME[pc] + ': ' + title, 'data-focus': 'tr-pat-' + (p.id || 'none') + '-' + pc,
-          onclick: () => setPattern(p.id, [pc]) }, cv, p.id ? sw : null);
+        const b = h('button.btn.tr-pt', { type: 'button', 'aria-pressed': 'false', 'aria-label': PIECE_NAME[pc] + ': ' + title, 'data-pc': pc, 'data-focus': 'tr-pat-' + (p.id || 'none') + '-' + pc,
+          onclick: () => setPattern(p.id, [pc], pc) }, cv, p.id ? sw : null);
         withTip(b, () => { const o = cur().outfit[pc]; return [PIECE_NAME[pc] + ' · ' + title, p.id && o.pattern === p.id ? matName(o.material) + ' trim' : 'Just this piece']; });
         return { pc, b, cv, sw };
       });
-      const main = h('button.tr-pr-main', { type: 'button', 'aria-label': title + ' on all pieces', 'data-focus': 'tr-pat-' + (p.id || 'none'), onclick: () => setPattern(p.id, PIECES) },
+      const main = h('button.tr-pr-main', { type: 'button', 'aria-label': title + ' on every piece', 'data-focus': 'tr-pat-' + (p.id || 'none'), onclick: () => setPattern(p.id, scopePieces(cur())) },
         p.id ? h('span.tr-pr-tpl', TH.icon.trim(p.id, { size: 32 })) : h('span.tr-pr-tpl.none', TH.icon('item/barrier', { size: 22 })),
         h('span.tr-pr-name', p.id ? names.pat[i - 1] : 'No trim'));
-      withTip(main, () => (p.id ? patternTipLines(p) : ['No trim', 'Removes the trim']).concat(['Click: all pieces']));
+      withTip(main, () => (p.id ? patternTipLines(p) : ['No trim', 'Removes the trim']).concat(['Click: ' + scopeName(cur().target)]));
       const dup = h('span.tr-pr-dup', p.id ? [TH.icon(p.blockIcon, { size: 16 })] : null);
       if (p.id) withTip(dup, dupTipLines(p));
       const allMark = h('span.tr-pr-all', p.id ? 'All' : '');
-      const row = h('div.tr-pr', { role: 'group', 'aria-label': title, onclick: (e) => { if (!e.target.closest('button')) setPattern(p.id, PIECES); } }, main, dup, p.id ? allMark : null, h('div.tr-pr-pcs', pcs.map((x) => x.b)));
-      return { p, row, pcs, allMark };
+      const row = h('div.tr-pr', { role: 'group', 'aria-label': title, onclick: (e) => { if (!e.target.closest('button')) setPattern(p.id, scopePieces(cur())); } }, main, dup, p.id ? allMark : null, h('div.tr-pr-pcs', pcs.map((x) => x.b)));
+      return { p, row, pcs, allMark, main, title };
     });
+    const grid = h('div.tr-grid', pats.map((x) => x.row));
     const browser = h('section.panel.tr-card.tr-browser', { 'aria-label': 'Trim' },
       head('Trim', randomBar()),
-      h('div.tr-sub.tr-sub-mat', h('span', 'Material'), tgtSeg), tileRow,
-      h('div.tr-sub', 'Pattern'), h('div.tr-grid', pats.map((x) => x.row)));
+      h('div.tr-sub.tr-sub-scope', h('span', 'Edit'), h('div.tr-scope', tgtSeg, linkBtn)),
+      h('div.tr-sub', 'Material'), tileRow,
+      h('div.tr-sub', 'Pattern'), grid);
 
     /* ---- materials list ---- */
     const body = h('div.tr-mbody');
@@ -1814,6 +1984,7 @@
         }
       }
       viewer.setBd(st.backdrop);
+      viewer.setCape(st);
       // segments with something active get the accent title (same language as the Enchanting segments)
       const flag = (el, on) => { if (el) el.classList.toggle('has-sel', !!on); };
       flag(hud, PIECES.some((pc) => st.outfit[pc].show));
@@ -1821,22 +1992,25 @@
       flag(browser, PIECES.some((pc) => st.outfit[pc].pattern));
       flag(matsEl, PIECES.some((pc) => st.outfit[pc].pattern && st.outfit[pc].material));
       flag(skinHost.firstElementChild, st.skin.kind === 'name' || st.skin.kind === 'file');
-      const tg = st.target;
-      tgtBtns.forEach((b, id) => { sel(b, id === tg); b.tabIndex = id === tg ? 0 : -1; });
-      // the piece icons wear the armor material chosen in the Armor panel
+      const tg = st.target, shared = sharedLook(st), mixed = shared.n < PIECES.length;
       tgtBtns.forEach((b, id) => {
-        if (id === 'all') return;
-        const am = st.outfit[id].armor;
-        if (b.dataset.am !== am) { b.dataset.am = am; b.replaceChildren(TH.icon.item(id, am, { size: 20 })); }
+        sel(b, id === tg); b.tabIndex = id === tg ? 0 : -1;
+        if (id === 'all') { b.classList.toggle('mixed', mixed); return; }
+        // each piece key shows the worn piece with its trim (the inventory sprite) and a mark when its trim is its own
+        paintSprite(b.firstChild, id, st.outfit[id]);
+        b.classList.toggle('own', mixed && (shared.n === 1 || lookKey(st.outfit[id]) !== shared.key));
       });
-      // material the tile row shows: the targeted piece's, or the shared one of all trimmed pieces (none highlighted when they differ)
+      linkBtn.classList.toggle('away', tg === 'all');
+      linkBtn.disabled = tg === 'all' || !mixed;
+      grid.dataset.scope = tg;
+      // material the tile row shows: the scoped piece's, or the shared one of all trimmed pieces (none highlighted when they differ)
       const trimmed = PIECES.filter((pc) => st.outfit[pc].pattern);
       const shown = tg === 'all' ? (trimmed.length ? (trimmed.every((pc) => st.outfit[pc].material === st.outfit[trimmed[0]].material) ? st.outfit[trimmed[0]].material : null) : gm)
-        : (st.outfit[tg].pattern ? st.outfit[tg].material : gm);
+        : (st.outfit[tg].material || gm);
       tiles.forEach((b, id) => sel(b, id === shown));
       // a not-yet-applied pattern previews with the piece's own material, else the one the tile row is set to
       const matFor = (pc) => st.outfit[pc].material || shown || gm;
-      pats.forEach(({ p, row, pcs, allMark }) => {
+      pats.forEach(({ p, row, pcs, allMark, main, title }) => {
         const n = pcs.filter(({ pc, b, sw }) => {
           const on = (st.outfit[pc].pattern || null) === p.id; press(b, on);
           if (sw) { const mm = TRIMM[st.outfit[pc].material]; if (mm && sw.dataset.m !== mm.id) { sw.dataset.m = mm.id; sw.replaceChildren(TH.icon.trimMaterial(mm.item, { size: 14 })); } sw.classList.toggle('on', on); }
@@ -1845,23 +2019,29 @@
         row.classList.toggle('part', n > 0);
         row.classList.toggle('on', n === PIECES.length);
         if (p.id) allMark.classList.toggle('show', n === PIECES.length);
+        main.setAttribute('aria-label', title + (tg === 'all' ? ' on every piece' : ' on the ' + PIECE_NAME[tg].toLowerCase()));
       });
       U.paint = () => pats.forEach(({ p, pcs }) => pcs.forEach(({ pc, cv }) => paintThumb(cv, pc, Object.assign({}, st.outfit[pc], { pattern: p.id, material: p.id ? (st.outfit[pc].pattern === p.id ? st.outfit[pc].material : matFor(pc)) : null }))));
       const none = !M.trimmed;
       copyBtn.disabled = none;
       matsText = materialsText(st, M);
-      const ms = JSON.stringify([M.pcs, M.templates.map((t) => [t.id, t.qty]), M.copies, M.diamonds, M.dupes.map((r) => [r.name, r.qty]), M.ingredients.map((r) => [r.item, r.qty])]);
+      const ms = JSON.stringify([M.pcs, M.templates.map((t) => [t.id, t.qty, t.pieces]), M.copies, M.diamonds, M.dupes.map((r) => [r.name, r.qty]), M.ingredients.map((r) => [r.item, r.qty, r.pieces]), M.mixed && M.perPiece, M.elytraChest, PIECES.map((p) => st.outfit[p].armor)]);
       if (U.sig.mats !== ms) {
         U.sig.mats = ms;
         const mk = [];
+        const usedOn = (pieces) => 'Used on: ' + pieces.map((p) => PIECE_NAME[p]).join(', ');
         if (none) mk.push(h('p.tr-note', M.pcs.length ? 'No trims yet. Pick a pattern to see what it needs.' : 'No pieces are shown. Show a piece to see what it needs.'));
         else {
+          // the pieces differ: one line per piece first, so every count below can be checked against it
+          if (M.mixed) mk.push(group('Per piece', M.perPiece.map((x) => withTip(h('li.tr-mi.tr-mpiece', h('span.tr-mico', TH.icon.item(x.piece, x.armor, { size: 20 })), h('span.tr-mname', names.pat[D.trimPatterns.findIndex((q) => q.id === x.pattern)]),
+            h('span.tr-mico', TH.icon.trimMaterial(TRIMM[x.material].item, { size: 20 }))), [PIECE_NAME[x.piece], patName(x.pattern) + ' · ' + matName(x.material)]))));
           mk.push(group('Templates', M.templates.map((t) => item(TH.icon(t.icon, { size: 20 }), names.pat[D.trimPatterns.indexOf(t.data)], t.qty,
-            () => patternTipLines(t.data).concat([t.copies ? '1 original + ' + t.copies + ' cop' + (t.copies === 1 ? 'y' : 'ies') : '1 original'])))));
+            () => patternTipLines(t.data).concat([t.copies ? '1 original + ' + t.copies + ' cop' + (t.copies === 1 ? 'y' : 'ies') : '1 original', usedOn(t.pieces)])))));
           if (M.copies) mk.push(group('Duplication', [item(TH.icon('diamond', { size: 20 }), itemName('diamond', 'Diamond'), M.diamonds, [M.copies + ' extra cop' + (M.copies === 1 ? 'y' : 'ies'), M.copies + ' × ' + D.templateCopyDiamonds + ' diamonds'])]
             .concat(M.dupes.map((r) => item(TH.icon(r.icon, { size: 20 }), r.name, r.qty)))));
-          mk.push(group('Trim materials', M.ingredients.map((r) => item(TH.icon(r.icon, { size: 20 }), r.item, r.qty))));
+          mk.push(group('Trim materials', M.ingredients.map((r) => item(TH.icon(r.icon, { size: 20 }), r.item, r.qty, [r.item, usedOn(r.pieces)]))));
         }
+        if (M.elytraChest) mk.push(h('p.tr-note', 'The chestplate is not counted while the elytra is worn.'));
         body.replaceChildren(...mk);
       }
     };
@@ -1874,6 +2054,7 @@
     const gm = st.lastMaterial;   // trim material the pattern rows show / apply
     const a = document.activeElement;
     const fk = a && UI.wrap.contains(a) && a.dataset && a.dataset.focus;
+    fillCape(st);
     syncViewer(st);                 // the 3D model first: its cached textures are applied before anything else runs
     UI.update(st, M, gm);
     clearTimeout(paintT); paintT = setTimeout(() => UI.paint && UI.paint(), 0);   // thumbnails after (cached -> instant, new -> when composed)
@@ -1959,7 +2140,7 @@
       const name = 'Outfit ' + n;
       upd((s) => {
         const id = uid('outfit');
-        s.saved.push({ id, name, outfit: Object.fromEntries(PIECES.map((p) => [p, clonePiece(s.outfit[p])])), skin: s.skin.kind === 'file' ? null : { kind: s.skin.kind, name: s.skin.name, slim: s.skin.slim, data: s.skin.data }, updated: Date.now() });
+        s.saved.push({ id, name, outfit: Object.fromEntries(PIECES.map((p) => [p, clonePiece(s.outfit[p])])), skin: s.skin.kind === 'file' ? null : { kind: s.skin.kind, name: s.skin.name, slim: s.skin.slim, data: s.skin.data, cape: capeOf(s) }, updated: Date.now() });
         s.savedId = id; s.saveName = '';
         s.renaming = id; s.renameText = name;   // name it right away (Enter keeps the default)
       });
@@ -2014,6 +2195,9 @@
   /* ======================================================================
    * Register
    * ====================================================================== */
+  /** Pure parts for tools/test-trims.js (no DOM needed). */
+  TH.trims = { defaults, norm, computeMaterials, materialsText, sharedLook };
+
   TH.app.register({
     id: 'trims',
     name: 'Trims',

@@ -65,6 +65,8 @@
 .tr-vico.cam { --m: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 7 7' shape-rendering='crispEdges'%3E%3Cpath d='M0 1h2V0h3v1h2v5H0zM3 2v3h1V2z'/%3E%3C/svg%3E"); }
 .tr-vico.wing { --m: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 7 7' shape-rendering='crispEdges'%3E%3Cpath d='M0 0h2v1h1v2h1v2h1v2H3V6H2V4H1V2H0zM7 0H5v1H4v1z'/%3E%3C/svg%3E"); }
 .tr-vico.dice { --m: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 7 7' shape-rendering='crispEdges'%3E%3Cpath d='M1 0h5v1h1v5H6v1H1V6H0V1h1zM2 2v1h1V2zM4 4v1h1V4z'/%3E%3C/svg%3E"); }
+.tr-vico.cape { --m: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 7 7' shape-rendering='crispEdges'%3E%3Cpath d='M0 0h7v1H0zM1 1h5v5H1zM1 6h2v1H1zM4 6h2v1H4z'/%3E%3C/svg%3E"); }
+.tr-vbtn[hidden] { display: none !important; }
 .tr-vico.glint { --m: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 7 7' shape-rendering='crispEdges'%3E%3Cpath d='M3 0h1v2h2v1H4v1h2v1H4v2H3V5H1V4h2V3H1V2h2z'/%3E%3C/svg%3E"); }
 .tr-chev { width: 8px; height: 5px; flex: none; background: currentColor; -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 5 3' shape-rendering='crispEdges'%3E%3Cpath d='M0 0h1v1h1v1h1V1h1V0h1v1H4v1H3v1H2V2H1V1H0z'/%3E%3C/svg%3E") center / contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 5 3' shape-rendering='crispEdges'%3E%3Cpath d='M0 0h1v1h1v1h1V1h1V0h1v1H4v1H3v1H2V2H1V1H0z'/%3E%3C/svg%3E") center / contain no-repeat; }
 
@@ -199,7 +201,6 @@
 /* ---------- trim: randomise actions, material row ---------- */
 .tr-rnd { display: flex; align-items: center; gap: 6px; }
 .tr-rnd .btn { gap: 6px; }
-.tr-sub-mat { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
 .tr-tgt button { padding: 4px 8px; font-size: 11.5px; text-transform: none; letter-spacing: 0; }
 .tr-tiles { display: grid; grid-template-columns: repeat(11, minmax(0, 1fr)); gap: 5px; }
 .tr-tile { display: grid; place-items: center; aspect-ratio: 1; max-height: 40px; min-width: 0; padding: 0; }
@@ -455,8 +456,33 @@
   :root:root:root .tr-tile { aspect-ratio: auto; height: 44px; max-height: none; }
   :root:root:root .tr-tile .mc { --mc: 24px !important; }
   /* the target switch and the randomise keys at a full touch size */
-  :root:root .tr-sub-mat { flex-wrap: wrap; row-gap: 10px; }
+  :root:root .tr-sub-scope { flex-wrap: wrap; row-gap: 10px; }
+  :root:root .tr-scope { flex: 1 1 auto; justify-content: space-between; }
   :root:root .tr-tgt button { min-height: 36px; min-width: 44px; }
   :root:root:root .tr-rnd { gap: 8px; flex-wrap: wrap; }
   :root:root:root .tr-rnd .btn { min-height: 36px; padding: 0 12px; }
 }
+
+/* ---------- Edit scope (Oct 2026): what the material row and a pattern name edit. All | Helmet | Chestplate | Leggings | Boots
+   as one exclusive .seg; each piece key shows the worn piece's inventory sprite with its trim overlay, and a small accent
+   square when that piece has a trim of its own (differs from the look most pieces share). "Copy to all" gives every piece
+   the scoped piece's trim and switches back to All (kept in the layout while All is on, so nothing moves). In a piece scope
+   the pattern list dims the other pieces' previews (they stay clickable: a click edits that piece and makes it the scope). */
+.tr-sub-scope { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
+.tr-scope { flex: 1 1 auto; display: flex; align-items: center; justify-content: space-between; gap: 10px; font: 500 12.5px var(--font); text-transform: none; letter-spacing: 0; }
+.tr-tgt button { position: relative; min-width: 46px; min-height: 34px; }
+.tr-tgt-ico { display: block; width: 22px; height: 22px; image-rendering: pixelated; }
+.tr-tgt-ico.err { opacity: .3; }
+.tr-own { position: absolute; top: 3px; right: 3px; width: 5px; height: 5px; background: var(--accent); opacity: 0; pointer-events: none; }
+.tr-tgt button.own .tr-own { opacity: 1; }
+.tr-linkall { height: 30px; padding-block: 0; flex: none; white-space: nowrap; }
+.tr-linkall.away { visibility: hidden; }
+.tr-grid:is([data-scope="helmet"], [data-scope="chestplate"], [data-scope="leggings"], [data-scope="boots"]) .tr-pt :is(.tr-thumb, .tr-sw) { transition: opacity .12s; }
+.tr-grid[data-scope="helmet"] .tr-pt:not([data-pc="helmet"]) :is(.tr-thumb, .tr-sw.on),
+.tr-grid[data-scope="chestplate"] .tr-pt:not([data-pc="chestplate"]) :is(.tr-thumb, .tr-sw.on),
+.tr-grid[data-scope="leggings"] .tr-pt:not([data-pc="leggings"]) :is(.tr-thumb, .tr-sw.on),
+.tr-grid[data-scope="boots"] .tr-pt:not([data-pc="boots"]) :is(.tr-thumb, .tr-sw.on) { opacity: .38; }
+.tr-grid .tr-pt:is(:hover, :focus-visible) :is(.tr-thumb, .tr-sw.on) { opacity: 1; }
+/* Materials: per-piece lines (only when the pieces differ): armor piece, pattern, trim material */
+.tr-mpiece { gap: 4px; }
+@media (prefers-reduced-motion: reduce) { .tr-grid .tr-pt :is(.tr-thumb, .tr-sw) { transition: none; } }

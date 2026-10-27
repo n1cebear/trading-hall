@@ -373,25 +373,26 @@ TH.builds = TH.builds || {};
     {
       id: 'creeper_rocket', cat: 'build', dim: 'overworld', icon: 'item/firework_rocket', level: 'Hard', name: 'Creeper rocket',
       tags: ['statue', 'mob-head', 'pixel-art', 'creature'],
-      pitch: 'A rocket in three parts: a creeper head with its face on all four sides as the engine block, a sugar cane tube in the middle and a cane nose cone on top. Four fins, a nozzle and flames. Fits a 35 x 35 plot.',
-      how: 'The head copies the creeper texture pixel by pixel, three blocks per pixel. The tube is twelve stalks round a core, coloured from the sugar cane texture: lit on the outside, shaded at the sides, nodes where the texture has them. The nose is the same stalks bending in to a point. Hollow inside.',
+      pitch: 'A rocket in three parts: a creeper head with its face on all four sides as the engine block, a sugar cane body wider than the head and a cane nose on top, with swept fins, a bell nozzle and flames. 35 x 35. At 127 high it covers y 63 to 189: base at y 63, the tip at y 189, for an AFK platform up there.',
+      how: 'The head copies the creeper texture pixel by pixel, three blocks per pixel, in its own colours so it stands apart from the green cane. The body is twelve fat stalks round a core, coloured from the sugar cane texture: lit on the outside, shaded at the sides, nodes where the texture has them. The nose is an ogive of the same stalks. Hollow inside.',
       opts: [
-        { id: 'size', label: 'Height in blocks', def: '80', choices: [['70', '70', '70 blocks high: a short cane tube'], ['80', '80', '80 blocks high'], ['100', '100', '100 blocks high: a long cane tube']] },
-        { id: 'flames', label: 'Flames', def: 'on', choices: [['on', 'With flames', 'Yellow, orange and red flames from the nozzle down to the ground'], ['off', 'No flames', 'The rocket stands on its four fins, the nozzle open below']] },
+        { id: 'size', label: 'Height in blocks', def: '127', choices: [['80', '80', '80 blocks high: a short cane body'], ['100', '100', '100 blocks high'], ['127', '127', 'Covers y 63 to 189, for an AFK platform at 189']] },
+        { id: 'flames', label: 'Flames', def: 'on', choices: [['on', 'With flames', 'Yellow, orange and red flames from the nozzle down to the ground, 17 blocks wide at the narrowest'], ['off', 'No flames', 'The rocket stands on its four fins, the 19 block nozzle open below']] },
+        { id: 'colour', label: 'Creeper colour', def: 'charged', look: true, choices: [['charged', 'Charged', 'Charged blue: light blue and cyan skin, a dark blue and black face'], ['grey', 'Grey', 'Stone greys: stone, andesite and tuff, a grey and black face'], ['ember', 'Ember', 'Ember: orange and red terracotta, a dark red and black face, a blackstone nozzle'], ['green', 'Green', 'The real creeper greens, close to the colours of the cane']] },
       ],
       make: (o) => creeperRocket(o),
       steps: [
-        'Mark the 35 x 35 square. The four fins stand on its corners; with flames, the flame cone touches the ground in the middle.',
-        'Build the fins up to the head and hang the grey nozzle and the flames under it, then the creeper head: a hollow 25 block cube with the face on every side (black and green concrete, three blocks per pixel, the middle column doubled).',
-        'On top of the head lay the joint ring: a 25 wide circle, lime terracotta under bone block, like a giant cane node.',
-        'Raise the sugar cane tube layer by layer with "Only this layer": twelve round stalks of lime wool and bamboo block, moss between them, a bone and lime node row over a dark row where each stalk has its node.',
-        'Close it with the second node ring and the nose: the same stalks get thinner and lean in until they meet at the bone spike.',
+        'Mark the 35 x 35 square with its bottom at y 63 (for the 127 high rocket the tip then ends at y 189). The four fins stand on its corners; with flames, the flame column stands in the middle, 21 blocks wide on the ground.',
+        'Build the flames and the bell nozzle (19 wide at the rim), then the creeper head on top: a hollow 25 block cube with the face on every side, three blocks per pixel, the middle column doubled.',
+        'Raise the fins with it: each runs from its corner of the square up past the head\'s edge and onto the body, getting narrower as it climbs.',
+        'Lay the 31 wide joint ring on the head, then the sugar cane body layer by layer with "Only this layer": twelve round stalks of lime wool and bamboo block, moss between them, a bone and lime node row over a dark row where each stalk has its node.',
+        'Close it with the second ring and the nose: the stalks lean in along an ogive until they meet at the bone spike.',
       ],
       tips: [
-        'The nodes sit at different heights on each stalk, exactly as on a real sugar cane block, so the tube looks woven rather than striped.',
-        'It is hollow: a ladder up the inside and a window in a creeper eye make a lookout tower.',
+        'The nodes sit at different heights on each stalk, exactly as on a real sugar cane block, so the body looks woven rather than striped.',
+        'It is hollow: a ladder or a water elevator up the inside reaches the AFK platform at the tip.',
+        'Creeper colour only changes the head, the fin skin and the nozzle; Charged keeps the creeper clearly apart from the green cane.',
         'The glowstone and shroomlight in the flames light the base at night. Swap them in Customise blocks for plain concrete if you want it dark.',
-        'Build on a flat plot of at least 35 x 35; nothing sticks out past the fin tips.',
       ],
     },
   ];
@@ -900,16 +901,19 @@ TH.builds = TH.builds || {};
   }
 
   /* ======================================================================
-   * Creeper rocket: three stacked parts that read as one rocket, 35 x 35 at the widest (the fins), hollow (one shell).
+   * Creeper rocket: three stacked parts that read as one rocket, 35 x 35 at the widest (the fin tips), hollow (one shell).
    *   bottom  the creeper head as the engine block: 25 wide, 3 blocks per texture pixel plus one middle column, the face
-   *           on all four sides; four fins on its vertical corners reach down to the ground and out to the corners of
-   *           the 35 x 35 square; a grey nozzle under it, optionally with flames down to the ground.
-   *   middle  the sugar cane tube: twelve stalks round a core, 23 wide, coloured from block/sugar_cane.png (each stalk
-   *           lit on the outside, shaded at the sides, a pale node row over a dark one where the texture has its nodes,
-   *           moss between the stalks with the little leaves of the texture).
-   *   top     the nose: the same bundle of stalks tapering to a point (an ogive), a bone spike on top.
-   * The joints are giant cane nodes (a dark ring under a pale one, 25 wide), so the parts share their colours. Mirror
-   * symmetric on both axes; every value comes from folded coordinates (|dx|, |dz|), so no rounding can break it.
+   *           on all four sides, in a colour set of its own (charged blue by default) so it stands apart from the cane;
+   *           a bell nozzle under it (19 wide at the rim) and, optionally, flames down to the ground (17 wide at the
+   *           narrowest, 21 at the ground).
+   *   middle  the sugar cane body: twelve fat stalks round a core, 29 wide (wider than the head), coloured from
+   *           block/sugar_cane.png (each stalk lit on the outside, shaded at the sides, a pale node row over a dark one
+   *           where the texture has its nodes, moss between the stalks with the little leaves of the texture).
+   *   top     a tangent ogive nose from the full body width: the same stalks lean in to a point, a bone spike on top.
+   * Four swept fins on the diagonals run from the corners of the 35 x 35 square up past the head onto the body, so the
+   * narrower head and the wider body join in one line. The joints are 31 wide rings, bone block over a darker row.
+   * The default height, 127, covers y 63 to 189 with the base at y 63. Mirror symmetric on both axes; every value comes
+   * from folded coordinates (|dx|, |dz|), so no rounding can break it.
    * ====================================================================== */
   // texture rows (top = 0) of the pale node row of the four stalks in block/sugar_cane.png; the dark row is the one under it
   const CANE_NODES = [[0, 8], [4, 10], [5, 13], [1, 9]];
@@ -917,17 +921,28 @@ TH.builds = TH.builds || {};
   const CANE_LEAVES = [[2, 3, 9], [3, 10, 11], [2, 6, 7]];
   const ROCKET_BLOCK = {
     lit: 'lime_wool', side: 'bamboo_block[axis=y]', pale: 'bone_block[axis=y]', mid: 'lime_concrete', dark: 'lime_terracotta', gap: 'moss_block', leaf: 'lime_concrete',
-    bell: 'light_gray_concrete', bell2: 'gray_concrete', rim: 'orange_concrete', hot: 'yellow_concrete', glow: 'glowstone', fire: 'orange_concrete', fire2: 'shroomlight', ember: 'red_concrete',
+    hot: 'yellow_concrete', glow: 'glowstone', fire: 'orange_concrete', fire2: 'shroomlight', ember: 'red_concrete',
+  };
+  /**
+   * The creeper section's colour sets: the texture letters (K black and D dark: the face; M, G, P skin from dark to
+   * light; W flecks), the nozzle (bell, its inside and top band, the rim) and the lower row of the joint ring on the head.
+   */
+  const ROCKET_CREEPER = {
+    charged: { K: 'black_concrete', D: 'blue_concrete', M: 'cyan_concrete', G: 'light_blue_concrete', P: 'light_blue_wool', W: 'white_concrete', bell: 'light_gray_concrete', bell2: 'cyan_terracotta', rim: 'light_blue_concrete', ring: 'cyan_concrete' },
+    grey: { K: 'black_concrete', D: 'gray_concrete', M: 'tuff', G: 'andesite', P: 'stone', W: 'polished_diorite', bell: 'polished_andesite', bell2: 'polished_deepslate', rim: 'orange_concrete', ring: 'tuff' },
+    ember: { K: 'black_concrete', D: 'red_nether_bricks', M: 'red_terracotta', G: 'orange_terracotta', P: 'orange_concrete', W: 'yellow_concrete', bell: 'polished_blackstone', bell2: 'blackstone', rim: 'orange_concrete', ring: 'red_terracotta' },
+    green: { K: 'black_concrete', D: 'green_concrete', M: 'green_wool', G: 'lime_concrete', P: 'lime_wool', W: 'white_concrete', bell: 'light_gray_concrete', bell2: 'gray_concrete', rim: 'orange_concrete', ring: 'green_wool' },
   };
   // stalk centres in the quadrant (0, 30, 60, 90 degrees), exact
   const CANE_DIR = [[1, 0], [Math.sqrt(3) / 2, 0.5], [0.5, Math.sqrt(3) / 2], [0, 1]];
-  /** o.size '70' | '80' | '100' (height in blocks), o.flames 'on' | 'off'. */
+  /** o.size '80' | '100' | '127' (height in blocks), o.flames 'on' | 'off', o.colour 'charged' | 'grey' | 'ember' | 'green' (the creeper). */
   function creeperRocket(o) {
-    const H = +o.size || 80, flames = o.flames !== 'off', W = 35, M = 17;
-    const yh = 12, yt = yh + 24, y0 = yt + 2, yc = H - 18, yp = H - 2, yf = yh - 5;   // head, collar, tube, cone base, spike, flame top
-    const Rr = 9.6, rs = 1.9, Rcore = 9.4, Rcol = 12.4;
+    const H = +o.size || 127, flames = o.flames !== 'off', cr = ROCKET_CREEPER[o.colour] || ROCKET_CREEPER.charged, W = 35, M = 17;
+    const yf = 9, yh = 15, yt = yh + 24, y0 = yt + 2;   // flame top, head, ring on the head, body
+    const Ln = Math.round(H * 0.3), yp = H - 2, yc = yp - Ln - 2;   // nose length, spike, ring under the nose
+    const Rr = 12, rs = 2.4, Rcore = 11.7, Rout = Rr + rs, Rcol = 15.4;
     const at = (x, y, z) => (y * W + z) * W + x;
-    const reg = new Uint8Array(W * H * W);   // 1 head, 2 fin, 3 nozzle, 4 flame, 5 node ring, 6 cane, 7 spike
+    const reg = new Uint8Array(W * H * W);   // 1 head, 2 fin, 3 nozzle, 4 flame, 5 ring, 6 cane, 7 spike
     const info = new Float32Array(W * H * W).fill(-1), side = new Float32Array(W * H * W);
     /** The cane bundle with the stalks on a ring k times as wide, each q times as thick: -1 core, 0..3 a stalk (and how far out on it), null outside. */
     const bundle = (a, b, k, q) => {
@@ -938,37 +953,39 @@ TH.builds = TH.builds || {};
       }
       return null;
     };
-    const finTop = (t) => (t <= 12 ? yh + 20 : yh - 1 + 21 * Math.pow((17 - t) / 5, 1.3));
-    const finBot = (t) => (t >= 15 ? 0 : ((yh - 3) * (15 - t)) / 4);
+    // tangent ogive: radius (as a share of the body's) at h blocks above the nose's base
+    const Lr = Ln / Rout, rho = (1 + Lr * Lr) / 2;
+    const ogive = (h) => Math.max(0, Math.sqrt(Math.max(0, rho * rho - (h / Rout) ** 2)) + 1 - rho);
+    // fins: t = distance along the diagonal ((|dx| + |dz|) / 2); the tip edge stands on the corner up to yTip, the
+    // leading edge sweeps up and in to the body at yRoot
+    const yTip = yh + 6, yRoot = Math.min(y0 + Math.round(0.4 * (yc - y0)) + 6, yc - 2);
+    const finTop = (t) => (t <= 10 ? yRoot : yTip + (yRoot - yTip) * Math.pow((17 - t) / 7, 1.7));
+    const finBot = (t) => (t >= 14.5 ? 0 : ((yh - 1) * (14.5 - t)) / 2.5);
     for (let y = 0; y < H; y++) for (let z = 0; z < W; z++) for (let x = 0; x < W; x++) {
       const a = Math.abs(x - M), b = Math.abs(z - M), r = Math.hypot(a, b), i = at(x, y, z);
       let g = 0;
       if (y >= yh && y < yt && a <= 12 && b <= 12) g = 1;
-      else if (y >= yt && y < yc) {
-        if (y < y0 ? r <= Rcol : false) g = 5;
-        else { const c = bundle(a, b, 1, 1); if (c) { g = 6; info[i] = c[0]; side[i] = c[1]; } }
-      } else if (y >= yc && y < yp) {
-        if (y < yc + 2 && r <= Rcol) g = 5;
-        else {
-          const t = (y - yc) / (yp - yc), k = 1 - Math.pow(t, 1.3), c = bundle(a, b, k, Math.max(0.45, Math.min(1, (1 - t) / 0.35)));
-          if (c) { g = 6; info[i] = c[0]; side[i] = c[1]; }
-        }
+      else if ((y === yt || y === yt + 1 || y === yc || y === yc + 1) && r <= Rcol) g = 5;
+      else if (y >= y0 && y < yc) { const c = bundle(a, b, 1, 1); if (c) { g = 6; info[i] = c[0]; side[i] = c[1]; } }
+      else if (y >= yc + 2 && y < yp) {
+        const k = ogive(y - yc - 2), c = bundle(a, b, k, Math.max(0.4, Math.min(1, k / 0.45)));
+        if (c) { g = 6; info[i] = c[0]; side[i] = c[1]; }
       } else if (y >= yp) { if (a === 0 && b === 0) g = 7; }
       else if (y > yf && y < yh) {
-        const u = (yh - 1 - y) / 3, ro = 4.5 + 2 * Math.pow(u, 1.3);
+        const u = (yh - 1 - y) / (yh - yf - 2), ro = 8.1 + 1.5 * Math.pow(u, 1.3);
         if (r <= ro && !(y < yh - 1 && r <= ro - 1.3)) g = 3;
       } else if (flames && y <= yf) {
-        const s = (yf - y) / yf, th = Math.atan2(b, a), rf = (4.6 * Math.pow(1 - s, 0.8) + 1) * (1 + 0.16 * s * Math.cos(8 * th));
+        const s = (yf - y) / yf, th = Math.atan2(b, a), rf = 8.6 + 1.8 * Math.pow(s, 1.4) + 1.1 * s * (1 + Math.cos(8 * th)) / 2;
         if (r <= rf) g = 4;
       }
       if (!g && Math.abs(a - b) <= 1) {
         const t = (a + b) / 2;
-        if (t >= 11 && t <= 17 && y >= finBot(t) - 0.01 && y <= finTop(t)) g = 2;
+        if (t >= 10 && t <= 17 && y >= finBot(t) - 0.01 && y <= finTop(t)) g = 2;
       }
       reg[i] = g;
     }
     const solid = (x, y, z) => x >= 0 && y >= 0 && z >= 0 && x < W && y < H && z < W && reg[at(x, y, z)] > 0;
-    const B = ROCKET_BLOCK, tex = (u, v) => CREEPER_BLOCK[CREEPER_TEX[v][u]].slice(10);
+    const B = ROCKET_BLOCK, tex = (u, v) => cr[CREEPER_TEX[v][u]];
     const fold = (p) => Math.min(3, Math.floor((p <= 12 ? p : 24 - p) / 3));   // a 25-block head side: 3 per texel, the middle column doubles the inner texel
     const out = new Array(W * H * W).fill(null);
     for (let y = 0; y < H; y++) for (let z = 0; z < W; z++) for (let x = 0; x < W; x++) {
@@ -977,7 +994,7 @@ TH.builds = TH.builds || {};
       let edge = false;
       for (let dy = -1; dy <= 1 && !edge; dy++) for (let dz = -1; dz <= 1 && !edge; dz++) for (let dx = -1; dx <= 1; dx++) if ((dx || dy || dz) && !solid(x + dx, y + dy, z + dz)) { edge = true; break; }
       if (!edge) continue;   // hollow
-      const a = Math.abs(x - M), b = Math.abs(z - M);
+      const a = Math.abs(x - M), b = Math.abs(z - M), r = Math.hypot(a, b);
       let c;
       if (g === 1) {
         const px = x - (M - 12), pz = z - (M - 12), py = y - yh, row = 7 - Math.floor(py / 3);
@@ -988,12 +1005,11 @@ TH.builds = TH.builds || {};
       } else if (g === 2) {
         const t = (a + b) / 2;
         c = finTop(t) - y < 2 || t >= 16.5 ? B.pale : tex(Math.round(t) % 8, 8 + (Math.floor(y / 2) % 8));
-      } else if (g === 3) c = y === yf + 1 ? B.rim : y === yh - 1 || Math.hypot(a, b) < 5 ? B.bell2 : B.bell;
+      } else if (g === 3) c = y === yf + 1 ? cr.rim : y === yh - 1 || r < 8.1 ? cr.bell2 : cr.bell;
       else if (g === 4) {
-        const n = kNoise(a, y, b, 2, 21) > 0.55;
-        const s = (yf - y) / yf;
+        const n = kNoise(a, y, b, 2, 21) > 0.55, s = (yf - y) / yf;
         c = s < 0.3 ? (n ? B.glow : B.hot) : s < 0.7 ? (n ? B.fire2 : B.fire) : (n ? B.fire : B.ember);
-      } else if (g === 5) c = (y - yt) % 2 === 0 && y < y0 ? B.dark : y === yc ? B.dark : B.pale;
+      } else if (g === 5) c = y === yt ? cr.ring : y === yc ? B.dark : B.pale;
       else if (g === 7) c = B.pale;
       else {
         const st = info[i], row = 15 - ((((y - y0) % 16) + 16) % 16);
@@ -1042,8 +1058,8 @@ TH.builds = TH.builds || {};
       '7|60|pond': [91, 60, 91, 50136, 27228], '7|60|none': [60, 60, 73, 12714],
     },
     creeper_rocket: {
-      '70|on': [35, 70, 35, 8103], '70|off': [35, 70, 35, 7812], '80|on': [35, 80, 35, 9303], '80|off': [35, 80, 35, 9012],
-      '100|on': [35, 100, 35, 11703], '100|off': [35, 100, 35, 11412],
+      '80|on': [35, 80, 35, 11770], '80|off': [35, 80, 35, 10460], '100|on': [35, 100, 35, 14514], '100|off': [35, 100, 35, 13204],
+      '127|on': [35, 127, 35, 18230], '127|off': [35, 127, 35, 16920],
     },
     // @stats-end
   };

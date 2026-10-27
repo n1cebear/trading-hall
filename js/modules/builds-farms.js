@@ -373,8 +373,8 @@ TH.builds = TH.builds || {};
     {
       id: 'creeper_rocket', cat: 'build', dim: 'overworld', icon: 'item/firework_rocket', level: 'Hard', name: 'Creeper rocket',
       tags: ['statue', 'mob-head', 'pixel-art', 'creature'],
-      pitch: 'A rocket that houses your farms: a creeper head cube (face on all four sides) with room for a 27 x 27 farm, a round sugar cane body with a round room about 34 across for a cane farm, and a long slim nose cone with a 2 x 1 AFK chamber in its tip. 36 x 36, so it fits a 36 x 36 plot. At 127 high it covers y 63 to 189: base at y 63, the chamber roof at y 189.',
-      how: 'The head is a perfect 32 block cube, four blocks per texture pixel, hollow: 30 x 30 x 30 inside. The round body, 36 wide, holds a round room about 34 across; sixteen green stalks with the sugar cane texture\'s nodes run up its sandstone (or glass) wall, and the room carries on up into the nose. The nose is a slim cone with gently curved sides, light grey with a dark band at its foot and a darker tip, narrowing to a small 4 block cap. The three rooms are sealed from each other. Every open top outside is a slab or a stair, so nothing spawns on the outside; the farm rooms are left empty for you.',
+      pitch: 'A rocket that houses your farms: a creeper head cube (face on all four sides) with room for a 27 x 27 farm, a tall round sugar cane body, twenty green stalks round it, with a round room about 34 across for a cane farm, and a slim needle nose with a 2 x 1 AFK chamber near its point. 36 x 36, so it fits a 36 x 36 plot. At 127 high it covers y 63 to 189: base at y 63, the point at y 189.',
+      how: 'The head is a perfect 32 block cube, four blocks per texture pixel, hollow: 30 x 30 x 30 inside. The round body, 36 wide and twice as tall as the nose, holds a round room about 34 across. Its wall is twenty sugar cane stalks, 4 blocks each, shaded like the cane texture from a lit side to a dark edge, with a pale node band over a dark line every 8 rows, each stalk at its own height, and a little leaf beside each node; sandstone (or glass) shows only in the narrow gaps. The nose is a light grey cone that narrows to a 6 wide neck round the chamber and ends in a dark 2 wide point. The three rooms are sealed from each other. Every open top outside is a slab or a stair, so nothing spawns on the outside; the farm rooms are left empty for you.',
       opts: [
         { id: 'size', label: 'Height in blocks', def: '127', choices: [['100', '100', '100 blocks high: a shorter cane body'], ['127', '127', 'Covers y 63 to 189, the AFK chamber at the top']] },
         { id: 'flames', label: 'Flames', def: 'on', choices: [['on', 'With flames', 'Yellow, orange and red flames from the nozzle down to the ground, 18 blocks wide at the narrowest'], ['off', 'No flames', 'The rocket stands on its four fins, the 20 block nozzle open below']] },
@@ -386,9 +386,9 @@ TH.builds = TH.builds || {};
       steps: [
         'Mark a 36 x 36 square with its bottom at y 63 (the 127 high rocket then ends at y 189). The four grey fins stand on its corners; with flames, the flame column stands in the middle.',
         'Build the flames and the deepslate bell nozzle, then the creeper head on top: a 32 block cube with a closed floor and roof, the face on every side, four blocks per pixel. Build your farm inside before you close the roof.',
-        'Lay the round 36 wide deepslate floor on the head, upside-down stairs under its overhang, then raise the round body wall layer by layer with "Only this layer": a grey ring, then sixteen green stalks two blocks wide with their node rows and sandstone (or glass) between them. Build the cane farm inside as you go.',
-        'Close it with the second grey ring and the nose cone: a dark band, then light grey rings that get smaller every layer, each step a stair or a slab, darker grey near the tip.',
-        'In the tip, build the AFK chamber: two blocks of slab floor, three blocks of air above it, one block of deepslate round it, and the small slab cap on top as the highest block.',
+        'Lay the round 36 wide deepslate floor on the head, upside-down stairs under its overhang, then raise the round body wall layer by layer with "Only this layer": a grey ring, then twenty green stalks 4 blocks wide (lime wool, lime concrete, bamboo block, green wool), a bone node band over a lime terracotta line every 8 rows, sandstone (or glass) in the gaps. Build the cane farm inside as you go.',
+        'Close it with the second grey ring and the nose: a dark band, then light grey rings that get smaller every layer, each step a stair or a slab, down to a 6 wide neck.',
+        'In the neck, build the AFK chamber: two blocks of slab floor, three blocks of air above it, one block of deepslate round it and a roof; then the dark point on top, 4 and then 2 blocks wide, its last slabs the highest blocks.',
       ],
       tips: [
         'Spawn-proofed outside: no full block has open air on top. The farm rooms are yours to light or slab as the farm needs.',
@@ -910,19 +910,29 @@ TH.builds = TH.builds || {};
    *   bottom  flames (optional, 18 wide at the narrowest) and a deepslate bell nozzle, then the creeper head: a perfect
    *           32 x 32 x 32 cube, 4 blocks per texture pixel, the face on all four sides; Creeper colour recolours only
    *           it. Four grey fins stand on the corners. Upside-down stairs under the body's overhang make the collar.
-   *   middle  the sugar cane body, round (a superellipse of power 2.2, barely squarer than a circle), 36 wide: sixteen
-   *           green stalks two blocks wide with the texture's nodes, set in a sandstone, glass or mixed wall, grey rings
-   *           at both ends. The head's corners show below it (a round 36 cannot cover a 32 square's corners).
-   *   top     a long slim nose cone (a 0.75 power series), 36 % of the height, from the body's width to a 4 wide cap: a dark band at
-   *           its foot, light grey panels, a darker grey tip; the AFK chamber inside the tip, its slab roof the highest
-   *           block.
+   *   middle  the sugar cane body, round (a superellipse of power 2.2, barely squarer than a circle), 36 wide, two
+   *           thirds of what is above the head: twenty stalks 4 blocks wide shaded like the texture's stalk (lit side to
+   *           dark edge), a pale node band over a dark line every 8 rows at each stalk's own height, a leaf in the gap
+   *           beside each node; the sandstone, glass or mixed fill only in the narrow gaps; grey rings at both ends.
+   *           The head's corners show below it (a round 36 cannot cover a 32 square's corners).
+   *   top     a needle nose, a third of what is above the head: a slightly concave light grey cone from the body's width
+   *           to a 6 wide neck that holds the AFK chamber, then a dark point 4 and 2 wide, the highest block.
    * Every open top outside is a slab or a stair (spawn-proofing and smoothing); the small sealed pockets in the nozzle
    * and the flames get stone buttons; the farm rooms stay empty. The shape is mirror symmetric on both axes except the
    * 2 x 1 chamber; the wear is seeded noise, the same every time. The default height, 127, covers y 63 to 189.
    * ====================================================================== */
   // texture rows (top = 0) of the pale node row of the four stalks in block/sugar_cane.png (and a fifth set in their
   // rhythm for the diagonal stalk); the dark row is the one under it
-  const CANE_NODES = [[0, 8], [4, 10], [5, 13], [1, 9], [3, 11]];
+  // node heights of the stalks round the body (a node every 8 rows, each stalk at its own height, as the four stalks of
+  // block/sugar_cane.png are; the pattern repeats every 5 stalks)
+  const CANE_NODES = [0, 4, 7, 2, 5];
+  // one stalk, 4 blocks wide, from its lit side to its dark edge, after the texture's 2 pixel stalk (#aadb74 light,
+  // #82a859 shade, #698747 edge): the plain rows, the pale node band and the dark line under it
+  const CANE_STALK = {
+    body: ['lime_wool', 'lime_concrete', 'bamboo_block[axis=y]', 'green_wool'],
+    node: ['bone_block[axis=y]', 'bone_block[axis=y]', 'lime_wool', 'lime_concrete'],
+    line: ['lime_terracotta', 'lime_terracotta', 'lime_terracotta', 'green_terracotta'],
+  };
   const ROCKET_BLOCK = { hot: 'yellow_concrete', glow: 'glowstone', fire: 'orange_concrete', fire2: 'shroomlight', ember: 'red_concrete' };
   /** The creeper head's colour sets: the texture letters (K black and D dark: the face; M, G, P skin from dark to light; W flecks). */
   const ROCKET_CREEPER = {
@@ -961,22 +971,20 @@ TH.builds = TH.builds || {};
     const H = +o.size || 127, flames = o.flames !== 'off', cr = ROCKET_CREEPER[o.colour] || ROCKET_CREEPER.charged;
     const wr = ROCKET_WEAR[o.wear] || ROCKET_WEAR.weathered, fill = o.fill === 'glass' || o.fill === 'mixed' ? o.fill : 'sandy';
     const W = 36, M = 17.5, hw = 16;
-    const yf = 9, yh = 15, yt = yh + 31, yb = yt + 1, Ln = Math.round(H * 0.36), yn = H - Ln;   // flame top, head (bottom, top row), body plate, nose
-    const Ro = 17.6, Rtop = 2;
+    const yf = 9, yh = 15, yt = yh + 31, yb = yt + 1, Ln = Math.round((H - yb - 1) / 3), yn = H - Ln;   // flame top, head (bottom, top row), body plate, nose
+    const Ro = 17.6, Rch = 2.6, P = 4;   // body radius, nose radius round the chamber, rows of the point above it
     const N = W * H * W, at = (x, y, z) => (y * W + z) * W + x;
     const se = (a, b, p) => Math.pow(Math.pow(a, p) + Math.pow(b, p), 1 / p);
     // the AFK chamber: x 17..18, z 17, three rows of air over a slab floor, one block of wall all round, the roof on top
-    const CH = { x0: 17, x1: 18, z: 17, y0: H - 4, y1: H - 2 };
+    const CH = { x0: 17, x1: 18, z: 17, y0: H - P - 4, y1: H - P - 2 };
     const inChamber = (x, y, z) => x >= CH.x0 && x <= CH.x1 && z === CH.z && y >= CH.y0 && y <= CH.y1;
     const chamberFloor = (x, y, z) => x >= CH.x0 && x <= CH.x1 && z === CH.z && y === CH.y0 - 1;
-    const chamberWall = (x, y, z) => x >= CH.x0 - 1 && x <= CH.x1 + 1 && z >= CH.z - 1 && z <= CH.z + 1 && y >= CH.y0 - 1 && y <= H - 1;
-    // the shuttle nose: rounded shoulders from the body's outline down to an 8 wide top, going from square-ish to round
-    // the nose: a slim power-series cone (radius ~ distance to the tip ^ 0.75, between a cone and an ogive), its virtual
-    // tip set just above the top so the last row is still Rtop wide (a small rounded cap, no spike)
-    const ogive = (h, L) => Ro * Math.pow(Math.max(0, (L - h) / L), 0.75);
-    let Lv = Ln;
-    while (ogive(Ln - 1, Lv) < Rtop) Lv += 0.25;
-    const nose = (a, b, y) => se(a, b, 2.2 - 0.2 * ((y - yn) / (Ln - 1))) <= ogive(y - yn, Lv);
+    const chamberWall = (x, y, z) => x >= CH.x0 - 1 && x <= CH.x1 + 1 && z >= CH.z - 1 && z <= CH.z + 1 && y >= CH.y0 - 1 && y <= CH.y1 + 1;
+    // the nose: a needle. A slightly concave cone from the body's radius in to a 6 wide neck that holds the chamber
+    // (floor, three rows of air, roof), then a point: 4, 4, 2, 2 wide, the last row the highest block
+    const yNeck = CH.y0 - 2, POINT = [2, 1.6, 0.8, 0.75];
+    const noseR = (y) => (y >= H - P ? POINT[y - (H - P)] : y >= yNeck ? Rch : Rch + (Ro - Rch) * Math.pow(1 - (y - yn) / (yNeck - yn), 1.3));
+    const nose = (a, b, y) => se(a, b, 2.2 - 0.2 * Math.min(1, (y - yn) / (yNeck - yn))) <= noseR(y);
     const T = 17.5, yTip = 12, yRoot = yt - 1;
     const finTop = (t) => yTip + (yRoot - yTip) * Math.pow((T - t) / (T - 12), 1.2);
     const finBot = (t) => (t >= 14 ? 0 : ((yh - 1) * (14 - t)) / 2);
@@ -1039,7 +1047,7 @@ TH.builds = TH.builds || {};
     const outside = (x, y, z) => x < 0 || y < 0 || z < 0 || x >= W || y >= H || z >= W || room[at(x, y, z)] === 1;
     const tex = (u, v) => cr[CREEPER_TEX[v][u]];
     const fold = (p) => Math.floor((p < hw ? p : 2 * hw - 1 - p) / 4);   // 32 blocks a side: 4 per texel, the right half mirrors the left
-    const stalkArc = (17.5 * Math.PI) / 8;
+    const stalkArc = (17.5 * 2 * Math.PI) / 20;
     const sandy = (x, y, z) => { const n = kNoise(x, y, z, 3, 71); return n < 0.25 ? 'sandstone' : n < 0.36 ? 'cut_sandstone' : rHash(x, y, z, 73) < 0.03 ? 'chiseled_sandstone' : 'smooth_sandstone'; };
     const out = new Array(N).fill(null);
     for (let y = 0; y < H; y++) for (let z = 0; z < W; z++) for (let x = 0; x < W; x++) {
@@ -1070,20 +1078,26 @@ TH.builds = TH.builds || {};
           if (y === yn - 1 && (wr.copper >= 1 || rHash(x, y, z, 81) < wr.copper)) c = 'oxidized_cut_copper';
           if (n2 > wr.patch) c = 'cobbled_deepslate';
         } else {
-          const s = Math.atan2(b, a) * 17.5, k = Math.round(s / stalkArc), d = s - k * stalkArc;
-          if (Math.abs(d) < 1) {   // a stalk, two blocks wide: lit on one side, shaded on the other, nodes from the texture
-            const row = 15 - ((((y - yb - 3) % 16) + 16) % 16), nd = CANE_NODES[k], lit = d < 0;
-            c = nd.includes(row) ? (lit ? 'bone_block[axis=y]' : 'lime_concrete') : nd.includes(row - 1) ? 'lime_terracotta' : lit ? 'lime_wool' : 'bamboo_block[axis=y]';
-          } else c = fill === 'glass' || (fill === 'mixed' && ((y - yb) % 9 >= 4 && (y - yb) % 9 <= 6)) ? 'glass' : sandy(x, y, z);
+          // twenty stalks round the body, 4 blocks wide each (lit side first, going round), the wall fill only in the
+          // narrow gaps between them; a node every 8 rows at each stalk's own height, a leaf in the gap beside it
+          const th = Math.atan2(z - M, x - M) + Math.PI, s = th * 17.5, k = Math.round(s / stalkArc), d = s - k * stalkArc, kk = ((k % 20) + 20) % 20;
+          const nodeAt = (st) => ((((y - yb - 3 + CANE_NODES[st % 5]) % 8) + 8) % 8);
+          if (Math.abs(d) < 2) {
+            const col = Math.min(3, Math.floor(d + 2)), r8 = nodeAt(kk);
+            c = r8 === 0 ? CANE_STALK.node[col] : r8 === 7 ? CANE_STALK.line[col] : CANE_STALK.body[col];
+          } else {
+            const nb = d > 0 ? kk : (kk + 19) % 20;   // the stalk on the lit side of the gap
+            c = nodeAt(nb) === 1 ? 'lime_concrete' : fill === 'glass' || (fill === 'mixed' && ((y - yb) % 9 >= 4 && (y - yb) % 9 <= 6)) ? 'glass' : sandy(x, y, z);
+          }
           if (c !== 'glass' && kNoise(x, y, z, 4, 51) > wr.moss) c = 'moss_block';
         }
       } else {   // the nose: a dark band where it meets the body, light grey panels, a darker grey tip
-        const h = y - yn, t = h / (Ln - 1), edge = 0.8 + 0.03 * Math.sin(Math.atan2(b, a) * 8);
+        const h = y - yn, dark = y >= yNeck - 2;
         if (h <= 1) c = 'polished_deepslate';
-        else if (t >= edge) c = fine < 0.7 ? 'gray_concrete' : 'polished_deepslate';
+        else if (dark) c = fine < 0.7 ? 'gray_concrete' : 'polished_deepslate';
         else c = kNoise(x, y, z, 2, 61) < 0.62 ? 'light_gray_concrete' : 'polished_andesite';
         if (c === 'light_gray_concrete' && n2 > wr.patch) c = fine < 0.5 ? 'andesite' : 'stone';
-        if (n3 > wr.rust && h > 1 && t < edge) c = 'brown_terracotta';
+        if (n3 > wr.rust && h > 1 && !dark) c = 'brown_terracotta';
       }
       out[i] = c;
     }
@@ -1158,7 +1172,7 @@ TH.builds = TH.builds || {};
       '7|60|pond': [91, 60, 91, 50136, 27228], '7|60|none': [60, 60, 73, 12714],
     },
     creeper_rocket: {
-      '100|on': [36, 100, 36, 17480], '100|off': [36, 100, 36, 15476], '127|on': [36, 127, 36, 20644], '127|off': [36, 127, 36, 18640],
+      '100|on': [36, 100, 36, 17926], '100|off': [36, 100, 36, 15922], '127|on': [36, 127, 36, 21066], '127|off': [36, 127, 36, 19062],
     },
     // @stats-end
   };

@@ -31,10 +31,12 @@ const nameOf = (id) => C.parse(id).name;
 // 32 x 32 x 32 (x and z 2..33, y 15..46), the body plate y 47, the body from y 48 to the nose (22 % of the height); the
 // AFK chamber at x 17..18, z 17, y H-4..H-2 over a slab floor
 const S = 36, HEAD = { lo: 2, hi: 33, y0: 15, y1: 46 }, PLATE_Y = 47, MID = 17, CEN = 17.5;
-const noseY = (H) => H - Math.round(H * 0.36);
-const chamber = (H) => [[17, 17], [18, 17]].flatMap(([x, z]) => [H - 4, H - 3, H - 2].map((y) => [x, y, z]));
+// the nose is a third of what is above the body plate, so the cane body is twice as tall as the nose
+const noseY = (H) => H - Math.round((H - PLATE_Y - 1) / 3);
+// the AFK chamber: air at y H-8..H-6 over a slab floor at H-9, its roof at H-5, the needle point above (H-4..H-1)
+const chamber = (H) => [[17, 17], [18, 17]].flatMap(([x, z]) => [H - 8, H - 7, H - 6].map((y) => [x, y, z]));
 // the chamber box and the caps around it (the one place that is not symmetric front to back)
-const inChamberBox = (H, x, y, z) => x >= 15 && x <= 20 && z >= 15 && z <= 20 && y >= H - 6;
+const inChamberBox = (H, x, y, z) => x >= 15 && x <= 20 && z >= 15 && z <= 20 && y >= H - 10 && y <= H - 4;
 // the creeper's face (entity/creeper/creeper.png, texels 8..15 x 8..15), left half; the right half is its mirror
 const FACE = ['PMGP', 'MGGG', 'GDDP', 'GDKG', 'PGPD', 'PMDK', 'PMKK', 'PPDP'];
 const COLOURS = {
@@ -45,7 +47,7 @@ const COLOURS = {
 };
 /** The face block of a colour set at column p (0..31 across the side) and row r (0 = top texel row): 4 blocks per texel. */
 const faceAt = (col, p, r) => COLOURS[col][FACE[r][Math.floor((p < 16 ? p : 31 - p) / 4)]];
-const STALK = ['lime_wool', 'bamboo_block', 'bone_block', 'lime_concrete', 'lime_terracotta'];
+const STALK = ['lime_wool', 'lime_concrete', 'bamboo_block', 'green_wool', 'bone_block', 'lime_terracotta', 'green_terracotta'];
 const SANDY = ['smooth_sandstone', 'sandstone', 'cut_sandstone', 'chiseled_sandstone'];
 const GLOW = ['glowstone', 'shroomlight'];
 const DARK = ['polished_deepslate', 'gray_concrete'];
@@ -161,13 +163,14 @@ for (const o of shapes()) {
       assert.ok(air, 'a buried block at ' + [x, y, z]);
     }
     // the rooms
-    const R = rooms(g), head = R.room(MID, HEAD.y0 + 15, MID), body = R.room(MID, PLATE_Y + 6, MID), ch = R.room(17, H - 3, 17);
+    const R = rooms(g), head = R.room(MID, HEAD.y0 + 15, MID), body = R.room(MID, PLATE_Y + 6, MID), ch = R.room(17, H - 7, 17);
     assert.ok(head > 1 && body > 1 && ch > 1 && new Set([head, body, ch]).size === 3, 'three separate sealed rooms');
     for (let y = HEAD.y0 + 1; y < HEAD.y1; y++) for (let z = HEAD.lo + 1; z < HEAD.hi; z++) for (let x = HEAD.lo + 1; x < HEAD.hi; x++) assert.strictEqual(R.room(x, y, z), head, 'the head room is 30 x 30 x 30 clear at ' + [x, y, z]);
     assert.strictEqual(R.size[head], 30 * 30 * 30, 'the head room is exactly the inside of the cube');
     let clear = 0;
     for (let y = PLATE_Y + 1; y < yn && R.room(MID, y, MID) === body; y++) clear++;
-    assert.ok(clear >= 15, 'the body room is ' + clear + ' high');
+    assert.ok(clear >= (H >= 127 ? 45 : 15), 'the body room is ' + clear + ' high');
+    assert.ok(yn - PLATE_Y - 1 >= 2 * (H - yn), 'the cane body (' + (yn - PLATE_Y - 1) + ') is at least twice the nose (' + (H - yn) + ')');
     for (const y of [PLATE_Y + 1, Math.floor((PLATE_Y + yn) / 2), yn - 1]) {
       for (let x = 1; x <= 34; x++) { assert.strictEqual(R.room(x, y, MID), body, 'the body room is 34 wide at x ' + x + ', y ' + y); assert.strictEqual(R.room(MID, y, x), body); }
       let area = 0; for (let z = 0; z < S; z++) for (let x = 0; x < S; x++) if (R.room(x, y, z) === body) area++;
@@ -177,8 +180,8 @@ for (const o of shapes()) {
     assert.strictEqual(R.size[ch], 6, 'the chamber holds 6 blocks of air');
     chamber(H).forEach(([x, y, z]) => assert.strictEqual(R.room(x, y, z), ch));
     for (const x of [17, 18]) {
-      assert.match(g.id(x, H - 5, 17), /_slab\[type=bottom\]$/, 'a bottom slab floor');
-      assert.ok(g.at(x, H - 1, 17), 'a roof');
+      assert.match(g.id(x, H - 9, 17), /_slab\[type=bottom\]$/, 'a bottom slab floor');
+      assert.ok(g.at(x, H - 5, 17), 'a roof');
     }
     let highest = -1; for (let y = 0; y < sy; y++) for (let z = 0; z < sz; z++) for (let x = 0; x < sx; x++) if (g.at(x, y, z)) highest = Math.max(highest, y);
     assert.strictEqual(highest, H - 1, 'the chamber roof is the highest layer');
@@ -196,9 +199,10 @@ for (const o of shapes()) {
     for (let y = PLATE_Y; y < yn; y++) assert.strictEqual(widthAt(g, y), S, 'body at y ' + y);
     for (let y = yn + 1; y < H; y++) assert.ok(widthAt(g, y) <= widthAt(g, y - 1), 'the nose narrows at y ' + y);
     // a long slim nose: at least a third of the height, half the body width by its middle, a small cap on top
-    assert.ok(H - yn >= H / 3, 'the nose is ' + (H - yn) + ' rows long');
-    assert.ok(widthAt(g, yn + Math.floor((H - yn) * 0.6)) <= S / 2 + 4, 'slim: ' + widthAt(g, yn + Math.floor((H - yn) * 0.6)) + ' wide at 60 %');
-    assert.ok(widthAt(g, H - 1) >= 4 && widthAt(g, H - 1) <= 6, 'a small cap ' + widthAt(g, H - 1) + ' wide on top');
+    // a needle: narrow round the chamber (6 wide), then a point 2 wide at the very top
+    for (let y = H - 10; y <= H - 5; y++) assert.ok(widthAt(g, y) <= 8, 'narrow round the chamber: ' + widthAt(g, y) + ' at y ' + y);
+    assert.strictEqual(widthAt(g, H - 1), 2, 'a sharp point on top');
+    assert.ok(widthAt(g, H - 3) <= 4, 'the point narrows');
     // round: the outside of the body wall lies on a circle (within the 2.2 superellipse's slight squareness)
     const ym = Math.floor((PLATE_Y + yn) / 2);
     for (let z = 0; z < sz; z++) for (let x = 0; x < sx; x++) {
@@ -222,10 +226,9 @@ for (const o of shapes()) {
       if (STALK.includes(b) || b === 'moss_block') green++;
       if (b === 'bone_block' && g.at(x, y - 1, z) === 'lime_terracotta') nodes++;
     }
-    assert.ok(green < 0.5 * wall, 'green is under half of the cane wall (' + green + ' of ' + wall + ')');
-    assert.ok(green > 0.15 * wall, 'but the stalks are there');
+    assert.ok(green > 0.6 * wall && green < 0.9 * wall, 'green stalks make most of the cane wall, the fill shows in the gaps (' + green + ' of ' + wall + ')');
     assert.ok(nodes >= 16, 'node rows on the stalks (' + nodes + ')');
-    for (const b of SANDY.slice(0, 2)) assert.ok(counts[b] > 100, 'a sandy wall: ' + b);
+    for (const b of SANDY.slice(0, 2)) assert.ok(counts[b] > 50, 'sandstone in the gaps: ' + b);
     // grey parts and the nose; no white or red outside the head and the flames
     for (let y = 10; y < H; y++) for (let z = 0; z < S; z++) for (let x = 0; x < S; x++) {
       const b = g.at(x, y, z);
@@ -235,7 +238,7 @@ for (const o of shapes()) {
     }
     let dark = 0, light = 0;
     for (let y = yn; y < H; y++) for (let z = 0; z < S; z++) for (let x = 0; x < S; x++) { const b = g.at(x, y, z); if (!b) continue; if (DARK.includes(stem(b))) dark++; else light++; }
-    assert.ok(dark > 100 && light > 2 * dark, 'a light grey nose with a darker band and tip (' + dark + ' / ' + light + ')');
+    assert.ok(dark > 30 && light > 200, 'a light grey nose with a darker band and tip (' + dark + ' / ' + light + ')');
     for (let z = 0; z < S; z++) for (let x = 0; x < S; x++) { const b = g.at(x, H - 1, z); if (b) assert.ok(DARK.includes(stem(b)), 'the top is dark: ' + b); }
     const glow = GLOW.reduce((a, b) => a + (counts[b] || 0), 0);
     if (o.flames === 'off') {
@@ -276,10 +279,10 @@ t('cane wall: sandy, glass or mixed; the same shape and stalks, never sand', () 
   const base = grid(F.schematic(ID, { size: '100', fill: 'sandy' }));
   const cnt = (s) => Object.fromEntries(C.counts(s, true).map((r) => [nameOf(r.id), r.n]));
   const sandy = cnt(base.s), glass = F.schematic(ID, { size: '100', fill: 'glass' }), mixed = F.schematic(ID, { size: '100', fill: 'mixed' });
-  assert.ok(!sandy.glass && sandy.smooth_sandstone > 500);
+  assert.ok(!sandy.glass && sandy.smooth_sandstone > 200);
   const cg = cnt(glass), cm = cnt(mixed);
-  assert.ok(cg.glass > 1000 && !cg.smooth_sandstone, 'glass between the stalks');
-  assert.ok(cm.glass > 200 && cm.smooth_sandstone > 200, 'sandstone with glass bands');
+  assert.ok(cg.glass > 300 && !cg.smooth_sandstone, 'glass between the stalks');
+  assert.ok(cm.glass > 80 && cm.smooth_sandstone > 80, 'sandstone with glass bands');
   for (const s of [glass, mixed]) {
     const g = grid(s);
     for (let y = 0; y < 100; y++) for (let z = 0; z < S; z++) for (let x = 0; x < S; x++) {

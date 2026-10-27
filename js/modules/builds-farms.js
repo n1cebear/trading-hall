@@ -326,15 +326,16 @@ TH.builds = TH.builds || {};
       art: ['entity/creeper/creeper', 64, 32, 8, 8, 8, 8],
       tags: ['statue', 'mob-head', 'pixel-art', 'creature'],
       pitch: 'A giant creeper head: the famous face on the front and the mottled green skin on the other five sides, copied pixel by pixel from the game texture.',
-      how: 'Every pixel of the creeper’s 8 x 8 head texture becomes a square of blocks. Six tones: black and green concrete for the face, lime concrete, lime wool, green wool and white concrete for the skin.',
+      how: 'Every pixel of the creeper’s 8 x 8 head texture becomes a square of blocks. The eyes, nose and mouth are black concrete as in game; the skin is lime concrete, lime wool, green wool and white concrete flecks (or light blue and cyan for a charged creeper).',
       opts: [
         { id: 'size', label: 'Size in blocks', def: '24', choices: [8, 16, 24, 32, 48, 64, 96].map((n) => [String(n), String(n), n + ' blocks a side: ' + (n === 8 ? 'one block per texture pixel' : 'each texture pixel is ' + n / 8 + ' x ' + n / 8 + ' blocks')]) },
+        { id: 'colour', label: 'Colour', def: 'green', look: true, choices: [['green', 'Green', 'The real creeper greens'], ['charged', 'Charged blue', 'A charged creeper: light blue and cyan skin, the black face']] },
       ],
       make: (o) => creeperHead(o),
       steps: [
         'Pick a size: every texture pixel is a square of blocks, from one block at size 8 to 12 x 12 at size 96.',
         'Lay the bottom face, then build the four walls ring by ring and close the top. The head is hollow, one block thick.',
-        'The south side is the face: black concrete for the eyes and the mouth, green concrete around them.',
+        'The south side is the face: black concrete for the two eyes, the nose and the mouth, 20 pixels in all.',
         'The other sides copy the creeper’s skin: lime concrete, lime wool, green wool and a few white concrete flecks.',
       ],
       tips: [
@@ -378,7 +379,7 @@ TH.builds = TH.builds || {};
       opts: [
         { id: 'size', label: 'Height in blocks', def: '127', choices: [['100', '100', '100 blocks high: a shorter cane body'], ['127', '127', 'Covers y 63 to 189, the AFK chamber at the top']] },
         { id: 'flames', label: 'Flames', def: 'on', choices: [['on', 'With flames', 'Yellow, orange and red flames from the nozzle down to the ground, 18 blocks wide at the narrowest'], ['off', 'No flames', 'The rocket stands on its four fins, the 20 block nozzle open below']] },
-        { id: 'colour', label: 'Creeper colour', def: 'charged', look: true, choices: [['charged', 'Charged', 'Charged blue head: light blue and cyan skin, a dark blue and black face'], ['grey', 'Grey', 'Stone grey head: stone, andesite and tuff, a grey and black face'], ['ember', 'Ember', 'Ember head: orange and red terracotta, a dark red and black face'], ['green', 'Green', 'The real creeper greens']] },
+        { id: 'colour', label: 'Creeper colour', def: 'charged', look: true, choices: [['charged', 'Charged', 'Charged blue head: light blue and cyan skin, the black face'], ['grey', 'Grey', 'Stone grey head: stone, andesite and tuff, the black face'], ['ember', 'Ember', 'Ember head: orange and red terracotta, the black face'], ['green', 'Green', 'The real creeper greens']] },
         { id: 'fill', label: 'Cane wall', def: 'sandy', look: true, choices: [['sandy', 'Sandy', 'Smooth, cut and plain sandstone between the green stalks'], ['glass', 'Glass', 'Glass between the stalks: the cane farm inside shows'], ['mixed', 'Mixed', 'Sandstone with bands of glass windows']] },
         { id: 'wear', label: 'Wear', def: 'weathered', look: true, choices: [['clean', 'Clean', 'Fresh: no moss, no cracks, no rust'], ['weathered', 'Weathered', 'A few moss and cobblestone patches, cracked bricks and short rust streaks'], ['rusty', 'Rusty', 'Old and rusty: more moss, cobblestone and cracked bricks, long rust streaks']] },
       ],
@@ -400,13 +401,13 @@ TH.builds = TH.builds || {};
     {
       id: 'creeper_launcher', cat: 'build', dim: 'overworld', icon: 'item/firework_rocket', level: 'Hard', name: 'Creeper launcher',
       tags: ['statue', 'mob-head', 'pixel-art', 'creature'],
-      pitch: 'The Creeper rocket as a heavy launcher: the creeper head cube, the round sugar cane core and a needle nose with a 2 x 1 AFK chamber and an escape-tower spike, plus two grey boosters strapped east and west with their own nozzles and flames. 64 x 36 with the boosters (36 x 36 core only). At 127 high it covers y 63 to 189: base at y 63, the spike at y 189.',
-      how: 'The core is the Creeper rocket: a perfect 32 block creeper cube (exactly 32 rows, its roof the top one) with room for a 27 x 27 farm, a round cane body with a room about 34 across, a needle nose round the sealed AFK chamber. The cane is all greens from the sugar cane palette (lit side, mid, shade, dark edge, pale node rims over dark node bands, bright leaves) with sand or glass between the stalks and three sandstone bands. The boosters are 14 wide hollow columns of smooth stone, andesite and stone with dark blackstone rings, braced to the head and touching the core. Every open top outside is a slab, a stair or a carpet; the farm rooms stay empty.',
+      pitch: 'The Creeper rocket as a heavy launcher: the creeper head cube, the round sugar cane core with the cane texture wrapped round it, and on top a service section, a capsule with a porthole and the 2 x 1 AFK chamber, and a slim escape tower; plus two grey boosters strapped east and west with their own nozzles and flames. 64 x 36 with the boosters (36 x 36 core only). At 127 high it covers y 63 to 189: base at y 63, the tower tip at y 189.',
+      how: 'The core is a perfect 32 block creeper cube (exactly 32 rows, its roof the top one) with a black face on all four sides and room for a 27 x 27 farm, then a round cane body with a room about 34 across. The sugar cane texture is wrapped round it three times, every texture pixel about 2 x 2 blocks: green stalks, pale node rims over dark bands and bright leaves, sand or glass where the texture is see-through. The top follows a real launcher: a 28 wide service section with ring bands, a dark rim, a 22 wide capsule that steps in to 8 wide, then a 4 wide neck and a 2 wide spire. The boosters are 14 wide hollow columns with dark rings. Every open top outside is a slab, a stair or a carpet; the farm rooms stay empty.',
       opts: [
         { id: 'size', label: 'Height in blocks', def: '127', choices: [['100', '100', '100 blocks high: a shorter cane body'], ['127', '127', 'Covers y 63 to 189, the AFK chamber near the top']] },
         { id: 'flames', label: 'Flames', def: 'on', choices: [['on', 'With flames', 'Flames from every nozzle down to the ground'], ['off', 'No flames', 'The rocket stands on its fins and the boosters\' nozzles']] },
         { id: 'boosters', label: 'Boosters', def: 'on', choices: [['on', 'With boosters', 'Two 14 wide boosters east and west: 64 x 36 in all'], ['off', 'Core only', 'Just the core, 36 x 36, to compare']] },
-        { id: 'colour', label: 'Creeper colour', def: 'charged', look: true, choices: [['charged', 'Charged', 'Charged blue head: light blue and cyan skin, a dark blue and black face'], ['grey', 'Grey', 'Stone grey head: stone, andesite and tuff, a grey and black face'], ['ember', 'Ember', 'Ember head: orange and red terracotta, a dark red and black face'], ['green', 'Green', 'The real creeper greens']] },
+        { id: 'colour', label: 'Creeper colour', def: 'charged', look: true, choices: [['charged', 'Charged', 'Charged blue head: light blue and cyan skin, the black face'], ['grey', 'Grey', 'Stone grey head: stone, andesite and tuff, the black face'], ['ember', 'Ember', 'Ember head: orange and red terracotta, the black face'], ['green', 'Green', 'The real creeper greens']] },
         { id: 'fill', label: 'Cane wall', def: 'sandy', look: true, choices: [['sandy', 'Sandy', 'Smooth, cut and plain sandstone between the green stalks'], ['glass', 'Glass', 'Glass between the stalks: the cane farm inside shows'], ['mixed', 'Mixed', 'Sandstone with bands of glass windows']] },
         { id: 'wear', label: 'Wear', def: 'weathered', look: true, choices: [['clean', 'Clean', 'Fresh: no moss, no cracks, no rust'], ['weathered', 'Weathered', 'A few moss and cobblestone patches, cracked bricks'], ['rusty', 'Rusty', 'Old: more moss, cobblestone and cracked bricks, rust patches on the grey']] },
       ],
@@ -415,13 +416,13 @@ TH.builds = TH.builds || {};
         'Mark a 64 x 36 area (36 x 36 without boosters) with its bottom at y 63. The core stands in the middle, a booster 25 blocks to each side of its centre.',
         'Build the flames and nozzles first, the big one under the core and a smaller one under each booster, then the creeper head on the core: a 32 block cube, four blocks per pixel, the face on every side, the roof as its 32nd row.',
         'Raise both boosters with the head: hollow 14 wide columns with a blackstone ring every 10 rows, braced to the head at three heights.',
-        'Raise the round cane body straight on the roof of the head, layer by layer with "Only this layer": twenty 4 wide green stalks with their nodes, sand or glass between them, three sandstone bands.',
-        'Close the boosters with their cones and the core with its needle nose: the AFK chamber in the neck, the escape-tower spike above it as the highest block.',
+        'Raise the round cane body straight on the roof of the head, layer by layer with "Only this layer": the cane texture, two rows a pixel, green where the texture has stalks and leaves, sand or glass where it is see-through.',
+        'Close the boosters with their cones and the core with its top: the banded service section, the dark rim, the capsule (straight, then stepping in) with the AFK chamber on a floor plate inside, the tower neck and the spire as the highest block.',
       ],
       tips: [
         'Spawn-proofed outside: no full block has open air on top. The farm rooms are yours to light or slab as the farm needs.',
         'The AFK chamber is sealed: break in through a wall or the floor with a pickaxe and close it behind you.',
-        'Boosters Core only gives the plain core with the new cane and spike, to compare with the Creeper rocket.',
+        'Boosters Core only gives the plain core, to compare with the Creeper rocket.',
         'The boosters are hollow and sealed too, with stone buttons on their floors so nothing spawns inside.',
       ],
     },
@@ -681,11 +682,14 @@ TH.builds = TH.builds || {};
     'GWPPPGPMPPDPPDMGGPPPWGWMGGMPPGMG',
   ];
   const CREEPER_BLOCK = {
-    K: 'minecraft:black_concrete', D: 'minecraft:green_concrete', M: 'minecraft:green_wool', G: 'minecraft:lime_concrete', P: 'minecraft:lime_wool', W: 'minecraft:white_concrete',
+    // D marks the texture's dark green face pixels round the black ones: in game the whole eye, nose and mouth read
+    // black, so both are black concrete; the skin keeps its mottled greens
+    K: 'minecraft:black_concrete', D: 'minecraft:black_concrete', M: 'minecraft:green_wool', G: 'minecraft:lime_concrete', P: 'minecraft:lime_wool', W: 'minecraft:white_concrete',
   };
-  /** Creeper: o.size '8' .. '96' (the cube's side), each texel a square of size / 8 blocks; the face looks south. Hollow. */
+  /** Creeper: o.size '8' .. '96' (the cube's side), each texel a square of size / 8 blocks; the face looks south. Hollow. o.colour 'green' | 'charged'. */
   function creeperHead(o) {
     const s = { 8: 1, 16: 2, 24: 3, 32: 4, 48: 6, 64: 8, 96: 12 }[o.size] || 3, N = 8 * s;
+    const pal = o.colour === 'charged' ? Object.fromEntries(Object.entries(ROCKET_CREEPER.charged).map(([k, v]) => [k, 'minecraft:' + v])) : CREEPER_BLOCK;
     const t = (u, v) => CREEPER_TEX[v][u];
     return TH.builds.core.fromFunction([N, N, N], (i, j, k) => {
       if (i > 0 && j > 0 && k > 0 && i < N - 1 && j < N - 1 && k < N - 1) return null;   // hollow
@@ -697,7 +701,7 @@ TH.builds = TH.builds || {};
       else if (m === 0) ch = t(q, 8 + r);   // the sides (the mob's right side, mirrored on the left)
       else if (k === 0) ch = t(31 - c, 8 + r);   // back
       else ch = t(16 + c, q);   // bottom
-      return CREEPER_BLOCK[ch] || CREEPER_BLOCK.G;
+      return pal[ch] || pal.G;
     }, 'Creeper head ' + (o.size || '24'));
   }
 
@@ -962,12 +966,12 @@ TH.builds = TH.builds || {};
     line: ['lime_terracotta', 'lime_terracotta', 'lime_terracotta', 'green_terracotta'],
   };
   const ROCKET_BLOCK = { hot: 'yellow_concrete', glow: 'glowstone', fire: 'orange_concrete', fire2: 'shroomlight', ember: 'red_concrete' };
-  /** The creeper head's colour sets: the texture letters (K black and D dark: the face; M, G, P skin from dark to light; W flecks). */
+  /** The creeper head's colour sets: the texture letters (K and D: the face, all black as in game; M, G, P skin from dark to light; W flecks). */
   const ROCKET_CREEPER = {
-    charged: { K: 'black_concrete', D: 'blue_concrete', M: 'cyan_concrete', G: 'light_blue_concrete', P: 'light_blue_wool', W: 'white_concrete' },
-    grey: { K: 'black_concrete', D: 'gray_concrete', M: 'tuff', G: 'andesite', P: 'stone', W: 'polished_diorite' },
-    ember: { K: 'black_concrete', D: 'red_nether_bricks', M: 'red_terracotta', G: 'orange_terracotta', P: 'orange_concrete', W: 'yellow_concrete' },
-    green: { K: 'black_concrete', D: 'green_concrete', M: 'green_wool', G: 'lime_concrete', P: 'lime_wool', W: 'white_concrete' },
+    charged: { K: 'black_concrete', D: 'black_concrete', M: 'cyan_concrete', G: 'light_blue_concrete', P: 'light_blue_wool', W: 'white_concrete' },
+    grey: { K: 'black_concrete', D: 'black_concrete', M: 'tuff', G: 'andesite', P: 'stone', W: 'polished_diorite' },
+    ember: { K: 'black_concrete', D: 'black_concrete', M: 'red_terracotta', G: 'orange_terracotta', P: 'orange_concrete', W: 'yellow_concrete' },
+    green: { K: 'black_concrete', D: 'black_concrete', M: 'green_wool', G: 'lime_concrete', P: 'lime_wool', W: 'white_concrete' },
   };
   // how worn the rocket looks: noise thresholds for moss, worn patches and rust patches (2 = never), the share of
   // columns with a rust streak and the share of cracked bricks in the tuff rings. No copper anywhere.
@@ -988,18 +992,24 @@ TH.builds = TH.builds || {};
     // the stalk's tones from light to dark: each column of a stalk starts at its place and shifts a step darker toward
     // the bottom of the body, a step lighter near the top
     cane: ['lime_wool', 'lime_concrete', 'bamboo_block[axis=y]', 'green_wool', 'green_terracotta'],
-    // the Creeper launcher: the cane only in greens (from the sugar cane palette: #52a823, #3d7d1a, #306314, #72b947),
-    // the boosters' light greys, their dark band rings and their cones darkening to the tip
-    cane2: ['lime_wool', 'lime_concrete', 'green_wool', 'green_concrete', 'green_terracotta'],
+    // the Creeper launcher: the boosters' light greys, their dark band rings and their cones darkening to the tip
     booster: ['smooth_stone', 'polished_andesite', 'andesite', 'stone'],
     boosterCone: ['smooth_stone', 'polished_andesite', 'andesite', 'stone', 'tuff', 'polished_tuff'],
     band: ['polished_blackstone', 'blackstone', 'polished_deepslate'],
   };
-  // the launcher's stalk: the pale rim of a node (a light row) over its dark band, in greens only
-  const CANE_STALK2 = {
-    node: ['lime_wool', 'lime_wool', 'lime_concrete', 'lime_concrete'],
-    line: ['green_wool', 'green_concrete', 'green_concrete', 'green_terracotta'],
-  };
+  // the launcher's cane: the sugar cane texture itself (the green version Basti sent: 4 stalks of 2 pixels, a light and
+  // a dark column, node rims b c over dark bands e f, leaves g h; '.' is the see-through background), wrapped round the
+  // body 3 times (48 pixels round 110 blocks: about 2.3 blocks a pixel), 2 rows a pixel, nearest pixel, no smoothing
+  const CANE_TEX = [
+    '.bc..de..de..de.', '.ef..de..de..bc.', '.deg.de..deh.ef.', '.deh.deg.de..de.',
+    '.de..bch.de..de.', '.de..ef..bc..de.', '.de..de..ef..deg', '.de..de..de..deh',
+    'gbc..de..de..de.', 'hef..de..de..bc.', '.de.hbc.gde..ef.', '.de..ef.hde..de.',
+    '.de..de..de..de.', '.de..de..bc.hde.', '.de..de..ef..de.', '.de..de..de..de.',
+  ];
+  // its colours (#72b947, #47921e, #52a823, #3d7d1a, #306314, #44b90e, #36920b) as the nearest green blocks, keeping
+  // their order from light to dark: highlights and leaves lime wool, the lit column lime concrete, the node's dark half
+  // lime terracotta, the shaded column green wool, the darkest node pixels green concrete
+  const CANE_TEX_BLOCK = { b: 'lime_wool', c: 'lime_terracotta', d: 'lime_concrete', e: 'green_wool', f: 'green_concrete', g: 'lime_wool', h: 'lime_concrete' };
   // the carpet of the same colour, for the head's top corners outside the round body (spawn-proof and nearly flat)
   const carpetOf = (nm) => { const m = nm.match(/^(white|orange|magenta|light_blue|yellow|lime|pink|gray|light_gray|cyan|purple|blue|brown|green|red|black)_/); return (m ? m[1] : { tuff: 'gray', andesite: 'light_gray', stone: 'light_gray', polished_diorite: 'white' }[nm] || 'light_gray') + '_carpet'; };
   // the slab and stair material for the top of each block (a block without its own slab takes a close one)
@@ -1030,20 +1040,29 @@ TH.builds = TH.builds || {};
     // the launcher's grid is 64 wide (the core 36 in the middle, a 14 wide booster on each side); the core keeps its centre
     const Wx = LA ? 64 : 36, Wz = 36, Mx = Wx / 2 - 0.5, Mz = 17.5, hw = 16;
     const yf = 9, yh = 15, yt = yh + 31, yb = yt + 1, Ln = Math.round((H - yb - 1) / 3), yn = H - Ln;   // flame top, head (bottom, top row = roof), body, nose
-    const Ro = 17.6, Rch = 2.6, P = LA ? 8 : 4;   // body radius, nose radius round the chamber, rows of the point above it
+    const Ro = 17.6, Rch = 2.6, P = 4;   // body radius, nose radius round the chamber, rows of the point above it
     const N = Wx * H * Wz, at = (x, y, z) => (y * Wz + z) * Wx + x;
     const se = (a, b, p) => Math.pow(Math.pow(a, p) + Math.pow(b, p), 1 / p);
     // the AFK chamber: 2 x 1 at the core's middle, three rows of air over a slab floor, one block of wall all round, the roof on top
-    const CH = { x0: Mx - 0.5, x1: Mx + 0.5, z: Mz - 0.5, y0: H - P - 4, y1: H - P - 2 };
+    // the launcher's top, after the screenshot: a narrower service section with ring bands, a dark rim, the capsule (straight,
+    // then a stepped cone), the abort tower (a 4 wide neck and a 2 wide spire); the AFK chamber inside the capsule
+    const TOP = LA ? (Ln >= 22 ? { adapter: 6, rim: 1, straight: 4, cone: 6, neck: 2 } : { adapter: 3, rim: 1, straight: 2, cone: 4, neck: 2 }) : null;
+    // the chamber sits in the top of the capsule's cone, its roof the cone's last row, on a floor plate across the capsule
+    const yTower = LA ? yn + TOP.adapter + TOP.rim + TOP.straight + TOP.cone : 0;   // the abort tower's first row
+    const CH = LA ? { x0: Mx - 0.5, x1: Mx + 0.5, z: Mz - 0.5, y0: yTower - 4, y1: yTower - 2 } : { x0: Mx - 0.5, x1: Mx + 0.5, z: Mz - 0.5, y0: H - P - 4, y1: H - P - 2 };
     const inChamber = (x, y, z) => x >= CH.x0 && x <= CH.x1 && z === CH.z && y >= CH.y0 && y <= CH.y1;
     const chamberFloor = (x, y, z) => x >= CH.x0 && x <= CH.x1 && z === CH.z && y === CH.y0 - 1;
     const chamberWall = (x, y, z) => x >= CH.x0 - 1 && x <= CH.x1 + 1 && z >= CH.z - 1 && z <= CH.z + 1 && y >= CH.y0 - 1 && y <= CH.y1 + 1;
     // the nose: a needle. A slightly concave cone from the body's radius in to a 6 wide neck that holds the chamber
-    // (floor, three rows of air, roof), then a point: 4, 4, 2, 2 wide (the launcher: a longer escape-tower spike), the
-    // last row the highest block
-    const yNeck = CH.y0 - 2, POINT = LA ? [2, 1.6, 1.6, 0.8, 0.75, 0.75, 0.75, 0.75] : [2, 1.6, 0.8, 0.75];
+    // (floor, three rows of air, roof), then a point: 4, 4, 2, 2 wide, the last row the highest block (the launcher has
+    // its own top, below)
+    const yNeck = CH.y0 - 2, POINT = [2, 1.6, 0.8, 0.75];
     const noseR = (y) => (y >= H - P ? POINT[y - (H - P)] : y >= yNeck ? Rch : Rch + (Ro - Rch) * Math.pow(1 - (y - yn) / (yNeck - yn), 1.3));
-    const nose = (a, b, y) => se(a, b, 2.2 - 0.2 * Math.min(1, (y - yn) / (yNeck - yn))) <= noseR(y);
+    const topR = (y) => {
+      const h = y - yn, A = TOP.adapter, R1 = A + TOP.rim, S1 = R1 + TOP.straight, C1 = S1 + TOP.cone, N1 = C1 + TOP.neck;
+      return h < A ? 13.6 : h < R1 ? 12.6 : h < S1 ? 11.2 : h < C1 ? 11.2 - ((h - S1 + 1) * 7) / TOP.cone : h < N1 ? 2 : 0.75;
+    };
+    const nose = LA ? (a, b, y) => Math.hypot(a, b) <= topR(y) : (a, b, y) => se(a, b, 2.2 - 0.2 * Math.min(1, (y - yn) / (yNeck - yn))) <= noseR(y);
     const T = 17.5, yTip = 12, yRoot = yt - 1;
     const finTop = (t) => yTip + (yRoot - yTip) * Math.pow((T - t) / (T - 12), 1.2);
     const finBot = (t) => (t >= 14 ? 0 : ((yh - 1) * (14 - t)) / 2);
@@ -1060,7 +1079,7 @@ TH.builds = TH.builds || {};
       else if (y >= yb && y < yn && q <= Ro) g = 6;
       else if (y >= yn) {
         if (chamberWall(x, y, z)) { g = inChamber(x, y, z) ? 0 : 10; if (g) forced[i] = 1; }
-        else if (nose(a, b, y)) g = 9;
+        else if (nose(a, b, y)) { g = 9; if (LA && y === CH.y0 - 1) forced[i] = 1; }   // the launcher: a closed floor plate under the chamber
       } else if (y > yf && y < yh) {
         const u = (yh - 1 - y) / (yh - yf - 2), ro = 8.8 + 1.2 * Math.pow(u, 1.3);
         if (r <= ro && !(y < yh - 1 && r <= ro - 1.3)) g = 3;
@@ -1130,8 +1149,6 @@ TH.builds = TH.builds || {};
     const bodyV = (y) => (y - yb) / Math.max(1, yn - yb);   // 0 at the bottom of the body, 1 at the top
     // the sandy fill: more plain sandstone low down, smoother higher up, a few chiseled blocks
     const sandy = (x, y, z) => (rHash(x, y, z, 73) < 0.03 ? 'chiseled_sandstone' : ramp(ROCKET_RAMP.sand, 0.85 - 0.7 * bodyV(y), x, y, z, 71));
-    // the launcher's three sand bands round the cane (2 rows each)
-    const bandAt = (y) => LA && [0.3, 0.55, 0.8].some((f) => { const y0 = yb + Math.round(f * (yn - yb)); return y === y0 || y === y0 + 1; });
     const out = new Array(N).fill(null);
     for (let y = 0; y < H; y++) for (let z = 0; z < Wz; z++) for (let x = 0; x < Wx; x++) {
       const i = at(x, y, z), g = reg[i];
@@ -1169,24 +1186,40 @@ TH.builds = TH.builds || {};
           c = deep ? ramp(ROCKET_RAMP.tuff, 0.4, x, y, z, 95) : ramp(ROCKET_RAMP.light, 0.4, x, y, z, 97);
           if (deep && rHash(x, y, z, 81) < wr.crack) c = 'cracked_stone_bricks';
           if (n2 > wr.patch) c = fine < 0.8 ? 'cobblestone' : 'mossy_cobblestone';
-        } else if (bandAt(y)) c = ramp(ROCKET_RAMP.sand, 0.5, x, y, z, 121);
-        else {
+        } else if (LA) {
+          // the cane texture wrapped round the body: 48 pixels round (3 repeats), 2 rows a pixel, the top of the texture up
+          const th = Math.atan2(z - Mz, x - Mx) + Math.PI, u = Math.floor((th / (2 * Math.PI)) * 48) % 16, v = 15 - (Math.floor((y - yb - 2) / 2) % 16);
+          const px = CANE_TEX[v][u];
+          if (px !== '.') c = CANE_TEX_BLOCK[px];
+          else if (fill === 'glass' || (fill === 'mixed' && ((y - yb) % 9 >= 4 && (y - yb) % 9 <= 6))) c = 'glass';
+          else { const sh = rHash(x, y, z, 127); c = sh < 0.12 ? 'cut_sandstone' : sh < 0.17 ? 'sandstone' : 'smooth_sandstone'; }
+          if (c !== 'glass' && kNoise(x, y, z, 4, 51) > wr.moss) c = 'moss_block';
+        } else {
           // twenty stalks round the body, 4 blocks wide each (lit side first, going round), the wall fill only in the
           // narrow gaps between them; a node every 8 rows at each stalk's own height, a leaf in the gap beside it
           const th = Math.atan2(z - Mz, x - Mx) + Math.PI, s = th * 17.5, k = Math.round(s / stalkArc), d = s - k * stalkArc, kk = ((k % 20) + 20) % 20;
           const nodeAt = (st) => ((((y - yb - 3 + CANE_NODES[st % 5]) % 8) + 8) % 8);
-          const STK = LA ? CANE_STALK2 : CANE_STALK, RMP = LA ? ROCKET_RAMP.cane2 : ROCKET_RAMP.cane;
+          const STK = CANE_STALK, RMP = ROCKET_RAMP.cane;
           if (Math.abs(d) < 2) {
             const col = Math.min(3, Math.floor(d + 2)), r8 = nodeAt(kk), v = bodyV(y), dn = kNoise(x, y, z, 3, 99) - 0.5;
             const shift = (v < 0.4 && dn < 0.35 - v) ? 1 : (v > 0.7 && dn > 0.75 - v) ? -1 : 0;   // darker low down, lighter near the top
             c = r8 === 0 ? STK.node[col] : r8 === 7 ? STK.line[col] : RMP[Math.max(0, Math.min(4, col + shift))];
           } else {
             const nb = d > 0 ? kk : (kk + 19) % 20, n8 = nodeAt(nb);   // the stalk on the lit side of the gap
-            const leaf = LA ? (n8 === 1 ? 'lime_wool' : n8 === 2 && rHash(x, y, z, 125) < 0.5 ? 'lime_concrete' : null) : (n8 === 1 ? 'lime_concrete' : null);
+            const leaf = n8 === 1 ? 'lime_concrete' : null;
             c = leaf || (fill === 'glass' || (fill === 'mixed' && ((y - yb) % 9 >= 4 && (y - yb) % 9 <= 6)) ? 'glass' : sandy(x, y, z));
           }
           if (c !== 'glass' && kNoise(x, y, z, 4, 51) > wr.moss) c = 'moss_block';
         }
+      } else if (LA) {   // the launcher's top: grey service section with dark ring bands and ribs, a dark rim, the capsule with panel lines and a porthole, a dark tower
+        const h = y - yn, A = TOP.adapter, R1 = A + TOP.rim, S1 = R1 + TOP.straight, C1 = S1 + TOP.cone, th = (Math.atan2(b, a) * 180) / Math.PI;
+        if (h < A) c = h % 3 === 2 ? ramp(ROCKET_RAMP.band, 0.4, x, y, z, 131) : Math.round(th / 15) * 15 - th < 2 && Math.round(th / 15) * 15 - th > -2 ? 'tuff' : ramp(ROCKET_RAMP.light, 0.45, x, y, z, 133);
+        else if (h < R1) c = ramp(ROCKET_RAMP.band, 0.3, x, y, z, 135);
+        else if (h < C1) {
+          const port = z > Mz && a < 1 && h >= R1 + 1 && h <= R1 + 2 && b > 8;   // one porthole, 2 x 2, facing south
+          const seam = Math.abs(((th + 22.5) % 45) - 22.5) * (Math.PI / 180) * Math.hypot(a, b) < 0.5;
+          c = port ? 'tinted_glass' : seam ? 'tuff' : ramp(ROCKET_RAMP.booster, 0.2 + 0.5 * Math.max(0, (h - S1) / TOP.cone), x, y, z, 137);
+        } else c = ramp(ROCKET_RAMP.band, h < C1 + TOP.neck ? 0.6 : 0.2, x, y, z, 139);
       } else {   // the nose: a deepslate band where it meets the body, then light grey grading through the greys to a dark tip
         const h = y - yn, dark = y >= yNeck - 2, t = Math.min(1, (y - yn) / Math.max(1, yNeck - 2 - yn));
         if (h <= 1) c = ramp(ROCKET_RAMP.deep, 0.35, x, y, z, 101);
@@ -1273,8 +1306,8 @@ TH.builds = TH.builds || {};
       '100|on': [36, 100, 36, 17062], '100|off': [36, 100, 36, 15058], '127|on': [36, 127, 36, 20202], '127|off': [36, 127, 36, 18198],
     },
     creeper_launcher: {
-      '100|on|on': [64, 100, 36, 25806], '100|on|off': [36, 100, 36, 16782], '100|off|on': [64, 100, 36, 22530], '100|off|off': [36, 100, 36, 14778],
-      '127|on|on': [64, 127, 36, 31066], '127|on|off': [36, 127, 36, 19914], '127|off|on': [64, 127, 36, 27790], '127|off|off': [36, 127, 36, 17910],
+      '100|on|on': [64, 100, 36, 26542], '100|on|off': [36, 100, 36, 17518], '100|off|on': [64, 100, 36, 23266], '100|off|off': [36, 100, 36, 15514],
+      '127|on|on': [64, 127, 36, 31690], '127|on|off': [36, 127, 36, 20538], '127|off|on': [64, 127, 36, 28414], '127|off|off': [36, 127, 36, 18534],
     },
     // @stats-end
   };

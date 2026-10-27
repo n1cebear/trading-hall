@@ -40,10 +40,10 @@ const inChamberBox = (H, x, y, z) => x >= 15 && x <= 20 && z >= 15 && z <= 20 &&
 // the creeper's face (entity/creeper/creeper.png, texels 8..15 x 8..15), left half; the right half is its mirror
 const FACE = ['PMGP', 'MGGG', 'GDDP', 'GDKG', 'PGPD', 'PMDK', 'PMKK', 'PPDP'];
 const COLOURS = {
-  charged: { K: 'black_concrete', D: 'blue_concrete', M: 'cyan_concrete', G: 'light_blue_concrete', P: 'light_blue_wool', W: 'white_concrete' },
-  grey: { K: 'black_concrete', D: 'gray_concrete', M: 'tuff', G: 'andesite', P: 'stone', W: 'polished_diorite' },
-  ember: { K: 'black_concrete', D: 'red_nether_bricks', M: 'red_terracotta', G: 'orange_terracotta', P: 'orange_concrete', W: 'yellow_concrete' },
-  green: { K: 'black_concrete', D: 'green_concrete', M: 'green_wool', G: 'lime_concrete', P: 'lime_wool', W: 'white_concrete' },
+  charged: { K: 'black_concrete', D: 'black_concrete', M: 'cyan_concrete', G: 'light_blue_concrete', P: 'light_blue_wool', W: 'white_concrete' },
+  grey: { K: 'black_concrete', D: 'black_concrete', M: 'tuff', G: 'andesite', P: 'stone', W: 'polished_diorite' },
+  ember: { K: 'black_concrete', D: 'black_concrete', M: 'red_terracotta', G: 'orange_terracotta', P: 'orange_concrete', W: 'yellow_concrete' },
+  green: { K: 'black_concrete', D: 'black_concrete', M: 'green_wool', G: 'lime_concrete', P: 'lime_wool', W: 'white_concrete' },
 };
 /** The face block of a colour set at column p (0..31 across the side) and row r (0 = top texel row): 4 blocks per texel. */
 const faceAt = (col, p, r) => COLOURS[col][FACE[r][Math.floor((p < 16 ? p : 31 - p) / 4)]];
@@ -281,8 +281,8 @@ for (const col of Object.keys(COLOURS)) {
         if (got === P.K) black++;
         if (got === P.D) darkN++;
       }
-      assert.strictEqual(black, 128, side + ': 8 black texels of 4 x 4');
-      assert.strictEqual(darkN, 192, side + ': 12 dark texels of 4 x 4');
+      assert.strictEqual(black, 320, side + ': the black face, 20 texels of 4 x 4 (eyes, nose, mouth)');
+      assert.strictEqual(darkN, 320, side + ': no other dark face colour');
       headK += black;
     }
     const counts = Object.fromEntries(C.counts(s, true).map((r) => [nameOf(r.id), r.n]));

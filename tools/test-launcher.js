@@ -29,16 +29,20 @@ const nameOf = (id) => C.parse(id).name;
 const N6 = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]];
 const FACE = ['PMGP', 'MGGG', 'GDDP', 'GDKG', 'PGPD', 'PMDK', 'PMKK', 'PPDP'];
 const COLOURS = {
-  charged: { K: 'black_concrete', D: 'blue_concrete', M: 'cyan_concrete', G: 'light_blue_concrete', P: 'light_blue_wool', W: 'white_concrete' },
-  grey: { K: 'black_concrete', D: 'gray_concrete', M: 'tuff', G: 'andesite', P: 'stone', W: 'polished_diorite' },
-  ember: { K: 'black_concrete', D: 'red_nether_bricks', M: 'red_terracotta', G: 'orange_terracotta', P: 'orange_concrete', W: 'yellow_concrete' },
-  green: { K: 'black_concrete', D: 'green_concrete', M: 'green_wool', G: 'lime_concrete', P: 'lime_wool', W: 'white_concrete' },
+  charged: { K: 'black_concrete', D: 'black_concrete', M: 'cyan_concrete', G: 'light_blue_concrete', P: 'light_blue_wool', W: 'white_concrete' },
+  grey: { K: 'black_concrete', D: 'black_concrete', M: 'tuff', G: 'andesite', P: 'stone', W: 'polished_diorite' },
+  ember: { K: 'black_concrete', D: 'black_concrete', M: 'red_terracotta', G: 'orange_terracotta', P: 'orange_concrete', W: 'yellow_concrete' },
+  green: { K: 'black_concrete', D: 'black_concrete', M: 'green_wool', G: 'lime_concrete', P: 'lime_wool', W: 'white_concrete' },
 };
 const faceAt = (col, p, r) => COLOURS[col][FACE[r][Math.floor((p < 16 ? p : 31 - p) / 4)]];
-const GREENS = ['lime_wool', 'lime_concrete', 'green_wool', 'green_concrete', 'green_terracotta', 'moss_block'];
+const GREENS = ['lime_wool', 'lime_concrete', 'lime_terracotta', 'green_wool', 'green_concrete', 'moss_block'];
 const SAND = ['smooth_sandstone', 'cut_sandstone', 'sandstone', 'chiseled_sandstone'];
 const YH = 15, YT = 46, YB = 47;   // head bottom, roof (the head's 32nd row), first row of the cane body
 const noseY = (H) => H - Math.round((H - YB - 1) / 3);
+// the launcher's top: service section, rim, capsule (straight, cone), then the abort tower; the chamber's air is the 3
+// rows under the tower's first row, its slab floor one lower
+const towerY = (H) => noseY(H) + (H - noseY(H) >= 22 ? 6 + 1 + 4 + 6 : 3 + 1 + 2 + 4);
+const chY = (H) => towerY(H) - 4;
 
 function shapes() {
   let out = [{}];
@@ -102,9 +106,10 @@ function fullTop(id) {
 const cnt = (s) => Object.fromEntries(C.counts(s, true).map((r) => [nameOf(r.id), r.n]));
 const report = [];
 
-t('the Creeper rocket is unchanged (block hashes from before the launcher shared its generator)', () => {
+t('the Creeper rocket is unchanged by the launcher (block hashes of the rocket with the black face)', () => {
   const hash = (s) => { let h = 2166136261 >>> 0; const mix = (str) => { for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; } }; mix(s.size.join(',')); for (let i = 0; i < s.blocks.length; i++) { mix(s.palette[s.blocks[i]] || ''); mix('|'); } return h.toString(16); };
-  const BEFORE = { '{}': 'fd8fe711', '{"size":"100"}': '6d52ff45', '{"flames":"off"}': '2a19d07d', '{"size":"100","flames":"off"}': 'ceb4765d', '{"colour":"grey","fill":"glass","wear":"clean"}': 'e3cf6754', '{"colour":"ember","fill":"mixed","wear":"rusty"}': '8aa27916', '{"colour":"green","size":"100","wear":"clean"}': '6d8646e2' };
+  // recorded after the face fix (all face pixels black), before the launcher's own changes; the launcher must never move them
+  const BEFORE = { '{}': '5b279a51', '{"size":"100"}': '70f2a6c5', '{"flames":"off"}': '4d2f083d', '{"size":"100","flames":"off"}': '600ec85d', '{"colour":"grey","fill":"glass","wear":"clean"}': 'f347fb14', '{"colour":"ember","fill":"mixed","wear":"rusty"}': 'a72cc716', '{"colour":"green","size":"100","wear":"clean"}': 'bd62db62' };
   for (const [k, v] of Object.entries(BEFORE)) assert.strictEqual(hash(F.schematic('creeper_rocket', JSON.parse(k))), v, 'creeper_rocket ' + k);
 });
 
@@ -131,19 +136,19 @@ for (const o of shapes()) {
       assert.ok(d.fam !== 'gravity' && !/(^|_)sand$|gravel|powder|anvil|scaffolding|copper/.test(nm), nm + ' does not fall and is no copper');
     });
     assert.strictEqual(pieces(g).length, 1, 'one connected piece (the boosters are attached)');
-    const chamberBox = (x, y, z) => Math.abs(x - g.cx) <= 3 && z >= g.cz - 3 && z <= g.cz + 3 && y >= H - 14 && y <= H - 8;
+    const chamberBox = (x, y, z) => Math.abs(x - g.cx) <= 3 && z >= g.cz - 3 && z <= g.cz + 3 && y >= chY(H) - 3 && y <= chY(H) + 5;
     for (let y = 0; y < sy; y++) for (let z = 0; z < sz; z++) for (let x = 0; x < sx; x++) {
       const here = !g.at(x, y, z);
       assert.strictEqual(here, !g.at(sx - 1 - x, y, z), 'mirror x at ' + [x, y, z]);
       if (!chamberBox(x, y, z) && !chamberBox(x, y, sz - 1 - z)) assert.strictEqual(here, !g.at(x, y, sz - 1 - z), 'mirror z at ' + [x, y, z]);
-      if (here) continue;
+      if (here || C.def(g.id(x, y, z)).shape !== 'cube') continue;   // only full blocks can be buried
       let air = false;
-      for (let dy = -1; dy <= 1 && !air; dy++) for (let dz = -1; dz <= 1 && !air; dz++) for (let dx = -1; dx <= 1; dx++) if ((dx || dy || dz) && !g.at(x + dx, y + dy, z + dz)) { air = true; break; }
+      for (let dy = -1; dy <= 1 && !air; dy++) for (let dz = -1; dz <= 1 && !air; dz++) for (let dx = -1; dx <= 1; dx++) if ((dx || dy || dz) && (!g.at(x + dx, y + dy, z + dz) || C.def(g.id(x + dx, y + dy, z + dz)).shape !== 'cube')) { air = true; break; }   // slabs, stairs and buttons are no full walls
       assert.ok(air, 'a buried block at ' + [x, y, z]);
     }
     // the head: exactly 32 rows (y 15..46), the roof the 32nd; nothing of the head's skin below or above
     const R = rooms(g), X = g.cx - 0.5, Z = g.cz - 0.5;
-    const head = R.room(X, YH + 15, Z), body = R.room(X, YB + 6, Z), ch = R.room(X, H - 11, Z);
+    const head = R.room(X, YH + 15, Z), body = R.room(X, YB + 6, Z), ch = R.room(X, chY(H) + 1, Z);
     assert.ok(head > 1 && body > 1 && ch > 1 && new Set([head, body, ch]).size === 3, 'three separate sealed rooms');
     assert.strictEqual(R.size[head], 30 * 30 * 30, 'the head room is 30 x 30 x 30');
     for (let y = YH; y <= YT; y++) assert.ok(g.at(g.head.x0, y, Z), 'the face side at y ' + y);
@@ -160,8 +165,17 @@ for (const o of shapes()) {
     let across = 0; for (let x = g.cx - 17.5; x <= g.cx + 17.5; x++) if (R.room(x, mid, Z) === body) across++;
     assert.strictEqual(across, 34, 'the cane room is 34 across');
     assert.strictEqual(R.size[ch], 6, 'the chamber holds 6 blocks of air');
-    for (const x of [X, X + 1]) { assert.ok(R.room(x, H - 11, Z) === ch && R.room(x, H - 10, Z) === ch && R.room(x, H - 12, Z) === ch); assert.match(g.id(x, H - 13, Z), /_slab\[type=bottom\]$/, 'a slab floor'); }
+    for (const x of [X, X + 1]) { assert.ok([0, 1, 2].every((k) => R.room(x, chY(H) + k, Z) === ch)); assert.match(g.id(x, chY(H) - 1, Z), /_slab\[type=bottom\]$/, 'a slab floor'); }
     assert.strictEqual(widthAt(g, H - 1, Z), 2, 'the spike ends 2 wide on top');
+    // the top after the screenshot: a 28 wide service section, a 26 wide rim, the 22 wide capsule, its cone, a 4 wide
+    // neck and a 2 wide spire; one porthole
+    // (full blocks only: each step's rim carries slabs and stairs)
+    const cw = (y) => { let lo = -1, hi = -1; for (let x = g.cx - 17.5; x <= g.cx + 17.5; x++) { const id = g.id(x, y, Z); if (id && C.def(id).shape === 'cube') { if (lo < 0) lo = x; hi = x; } } return lo < 0 ? 0 : hi - lo + 1; }, big = H - yn >= 22, A = big ? 6 : 3, S0 = yn + A + 1;
+    assert.strictEqual(cw(yn + 2), 28, 'the service section'); assert.strictEqual(cw(yn + A), 26, 'the rim');
+    assert.strictEqual(cw(S0 + 1), 22, 'the capsule');
+    assert.strictEqual(cw(towerY(H)), 4, 'the tower neck');
+    for (let y = towerY(H) + 2; y < H - 1; y++) assert.strictEqual(cw(y), 2, 'the spire at y ' + y);   // its top row is slabs
+    assert.ok(cnt(s).tinted_glass >= 4, 'a porthole');
     const spots = [];
     for (let y = 0; y < sy; y++) for (let z = 0; z < sz; z++) for (let x = 0; x < sx; x++) {
       const id = g.id(x, y, z);
@@ -184,7 +198,7 @@ for (const o of shapes()) {
     report.push([label, s.size.join(' x '), vol, C.counts(s, true).slice(0, 12).map((r) => nameOf(r.id) + ' ' + r.n).join(', ')]);
   });
 
-  t(label + ': the cane: greens, sand and glass only, green stalks with nodes, three sand bands', () => {
+  t(label + ': the cane: the sugar cane texture in greens, sand and glass only, no sand bands', () => {
     const s = F.schematic(ID, o), g = grid(s), H = +o.size, yn = noseY(H);
     let green = 0, wall = 0, nodes = 0, bands = 0;
     for (let y = YB + 2; y < yn - 2; y++) {
@@ -197,13 +211,13 @@ for (const o of shapes()) {
         wall++; row++;
         if (GREENS.includes(b)) green++;
         if (SAND.includes(b)) sand++;
-        if (b === 'lime_wool' && ['green_wool', 'green_concrete'].includes(g.at(x, y - 1, z))) nodes++;
+        if (['lime_wool', 'lime_terracotta'].includes(b) && ['green_wool', 'green_concrete'].includes(g.at(x, y - 1, z))) nodes++;
       }
       if (sand === row) bands++;
     }
-    assert.ok(green > 0.55 * wall, 'green stalks make most of the cane (' + green + ' of ' + wall + ')');
+    assert.ok(green > 0.35 * wall && green < 0.65 * wall, 'the texture: about half stalks, half background (' + green + ' of ' + wall + ')');
     assert.ok(nodes > 100, 'pale node rims over dark bands (' + nodes + ')');
-    assert.strictEqual(bands, 6, 'three sand bands of 2 rows');
+    assert.strictEqual(bands, 0, 'no rows of only sand: the texture runs unbroken');
   });
 }
 
@@ -219,7 +233,7 @@ for (const col of Object.keys(COLOURS)) {
         if (got === P.K) black++;
         if (got === P.D) dark++;
       }
-      assert.strictEqual(black, 128); assert.strictEqual(dark, 192);
+      assert.strictEqual(black, 320, side + ': the black face, 20 texels of 4 x 4'); assert.strictEqual(dark, 320);
     }
     const b = grid(F.schematic(ID, { size: '100', colour: 'charged' }));
     const inHead = (x, y, z) => y >= YH && y <= YT && x >= h.x0 && x <= h.x1 && z >= h.z0 && z <= h.z1;

@@ -77,7 +77,7 @@ t('options fall back to the defaults', () => {
   for (const v of ['16', '24', '32']) for (const id of ['guardian_head', 'creeper_head']) assert.strictEqual(F.options(id, { size: v }).size, v, id + ' keeps ' + v);
   assert.deepStrictEqual(JSON.parse(JSON.stringify(farm('guardian_head').opts[0].choices.map((c) => c[0]))), ['16', '24', '32', '48', '64']);
   assert.deepStrictEqual(JSON.parse(JSON.stringify(farm('creeper_head').opts[0].choices.map((c) => c[0]))), ['8', '16', '24', '32', '48', '64', '96']);
-  assert.deepStrictEqual(JSON.parse(JSON.stringify(F.options('creeper_head'))), { size: '24' });
+  assert.deepStrictEqual(JSON.parse(JSON.stringify(F.options('creeper_head'))), { size: '24', colour: 'green' });
   assert.deepStrictEqual(JSON.parse(JSON.stringify(F.options('cow_crusher', { size: '16' }))), {});
   assert.strictEqual(F.schematic('guardian_head', { size: 'x' }), F.schematic('guardian_head'), 'same cache entry for the default');
   assert.ok(F.schematic('cow_crusher', { size: '16' }), 'old builds ignore options');
@@ -104,14 +104,15 @@ for (const id of ['guardian_head', 'creeper_head']) {
         const k = CREEPER[o.size], N = 8 * k;
         assert.deepStrictEqual([sx, sy, sz], [N, N, N]);
         assert.strictEqual(vol, N ** 3 - (N - 2) ** 3, 'hollow, one block thick');
-        // the face: 8 black texels (eyes, mouth) and 12 dark green ones, all on the south side
-        assert.strictEqual(count(s, (b) => nameOf(b) === 'black_concrete'), 8 * k * k);
-        assert.strictEqual(count(s, (b) => nameOf(b) === 'green_concrete'), 12 * k * k);
-        assert.strictEqual(count(s, (b, x, y, z) => /^(black|green)_concrete$/.test(nameOf(b)) && z !== N - 1), 0, 'the face is on the front');
-        // eyes: texel rows 2-3 (from the top), columns 1-2 and 5-6; the lower right texel of the left eye is black
+        // the face, all black as in game: two 2 x 2 eyes, the nose (2), the mouth (4 + 4) and its two legs: 20 texels,
+        // all on the south side, in both colours
+        assert.strictEqual(count(s, (b) => nameOf(b) === 'black_concrete'), 20 * k * k);
+        assert.strictEqual(count(s, (b, x, y, z) => nameOf(b) === 'black_concrete' && z !== N - 1), 0, 'the face is on the front');
+        const want = ['........', '........', '.XX..XX.', '.XX..XX.', '...XX...', '..XXXX..', '..XXXX..', '..X..X..'];
         const blk = (c, r) => nameOf(C.get(s, c * k, N - 1 - r * k, N - 1));
-        assert.strictEqual(blk(2, 3), 'black_concrete'); assert.strictEqual(blk(5, 3), 'black_concrete'); assert.strictEqual(blk(1, 2), 'green_concrete');
-        assert.strictEqual(blk(3, 6), 'black_concrete', 'mouth'); assert.strictEqual(blk(0, 0) === 'black_concrete', false);
+        for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) assert.strictEqual(blk(c, r) === 'black_concrete', want[r][c] === 'X', 'face texel ' + c + ', ' + r);
+        assert.ok(!count(s, (b) => /^(green|blue)_concrete$/.test(nameOf(b))), 'no dark colour inside the face');
+        if (o.colour === 'charged') assert.ok(count(s, (b) => nameOf(b) === 'light_blue_wool') > 0, 'charged: light blue skin');
         assert.ok(vol < 100000, 'under 100 000 blocks');
       } else {
         const k = SCALE[o.size], body = 16 * k;

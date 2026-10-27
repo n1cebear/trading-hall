@@ -171,11 +171,11 @@
   }
   /** The chosen options of a built-in build that has some (size, tail ...), defaults filled in. */
   const farmOpts = (f) => B().farms.options(f.id, (S().fopt || {})[f.id]);
-  /** ' · 24' style suffix for names and file names: the size picked (the first option), only for builds with options. */
+  /** ' · 24' style suffix for names and file names: the size, and every other option not at its default ('7 tentacles'). */
   function optSuffix(f) {
     if (!f.opts || !f.opts.length) return '';
     const o = farmOpts(f);
-    return f.opts.map((op) => { const c = op.choices.find((x) => x[0] === o[op.id]); return op.id === 'size' ? c[1] : o[op.id] !== op.def ? c[1].toLowerCase() : null; }).filter(Boolean).map((t) => ' · ' + t).join('');
+    return f.opts.map((op) => { const c = op.choices.find((x) => x[0] === o[op.id]); return op.id === 'size' ? c[1] : o[op.id] !== op.def ? (op.unit ? c[1] + ' ' + op.unit : c[1].toLowerCase()) : null; }).filter(Boolean).map((t) => ' · ' + t).join('');
   }
   function shapeParams(kind) {
     const st = S().shape, d = B().shapes.defaults()[kind];
@@ -599,7 +599,7 @@
   const USE = { afk: ['AFK', 'Runs by itself while you do something else nearby'], semi: ['Semi-AFK', 'Mostly automatic, you top it up or collect now and then'], manual: ['Manual', 'You do the work by hand'] };
   const CATS = [['all', 'All'], ['farm', 'Farms'], ['machine', 'Machines'], ['build', 'Structures'], ['yours', 'Yours']];
   const TECH = [['all', 'Any'], ['redstone', 'Redstone'], ['no-redstone', 'No redstone']];
-  const TAG_LABEL = { pistons: 'Pistons', observer: 'Observers', hoppers: 'Hoppers', crops: 'Crops', mobs: 'Mobs', food: 'Food', utility: 'Utility', house: 'Houses', defence: 'Defence', medieval: 'Medieval', landmark: 'Landmarks', coastal: 'Coastal', decor: 'Decor', japanese: 'Japanese', village: 'Village', wood: 'Wood', stone: 'Stone', 'no-redstone': 'No redstone', redstone: 'Redstone', statue: 'Statues', 'mob-head': 'Mob heads', ocean: 'Ocean', 'pixel-art': 'Pixel art' };
+  const TAG_LABEL = { pistons: 'Pistons', observer: 'Observers', hoppers: 'Hoppers', crops: 'Crops', mobs: 'Mobs', food: 'Food', utility: 'Utility', house: 'Houses', defence: 'Defence', medieval: 'Medieval', landmark: 'Landmarks', coastal: 'Coastal', decor: 'Decor', japanese: 'Japanese', village: 'Village', wood: 'Wood', stone: 'Stone', 'no-redstone': 'No redstone', redstone: 'Redstone', statue: 'Statues', 'mob-head': 'Mob heads', ocean: 'Ocean', 'pixel-art': 'Pixel art', creature: 'Creatures' };
   const tagLabel = (t) => TAG_LABEL[t] || (t[0].toUpperCase() + t.slice(1));
   const NOT_TOPIC = new Set(['redstone', 'no-redstone', 'yours']);
   const LEVEL_RANK = { Easy: 0, Medium: 1, Hard: 2 };
@@ -774,16 +774,25 @@
       if (UI.shownKey === key) show(key, { layer: 'top' });   // no build animation: the new size just stands there, framed
       patch();
     };
-    /** Tooltip: what the choice means, and the size and block count it gives (built on first hover, then cached). */
+    /**
+     * Tooltip: what the choice means, and the size and block count it gives (from the measured table, so a giant is
+     * never built just to hover it; else built on first hover and cached). Over 100 000 blocks it says so.
+     */
     const info = (op, c) => () => {
-      const s = B().farms.schematic(f.id, Object.assign({}, o, { [op.id]: c[0] }));
-      return [h('div.th-tooltip-title', c[2] || c[1]), s ? h('div.th-tooltip-sub', s.size.join(' × ') + ' · ' + fmtN(core().volume(s)) + ' blocks') : null].filter(Boolean);
+      if (op.look) return [h('div.th-tooltip-title', c[2] || c[1])];
+      const oo = Object.assign({}, o, { [op.id]: c[0] });
+      let st = B().farms.stats(f.id, oo);
+      if (!st) { const s = B().farms.schematic(f.id, oo); st = s && { size: s.size, n: core().volume(s), water: core().counts(s, true).filter((r) => core().parse(r.id).name === 'water').reduce((a, r) => a + r.n, 0) }; }
+      return [h('div.th-tooltip-title', c[2] || c[1]),
+        st ? h('div.th-tooltip-sub', st.size.join(' × ') + ' · ' + fmtN(st.n) + ' blocks' + (st.water ? ', ' + fmtN(st.water) + ' of them water' : '')) : null,
+        st && st.n - st.water > 100000 ? h('div.th-tooltip-sub.bd-optwarn', 'Over 100 000 blocks: a very long build, and slow on older devices') : null].filter(Boolean);
     };
-    return f.opts.map((op) => [h('div.bd-sub', op.label),
-      h('div.seg.bd-optseg', { role: 'radiogroup', 'aria-label': f.name + ' ' + op.label.toLowerCase() }, op.choices.map((c) => {
+    // the option groups flow side by side while they fit (Tentacles, Height ...), each group its label over its keys
+    return h('div.bd-opts', f.opts.map((op) => h('div.bd-opt', h('div.bd-sub', op.label),
+      h('div.seg.bd-optseg' + (op.choices.length > 4 ? '.bd-optseg-many' : ''), { role: 'radiogroup', 'aria-label': f.name + ' ' + op.label.toLowerCase() }, op.choices.map((c) => {
         const on = o[op.id] === c[0];
         return tip(h('button', { type: 'button', role: 'radio', 'aria-checked': String(on), class: on ? 'on' : null, onclick: () => pick(op, c[0]) }, c[1]), info(op, c));
-      }))]);
+      })))));
   }
 
   /** Blocks whose extra data (text, contents, patterns) lives outside the block state, so no schematic download here carries it. */

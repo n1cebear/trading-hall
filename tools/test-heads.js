@@ -1,5 +1,7 @@
 // Tests for the mob-head statues in the Builds library (guardian and creeper head, js/modules/builds-farms.js).
-//   node tools/test-heads.js
+//   node tools/test-heads.js            (-v lists every size with its blocks)
+//   node tools/test-heads.js --stats    rewrites the size / block count table (STATS in builds-farms.js) of every
+//                                       build with options (heads and the kraken), after changing a generator
 // Builds every size / option of both heads in a VM with the game's block database and checks: mirror symmetry left to
 // right, size, only known full-cube building blocks, one connected piece (no floating blocks), hollow, the eye / face
 // counts, the twelve spikes, and that the files export and read back unchanged.
@@ -26,7 +28,8 @@ function combos(f) {
   (f.opts || []).forEach((op) => { out = out.flatMap((o) => op.choices.map((c) => Object.assign({}, o, { [op.id]: c[0] }))); });
   return out;
 }
-const SCALE = { 16: 1, 24: 1.5, 32: 2 };
+const SCALE = { 16: 1, 24: 1.5, 32: 2, 48: 3, 64: 4 };
+const CREEPER = { 8: 1, 16: 2, 24: 3, 32: 4, 48: 6, 64: 8, 96: 12 };
 const nameOf = (id) => C.parse(id).name;
 const count = (s, test) => { let k = 0; const [sx, sy, sz] = s.size; for (let y = 0; y < sy; y++) for (let z = 0; z < sz; z++) for (let x = 0; x < sx; x++) if (test(C.get(s, x, y, z), x, y, z)) k++; return k; };
 /** Connected pieces (6 neighbours) of the blocks that pass `keep` (default: every block). */
@@ -69,7 +72,11 @@ t('both heads are Structures with tags, card art, options and steps', () => {
   }
 });
 t('options fall back to the defaults', () => {
-  assert.deepStrictEqual(JSON.parse(JSON.stringify(F.options('guardian_head', { size: '99', tail: 'maybe' }))), { size: '24', tail: 'off' });
+  assert.deepStrictEqual(JSON.parse(JSON.stringify(F.options('guardian_head', { size: '99', tail: 'maybe' }))), { size: '32', tail: 'off' });
+  // saves from before the wider range keep their size: 16, 24 and 32 are still choices of both heads
+  for (const v of ['16', '24', '32']) for (const id of ['guardian_head', 'creeper_head']) assert.strictEqual(F.options(id, { size: v }).size, v, id + ' keeps ' + v);
+  assert.deepStrictEqual(JSON.parse(JSON.stringify(farm('guardian_head').opts[0].choices.map((c) => c[0]))), ['16', '24', '32', '48', '64']);
+  assert.deepStrictEqual(JSON.parse(JSON.stringify(farm('creeper_head').opts[0].choices.map((c) => c[0]))), ['8', '16', '24', '32', '48', '64', '96']);
   assert.deepStrictEqual(JSON.parse(JSON.stringify(F.options('creeper_head'))), { size: '24' });
   assert.deepStrictEqual(JSON.parse(JSON.stringify(F.options('cow_crusher', { size: '16' }))), {});
   assert.strictEqual(F.schematic('guardian_head', { size: 'x' }), F.schematic('guardian_head'), 'same cache entry for the default');
@@ -94,7 +101,7 @@ for (const id of ['guardian_head', 'creeper_head']) {
       assert.strictEqual(parts.length, 1, 'one connected piece, got ' + parts.length + ' (' + parts.slice(0, 5).join(', ') + ')');
       report.push([label, s.size.join(' x '), vol, C.counts(s, true).map((r) => nameOf(r.id) + ' ' + r.n).join(', ')]);
       if (id === 'creeper_head') {
-        const k = { 16: 2, 24: 3, 32: 4 }[o.size], N = 8 * k;
+        const k = CREEPER[o.size], N = 8 * k;
         assert.deepStrictEqual([sx, sy, sz], [N, N, N]);
         assert.strictEqual(vol, N ** 3 - (N - 2) ** 3, 'hollow, one block thick');
         // the face: 8 black texels (eyes, mouth) and 12 dark green ones, all on the south side
@@ -105,12 +112,13 @@ for (const id of ['guardian_head', 'creeper_head']) {
         const blk = (c, r) => nameOf(C.get(s, c * k, N - 1 - r * k, N - 1));
         assert.strictEqual(blk(2, 3), 'black_concrete'); assert.strictEqual(blk(5, 3), 'black_concrete'); assert.strictEqual(blk(1, 2), 'green_concrete');
         assert.strictEqual(blk(3, 6), 'black_concrete', 'mouth'); assert.strictEqual(blk(0, 0) === 'black_concrete', false);
+        assert.ok(vol < 100000, 'under 100 000 blocks');
       } else {
         const k = SCALE[o.size], body = 16 * k;
         assert.ok(sx >= body + 4 * k && sx <= 24 * k + 1 && sy === sx, 'width ' + sx + ' for a ' + body + ' body (spikes add about 3.2 px a side)');
         if (o.tail === 'on') assert.ok(sz > 40 * k, 'the tail reaches back'); else assert.strictEqual(sz, sx, 'a cube without the tail');
         // the eye: a red pupil framed by white on the front face
-        assert.strictEqual(count(s, (b) => nameOf(b) === 'red_concrete'), { 1: 4, 1.5: 16, 2: 16 }[k]);
+        assert.strictEqual(count(s, (b) => nameOf(b) === 'red_concrete'), k === 1.5 ? 16 : 4 * k * k, 'the pupil is 2 x 2 pixels');
         assert.ok(count(s, (b) => nameOf(b) === 'white_concrete') >= 10);
         // twelve spikes, orange, each its own piece touching the body
         const orange = (b) => /^orange_(wool|concrete|terracotta)$/.test(nameOf(b));
@@ -123,6 +131,38 @@ for (const id of ['guardian_head', 'creeper_head']) {
     });
   }
 }
+
+/* ---- the size table (tooltips of the size keys) ---- */
+/** [w, h, l, blocks, water] as the STATS table stores it. */
+function measure(id, o) {
+  const s = F.schematic(id, o), water = C.counts(s, true).filter((r) => nameOf(r.id) === 'water').reduce((a, r) => a + r.n, 0);
+  return JSON.parse(JSON.stringify(s.size.concat([C.volume(s)], water ? [water] : [])));
+}
+/** One option set per table key (the 'look' options stay at their default). */
+const statCombos = (f) => { const seen = new Map(); combos(f).forEach((o) => { const k = F.statKey(f, F.options(f.id, o)); if (!seen.has(k)) seen.set(k, o); }); return seen; };
+if (process.argv.includes('--stats')) {
+  const lines = [];
+  F.FARMS.filter((f) => f.make && f.opts).forEach((f) => {
+    lines.push('    ' + f.id + ': {');
+    const rows = [...statCombos(f)].map(([k, o]) => "'" + k + "': [" + measure(f.id, o).join(', ') + ']');
+    for (let i = 0; i < rows.length; i += 4) lines.push('      ' + rows.slice(i, i + 4).join(', ') + ',');
+    lines.push('    },');
+  });
+  const file = path.join(root, 'js/modules/builds-farms.js'), src = fs.readFileSync(file, 'utf8');
+  const out = src.replace(/(\/\/ @stats-begin\n)[\s\S]*?(\s*\/\/ @stats-end)/, (m, a) => a + lines.join('\n') + '\n    // @stats-end');
+  fs.writeFileSync(file, out);
+  console.log('STATS rewritten: ' + lines.filter((l) => l.endsWith(': {')).length + ' builds');
+  process.exit(0);
+}
+t('the size table matches every head size (tooltips)', () => {
+  for (const id of ['guardian_head', 'creeper_head']) {
+    const f = farm(id), m = statCombos(f);
+    assert.strictEqual(Object.keys(F.STATS[id] || {}).length, m.size, id + ': one row per option set (run node tools/test-heads.js --stats)');
+    for (const [k, o] of m) assert.deepStrictEqual(JSON.parse(JSON.stringify(F.STATS[id][k])), measure(id, o), id + ' ' + k + ' (run node tools/test-heads.js --stats)');
+    const st = F.stats(id, { size: '16' });
+    assert.ok(st && st.n > 0 && st.size.length === 3);
+  }
+});
 
 /* ---- files ---- */
 async function roundTrip(s, fmt) {

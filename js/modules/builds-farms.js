@@ -298,16 +298,17 @@ TH.builds = TH.builds || {};
     {
       id: 'guardian_head', cat: 'build', dim: 'overworld', icon: 'item/guardian_spawn_egg', level: 'Medium', name: 'Guardian head',
       art: ['entity/guardian', 64, 64, 16, 16, 12, 12, [5, 5, 2, 2, '#790b12']],
-      tags: ['statue', 'mob-head', 'ocean'],
+      tags: ['statue', 'mob-head', 'ocean', 'creature'],
       pitch: 'The ocean monument guardian as a giant statue: prismarine body, the big eye with its red pupil and twelve orange spikes, one on every edge. Perfectly symmetric.',
       how: 'Made from the real mob: the game’s guardian model and texture, every texture pixel matched to the block with the closest colour. The spikes sit where the game puts them, in the middle of each edge at 45 degrees.',
       opts: [
-        { id: 'size', label: 'Body width in blocks', def: '24', choices: [['16', '16', 'Body 16 blocks wide: one block per texture pixel'], ['24', '24', 'Body 24 blocks wide: one and a half blocks per pixel'], ['32', '32', 'Body 32 blocks wide: two blocks per pixel']] },
+        { id: 'size', label: 'Body width in blocks', def: '32', choices: [['16', '16', 'Body 16 blocks wide: one block per texture pixel'], ['24', '24', 'Body 24 blocks wide: one and a half blocks per pixel, so the pixels are one or two blocks wide'],
+          ['32', '32', 'Body 32 blocks wide: two blocks per pixel'], ['48', '48', 'Body 48 blocks wide: three blocks per pixel'], ['64', '64', 'Body 64 blocks wide: four blocks per pixel']] },
         { id: 'tail', label: 'Tail', def: 'off', choices: [['off', 'Head only', 'Just the head with its spikes'], ['on', 'With tail', 'The three tail segments and the fin, straight back from the head']] },
       ],
       make: (o) => guardianHead(o),
       steps: [
-        'Pick a size. Lay the bottom plate first, then go up layer by layer: the body is a hollow box with notched edges, one block thick.',
+        'Pick a size: 16, 32, 48 and 64 give every texture pixel the same width. Lay the bottom plate first, then go up layer by layer: the body is a hollow box with notched edges, one block thick.',
         'Mottle the walls as in the picture: prismarine, dark prismarine for the shade, prismarine bricks for the light flecks and acacia wood where the spikes come out.',
         'On the front, build the eye: white concrete with polished diorite corners, a dark prismarine band above it and the red concrete pupil in the middle.',
         'Add the twelve spikes, one in the middle of every edge, pointing out at 45 degrees: orange concrete at the base, orange wool at the tip.',
@@ -323,15 +324,15 @@ TH.builds = TH.builds || {};
     {
       id: 'creeper_head', cat: 'build', dim: 'overworld', icon: 'item/creeper_spawn_egg', level: 'Easy', name: 'Creeper head',
       art: ['entity/creeper/creeper', 64, 32, 8, 8, 8, 8],
-      tags: ['statue', 'mob-head', 'pixel-art'],
+      tags: ['statue', 'mob-head', 'pixel-art', 'creature'],
       pitch: 'A giant creeper head: the famous face on the front and the mottled green skin on the other five sides, copied pixel by pixel from the game texture.',
       how: 'Every pixel of the creeper’s 8 x 8 head texture becomes a square of blocks. Six tones: black and green concrete for the face, lime concrete, lime wool, green wool and white concrete for the skin.',
       opts: [
-        { id: 'size', label: 'Size in blocks', def: '24', choices: [['16', '16', '16 blocks a side: each texture pixel is 2 x 2 blocks'], ['24', '24', '24 blocks a side: each texture pixel is 3 x 3 blocks'], ['32', '32', '32 blocks a side: each texture pixel is 4 x 4 blocks']] },
+        { id: 'size', label: 'Size in blocks', def: '24', choices: [8, 16, 24, 32, 48, 64, 96].map((n) => [String(n), String(n), n + ' blocks a side: ' + (n === 8 ? 'one block per texture pixel' : 'each texture pixel is ' + n / 8 + ' x ' + n / 8 + ' blocks')]) },
       ],
       make: (o) => creeperHead(o),
       steps: [
-        'Pick a size: every texture pixel is a 2 x 2, 3 x 3 or 4 x 4 square of blocks.',
+        'Pick a size: every texture pixel is a square of blocks, from one block at size 8 to 12 x 12 at size 96.',
         'Lay the bottom face, then build the four walls ring by ring and close the top. The head is hollow, one block thick.',
         'The south side is the face: black concrete for the eyes and the mouth, green concrete around them.',
         'The other sides copy the creeper’s skin: lime concrete, lime wool, green wool and a few white concrete flecks.',
@@ -340,6 +341,33 @@ TH.builds = TH.builds || {};
         'Each side mirrors the left half of the real texture, so the head is perfectly symmetric. The face is symmetric in the game too.',
         'Mobs can spawn on the flat top at night: put a few torches or lanterns up there.',
         'A door in the back turns it into a small house.',
+      ],
+    },
+    {
+      id: 'kraken_tentacles', cat: 'build', dim: 'overworld', icon: 'item/squid_spawn_egg', level: 'Hard', name: 'Kraken tentacles',
+      art: ['entity/squid/squid', 64, 32, 12, 12, 12, 16],
+      tags: ['statue', 'ocean', 'creature'],
+      pitch: 'A sea monster breaking the surface: thick tentacles rise out of a pond, one tall question mark, one arch diving back in, coiled tips, suckers on the underside and foam where they meet the water.',
+      how: 'Each tentacle follows a drawn curve and is built as a round tube that thins from several blocks at the water to one block at the tip. They all grow from a body lying on the pond floor, so the creature is one piece, and it is hollow inside.',
+      opts: [
+        { id: 'count', label: 'Tentacles', unit: 'tentacles', def: '5', choices: [['3', '3', 'Three tentacles: the tall curl, the arch and a coil'], ['5', '5', 'Five tentacles: adds a sideways hook and a low wave'], ['7', '7', 'Seven tentacles: adds two small curls in the gaps']] },
+        { id: 'size', label: 'Height in blocks', def: '35', choices: [['20', '20', 'Small: 20 blocks high'], ['35', '35', 'Medium: 35 blocks high'], ['60', '60', 'Giant: 60 blocks high']] },
+        { id: 'colour', label: 'Colour', def: 'purple', look: true, choices: [['purple', 'Purple', 'Kraken purple: purple terracotta skin, purple concrete spots, magenta terracotta belly, pink suckers'], ['green', 'Sea green', 'Deep sea green: dark prismarine skin, prismarine spots and belly, glowing sea lantern suckers'], ['red', 'Red', 'Octopus red: red terracotta skin, orange spots, pink belly, white terracotta suckers']] },
+        { id: 'pond', label: 'Water', def: 'pond', choices: [['pond', 'With pond', 'A round pond with a sand and gravel floor and a low shore'], ['none', 'Tentacles only', 'Just the creature and its foam, to sink into a lake you already have']] },
+      ],
+      make: (o) => krakenTentacles(o),
+      steps: [
+        'With the pond: dig a round hole as deep as the water, lay the sand and gravel floor and build the low shore around it.',
+        'Build the body on the floor first: a flat dome that stays one block under the water line. Every tentacle starts inside it.',
+        'Raise the tentacles layer by layer with "Only this layer": each one is a ring of blocks that drifts sideways as it climbs and gets smaller toward the tip.',
+        'Put the suckers on the inside of every curve: lighter blocks in two staggered rows on the thick parts, single dots near the tip.',
+        'Fill the pond with water last, then set the white foam ring around each tentacle on the surface, with a few calcite flecks just outside it.',
+      ],
+      tips: [
+        'The Material list counts one water bucket per water block. Two buckets make an endless source, so you only need a few.',
+        'Tentacles only: the body sits under the water, so the lake must be as deep as the water here. Line the foam rings up with the surface.',
+        'It is hollow: a hidden room in the body or a sea lantern inside a tentacle tip is easy to add.',
+        'Sea green suckers are sea lanterns and light the water at night. Swap the skin in Customise blocks for any colour you like.',
       ],
     },
   ];
@@ -503,22 +531,26 @@ TH.builds = TH.builds || {};
     out.forEach((sp) => { const [a, b, c] = sp.n, [d, e, f] = sp.e; sp.m = [b * f - c * e, c * d - a * f, a * e - b * d]; });
     return out;
   })();
-  const G_SCALE = { 16: 1, 24: 1.5, 32: 2 };
+  const G_SCALE = { 16: 1, 24: 1.5, 32: 2, 48: 3, 64: 4 };   // 8 and 12 were tried: the spikes fall apart into loose diagonal blocks and the pupil vanishes
 
-  /** Guardian: o.size '16' | '24' | '32' (the body's width in blocks), o.tail 'off' | 'on'. Hollow body; solid spikes, tail and fin. */
+  /** Guardian: o.size '16' | '24' | '32' | '48' | '64' (the body's width in blocks), o.tail 'off' | 'on'. Hollow body; solid spikes, tail and fin. */
   function guardianHead(o) {
-    const s = G_SCALE[o.size] || 1.5, tail = o.tail === 'on';
+    const s = G_SCALE[o.size] || 2, tail = o.tail === 'on';
     const W = Math.round(24 * s), H = W, Zmin = tail ? -34 : -12, L = Math.round((12 - Zmin) * s);   // -34: whole voxel steps from -12 at every scale, so the head is the same with and without the tail
     const at = (i, j, k) => (j * L + k) * W + i;
     const X = (i) => (i + 0.5) / s - 12, Y = (j) => (j + 0.5) / s - 12, Z = (k) => (k + 0.5) / s + Zmin;
     const boxes = tail ? G_BODY.concat(G_TAIL) : G_BODY;
     // model coordinates of a voxel centre: x = X, y = 16 - Y, z = -Z
     const solid = new Uint8Array(W * H * L);
-    for (let j = 0; j < H; j++) for (let k = 0; k < L; k++) for (let i = 0; i < W; i++) {
-      const x = X(i), y = 16 - Y(j), z = -Z(k);
-      if (G_BODY.some((b) => inBox(b, x, y, z))) solid[at(i, j, k)] = 1;
-      else if (tail && G_TAIL.some((b) => inBox(b, x, y, z))) solid[at(i, j, k)] = 2;   // the tail is solid: hollow segments would only touch at their corners
-    }
+    // a box as voxel index ranges [i0, i1) per axis (the voxel centre inside the box), filled range by range: the giant
+    // sizes have millions of cells, so nothing is tested per cell
+    const span = (n, f, lo, hi) => { let a = n, b = 0; for (let t = 0; t < n; t++) { const v = f(t); if (v >= lo && v < hi) { if (t < a) a = t; b = t + 1; } } return [a, b]; };
+    const fill = (b, v) => {
+      const [i0, i1] = span(W, X, b[0], b[0] + b[3]), [j0, j1] = span(H, (j) => 16 - Y(j), b[1], b[1] + b[4]), [k0, k1] = span(L, (k) => -Z(k), b[2], b[2] + b[5]);
+      for (let j = j0; j < j1; j++) for (let k = k0; k < k1; k++) for (let i = i0; i < i1; i++) if (!solid[at(i, j, k)]) solid[at(i, j, k)] = v;
+    };
+    G_BODY.forEach((b) => fill(b, 1));
+    if (tail) G_TAIL.forEach((b) => fill(b, 2));   // the tail is solid: hollow segments would only touch at their corners
     // a body block is on the surface when a neighbour is not body (the tail counts as outside, so the back wall stays
     // closed behind it and the tail sits on it); a tail block when a neighbour is empty
     const isSolid = (i, j, k, only) => i >= 0 && j >= 0 && k >= 0 && i < W && j < H && k < L && (only ? solid[at(i, j, k)] === only : solid[at(i, j, k)] > 0);
@@ -527,8 +559,10 @@ TH.builds = TH.builds || {};
     const out = new Array(W * H * L).fill(null);
     const eps = 1e-6;
     for (let j = 0; j < H; j++) for (let k = 0; k < L; k++) for (let i = 0; i < W / 2; i++) {
-      const x = X(i), y = 16 - Y(j), z = -Z(k), id = at(i, j, k);
-      if (solid[id]) {
+      const id = at(i, j, k);
+      if (!solid[id]) continue;
+      const x = X(i), y = 16 - Y(j), z = -Z(k);
+      {
         let c = null, face = null;
         for (const [di, dj, dk, f] of DIRS) {
           if (isSolid(i + di, j + dj, k + dk, solid[id] === 1 ? 1 : 0)) continue;
@@ -541,23 +575,33 @@ TH.builds = TH.builds || {};
         // the eye: a 2 x 2 x 1 box just in front of the face, centred (it follows the player in the game)
         if (face === 'n' && z < -7 && Math.abs(x) <= 1 + eps && y >= 15 - eps && y <= 17 + eps) c = 'R';
         out[id] = c || 'P';
-        continue;
       }
-      let sp = null;
-      for (const S of G_SPIKES) {
-        const dx = x - S.p[0], dy = Y(j) - S.p[1], dz = Z(k) - S.p[2];
+    }
+    // the spikes, each only over its own bounding box (the first spike wins where two meet), then the fin
+    const near = (n, f, c, hw) => span(n, (t) => Math.abs(f(t) - c) <= hw ? 0 : 1, 0, 0.5);
+    for (const S of G_SPIKES) {
+      const hw = (a) => 4.5 * Math.abs(S.n[a]) + Math.abs(S.e[a]) + Math.abs(S.m[a]) + eps;
+      const [i0, i1] = near(W / 2, X, S.p[0], hw(0)), [j0, j1] = near(H, Y, S.p[1], hw(1)), [k0, k1] = near(L, Z, S.p[2], hw(2));
+      for (let j = j0; j < j1; j++) for (let k = k0; k < k1; k++) for (let i = i0; i < i1; i++) {
+        const id = at(i, j, k);
+        if (solid[id] || out[id]) continue;
+        const dx = X(i) - S.p[0], dy = Y(j) - S.p[1], dz = Z(k) - S.p[2];
         const al = dx * S.n[0] + dy * S.n[1] + dz * S.n[2];
         if (Math.abs(al) > 4.5 + eps) continue;
         if (Math.abs(dx * S.e[0] + dy * S.e[1] + dz * S.e[2]) > 1 + eps || Math.abs(dx * S.m[0] + dy * S.m[1] + dz * S.m[2]) > 1 + eps) continue;
         const tip = 4.5 - al;   // texture rows from the tip: bright orange, then orange, then the dark base
-        sp = tip < 1.5 ? 'O' : tip < 7.5 ? 'o' : 'T';
-        break;
+        out[id] = tip < 1.5 ? 'O' : tip < 7.5 ? 'o' : 'T';
       }
-      if (sp) { out[id] = sp; continue; }
-      if (tail && x >= G_FIN[0] - eps && y >= G_FIN[1] && y < G_FIN[1] + G_FIN[4] && z >= G_FIN[2] && z < G_FIN[2] + G_FIN[5]) out[id] = gTexel(G_FIN, 'w', x, y, z);
+    }
+    if (tail) {
+      const [i0, i1] = span(W / 2, X, G_FIN[0] - eps, Infinity), [j0, j1] = span(H, (j) => 16 - Y(j), G_FIN[1], G_FIN[1] + G_FIN[4]), [k0, k1] = span(L, (k) => -Z(k), G_FIN[2], G_FIN[2] + G_FIN[5]);
+      for (let j = j0; j < j1; j++) for (let k = k0; k < k1; k++) for (let i = i0; i < i1; i++) {
+        const id = at(i, j, k);
+        if (!solid[id] && !out[id]) out[id] = gTexel(G_FIN, 'w', X(i), 16 - Y(j), -Z(k));
+      }
     }
     for (let j = 0; j < H; j++) for (let k = 0; k < L; k++) for (let i = W / 2; i < W; i++) out[at(i, j, k)] = out[at(W - 1 - i, j, k)];
-    const name = 'Guardian head ' + (o.size || '24') + (tail ? ' with tail' : '');
+    const name = 'Guardian head ' + (o.size || '32') + (tail ? ' with tail' : '');
     return TH.builds.core.trim(TH.builds.core.fromFunction([W, H, L], (i, j, k) => { const c = out[at(i, j, k)]; return c ? GUARDIAN_BLOCK[c] : null; }, name));
   }
 
@@ -584,9 +628,9 @@ TH.builds = TH.builds || {};
   const CREEPER_BLOCK = {
     K: 'minecraft:black_concrete', D: 'minecraft:green_concrete', M: 'minecraft:green_wool', G: 'minecraft:lime_concrete', P: 'minecraft:lime_wool', W: 'minecraft:white_concrete',
   };
-  /** Creeper: o.size '16' | '24' | '32' (the cube's side), each texel a 2, 3 or 4 block square; the face looks south. Hollow. */
+  /** Creeper: o.size '8' .. '96' (the cube's side), each texel a square of size / 8 blocks; the face looks south. Hollow. */
   function creeperHead(o) {
-    const s = { 16: 2, 24: 3, 32: 4 }[o.size] || 3, N = 8 * s;
+    const s = { 8: 1, 16: 2, 24: 3, 32: 4, 48: 6, 64: 8, 96: 12 }[o.size] || 3, N = 8 * s;
     const t = (u, v) => CREEPER_TEX[v][u];
     return TH.builds.core.fromFunction([N, N, N], (i, j, k) => {
       if (i > 0 && j > 0 && k > 0 && i < N - 1 && j < N - 1 && k < N - 1) return null;   // hollow
@@ -602,11 +646,272 @@ TH.builds = TH.builds || {};
     }, 'Creeper head ' + (o.size || '24'));
   }
 
+  /* ======================================================================
+   * Kraken tentacles: thick tapering arms rising out of a pond. Every arm is a hand-placed path (a Catmull-Rom spline
+   * through a few control points, then a logarithmic curl at the tip), voxelised as a tube of balls whose radius tapers
+   * from the base to one block at the tip. The arms grow from a low body that lies on the pond floor under the water,
+   * so the whole creature is one piece. Hollow (a shell two blocks deep where it is thick); the water fills the pond
+   * around it, never the inside. Fixed seed: the same options always give the same build.
+   * ====================================================================== */
+  const KRAKEN_COLOURS = {
+    purple: { skin: 'purple_terracotta', spot: 'purple_concrete', belly: 'magenta_terracotta', sucker: 'pink_concrete' },
+    green: { skin: 'dark_prismarine', spot: 'prismarine', belly: 'prismarine_bricks', sucker: 'sea_lantern' },
+    red: { skin: 'red_terracotta', spot: 'orange_terracotta', belly: 'pink_terracotta', sucker: 'white_terracotta' },
+  };
+  // per height: water layers over the floor, base radius of the arms, body radius, mottle scale
+  const KRAKEN_SIZE = { 20: { ws: 3, r0: 2.8, body: 6, spot: 2.5 }, 35: { ws: 4, r0: 4.2, body: 9, spot: 3 }, 60: { ws: 6, r0: 6.2, body: 14, spot: 4 } };
+  /**
+   * Arm shapes. pts: control points after the waterline [u outward, v up, w sideways] in units of the height above the
+   * water (u counts from the ring where the arms leave the body); curl: the tip coils toward 'out' / 'in' / 'side'
+   * (turns, start radius as a share of the height); belly: the side the suckers face (the inside of the curl or arch).
+   */
+  const KRAKEN_ARMS = {
+    tower: { w: 1, pts: [[0, 0, 0], [0.06, 0.24, 0.04], [-0.01, 0.5, -0.03], [0.05, 0.72, 0.02], [0.12, 0.86, 0]], curl: { dir: 'out', turns: 1.15, rho: 0.12 } },
+    arch: { w: 0.9, pts: [[0, 0, 0], [0.07, 0.3, 0.03], [0.17, 0.5, 0.05], [0.29, 0.49, 0.04], [0.37, 0.24, 0.02], [0.4, 0, 0], [0.41, -1, 0]] },
+    coil: { w: 0.85, pts: [[0, 0, 0], [0.08, 0.2, -0.05], [0.16, 0.42, -0.08], [0.15, 0.6, -0.05]], curl: { dir: 'in', turns: 1.4, rho: 0.11 } },
+    hook: { w: 0.85, pts: [[0, 0, 0], [0.04, 0.24, 0.05], [0.01, 0.48, 0.12], [0.05, 0.66, 0.17]], curl: { dir: 'side', turns: 1.0, rho: 0.1 } },
+    wave: { w: 0.7, pts: [[0, 0, 0], [0.1, 0.14, 0.04], [0.18, 0.28, -0.04], [0.25, 0.32, 0.03], [0.3, 0.42, 0]], curl: { dir: 'out', turns: 0.9, rho: 0.09 } },
+    small: { w: 0.55, pts: [[0, 0, 0], [0.05, 0.18, 0.03], [0.1, 0.34, -0.02]], curl: { dir: 'out', turns: 1.2, rho: 0.08 } },
+    small2: { w: 0.55, pts: [[0, 0, 0], [0.07, 0.16, -0.03], [0.13, 0.3, 0.02]], curl: { dir: 'in', turns: 1.1, rho: 0.08 } },
+  };
+  // the arms round the body, evenly spaced from the back (north); the order balances tall and low ones
+  const KRAKEN_SETS = { 3: ['tower', 'arch', 'coil'], 5: ['tower', 'arch', 'wave', 'coil', 'hook'], 7: ['tower', 'arch', 'small', 'wave', 'small2', 'coil', 'hook'] };
+  /** Smooth value noise in 0..1 on a grid of `sc` blocks (fixed seed). */
+  function kNoise(x, y, z, sc, seed) {
+    const hash = (a, b, c) => { let n = (a * 374761393 + b * 668265263 + c * 2147483647 + seed * 144269) | 0; n = Math.imul(n ^ (n >>> 13), 1274126177); return ((n ^ (n >>> 16)) >>> 0) / 4294967296; };
+    const fx = x / sc, fy = y / sc, fz = z / sc, ix = Math.floor(fx), iy = Math.floor(fy), iz = Math.floor(fz);
+    const s = (t) => t * t * (3 - 2 * t), tx = s(fx - ix), ty = s(fy - iy), tz = s(fz - iz);
+    const l = (a, b, t) => a + (b - a) * t;
+    const c = (dx, dy, dz) => hash(ix + dx, iy + dy, iz + dz);
+    return l(l(l(c(0, 0, 0), c(1, 0, 0), tx), l(c(0, 1, 0), c(1, 1, 0), tx), ty), l(l(c(0, 0, 1), c(1, 0, 1), tx), l(c(0, 1, 1), c(1, 1, 1), tx), ty), tz);
+  }
+  const v3 = {
+    add: (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]], sub: (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]], mul: (a, k) => [a[0] * k, a[1] * k, a[2] * k],
+    dot: (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2], cross: (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]],
+    len: (a) => Math.hypot(a[0], a[1], a[2]), norm: (a) => { const l = Math.hypot(a[0], a[1], a[2]) || 1; return [a[0] / l, a[1] / l, a[2] / l]; },
+  };
+  /** One arm as dense samples [{ p, r, t, b }] (point, radius, tangent, belly direction), about 0.2 blocks apart. */
+  function krakenArm(arm, az, flip, P) {
+    const { H, ws, r0, ring } = P;
+    const d = [Math.cos(az), 0, Math.sin(az)], up = [0, 1, 0], sd = [Math.sin(az) * flip, 0, -Math.cos(az) * flip];
+    const at = (u, v, w) => v3.add(v3.add(v3.mul(d, ring + u * H), v3.mul(sd, w * H)), [0, ws + v * H, 0]);
+    // the base sits inside the body, the first control point is where the arm leaves the water
+    const ctrl = [v3.add(v3.mul(d, ring * 0.55), [0, 1 + r0 * 0.3, 0])].concat(arm.pts.map(([u, v, w]) => v === -1 ? v3.add(at(u, 0, w), [0, 1 - ws, 0]) : at(u, v, w)));
+    // the tip curl: a turtle in the plane of the last tangent and the curl direction, turning at a fixed rate while its
+    // radius shrinks; it stops before the coil gets too tight to show its hole
+    if (arm.curl) {
+      const n = ctrl.length, T0 = v3.norm(v3.sub(ctrl[n - 1], ctrl[n - 2]));
+      const K0 = arm.curl.dir === 'out' ? d : arm.curl.dir === 'in' ? v3.mul(d, -1) : sd;
+      const K = v3.norm(v3.sub(K0, v3.mul(T0, v3.dot(K0, T0))));
+      let p = ctrl[n - 1], ang = 0, rho = arm.curl.rho * H * arm.w;
+      const dA = 0.24, end = arm.curl.turns * 2 * Math.PI;
+      const pts = [];
+      while (ang < end && rho > 1.7) {
+        ang += dA;
+        const T = v3.add(v3.mul(T0, Math.cos(ang)), v3.mul(K, Math.sin(ang)));
+        p = v3.add(p, v3.mul(T, rho * dA));
+        pts.push(p);
+        rho *= 0.972;
+      }
+      // keep every third turtle point as a spline point (the spline smooths between them)
+      pts.forEach((q, i) => { if (i % 3 === 2 || i === pts.length - 1) ctrl.push(q); });
+      arm.curlK = K;
+    }
+    // Catmull-Rom through the control points
+    const C = [ctrl[0]].concat(ctrl, [ctrl[ctrl.length - 1]]), raw = [];
+    for (let i = 1; i < C.length - 2; i++) {
+      const p0 = C[i - 1], p1 = C[i], p2 = C[i + 1], p3 = C[i + 2], steps = Math.max(2, Math.ceil(v3.len(v3.sub(p2, p1)) / 0.2));
+      for (let k = 0; k < steps; k++) {
+        const t = k / steps, t2 = t * t, t3 = t2 * t;
+        raw.push([0, 1, 2].map((a) => 0.5 * (2 * p1[a] + (-p0[a] + p2[a]) * t + (2 * p0[a] - 5 * p1[a] + 4 * p2[a] - p3[a]) * t2 + (-p0[a] + 3 * p1[a] - 3 * p2[a] + p3[a]) * t3)));
+      }
+    }
+    raw.push(ctrl[ctrl.length - 1]);
+    let L = 0;
+    const len = raw.map((q, i) => (L += i ? v3.len(v3.sub(q, raw[i - 1])) : 0));
+    // the belly: perpendicular to the arm in its own plane, turned toward the inside of the curl (or of the arch)
+    const Pn = arm.curl ? v3.norm(v3.cross(v3.norm(v3.sub(ctrl[ctrl.length - 1], ctrl[ctrl.length - 2])), arm.curlK)) : sd;
+    const rB = r0 * arm.w, rT = 0.9;
+    const out = raw.map((p, i) => {
+      const T = v3.norm(v3.sub(raw[Math.min(raw.length - 1, i + 1)], raw[Math.max(0, i - 1)]));
+      return { p, t: T, s: len[i], r: rT + (rB - rT) * Math.pow(1 - len[i] / L, 0.75), b: v3.norm(v3.cross(Pn, T)) };
+    });
+    // one sign for the whole arm: at the curl start the belly faces the curl, on the arch it faces down at the top
+    const ref = arm.curl ? out[Math.round(out.length * 0.85)] : out.reduce((a, b) => (b.p[1] > a.p[1] ? b : a));
+    const hint = arm.curl ? arm.curlK : [0, -1, 0];
+    if (v3.dot(ref.b, hint) < 0) out.forEach((q) => { q.b = v3.mul(q.b, -1); });
+    out.L = L;
+    return out;
+  }
+
+  /** o.count '3' | '5' | '7', o.size '20' | '35' | '60' (height in blocks), o.colour 'purple' | 'green' | 'red', o.pond 'pond' | 'none'. */
+  function krakenTentacles(o) {
+    const n = +o.count || 5, Z = KRAKEN_SIZE[o.size] || KRAKEN_SIZE[35], pal = KRAKEN_COLOURS[o.colour] || KRAKEN_COLOURS.purple, pond = o.pond !== 'none';
+    const Htot = +o.size || 35, ws = Z.ws, r0 = Z.r0;
+    // the arms leave the water on a ring wide enough that neighbours keep a gap; the body reaches just past it
+    const ring = Math.max(Z.body * 0.75, (n * (2 * r0 + 2.5)) / (2 * Math.PI));
+    const A = ring + r0 * 0.9, Bv = ws - 1.5;
+    const P = { H: Htot - ws - 1, ws, r0, ring };
+    const arms = KRAKEN_SETS[n] || KRAKEN_SETS[5];
+    const make = () => arms.map((id, i) => krakenArm(Object.assign({}, KRAKEN_ARMS[id]), -Math.PI / 2 + (i * 2 * Math.PI) / arms.length, i % 2 ? -1 : 1, P));
+    let samples = make();
+    // stretch the drawing once so the tallest tip ends exactly at the chosen height
+    const top = Math.max(...samples.map((sm) => Math.max(...sm.map((q) => q.p[1] + q.r))));
+    P.H *= (Htot - 0.5 - ws) / (top - ws);
+    samples = make();
+    // the grid: centre (0, 0), floor at y 0, voxel centres on whole numbers
+    let R = A + 1;
+    samples.forEach((sm) => sm.forEach((q) => { R = Math.max(R, Math.hypot(q.p[0], q.p[2]) + q.r + 2); }));
+    let Rp = A + 3;   // the pond: everything that touches the water, plus room for the foam
+    samples.forEach((sm) => sm.forEach((q) => { if (q.p[1] - q.r <= ws + 0.5) Rp = Math.max(Rp, Math.hypot(q.p[0], q.p[2]) + q.r + 2.5); }));
+    Rp = Math.ceil(Rp);
+    const ext = Math.ceil(Math.max(R, Rp + 3)), SX = 2 * ext + 1, SY = Htot + 6, SZ = SX;
+    const at = (x, y, z) => (y * SZ + (z + ext)) * SX + (x + ext);
+    const solid = new Uint8Array(SX * SY * SZ);   // 1 body, 2 arm
+    const own = new Int32Array(SX * SY * SZ).fill(-1), best = new Float32Array(SX * SY * SZ).fill(9);
+    const flat = [];   // every sample, with its arm
+    samples.forEach((sm, ai) => sm.forEach((q) => { q.arm = ai; flat.push(q); }));
+    // the body: a flat half ellipsoid on the floor, its top one block under the surface
+    for (let y = 1; y <= ws - 1; y++) for (let z = -Math.ceil(A); z <= Math.ceil(A); z++) for (let x = -Math.ceil(A); x <= Math.ceil(A); x++) {
+      if ((x * x + z * z) / (A * A) + ((y - 1) * (y - 1)) / (Bv * Bv) <= 1) solid[at(x, y, z)] = 1;
+    }
+    // the arms: a ball per sample; each block remembers its nearest sample (relative to the radius) for the colours
+    flat.forEach((q, qi) => {
+      const [px, py, pz] = q.p, r = q.r, r2 = r * r, rc = Math.ceil(r);
+      for (let y = Math.max(0, Math.round(py) - rc); y <= Math.min(SY - 1, Math.round(py) + rc); y++) for (let z = Math.round(pz) - rc; z <= Math.round(pz) + rc; z++) for (let x = Math.round(px) - rc; x <= Math.round(px) + rc; x++) {
+        const ex = x - px, ey = y - py, ez = z - pz, d2 = ex * ex + ey * ey + ez * ez;
+        if (d2 > r2) continue;
+        const i = at(x, y, z), dn = d2 / r2;   // squared: the same order as the distance over the radius
+        if (!solid[i]) solid[i] = 2;
+        if (dn < best[i]) { best[i] = dn; own[i] = qi; }
+      }
+    });
+    // a core line through the nearest blocks of the samples, one axis step at a time: every arm is one piece
+    samples.forEach((sm) => {
+      let c = sm[0].p.map(Math.round);
+      sm.forEach((q) => {
+        const g = q.p.map(Math.round);
+        while (c[0] !== g[0] || c[1] !== g[1] || c[2] !== g[2]) {
+          const a = c[0] !== g[0] ? 0 : c[1] !== g[1] ? 1 : 2;
+          c = c.slice(); c[a] += Math.sign(g[a] - c[a]);
+          const i = at(c[0], c[1], c[2]);
+          if (!solid[i]) solid[i] = 2;
+        }
+      });
+    });
+    const inS = (x, y, z) => y >= 0 && y < SY && x >= -ext && x <= ext && z >= -ext && z <= ext && solid[at(x, y, z)] > 0;
+    const out = new Array(SX * SY * SZ).fill(null);
+    // hollow: a block stays when one of its 26 neighbours is outside
+    for (let y = 0; y < SY; y++) for (let z = -ext; z <= ext; z++) for (let x = -ext; x <= ext; x++) {
+      const i = at(x, y, z);
+      if (!solid[i]) continue;
+      let edge = false;
+      for (let dy = -1; dy <= 1 && !edge; dy++) for (let dz = -1; dz <= 1 && !edge; dz++) for (let dx = -1; dx <= 1; dx++) if ((dx || dy || dz) && !inS(x + dx, y + dy, z + dz)) { edge = true; break; }
+      if (!edge) continue;
+      const q = own[i] >= 0 ? flat[own[i]] : null;
+      let c = kNoise(x, y, z, Z.spot, 7) > 0.68 ? pal.spot : pal.skin;
+      if (q && solid[i] === 2) {
+        const side = v3.dot(v3.sub([x, y, z], q.p), q.b) / Math.max(0.5, q.r);
+        if (side > 0.42) c = pal.belly;
+      }
+      out[i] = c;
+    }
+    // suckers: on the belly every few blocks, two staggered rows on thick arms, one dot each near the tip
+    samples.forEach((sm, ai) => {
+      let next = 0;
+      sm.forEach((q, k) => {
+        if (q.s < next || q.p[1] < 1.5 || k > sm.length - 4) return;
+        const rs = Math.max(0.5, Math.min(1.5, 0.3 * q.r));
+        next = q.s + 2 * rs + 1.3;
+        const side = v3.norm(v3.cross(q.t, q.b)), zig = q.r >= 2.6 ? (Math.round(q.s / (2 * rs + 1.3)) % 2 ? 0.55 : -0.55) : 0;
+        const dir = v3.norm(v3.add(v3.mul(q.b, Math.cos(zig)), v3.mul(side, Math.sin(zig))));
+        const c = v3.add(q.p, v3.mul(dir, q.r));
+        const rc = Math.ceil(rs + 1);
+        const hits = [];
+        for (let y = Math.round(c[1]) - rc; y <= Math.round(c[1]) + rc; y++) for (let z = Math.round(c[2]) - rc; z <= Math.round(c[2]) + rc; z++) for (let x = Math.round(c[0]) - rc; x <= Math.round(c[0]) + rc; x++) {
+          if (y < 0 || y >= SY) continue;
+          const i = at(x, y, z);
+          if (!out[i] || solid[i] !== 2 || own[i] < 0 || flat[own[i]].arm !== ai) continue;
+          if (Math.hypot(x - c[0], y - c[1], z - c[2]) <= rs + 0.35) { out[i] = pal.sucker; hits.push(i); }
+        }
+        // big suckers stand out one block from the skin, in the middle
+        if (rs >= 1.1 && hits.length) {
+          const e = v3.add(c, v3.mul(dir, 0.9)).map(Math.round);
+          const i = at(e[0], e[1], e[2]);
+          if (e[1] > 0 && e[1] < SY && !solid[i] && [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]].some(([dx, dy, dz]) => hits.includes(at(e[0] + dx, e[1] + dy, e[2] + dz)))) { out[i] = pal.sucker; solid[i] = 3; }
+        }
+      });
+    });
+    // foam on the water line: a white ring hugging every arm, dotted spray one block further out
+    const foam = new Uint8Array(SX * SY * SZ);
+    const N4 = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+    for (let z = -ext; z <= ext; z++) for (let x = -ext; x <= ext; x++) {
+      const i = at(x, ws, z);
+      if (solid[i] || Math.hypot(x, z) > Rp - 0.5) continue;
+      if (N4.some(([dx, dz]) => solid[at(x + dx, ws, z + dz)] === 2)) { foam[i] = 1; out[i] = 'white_concrete'; }
+    }
+    for (let z = -ext; z <= ext; z++) for (let x = -ext; x <= ext; x++) {
+      const i = at(x, ws, z);
+      if (solid[i] || foam[i] || Math.hypot(x, z) > Rp - 0.5) continue;
+      if (N4.some(([dx, dz]) => foam[at(x + dx, ws, z + dz)] === 1) && kNoise(x * 3.7, 0, z * 3.7, 1, 11) > 0.55) { foam[i] = 2; out[i] = 'calcite'; }
+    }
+    // the pond: a sand and gravel floor, water up to the surface, a low shore of sand, gravel and prismarine
+    if (pond) {
+      const ground = (x, z) => { const k = kNoise(x, 0, z, 3, 3); return k > 0.7 ? 'gravel' : k < 0.22 ? 'clay' : 'sand'; };
+      const shore = (x, y, z) => { const k = kNoise(x, y, z, 2.5, 5); return k > 0.66 ? 'prismarine' : k < 0.3 ? 'gravel' : 'sand'; };
+      for (let z = -ext; z <= ext; z++) for (let x = -ext; x <= ext; x++) {
+        const dd = Math.hypot(x, z);
+        if (dd <= Rp + 2.6) out[at(x, 0, z)] = dd > Rp + 1.5 ? shore(x, 0, z) : ground(x, z);
+        for (let y = 1; y <= ws; y++) {
+          const i = at(x, y, z);
+          if (out[i] || solid[i]) continue;
+          if (dd <= Rp) out[i] = 'water';
+          else if (dd <= Rp + 1.5 || (dd <= Rp + 2.6 && y < ws)) out[i] = shore(x, y, z);
+        }
+      }
+    }
+    const name = 'Kraken tentacles ' + Htot + (n !== 5 ? ', ' + n + ' arms' : '') + (pond ? '' : ', no pond');
+    const C = TH.builds.core;
+    return C.trim(C.fromFunction([SX, SY, SZ], (x, y, z) => { const c = out[(y * SZ + z) * SX + x]; return c ? 'minecraft:' + c : null; }, name));
+  }
+
   /** A build's options with every missing or unknown value set to its default ({} for builds without options). */
   function options(id, o) {
     const f = FARMS.find((x) => x.id === id), out = {};
     ((f && f.opts) || []).forEach((op) => { const v = o && o[op.id]; out[op.id] = op.choices.some((c) => c[0] === v) ? v : op.def; });
     return out;
+  }
+  /**
+   * Size and block count of every option set of the builds with options, measured once (node tools/test-heads.js
+   * --stats prints this table; the tests check it), so the size keys can show them in their tooltips without building
+   * a giant first. Key: the values of the options that change the shape, in option order ('look' options do not).
+   * [width, height, length, blocks, of them water]
+   */
+  const STATS = {
+    // @stats-begin
+    guardian_head: {
+      '16|off': [24, 24, 24, 1488], '16|on': [24, 24, 44, 1806], '24|off': [36, 36, 36, 4488], '24|on': [36, 36, 66, 5358],
+      '32|off': [46, 46, 46, 7416], '32|on': [46, 46, 87, 9360], '48|off': [72, 72, 72, 21480], '48|on': [72, 72, 132, 28716],
+      '64|off': [94, 94, 94, 42168], '64|on': [94, 94, 175, 57720],
+    },
+    creeper_head: {
+      '8': [8, 8, 8, 296], '16': [16, 16, 16, 1352], '24': [24, 24, 24, 3176], '32': [32, 32, 32, 5768],
+      '48': [48, 48, 48, 13256], '64': [64, 64, 64, 23816], '96': [96, 96, 96, 54152],
+    },
+    kraken_tentacles: {
+      '3|20|pond': [35, 20, 35, 4226, 1711], '3|20|none': [20, 20, 19, 898], '3|35|pond': [51, 35, 51, 11712, 5456], '3|35|none': [32, 35, 30, 2847],
+      '3|60|pond': [79, 60, 79, 37969, 21939], '3|60|none': [54, 60, 50, 7842], '5|20|pond': [39, 20, 39, 5267, 2013], '5|20|none': [26, 20, 23, 1317],
+      '5|35|pond': [55, 35, 55, 13832, 6165], '5|35|none': [38, 35, 37, 3878], '5|60|pond': [81, 60, 81, 41359, 22332], '5|60|none': [57, 60, 61, 10500],
+      '7|20|pond': [45, 20, 45, 6875, 2686], '7|20|none': [27, 20, 28, 1738], '7|35|pond': [63, 35, 63, 17489, 7890], '7|35|none': [41, 35, 45, 4829],
+      '7|60|pond': [91, 60, 91, 50136, 27228], '7|60|none': [60, 60, 73, 12714],
+    },
+    // @stats-end
+  };
+  const statKey = (f, o) => (f.opts || []).filter((op) => !op.look).map((op) => o[op.id]).join('|');
+  /** { size: [w, h, l], n, water } of a build with these options, from the table (null when it is not listed). */
+  function stats(id, o) {
+    const f = FARMS.find((x) => x.id === id), t = f && STATS[id], v = t && t[statKey(f, options(id, o))];
+    return v ? { size: v.slice(0, 3), n: v[3], water: v[4] || 0 } : null;
   }
   const cache = new Map();
   /** The farm's original schematic (built once per option set, never modified: callers get a fresh copy when they need to change it). */
@@ -621,5 +926,5 @@ TH.builds = TH.builds || {};
 
   FARMS.forEach((f) => { f.cat = f.cat || 'farm'; });
 
-  TH.builds.farms = { FARMS, PLANNED, DIMS, schematic, options, phases, hasPhases: (id) => !!PHASES[id] };
+  TH.builds.farms = { FARMS, PLANNED, DIMS, schematic, options, stats, statKey, STATS, phases, hasPhases: (id) => !!PHASES[id] };
 })();

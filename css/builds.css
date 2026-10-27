@@ -146,8 +146,15 @@
 .bd-thumb .bd-face { display: block; margin: 0; background-repeat: no-repeat; image-rendering: pixelated; image-rendering: crisp-edges; }
 .bd-face-dot { position: absolute; }
 /* size / tail of the mob heads (builds.js optRows): the well hugs its keys */
+.bd-opts { display: flex; flex-wrap: wrap; gap: 14px 28px; }
+.bd-opt { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; min-width: 0; max-width: 100%; }
+.bd-opt .bd-sub { margin: 0; }
 .bd-optseg { width: fit-content; max-width: 100%; }
 .bd-optseg button { min-width: 44px; }
+/* a long run of sizes (8 ... 96): tighter number keys in one row, wrapping to a second row only when the column is narrow */
+.bd-optseg-many { flex-wrap: wrap; }
+.bd-optseg-many button { min-width: 40px; padding-inline: 6px; font-variant-numeric: tabular-nums; }
+.bd-optwarn { color: var(--text); font-weight: 600; }
 .bd-thumb-file { color: var(--accent); }
 .bd-thumb-file .bd-ico { width: 20px; height: 20px; }
 .bd-filerow { display: flex; align-items: center; gap: 8px; }

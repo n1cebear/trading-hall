@@ -397,6 +397,34 @@ TH.builds = TH.builds || {};
         'Cane wall Glass shows the farm inside; the stalks stay green either way. The sandstone is never sand, so nothing falls.',
       ],
     },
+    {
+      id: 'creeper_launcher', cat: 'build', dim: 'overworld', icon: 'item/firework_rocket', level: 'Hard', name: 'Creeper launcher',
+      tags: ['statue', 'mob-head', 'pixel-art', 'creature'],
+      pitch: 'The Creeper rocket as a heavy launcher: the creeper head cube, the round sugar cane core and a needle nose with a 2 x 1 AFK chamber and an escape-tower spike, plus two grey boosters strapped east and west with their own nozzles and flames. 64 x 36 with the boosters (36 x 36 core only). At 127 high it covers y 63 to 189: base at y 63, the spike at y 189.',
+      how: 'The core is the Creeper rocket: a perfect 32 block creeper cube (exactly 32 rows, its roof the top one) with room for a 27 x 27 farm, a round cane body with a room about 34 across, a needle nose round the sealed AFK chamber. The cane is all greens from the sugar cane palette (lit side, mid, shade, dark edge, pale node rims over dark node bands, bright leaves) with sand or glass between the stalks and three sandstone bands. The boosters are 14 wide hollow columns of smooth stone, andesite and stone with dark blackstone rings, braced to the head and touching the core. Every open top outside is a slab, a stair or a carpet; the farm rooms stay empty.',
+      opts: [
+        { id: 'size', label: 'Height in blocks', def: '127', choices: [['100', '100', '100 blocks high: a shorter cane body'], ['127', '127', 'Covers y 63 to 189, the AFK chamber near the top']] },
+        { id: 'flames', label: 'Flames', def: 'on', choices: [['on', 'With flames', 'Flames from every nozzle down to the ground'], ['off', 'No flames', 'The rocket stands on its fins and the boosters\' nozzles']] },
+        { id: 'boosters', label: 'Boosters', def: 'on', choices: [['on', 'With boosters', 'Two 14 wide boosters east and west: 64 x 36 in all'], ['off', 'Core only', 'Just the core, 36 x 36, to compare']] },
+        { id: 'colour', label: 'Creeper colour', def: 'charged', look: true, choices: [['charged', 'Charged', 'Charged blue head: light blue and cyan skin, a dark blue and black face'], ['grey', 'Grey', 'Stone grey head: stone, andesite and tuff, a grey and black face'], ['ember', 'Ember', 'Ember head: orange and red terracotta, a dark red and black face'], ['green', 'Green', 'The real creeper greens']] },
+        { id: 'fill', label: 'Cane wall', def: 'sandy', look: true, choices: [['sandy', 'Sandy', 'Smooth, cut and plain sandstone between the green stalks'], ['glass', 'Glass', 'Glass between the stalks: the cane farm inside shows'], ['mixed', 'Mixed', 'Sandstone with bands of glass windows']] },
+        { id: 'wear', label: 'Wear', def: 'weathered', look: true, choices: [['clean', 'Clean', 'Fresh: no moss, no cracks, no rust'], ['weathered', 'Weathered', 'A few moss and cobblestone patches, cracked bricks'], ['rusty', 'Rusty', 'Old: more moss, cobblestone and cracked bricks, rust patches on the grey']] },
+      ],
+      make: (o) => creeperRocket(o, { launcher: true }),
+      steps: [
+        'Mark a 64 x 36 area (36 x 36 without boosters) with its bottom at y 63. The core stands in the middle, a booster 25 blocks to each side of its centre.',
+        'Build the flames and nozzles first, the big one under the core and a smaller one under each booster, then the creeper head on the core: a 32 block cube, four blocks per pixel, the face on every side, the roof as its 32nd row.',
+        'Raise both boosters with the head: hollow 14 wide columns with a blackstone ring every 10 rows, braced to the head at three heights.',
+        'Raise the round cane body straight on the roof of the head, layer by layer with "Only this layer": twenty 4 wide green stalks with their nodes, sand or glass between them, three sandstone bands.',
+        'Close the boosters with their cones and the core with its needle nose: the AFK chamber in the neck, the escape-tower spike above it as the highest block.',
+      ],
+      tips: [
+        'Spawn-proofed outside: no full block has open air on top. The farm rooms are yours to light or slab as the farm needs.',
+        'The AFK chamber is sealed: break in through a wall or the floor with a pickaxe and close it behind you.',
+        'Boosters Core only gives the plain core with the new cane and spike, to compare with the Creeper rocket.',
+        'The boosters are hollow and sealed too, with stone buttons on their floors so nothing spawns inside.',
+      ],
+    },
   ];
 
   // the old roadmap list: [dimension, icon, name, pitch, optional link]
@@ -960,6 +988,17 @@ TH.builds = TH.builds || {};
     // the stalk's tones from light to dark: each column of a stalk starts at its place and shifts a step darker toward
     // the bottom of the body, a step lighter near the top
     cane: ['lime_wool', 'lime_concrete', 'bamboo_block[axis=y]', 'green_wool', 'green_terracotta'],
+    // the Creeper launcher: the cane only in greens (from the sugar cane palette: #52a823, #3d7d1a, #306314, #72b947),
+    // the boosters' light greys, their dark band rings and their cones darkening to the tip
+    cane2: ['lime_wool', 'lime_concrete', 'green_wool', 'green_concrete', 'green_terracotta'],
+    booster: ['smooth_stone', 'polished_andesite', 'andesite', 'stone'],
+    boosterCone: ['smooth_stone', 'polished_andesite', 'andesite', 'stone', 'tuff', 'polished_tuff'],
+    band: ['polished_blackstone', 'blackstone', 'polished_deepslate'],
+  };
+  // the launcher's stalk: the pale rim of a node (a light row) over its dark band, in greens only
+  const CANE_STALK2 = {
+    node: ['lime_wool', 'lime_wool', 'lime_concrete', 'lime_concrete'],
+    line: ['green_wool', 'green_concrete', 'green_concrete', 'green_terracotta'],
   };
   // the carpet of the same colour, for the head's top corners outside the round body (spawn-proof and nearly flat)
   const carpetOf = (nm) => { const m = nm.match(/^(white|orange|magenta|light_blue|yellow|lime|pink|gray|light_gray|cyan|purple|blue|brown|green|red|black)_/); return (m ? m[1] : { tuff: 'gray', andesite: 'light_gray', stone: 'light_gray', polished_diorite: 'white' }[nm] || 'light_gray') + '_carpet'; };
@@ -981,35 +1020,43 @@ TH.builds = TH.builds || {};
   /**
    * o.size '100' | '127' (height), o.flames 'on' | 'off', o.colour 'charged' | 'grey' | 'ember' | 'green' (the head),
    * o.fill 'sandy' | 'glass' | 'mixed' (the cane wall between the stalks), o.wear 'clean' | 'weathered' | 'rusty'.
+   * cfg.launcher: the Creeper launcher instead (o.boosters 'on' | 'off'): two boosters east and west, the greener cane
+   * palette with sand bands, a longer spike, no collar stairs. Without cfg the Creeper rocket comes out unchanged.
    */
-  function creeperRocket(o) {
+  function creeperRocket(o, cfg) {
+    const LA = !!(cfg && cfg.launcher), boosters = LA && o.boosters !== 'off';
     const H = +o.size || 127, flames = o.flames !== 'off', cr = ROCKET_CREEPER[o.colour] || ROCKET_CREEPER.charged;
     const wr = ROCKET_WEAR[o.wear] || ROCKET_WEAR.weathered, fill = o.fill === 'glass' || o.fill === 'mixed' ? o.fill : 'sandy';
-    const W = 36, M = 17.5, hw = 16;
+    // the launcher's grid is 64 wide (the core 36 in the middle, a 14 wide booster on each side); the core keeps its centre
+    const Wx = LA ? 64 : 36, Wz = 36, Mx = Wx / 2 - 0.5, Mz = 17.5, hw = 16;
     const yf = 9, yh = 15, yt = yh + 31, yb = yt + 1, Ln = Math.round((H - yb - 1) / 3), yn = H - Ln;   // flame top, head (bottom, top row = roof), body, nose
-    const Ro = 17.6, Rch = 2.6, P = 4;   // body radius, nose radius round the chamber, rows of the point above it
-    const N = W * H * W, at = (x, y, z) => (y * W + z) * W + x;
+    const Ro = 17.6, Rch = 2.6, P = LA ? 8 : 4;   // body radius, nose radius round the chamber, rows of the point above it
+    const N = Wx * H * Wz, at = (x, y, z) => (y * Wz + z) * Wx + x;
     const se = (a, b, p) => Math.pow(Math.pow(a, p) + Math.pow(b, p), 1 / p);
-    // the AFK chamber: x 17..18, z 17, three rows of air over a slab floor, one block of wall all round, the roof on top
-    const CH = { x0: 17, x1: 18, z: 17, y0: H - P - 4, y1: H - P - 2 };
+    // the AFK chamber: 2 x 1 at the core's middle, three rows of air over a slab floor, one block of wall all round, the roof on top
+    const CH = { x0: Mx - 0.5, x1: Mx + 0.5, z: Mz - 0.5, y0: H - P - 4, y1: H - P - 2 };
     const inChamber = (x, y, z) => x >= CH.x0 && x <= CH.x1 && z === CH.z && y >= CH.y0 && y <= CH.y1;
     const chamberFloor = (x, y, z) => x >= CH.x0 && x <= CH.x1 && z === CH.z && y === CH.y0 - 1;
     const chamberWall = (x, y, z) => x >= CH.x0 - 1 && x <= CH.x1 + 1 && z >= CH.z - 1 && z <= CH.z + 1 && y >= CH.y0 - 1 && y <= CH.y1 + 1;
     // the nose: a needle. A slightly concave cone from the body's radius in to a 6 wide neck that holds the chamber
-    // (floor, three rows of air, roof), then a point: 4, 4, 2, 2 wide, the last row the highest block
-    const yNeck = CH.y0 - 2, POINT = [2, 1.6, 0.8, 0.75];
+    // (floor, three rows of air, roof), then a point: 4, 4, 2, 2 wide (the launcher: a longer escape-tower spike), the
+    // last row the highest block
+    const yNeck = CH.y0 - 2, POINT = LA ? [2, 1.6, 1.6, 0.8, 0.75, 0.75, 0.75, 0.75] : [2, 1.6, 0.8, 0.75];
     const noseR = (y) => (y >= H - P ? POINT[y - (H - P)] : y >= yNeck ? Rch : Rch + (Ro - Rch) * Math.pow(1 - (y - yn) / (yNeck - yn), 1.3));
     const nose = (a, b, y) => se(a, b, 2.2 - 0.2 * Math.min(1, (y - yn) / (yNeck - yn))) <= noseR(y);
     const T = 17.5, yTip = 12, yRoot = yt - 1;
     const finTop = (t) => yTip + (yRoot - yTip) * Math.pow((T - t) / (T - 12), 1.2);
     const finBot = (t) => (t >= 14 ? 0 : ((yh - 1) * (14 - t)) / 2);
-    const reg = new Uint8Array(N);   // 1 head, 2 fin, 3 nozzle, 4 flame, 6 body, 8 collar, 9 nose, 10 chamber wall
+    // the boosters: 14 wide round columns 25 blocks either side of the core's centre, a cone on top, their own bell and
+    // flames below, braced to the head by three struts
+    const BX = 25, BR = 7.05, yBt = Math.round(H * 0.7), Lc = Math.round(H * 0.1), STRUTS = [20, 30, 40];
+    const reg = new Uint8Array(N);   // 1 head, 2 fin, 3 nozzle, 4 flame, 6 body, 8 collar, 9 nose, 10 chamber wall, 11 booster, 12 booster bell, 13 booster flame, 14 strut
     const forced = new Uint8Array(N);   // never hollowed: the head's floor and roof (the roof is also the body's floor), the chamber walls
-    for (let y = 0; y < H; y++) for (let z = 0; z < W; z++) for (let x = 0; x < W; x++) {
-      const a = Math.abs(x - M), b = Math.abs(z - M), r = Math.hypot(a, b), q = se(a, b, 2.2), i = at(x, y, z);
+    for (let y = 0; y < H; y++) for (let z = 0; z < Wz; z++) for (let x = 0; x < Wx; x++) {
+      const a = Math.abs(x - Mx), b = Math.abs(z - Mz), r = Math.hypot(a, b), q = se(a, b, 2.2), i = at(x, y, z);
       let g = 0;
       if (y >= yh && y <= yt && a <= hw && b <= hw) { g = 1; if (y === yh || y === yt) forced[i] = 1; }
-      else if (y === yt && q <= Ro) g = 8;
+      else if (y === yt && q <= Ro) g = LA ? 0 : 8;
       else if (y >= yb && y < yn && q <= Ro) g = 6;
       else if (y >= yn) {
         if (chamberWall(x, y, z)) { g = inChamber(x, y, z) ? 0 : 10; if (g) forced[i] = 1; }
@@ -1021,20 +1068,36 @@ TH.builds = TH.builds || {};
         const s = (yf - y) / yf, th = Math.atan2(b, a), rf = 8.8 + 1.8 * Math.pow(s, 1.4) + 1.1 * s * (1 + Math.cos(8 * th)) / 2;
         if (r <= rf) g = 4;
       }
+      if (!g && boosters) {
+        const bx = a - BX, rb = Math.hypot(bx, b);
+        if (y >= yh && y <= yBt && rb <= BR) g = 11;
+        else if (y > yBt && y <= yBt + Lc && rb <= Math.max(0.75, BR * Math.pow(1 - (y - yBt) / (Lc + 1), 0.85))) g = 11;
+        else if (y > yf && y < yh) {
+          const u = (yh - 1 - y) / (yh - yf - 2), ro = 3.7 + 1.3 * Math.pow(u, 1.3);
+          if (rb <= ro && !(y < yh - 1 && rb <= ro - 1.2)) g = 12;
+        } else if (flames && y <= yf) {
+          const s = (yf - y) / yf, th = Math.atan2(b, Math.abs(bx)), rf = 4.3 + 1.2 * Math.pow(s, 1.4) + 0.8 * s * (1 + Math.cos(8 * th)) / 2;
+          if (rb <= rf) g = 13;
+        }
+        if (!g && STRUTS.includes(y) && a > hw && a < BX - BR + 0.5 && b <= 1.5) { g = 14; forced[i] = 1; }
+      }
       if (!g && y < yt && Math.abs(a - b) <= 1) {
         const t = (a + b) / 2;
         if (t >= 12 && t <= T && y >= finBot(t) - 0.01 && y <= finTop(t)) g = 2;
       }
       reg[i] = g;
     }
-    const solid = (x, y, z) => x >= 0 && y >= 0 && z >= 0 && x < W && y < H && z < W && reg[at(x, y, z)] > 0;
-    // the shell: the forced blocks, and every block with one of its 26 neighbours outside the solid
-    const shell = new Uint8Array(N);
-    for (let y = 0; y < H; y++) for (let z = 0; z < W; z++) for (let x = 0; x < W; x++) {
+    const solid = (x, y, z) => x >= 0 && y >= 0 && z >= 0 && x < Wx && y < H && z < Wz && reg[at(x, y, z)] > 0;
+    // the shell: the forced blocks, and every block with one of its 26 neighbours outside the solid; a booster and the
+    // core keep their own walls where they touch (each is its own sealed column)
+    const shell = new Uint8Array(N), grp = (g) => (g >= 11 && g <= 13 ? 2 : 1);
+    const other = (x, y, z, k) => !solid(x, y, z) || grp(reg[at(x, y, z)]) !== k;
+    for (let y = 0; y < H; y++) for (let z = 0; z < Wz; z++) for (let x = 0; x < Wx; x++) {
       const i = at(x, y, z);
       if (!reg[i]) continue;
       let edge = !!forced[i];
-      for (let dy = -1; dy <= 1 && !edge; dy++) for (let dz = -1; dz <= 1 && !edge; dz++) for (let dx = -1; dx <= 1; dx++) if ((dx || dy || dz) && !solid(x + dx, y + dy, z + dz)) { edge = true; break; }
+      const k = grp(reg[i]);
+      for (let dy = -1; dy <= 1 && !edge; dy++) for (let dz = -1; dz <= 1 && !edge; dz++) for (let dx = -1; dx <= 1; dx++) if ((dx || dy || dz) && other(x + dx, y + dy, z + dz, k)) { edge = true; break; }
       if (edge) shell[i] = 1;
     }
     // rooms: the outside air (0 means not yet reached), then every sealed pocket gets its own number
@@ -1042,23 +1105,23 @@ TH.builds = TH.builds || {};
     const fillRoom = (i0, id) => {
       room[i0] = id; st.push(i0);
       while (st.length) {
-        const i = st.pop(), x = i % W, z = Math.floor(i / W) % W, y = Math.floor(i / (W * W));
+        const i = st.pop(), x = i % Wx, z = Math.floor(i / Wx) % Wz, y = Math.floor(i / (Wx * Wz));
         for (const [dx, dy, dz] of [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]]) {
           const X = x + dx, Y = y + dy, Z = z + dz;
-          if (X < 0 || Y < 0 || Z < 0 || X >= W || Y >= H || Z >= W) continue;
+          if (X < 0 || Y < 0 || Z < 0 || X >= Wx || Y >= H || Z >= Wz) continue;
           const j = at(X, Y, Z);
           if (!shell[j] && !room[j]) { room[j] = id; st.push(j); }
         }
       }
     };
-    for (let y = 0; y < H; y++) for (let z = 0; z < W; z++) for (let x = 0; x < W; x++) {
+    for (let y = 0; y < H; y++) for (let z = 0; z < Wz; z++) for (let x = 0; x < Wx; x++) {
       const i = at(x, y, z);
-      if (!shell[i] && !room[i] && (x === 0 || z === 0 || x === W - 1 || z === W - 1 || y === 0 || y === H - 1)) fillRoom(i, 1);
+      if (!shell[i] && !room[i] && (x === 0 || z === 0 || x === Wx - 1 || z === Wz - 1 || y === 0 || y === H - 1)) fillRoom(i, 1);
     }
     let next = 2;
     for (let i = 0; i < N; i++) if (!shell[i] && !room[i]) fillRoom(i, next++);
-    const farm = new Set([room[at(17, yh + 15, 17)], room[at(17, yb + 6, 17)], room[at(CH.x0, CH.y0, CH.z)]]);
-    const outside = (x, y, z) => x < 0 || y < 0 || z < 0 || x >= W || y >= H || z >= W || room[at(x, y, z)] === 1;
+    const farm = new Set([room[at(Mx - 0.5, yh + 15, Mz - 0.5)], room[at(Mx - 0.5, yb + 6, Mz - 0.5)], room[at(CH.x0, CH.y0, CH.z)]]);
+    const outside = (x, y, z) => x < 0 || y < 0 || z < 0 || x >= Wx || y >= H || z >= Wz || room[at(x, y, z)] === 1;
     const tex = (u, v) => cr[CREEPER_TEX[v][u]];
     const fold = (p) => Math.floor((p < hw ? p : 2 * hw - 1 - p) / 4);   // 32 blocks a side: 4 per texel, the right half mirrors the left
     const stalkArc = (17.5 * 2 * Math.PI) / 20;
@@ -1067,15 +1130,17 @@ TH.builds = TH.builds || {};
     const bodyV = (y) => (y - yb) / Math.max(1, yn - yb);   // 0 at the bottom of the body, 1 at the top
     // the sandy fill: more plain sandstone low down, smoother higher up, a few chiseled blocks
     const sandy = (x, y, z) => (rHash(x, y, z, 73) < 0.03 ? 'chiseled_sandstone' : ramp(ROCKET_RAMP.sand, 0.85 - 0.7 * bodyV(y), x, y, z, 71));
+    // the launcher's three sand bands round the cane (2 rows each)
+    const bandAt = (y) => LA && [0.3, 0.55, 0.8].some((f) => { const y0 = yb + Math.round(f * (yn - yb)); return y === y0 || y === y0 + 1; });
     const out = new Array(N).fill(null);
-    for (let y = 0; y < H; y++) for (let z = 0; z < W; z++) for (let x = 0; x < W; x++) {
+    for (let y = 0; y < H; y++) for (let z = 0; z < Wz; z++) for (let x = 0; x < Wx; x++) {
       const i = at(x, y, z), g = reg[i];
       if (!shell[i]) continue;
-      const a = Math.abs(x - M), b = Math.abs(z - M), r = Math.hypot(a, b);
+      const a = Math.abs(x - Mx), b = Math.abs(z - Mz), r = Math.hypot(a, b);
       const n2 = kNoise(x, y, z, 5, 37), n3 = kNoise(x, y, z, 4, 41), fine = rHash(x, y, z, 43);
       let c;
       if (g === 1) {
-        const px = x - (M - hw + 0.5), pz = z - (M - hw + 0.5), py = y - yh, row = 7 - Math.floor(py / 4), e = 2 * hw - 1;
+        const px = x - (Mx - hw + 0.5), pz = z - (Mz - hw + 0.5), py = y - yh, row = 7 - Math.floor(py / 4), e = 2 * hw - 1;
         if (px === 0 || px === e) c = tex(8 + fold(pz), 8 + row);   // the face, on all four sides
         else if (pz === 0 || pz === e) c = tex(8 + fold(px), 8 + row);
         else if (py === 2 * hw - 1) c = tex(8 + fold(px), fold(pz));   // top
@@ -1085,29 +1150,40 @@ TH.builds = TH.builds || {};
         // darker at the foot, lighter up the fin and along its edges
         c = n3 > wr.rust ? 'brown_terracotta' : n2 > wr.patch ? (fine < 0.8 ? 'cobblestone' : 'mossy_cobblestone') : ramp(ROCKET_RAMP.fin, t >= 17 || finTop(t) - y < 1.5 ? 0.1 : 0.95 - 0.7 * (y / finTop(t)), x, y, z, 91);
       } else if (g === 3) c = y === yf + 1 ? (fine < 0.7 ? 'polished_blackstone' : 'blackstone') : n3 > wr.rust ? 'brown_terracotta' : ramp(ROCKET_RAMP.deep, r < 8.8 ? 0.15 : 0.3 + 0.5 * ((yh - 1 - y) / 4), x, y, z, 93);
-      else if (g === 4) {
-        const nn = kNoise(a, y, b, 2, 21) > 0.55, s = (yf - y) / yf;
+      else if (g === 4 || g === 13) {
+        const nn = kNoise(g === 4 ? a : Math.abs(a - BX), y, b, 2, 21) > 0.55, s = (yf - y) / yf;
         c = s < 0.3 ? (nn ? ROCKET_BLOCK.glow : ROCKET_BLOCK.hot) : s < 0.7 ? (nn ? ROCKET_BLOCK.fire2 : ROCKET_BLOCK.fire) : (nn ? ROCKET_BLOCK.fire : ROCKET_BLOCK.ember);
       } else if (g === 8) c = fine < 0.6 ? 'polished_andesite' : 'andesite';   // the collar stairs, set below
       else if (g === 10) c = fine < 0.6 ? 'polished_deepslate' : 'deepslate_tiles';
+      else if (g === 11) {   // a booster: light grey with dark band rings and a few dark marks, its cone darkening to the tip
+        if (y > yBt) c = ramp(ROCKET_RAMP.boosterCone, 0.1 + 0.8 * ((y - yBt) / Lc), x, y, z, 111);
+        else if ((y - yh) % 10 === 8) c = ramp(ROCKET_RAMP.band, 0.4, x, y, z, 113);
+        else c = rHash(x, y, z, 115) < 0.015 ? 'polished_blackstone' : ramp(ROCKET_RAMP.booster, 0.55 - 0.4 * ((y - yh) / (yBt - yh)), x, y, z, 117);
+        if (y <= yBt && (y - yh) % 10 !== 8 && n2 > wr.patch) c = fine < 0.8 ? 'cobblestone' : 'mossy_cobblestone';
+        if (y <= yBt && n3 > wr.rust) c = 'brown_terracotta';
+      } else if (g === 12) c = y === yf + 1 ? 'polished_blackstone' : ramp(ROCKET_RAMP.deep, 0.4, x, y, z, 119);
+      else if (g === 14) c = fine < 0.6 ? 'polished_andesite' : 'andesite';
       else if (g === 6) {
         if (y <= yb + 1 || y >= yn - 2) {   // the grey rings at both ends of the body: deepslate, a lighter row
           const deep = y === yb || y === yn - 1;
           c = deep ? ramp(ROCKET_RAMP.tuff, 0.4, x, y, z, 95) : ramp(ROCKET_RAMP.light, 0.4, x, y, z, 97);
           if (deep && rHash(x, y, z, 81) < wr.crack) c = 'cracked_stone_bricks';
           if (n2 > wr.patch) c = fine < 0.8 ? 'cobblestone' : 'mossy_cobblestone';
-        } else {
+        } else if (bandAt(y)) c = ramp(ROCKET_RAMP.sand, 0.5, x, y, z, 121);
+        else {
           // twenty stalks round the body, 4 blocks wide each (lit side first, going round), the wall fill only in the
           // narrow gaps between them; a node every 8 rows at each stalk's own height, a leaf in the gap beside it
-          const th = Math.atan2(z - M, x - M) + Math.PI, s = th * 17.5, k = Math.round(s / stalkArc), d = s - k * stalkArc, kk = ((k % 20) + 20) % 20;
+          const th = Math.atan2(z - Mz, x - Mx) + Math.PI, s = th * 17.5, k = Math.round(s / stalkArc), d = s - k * stalkArc, kk = ((k % 20) + 20) % 20;
           const nodeAt = (st) => ((((y - yb - 3 + CANE_NODES[st % 5]) % 8) + 8) % 8);
+          const STK = LA ? CANE_STALK2 : CANE_STALK, RMP = LA ? ROCKET_RAMP.cane2 : ROCKET_RAMP.cane;
           if (Math.abs(d) < 2) {
             const col = Math.min(3, Math.floor(d + 2)), r8 = nodeAt(kk), v = bodyV(y), dn = kNoise(x, y, z, 3, 99) - 0.5;
             const shift = (v < 0.4 && dn < 0.35 - v) ? 1 : (v > 0.7 && dn > 0.75 - v) ? -1 : 0;   // darker low down, lighter near the top
-            c = r8 === 0 ? CANE_STALK.node[col] : r8 === 7 ? CANE_STALK.line[col] : ROCKET_RAMP.cane[Math.max(0, Math.min(4, col + shift))];
+            c = r8 === 0 ? STK.node[col] : r8 === 7 ? STK.line[col] : RMP[Math.max(0, Math.min(4, col + shift))];
           } else {
-            const nb = d > 0 ? kk : (kk + 19) % 20;   // the stalk on the lit side of the gap
-            c = nodeAt(nb) === 1 ? 'lime_concrete' : fill === 'glass' || (fill === 'mixed' && ((y - yb) % 9 >= 4 && (y - yb) % 9 <= 6)) ? 'glass' : sandy(x, y, z);
+            const nb = d > 0 ? kk : (kk + 19) % 20, n8 = nodeAt(nb);   // the stalk on the lit side of the gap
+            const leaf = LA ? (n8 === 1 ? 'lime_wool' : n8 === 2 && rHash(x, y, z, 125) < 0.5 ? 'lime_concrete' : null) : (n8 === 1 ? 'lime_concrete' : null);
+            c = leaf || (fill === 'glass' || (fill === 'mixed' && ((y - yb) % 9 >= 4 && (y - yb) % 9 <= 6)) ? 'glass' : sandy(x, y, z));
           }
           if (c !== 'glass' && kNoise(x, y, z, 4, 51) > wr.moss) c = 'moss_block';
         }
@@ -1121,8 +1197,8 @@ TH.builds = TH.builds || {};
       }
       out[i] = c;
     }
-    // rust streaks under the upper ring, down the cane wall
-    if (wr.streak) for (let z = 0; z < W; z++) for (let x = 0; x < W; x++) {
+    // rust streaks under the upper ring, down the cane wall (the launcher keeps its cane green and sand only)
+    if (wr.streak && !LA) for (let z = 0; z < Wz; z++) for (let x = 0; x < Wx; x++) {
       if (rHash(x, yn, z, 61) > wr.streak) continue;
       const L = 2 + Math.floor(rHash(x, yn, z, 67) * (wr.streak > 0.1 ? 7 : 3));
       for (let k = 3; k < 3 + L; k++) {
@@ -1135,18 +1211,18 @@ TH.builds = TH.builds || {};
     const ids = new Array(N).fill(null);
     for (let i = 0; i < N; i++) if (out[i]) ids[i] = 'minecraft:' + out[i];
     const capOf = (nm) => ROCKET_CAP[nm.replace(/\[.*$/, '')] || 'polished_andesite';
-    for (let y = 0; y < H; y++) for (let z = 0; z < W; z++) for (let x = 0; x < W; x++) {
+    for (let y = 0; y < H; y++) for (let z = 0; z < Wz; z++) for (let x = 0; x < Wx; x++) {
       const i = at(x, y, z);
       if (!out[i]) continue;
-      const a = Math.abs(x - M), b = Math.abs(z - M);
+      const a = Math.abs(x - Mx), b = Math.abs(z - Mz);
       // the collar: upside-down stairs under the body's overhang, their lower step against the head
-      if (reg[i] === 8) ids[i] = 'minecraft:' + out[i] + '_stairs[facing=' + (a >= b ? (x > M ? 'west' : 'east') : (z > M ? 'north' : 'south')) + ',half=top]';
+      if (reg[i] === 8) ids[i] = 'minecraft:' + out[i] + '_stairs[facing=' + (a >= b ? (x > Mx ? 'west' : 'east') : (z > Mz ? 'north' : 'south')) + ',half=top]';
       if (chamberFloor(x, y, z)) ids[i] = 'minecraft:polished_deepslate_slab[type=bottom]';
       if (y === H - 1) ids[i] = 'minecraft:' + capOf(out[i]) + '_slab[type=bottom]';   // the very top: nothing to stand on
     }
     // caps: a slab or stair on every block with open air on top outside (spawn-proofing and smoothing), a stone button
-    // on the floor of the small sealed pockets (nozzle, flames); the farm rooms and the chamber stay empty
-    for (let y = 1; y < H; y++) for (let z = 0; z < W; z++) for (let x = 0; x < W; x++) {
+    // on the floor of the small sealed pockets (nozzle, flames, boosters); the farm rooms and the chamber stay empty
+    for (let y = 1; y < H; y++) for (let z = 0; z < Wz; z++) for (let x = 0; x < Wx; x++) {
       const i = at(x, y, z), below = at(x, y - 1, z);
       if (out[i] || !out[below] || !/^minecraft:[a-z_]+(\[axis=y\])?$/.test(ids[below]) || out[below] === 'glass') continue;
       if (room[i] !== 1) { if (!farm.has(room[i])) ids[i] = 'minecraft:stone_button[face=floor,facing=north]'; continue; }
@@ -1155,11 +1231,12 @@ TH.builds = TH.builds || {};
       const wall = (dx, dz) => solid(x + dx, y, z + dz);
       const ex = wall(1, 0), wx = wall(-1, 0), sz = wall(0, 1), nz = wall(0, -1);
       const fx = ex !== wx ? (ex ? 'east' : 'west') : null, fz = sz !== nz ? (sz ? 'south' : 'north') : null;
-      const fac = fx && fz ? (Math.abs(x - M) >= Math.abs(z - M) ? fx : fz) : fx || fz;
+      const fac = fx && fz ? (Math.abs(x - Mx) >= Math.abs(z - Mz) ? fx : fz) : fx || fz;
       ids[i] = fac ? 'minecraft:' + base + '_stairs[facing=' + fac + ',half=bottom]' : 'minecraft:' + base + '_slab[type=bottom]';
     }
     const C = TH.builds.core;
-    return C.fromFunction([W, H, W], (x, y, z) => ids[(y * W + z) * W + x], 'Creeper rocket ' + H + (flames ? '' : ', no flames'));
+    if (!LA) return C.fromFunction([Wx, H, Wz], (x, y, z) => ids[(y * Wz + z) * Wx + x], 'Creeper rocket ' + H + (flames ? '' : ', no flames'));
+    return C.trim(C.fromFunction([Wx, H, Wz], (x, y, z) => ids[(y * Wz + z) * Wx + x], 'Creeper launcher ' + H + (boosters ? '' : ', core only') + (flames ? '' : ', no flames')));
   }
 
   /** A build's options with every missing or unknown value set to its default ({} for builds without options). */
@@ -1194,6 +1271,10 @@ TH.builds = TH.builds || {};
     },
     creeper_rocket: {
       '100|on': [36, 100, 36, 17062], '100|off': [36, 100, 36, 15058], '127|on': [36, 127, 36, 20202], '127|off': [36, 127, 36, 18198],
+    },
+    creeper_launcher: {
+      '100|on|on': [64, 100, 36, 25806], '100|on|off': [36, 100, 36, 16782], '100|off|on': [64, 100, 36, 22530], '100|off|off': [36, 100, 36, 14778],
+      '127|on|on': [64, 127, 36, 31066], '127|on|off': [36, 127, 36, 19914], '127|off|on': [64, 127, 36, 27790], '127|off|off': [36, 127, 36, 17910],
     },
     // @stats-end
   };

@@ -3,7 +3,7 @@
 // Builds every option set (height x flames, and every creeper colour) in a VM with the game's block database and checks:
 // exactly 35 x 35 wide and as high as the option says (127 by default: y 63 to 189), known full-cube blocks that can be
 // swapped and never fall, one connected piece, mirror symmetric on both horizontal axes (the shape also turns 90 degrees
-// onto itself), hollow (every block touches air, the inside is sealed off from the outside), the body at least as wide
+// onto itself), hollow (every block touches air, the inside is sealed off from the outside), the body as wide as the plot
 // as the head, the bottom (flames or nozzle) at least 16 wide, the creeper face on all four sides of the head texel by
 // texel in every colour set, no cane green on the creeper unless asked for, the cane colours and nodes, the joint rings,
 // the size table, the same build every time, and that the files export and read back unchanged.
@@ -26,20 +26,24 @@ const t = (name, fn) => tests.push([name, fn]);
 const f = F.FARMS.find((x) => x.id === ID);
 const plain = (v) => JSON.parse(JSON.stringify(v));
 const nameOf = (id) => C.parse(id).name;
-// the layout the generator promises: flames y 0..9, nozzle y 10..14, the head 25 wide (x and z 5..29) from y 15 to 38,
-// the joint ring y 39..40, the body from y 41; the nose is 30 % of the height, the ring under it 2 lower, a 2 block spike
-const HEAD = { lo: 5, hi: 29, y0: 15, y1: 38 }, BODY_Y = 41, MID = 17;
+// the layout the generator promises: flames y 0..9, nozzle y 10..14, the head 23 wide (x and z 6..28) from y 15 to 38,
+// the collar y 39..43, the ring y 44..45, the body from y 46; the nose is 30 % of the height, the ring under it 2 lower,
+// a 2 block spike
+const HEAD = { lo: 6, hi: 28, y0: 15, y1: 38 }, COLLAR_Y = 39, RING_Y = 44, BODY_Y = 46, MID = 17;
 const noseRing = (H) => H - 2 - Math.round(H * 0.3) - 2;
 // the creeper's face (entity/creeper/creeper.png, texels 8..15 x 8..15), left half; the right half is its mirror
 const FACE = ['PMGP', 'MGGG', 'GDDP', 'GDKG', 'PGPD', 'PMDK', 'PMKK', 'PPDP'];
 const COLOURS = {
-  charged: { K: 'black_concrete', D: 'blue_concrete', M: 'cyan_concrete', G: 'light_blue_concrete', P: 'light_blue_wool', W: 'white_concrete', ring: 'cyan_concrete' },
-  grey: { K: 'black_concrete', D: 'gray_concrete', M: 'tuff', G: 'andesite', P: 'stone', W: 'polished_diorite', ring: 'tuff' },
-  ember: { K: 'black_concrete', D: 'red_nether_bricks', M: 'red_terracotta', G: 'orange_terracotta', P: 'orange_concrete', W: 'yellow_concrete', ring: 'red_terracotta' },
-  green: { K: 'black_concrete', D: 'green_concrete', M: 'green_wool', G: 'lime_concrete', P: 'lime_wool', W: 'white_concrete', ring: 'green_wool' },
+  charged: { K: 'black_concrete', D: 'blue_concrete', M: 'cyan_concrete', G: 'light_blue_concrete', P: 'light_blue_wool', W: 'white_concrete' },
+  grey: { K: 'black_concrete', D: 'gray_concrete', M: 'tuff', G: 'andesite', P: 'stone', W: 'polished_diorite' },
+  ember: { K: 'black_concrete', D: 'red_nether_bricks', M: 'red_terracotta', G: 'orange_terracotta', P: 'orange_concrete', W: 'yellow_concrete' },
+  green: { K: 'black_concrete', D: 'green_concrete', M: 'green_wool', G: 'lime_concrete', P: 'lime_wool', W: 'white_concrete' },
 };
-/** The face block of a colour set at column p (0..24 across the side) and row r (0 = top texel row). */
-const faceAt = (col, p, r) => COLOURS[col][FACE[r][Math.min(3, Math.floor((p <= 12 ? p : 24 - p) / 3))]];
+/** The face block of a colour set at column p (0..22 across the side) and row r (0 = top texel row): 3 blocks per texel, the inner texel 2 on each side of the middle column. */
+const faceAt = (col, p, r) => COLOURS[col][FACE[r][Math.min(3, Math.floor((p <= 11 ? p : 22 - p) / 3))]];
+// the neutral rocket set and where it goes
+const NOSE = ['white_concrete', 'light_gray_concrete', 'red_concrete', 'iron_block'], FIN = ['white_concrete', 'light_gray_concrete', 'red_concrete'];
+const RING = ['light_gray_concrete', 'bone_block'], COLLAR = ['white_concrete', 'red_concrete'], NOZZLE = ['light_gray_concrete', 'polished_deepslate', 'orange_concrete'];
 const CANE = ['lime_wool', 'bamboo_block', 'bone_block', 'lime_concrete', 'lime_terracotta', 'moss_block'];
 const CANE_GREEN = ['lime_wool', 'lime_concrete', 'green_wool', 'green_concrete', 'moss_block', 'lime_terracotta', 'bamboo_block'];
 const GLOW = ['glowstone', 'shroomlight'];
@@ -147,10 +151,18 @@ for (const o of shapes()) {
     }
     assert.ok(vol < 0.15 * sx * sy * sz, 'a shell, not a solid (' + vol + ' blocks)');
     // the silhouette: the body is never narrower than the head, the joint rings wider still; the nose tapers
-    for (let y = BODY_Y; y < noseRing(H); y++) assert.ok(widthAt(g, y) >= 25 && widthAt(g, y) >= widthAt(g, HEAD.y0 + 1), 'body ' + widthAt(g, y) + ' wide at y ' + y);
-    assert.strictEqual(widthAt(g, HEAD.y0 + 1), 25);
-    assert.strictEqual(widthAt(g, BODY_Y + 1), 29);
-    for (const y of [HEAD.y1 + 1, HEAD.y1 + 2, noseRing(H), noseRing(H) + 1]) assert.strictEqual(widthAt(g, y), 31, 'ring at y ' + y);
+    for (let y = BODY_Y; y < noseRing(H); y++) assert.ok(widthAt(g, y) >= 33, 'body ' + widthAt(g, y) + ' wide at y ' + y);
+    assert.strictEqual(widthAt(g, HEAD.y0 + 1), 23);
+    assert.strictEqual(widthAt(g, BODY_Y + 1), 35);
+    for (const y of [RING_Y, RING_Y + 1, noseRing(H), noseRing(H) + 1]) assert.strictEqual(widthAt(g, y), 35, 'ring at y ' + y);
+    // the collar widens from the head to the body
+    for (let y = COLLAR_Y; y < RING_Y; y++) assert.strictEqual(widthAt(g, y), 27 + 2 * (y - COLLAR_Y), 'collar at y ' + y);
+    // seen along a diagonal the body is still wider than the head: compare the spread across the other diagonal
+    // (head blocks: the head box; body blocks: the cane rows inside the 17.5 radius, so the fins do not count)
+    const spread = (y0, y1, keep) => { let lo = 99, hi = -99; for (let y = y0; y <= y1; y++) for (let z = 0; z < sz; z++) for (let x = 0; x < sx; x++) if (g.at(x, y, z) && keep(x, z)) { lo = Math.min(lo, x - z); hi = Math.max(hi, x - z); } return (hi - lo) / Math.SQRT2; };
+    const headD = spread(HEAD.y0, HEAD.y1, (x, z) => x >= HEAD.lo && x <= HEAD.hi && z >= HEAD.lo && z <= HEAD.hi);
+    const bodyD = spread(BODY_Y, noseRing(H) - 1, (x, z) => Math.hypot(x - MID, z - MID) <= 17.5);
+    assert.ok(bodyD > headD + 1, 'body ' + bodyD.toFixed(1) + ' vs head ' + headD.toFixed(1) + ' across the diagonal');
     for (let y = noseRing(H) + 3; y < H; y++) assert.ok(widthAt(g, y) <= widthAt(g, y - 1), 'the nose narrows at y ' + y);
     // the bottom: at least 16 wide everywhere below the head (flames or the nozzle)
     const lowest = o.flames === 'off' ? 10 : 0;
@@ -166,14 +178,20 @@ for (const o of shapes()) {
     let nodes = 0;
     for (let y = BODY_Y + 1; y < yc; y++) for (let z = 0; z < 35; z++) for (let x = 0; x < 35; x++) if (g.at(x, y, z) === 'bone_block' && g.at(x, y - 1, z) === 'lime_terracotta') nodes++;
     assert.ok(nodes >= 12 * Math.floor((yc - BODY_Y) / 16), 'node rows on the stalks (' + nodes + ')');
-    // the joint rings: the creeper's colour (or the cane's dark) under bone block
-    assert.strictEqual(g.at(2, HEAD.y1 + 1, MID), COLOURS.charged.ring);
-    assert.strictEqual(g.at(2, HEAD.y1 + 2, MID), 'bone_block');
-    assert.strictEqual(g.at(2, yc, MID), 'lime_terracotta');
-    assert.strictEqual(g.at(2, yc + 1, MID), 'bone_block');
-    // a two-block spike on top
-    assert.strictEqual(g.at(MID, H - 1, MID), 'bone_block');
-    assert.strictEqual(g.at(MID, H - 2, MID), 'bone_block');
+    // the neutral rocket set: rings light grey under bone, a white collar with a red top row, a white nose with grey
+    // seams and red, white fins with red tips, a light grey nozzle with an orange rim, an iron spike
+    for (const y of [RING_Y, yc]) { assert.strictEqual(g.at(0, y, MID), 'light_gray_concrete'); assert.strictEqual(g.at(0, y + 1, MID), 'bone_block'); }
+    const only = (y0, y1, keep, set, what) => { for (let y = y0; y <= y1; y++) for (let z = 0; z < 35; z++) for (let x = 0; x < 35; x++) { const b = g.at(x, y, z); if (b && keep(x, z)) assert.ok(set.includes(b), what + ': ' + b + ' at ' + [x, y, z]); } };
+    const all = () => true, inner = (x, z) => Math.hypot(x - MID, z - MID) <= 17.5;
+    only(RING_Y, RING_Y + 1, inner, RING, 'ring'); only(yc, yc + 1, inner, RING, 'ring');
+    only(COLLAR_Y, RING_Y - 1, (x, z) => inner(x, z) && Math.abs(Math.abs(x - MID) - Math.abs(z - MID)) > 1, COLLAR, 'collar');   // the fins pass the collar on the diagonals
+    only(yc + 2, H - 1, all, NOSE, 'nose');
+    only(0, H - 1, (x, z) => !inner(x, z), FIN, 'fin');
+    only(10, 14, (x, z) => Math.hypot(x - MID, z - MID) < 11, NOZZLE, 'nozzle');
+    assert.ok(counts.red_concrete > 100 && counts.white_concrete > 1000, 'a white rocket with red');
+    // a two-block iron spike on top
+    assert.strictEqual(g.at(MID, H - 1, MID), 'iron_block');
+    assert.strictEqual(g.at(MID, H - 2, MID), 'iron_block');
     let top = 0; for (let z = 0; z < 35; z++) for (let x = 0; x < 35; x++) if (g.at(x, H - 1, z)) top++;
     assert.strictEqual(top, 1, 'a single spike block on top');
     const glow = GLOW.reduce((a, b) => a + (counts[b] || 0), 0);
@@ -189,37 +207,41 @@ for (const o of shapes()) {
 }
 
 for (const col of Object.keys(COLOURS)) {
-  t('creeper colour ' + col + ': the face on all four sides, its own colours, the same shape', () => {
-    const o = { size: '80', flames: 'on', colour: col }, s = F.schematic(ID, o), g = grid(s), P = COLOURS[col];
+  t('creeper colour ' + col + ': the face on all four sides, its own colours, nothing else changes', () => {
+    const o = { size: '100', flames: 'on', colour: col }, s = F.schematic(ID, o), g = grid(s), P = COLOURS[col];
     const sides = { south: (p, y) => g.at(HEAD.lo + p, y, HEAD.hi), north: (p, y) => g.at(HEAD.lo + p, y, HEAD.lo), east: (p, y) => g.at(HEAD.hi, y, HEAD.lo + p), west: (p, y) => g.at(HEAD.lo, y, HEAD.lo + p) };
     const onHead = new Set();
     for (const [side, get] of Object.entries(sides)) {
       let black = 0, dark = 0;
-      for (let y = HEAD.y0; y <= HEAD.y1; y++) for (let p = 0; p <= 24; p++) {
+      for (let y = HEAD.y0; y <= HEAD.y1; y++) for (let p = 0; p <= 22; p++) {
         const got = get(p, y);
         assert.strictEqual(got, faceAt(col, p, 7 - Math.floor((y - HEAD.y0) / 3)), side + ' face at column ' + p + ', y ' + y);
         onHead.add(got);
         if (got === P.K) black++;
         if (got === P.D) dark++;
       }
-      // eyes and mouth: 4 black texels in each half, the middle texel column 7 blocks wide (3 + the middle + 3)
-      assert.strictEqual(black, 78, side + ': 78 black blocks');
-      assert.strictEqual(dark, 111, side + ': 111 dark blocks');
+      // eyes and mouth: 4 black texels in each half, the middle texel column 5 blocks wide (2 + the middle + 2)
+      assert.strictEqual(black, 66, side + ': 66 black blocks');
+      assert.strictEqual(dark, 105, side + ': 105 dark blocks');
     }
     // the face colours are nowhere else
     const counts = Object.fromEntries(C.counts(s, true).map((r) => [nameOf(r.id), r.n]));
-    assert.strictEqual(counts[P.K], 4 * 78);
-    assert.strictEqual(counts[P.D], 4 * 111);
+    assert.strictEqual(counts[P.K], 4 * 66);
+    assert.strictEqual(counts[P.D], 4 * 105);
     // only the Green set uses cane greens on the creeper
     if (col !== 'green') for (const b of onHead) assert.ok(!CANE_GREEN.includes(b), col + ': ' + b + ' is a cane green on the head');
-    // the shape is the same in every colour
-    const base = F.schematic(ID, { size: '80', flames: 'on', colour: 'charged' });
-    for (let i = 0; i < s.blocks.length; i++) assert.strictEqual(!s.blocks[i], !base.blocks[i], col + ': the same cells are filled');
+    // the colour changes the head and nothing else
+    const b = grid(F.schematic(ID, { size: '100', flames: 'on', colour: 'charged' }));
+    for (let y = 0; y < 100; y++) for (let z = 0; z < 35; z++) for (let x = 0; x < 35; x++) {
+      const inHead = y >= HEAD.y0 && y <= HEAD.y1 && x >= HEAD.lo && x <= HEAD.hi && z >= HEAD.lo && z <= HEAD.hi;
+      assert.strictEqual(!g.at(x, y, z), !b.at(x, y, z), col + ': the same cells are filled');
+      if (!inHead) assert.strictEqual(g.at(x, y, z), b.at(x, y, z), col + ': only the head changes, not ' + [x, y, z]);
+    }
   });
 }
 
 t('the same options always give the same build', () => {
-  for (const o of [{ size: '80', flames: 'on', colour: 'grey' }, { size: '127', flames: 'off', colour: 'ember' }]) {
+  for (const o of [{ size: '100', flames: 'on', colour: 'grey' }, { size: '127', flames: 'off', colour: 'ember' }]) {
     const a = f.make(F.options(ID, o)), b = f.make(F.options(ID, o));
     assert.deepStrictEqual(plain(a.size), plain(b.size));
     assert.deepStrictEqual(plain(a.palette), plain(b.palette));
@@ -246,7 +268,7 @@ async function roundTrip(s, fmt) {
 }
 const countMap = (s) => Object.fromEntries(C.counts(s).map((x) => [x.id, x.n]));
 t('exports to .schem, .litematic and JSON and reads back unchanged', async () => {
-  for (const o of [{ size: '80', flames: 'on', colour: 'grey' }, { size: '127', flames: 'off', colour: 'charged' }]) {
+  for (const o of [{ size: '100', flames: 'on', colour: 'grey' }, { size: '127', flames: 'off', colour: 'charged' }]) {
     const s = F.schematic(ID, o);
     for (const fmt of ['schem', 'litematic']) {
       const back = await roundTrip(s, fmt);

@@ -619,7 +619,7 @@ TH.builds = TH.builds || {};
     el.className = 'bd-canvas';
     el.tabIndex = 0;
     el.setAttribute('role', 'img');
-    el.setAttribute('aria-label', '3D view of the build. Drag to rotate, scroll or pinch to zoom, double-click to reset.');
+    el.setAttribute('aria-label', '3D view of the build. Drag to turn, right-drag to move, scroll or pinch to zoom, W A S D to fly, double-click a block to turn around it.');
     host.prepend(el);
     const S = {
       el, ready: false, error: null, renderer: null, scene: null, camera: null, root: null, meshes: [], mats: [], atlas: null, grid: null, outline: null, hl: null,
@@ -629,7 +629,10 @@ TH.builds = TH.builds || {};
       run: false, runIdx: 0, runT: 0, phaseSets: null, phaseInfo: null, onRun: null, symCfg: null,
     };
     const HOME = { yaw: 0.78, pitch: 0.52, zoom: 1 };
-    const ZMIN = 0.35, ZMAX = 4, PMIN = -0.2, PMAX = 1.52;
+    const ZMIN = 0.35, PMIN = -0.2, PMAX = 1.52;
+    // free look: the orbit centre (S.target) moves too, so the camera may come up to about one block from it
+    const zmax = () => Math.max(4, S.dist / 1.2);
+    S.tgoal = null; S.zgoal = null; S.home = [0, 4, 0];
     const uni = { uT: { value: 0 }, uD: { value: 0.55 }, uH: { value: 6 }, uMinY: { value: 0 }, uMaxY: { value: 999 } };
 
     function material(kind) {
@@ -687,7 +690,9 @@ TH.builds = TH.builds || {};
       const d = S.dist / S.zoom, cp = Math.cos(S.pitch);
       const [tx, ty, tz] = S.target;
       S.camera.position.set(tx + d * Math.sin(S.yaw) * cp, ty + d * Math.sin(S.pitch), tz + d * Math.cos(S.yaw) * cp);
-      S.camera.near = Math.max(0.05, d / 200); S.camera.far = d * 6 + 200;
+      // close up (inside a build) the near plane comes in, so walls next to the camera are not cut open
+      const big = S.schem ? Math.max(...S.schem.size) : 40;
+      S.camera.near = clamp(d / 240, 0.02, 0.5); S.camera.far = d * 6 + big * 4 + 200;
       S.camera.updateProjectionMatrix();
       S.camera.lookAt(tx, ty, tz);
       S.camera.updateMatrixWorld();
@@ -750,7 +755,19 @@ TH.builds = TH.builds || {};
         moving = true;
       }
       if (!dragging && Math.abs(S.vel) > 0.01) { S.yaw += S.vel * dt; S.vel *= Math.exp(-3.2 * dt); moving = true; }
-      if (!S.auto && !reduced() && !dragging && !S.slice && S.autoOk && now - S.lastInput > 7000) S.auto = true;   // idle again: resume the slow turn
+      // free look: smooth zoom / pan goals and keyboard flight
+      if (fly(dt)) moving = true;
+      if (S.zgoal != null || S.tgoal) {
+        const k = reduced() ? 1 : 1 - Math.exp(-16 * dt);
+        if (S.zgoal != null) { S.zoom += (S.zgoal - S.zoom) * k; if (Math.abs(S.zgoal - S.zoom) < S.zoom * 0.002) { S.zoom = S.zgoal; S.zgoal = null; } }
+        if (S.tgoal) {
+          let left = 0;
+          for (let a = 0; a < 3; a++) { S.target[a] += (S.tgoal[a] - S.target[a]) * k; left += Math.abs(S.tgoal[a] - S.target[a]); }
+          if (left < 0.004) { S.target = S.tgoal.slice(); S.tgoal = null; }
+        }
+        moving = true;
+      }
+      if (!S.auto && !reduced() && !dragging && !S.slice && S.autoOk && !held.size && now - S.lastInput > 7000) S.auto = true;   // idle again: resume the slow turn
       if (S.auto && !dragging && !S.goal && !S.slice) { S.yaw += 0.16 * dt; moving = true; }
       if (stepRun(dt)) moving = true;
       const ticking = stepClock(dt);
@@ -764,26 +781,94 @@ TH.builds = TH.builds || {};
     S.wake = () => { S.dirty = true; wake(); };
     const state = () => ({ t: S.t, end: Tend(), phase: S.phase, playing: S.playing, mode: S.mode });
 
-    /* ---- input: orbit, zoom, pinch, inertia, hover ---- */
-    let dragging = false, moved = 0;
+    /* ---- input: orbit, pan, zoom to the cursor, pinch, keyboard flight, inertia, hover ----
+       drag = turn around the orbit centre; right-drag / middle-drag / Shift+drag = move it (pan); wheel = zoom towards the
+       pointer; two fingers = pinch zoom + pan; WASD / arrows = fly, Space / E up, Shift / Q down; double-click a block =
+       orbit around it, empty space = back home. Every move only changes the camera: no remeshing, cheap on big builds. */
+    let dragging = false, moved = 0, dragMode = 'orbit';
     const ptrs = new Map();
-    let pinch0 = 0, zoom0 = 1, lastT = 0;
+    let pinch0 = 0, zoom0 = 1, lastT = 0, mid0 = null;
+    const held = new Set();
     const touched = () => { S.lastInput = performance.now(); if (S.auto) { S.auto = false; } };
     const pdist = () => { const a = [...ptrs.values()]; return Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y) || 1; };
+    const pmid = () => { const a = [...ptrs.values()]; return { x: (a[0].x + a[1].x) / 2, y: (a[0].y + a[1].y) / 2 }; };
+    /** Camera basis: forward (to the target), right, up. */
+    function basis() {
+      const cp = Math.cos(S.pitch), sp = Math.sin(S.pitch), sy = Math.sin(S.yaw), cy = Math.cos(S.yaw);
+      const f = [-sy * cp, -sp, -cy * cp], r = [cy, 0, -sy];
+      const u = [r[1] * f[2] - r[2] * f[1], r[2] * f[0] - r[0] * f[2], r[0] * f[1] - r[1] * f[0]];
+      return { f, r, u };
+    }
+    /** Keep the orbit centre near the build, so it can't get lost in empty space. */
+    function bound(t) {
+      const s = S.schem;
+      if (!s) return t;
+      const [sx, sy, sz] = s.size, pad = Math.max(8, Math.max(sx, sy, sz) * 0.5);
+      return [clamp(t[0], -sx / 2 - pad, sx / 2 + pad), clamp(t[1], -pad * 0.5, sy + pad), clamp(t[2], -sz / 2 - pad, sz / 2 + pad)];
+    }
+    const tNow = () => (S.tgoal || S.target).slice();
+    /** Move the orbit centre by screen pixels (drag right = the build follows the pointer). */
+    function panBy(dx, dy) {
+      const d = S.dist / S.zoom, k = 2 * d * Math.tan((S.camera ? S.camera.fov : 30) * Math.PI / 360) / Math.max(1, S.h);
+      const { r, u } = basis(), t = tNow();
+      for (let a = 0; a < 3; a++) t[a] += (-r[a] * dx + u[a] * dy) * k;
+      S.tgoal = null; S.target = bound(t);
+    }
+    /** Zoom by f towards the point under (cx, cy) (client px), or the centre when no point is given. */
+    function zoomAt(f, cx, cy) {
+      const z0 = S.zgoal != null ? S.zgoal : S.zoom, z1 = clamp(z0 * f, ZMIN, zmax());
+      if (z1 === z0) return;
+      S.goal = null;
+      if (cx != null && S.camera && S.w) {
+        const rc = el.getBoundingClientRect(), nx = ((cx - rc.left) / rc.width) * 2 - 1, ny = -(((cy - rc.top) / rc.height) * 2 - 1);
+        const a = new THREE.Vector3(nx, ny, -1).unproject(S.camera), b = new THREE.Vector3(nx, ny, 1).unproject(S.camera);
+        const dir = [b.x - a.x, b.y - a.y, b.z - a.z], L = Math.hypot(...dir), { f: fw } = basis(), t = tNow();
+        const cam = [S.camera.position.x, S.camera.position.y, S.camera.position.z];
+        const den = (dir[0] * fw[0] + dir[1] * fw[1] + dir[2] * fw[2]) / L;
+        if (den > 1e-4) {
+          const dist = ((t[0] - cam[0]) * fw[0] + (t[1] - cam[1]) * fw[1] + (t[2] - cam[2]) * fw[2]) / den;
+          const P = [0, 1, 2].map((k) => cam[k] + dir[k] / L * dist);
+          S.tgoal = bound(P.map((p, k) => p + (t[k] - p) * (z0 / z1)));   // the point under the pointer stays under it
+        }
+      }
+      if (reduced()) { S.zoom = z1; S.zgoal = null; if (S.tgoal) { S.target = S.tgoal; S.tgoal = null; } } else S.zgoal = z1;
+    }
+    /** Keyboard flight: held keys move the orbit centre (and the camera with it), speed scales with the distance. */
+    const FLY = { w: [0, 0, 1], arrowup: [0, 0, 1], s: [0, 0, -1], arrowdown: [0, 0, -1], a: [-1, 0, 0], arrowleft: [-1, 0, 0], d: [1, 0, 0], arrowright: [1, 0, 0], e: [0, 1, 0], ' ': [0, 1, 0], pageup: [0, 1, 0], q: [0, -1, 0], shift: [0, -1, 0], pagedown: [0, -1, 0] };
+    function fly(dt) {
+      if (!held.size) return false;
+      let mx = 0, my = 0, mz = 0;
+      held.forEach((k) => { const v = FLY[k]; if (v && !(k === "shift" && dragging)) { mx += v[0]; my += v[1]; mz += v[2]; } });
+      if (!mx && !my && !mz) return false;
+      const d = S.dist / S.zoom, sp = clamp(d * 0.9, 3, 60) * dt, sy = Math.sin(S.yaw), cy = Math.cos(S.yaw);
+      const t = tNow();
+      t[0] += (cy * mx - sy * mz) * sp; t[1] += my * sp; t[2] += (-sy * mx - cy * mz) * sp;
+      S.tgoal = null; S.target = bound(t);
+      touched();
+      return true;
+    }
+    el.addEventListener('contextmenu', (e) => e.preventDefault());
     el.addEventListener('pointerdown', (e) => {
-      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      if (e.pointerType === 'mouse' && e.button > 2) return;
       try { el.setPointerCapture(e.pointerId); } catch (x) { /* ignore */ }
       ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
       touched(); S.goal = null; S.vel = 0; dragging = true; moved = 0; lastT = e.timeStamp;
-      if (ptrs.size === 2) { pinch0 = pdist(); zoom0 = S.zoom; }
-      el.classList.add('grab'); hover(null);
+      dragMode = e.pointerType === 'mouse' && (e.button === 1 || e.button === 2 || e.shiftKey) ? 'pan' : 'orbit';
+      if (e.button === 1) e.preventDefault();   // no auto-scroll
+      if (ptrs.size === 2) { pinch0 = pdist(); zoom0 = S.zgoal != null ? S.zgoal : S.zoom; mid0 = pmid(); S.zgoal = null; }
+      el.classList.add('grab'); el.classList.toggle('pan', dragMode === 'pan'); hover(null);
     });
     el.addEventListener('pointermove', (e) => {
       const p = ptrs.get(e.pointerId);
       if (!p) { if (e.pointerType !== 'touch') hoverAt(e); return; }
       const dx = e.clientX - p.x, dy = e.clientY - p.y;
       p.x = e.clientX; p.y = e.clientY; moved += Math.abs(dx) + Math.abs(dy);
-      if (ptrs.size === 2) S.zoom = clamp(zoom0 * pdist() / pinch0, ZMIN, ZMAX);
+      if (ptrs.size === 2) {
+        S.zoom = clamp(zoom0 * pdist() / pinch0, ZMIN, zmax());
+        const m = pmid();
+        if (mid0) panBy(m.x - mid0.x, m.y - mid0.y);
+        mid0 = m;
+      } else if (dragMode === 'pan') panBy(dx, dy);
       else {
         S.yaw -= dx * 0.0095; S.pitch = clamp(S.pitch + dy * 0.0065, PMIN, PMAX);
         const dt = Math.max(0.004, (e.timeStamp - lastT) / 1000);
@@ -794,31 +879,66 @@ TH.builds = TH.builds || {};
     });
     const up = (e) => {
       if (!ptrs.delete(e.pointerId)) return;
-      if (!ptrs.size) { dragging = false; el.classList.remove('grab'); if (e.timeStamp - lastT > 90 || reduced()) S.vel = 0; wake(); }
+      if (ptrs.size < 2) mid0 = null;
+      if (ptrs.size === 1) { dragMode = "orbit"; S.vel = 0; }   // pinch over: the last finger turns again
+      if (!ptrs.size) { dragging = false; el.classList.remove('grab', 'pan'); if (e.timeStamp - lastT > 90 || reduced() || dragMode === 'pan') S.vel = 0; wake(); }
     };
     el.addEventListener('pointerup', up);
     el.addEventListener('pointercancel', up);
     el.addEventListener('pointerleave', () => hover(null));
     el.addEventListener('wheel', (e) => {
-      e.preventDefault(); touched(); S.goal = null;
-      S.zoom = clamp(S.zoom * Math.exp(-e.deltaY * (e.deltaMode ? 0.05 : 0.0013)), ZMIN, ZMAX);
+      e.preventDefault(); touched();
+      zoomAt(Math.exp(-e.deltaY * (e.deltaMode ? 0.05 : 0.0013)), e.clientX, e.clientY);
       S.dirty = true; wake();
     }, { passive: false });
-    el.addEventListener('dblclick', () => S.reset());
-    el.addEventListener('keydown', (e) => {
-      const k = e.key, map = { ArrowLeft: () => { S.yaw -= 0.16; }, ArrowRight: () => { S.yaw += 0.16; }, ArrowUp: () => { S.pitch = clamp(S.pitch + 0.08, PMIN, PMAX); }, ArrowDown: () => { S.pitch = clamp(S.pitch - 0.08, PMIN, PMAX); },
-        '+': () => { S.zoom = clamp(S.zoom * 1.12, ZMIN, ZMAX); }, '=': () => { S.zoom = clamp(S.zoom * 1.12, ZMIN, ZMAX); }, '-': () => { S.zoom = clamp(S.zoom / 1.12, ZMIN, ZMAX); } };
-      if (map[k]) { e.preventDefault(); touched(); S.goal = null; map[k](); S.dirty = true; wake(); }
-      else if (k === '0' || k === 'Home') { e.preventDefault(); S.reset(); }
+    el.addEventListener('dblclick', (e) => {
+      const hit = pick(e);
+      if (!hit) { S.reset(); return; }
+      S.focusBlock(hit);
     });
+    const keyOf = (e) => (e.key === ' ' ? ' ' : e.key.toLowerCase());
+    el.addEventListener('keydown', (e) => {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      const k = keyOf(e);
+      if (FLY[k]) { e.preventDefault(); if (!held.has(k)) { held.add(k); touched(); S.goal = null; S.vel = 0; S.dirty = true; wake(); } return; }
+      const map = { j: () => { S.yaw -= 0.16; }, l: () => { S.yaw += 0.16; }, i: () => { S.pitch = clamp(S.pitch + 0.08, PMIN, PMAX); }, k: () => { S.pitch = clamp(S.pitch - 0.08, PMIN, PMAX); },
+        '+': () => zoomAt(1.18), '=': () => zoomAt(1.18), '-': () => zoomAt(1 / 1.18), t: () => S.view('top'), f: () => S.view('front'), g: () => S.view('side') };
+      if (map[k]) { e.preventDefault(); touched(); S.goal = null; map[k](); S.dirty = true; wake(); }
+      else if (k === '0' || k === 'home' || k === 'r') { e.preventDefault(); S.reset(); }
+    });
+    el.addEventListener('keyup', (e) => { held.delete(keyOf(e)); if (e.key === 'Shift') held.delete('shift'); });
+    const drop = () => { held.clear(); };
+    el.addEventListener('blur', drop);
+    window.addEventListener('blur', drop);
     S.reset = () => {
-      touched(); S.vel = 0;
+      touched(); S.vel = 0; held.clear();
       const home = S.slice ? { yaw: S.yaw, pitch: PMAX, zoom: 1 } : HOME;
       const g = Object.assign({}, home, { yaw: S.slice ? S.yaw : Math.round((S.yaw - home.yaw) / (Math.PI * 2)) * Math.PI * 2 + home.yaw });
-      if (reduced()) { Object.assign(S, g); S.goal = null; } else S.goal = g;
+      S.zgoal = null; S.tgoal = S.home.slice();
+      if (reduced()) { Object.assign(S, g); S.goal = null; S.target = S.home.slice(); S.tgoal = null; } else S.goal = g;
       S.dirty = true; wake();
     };
-    S.zoomBy = (f) => { touched(); S.goal = null; S.zoom = clamp(S.zoom * f, ZMIN, ZMAX); S.dirty = true; wake(); };
+    /** Standard views: 'top' (straight down), 'front' (from the south), 'side' (from the east); the orbit centre goes home. */
+    S.view = (v) => {
+      touched(); S.vel = 0;
+      const q = Math.PI / 2, near = (want) => S.yaw + (((want - S.yaw) % (2 * Math.PI)) + 3 * Math.PI) % (2 * Math.PI) - Math.PI;
+      const g = v === 'top' ? { yaw: Math.round(S.yaw / q) * q, pitch: PMAX, zoom: 1 } : v === 'side' ? { yaw: near(q), pitch: 0.1, zoom: 1 } : { yaw: near(0), pitch: 0.1, zoom: 1 };
+      S.zgoal = null; S.tgoal = S.home.slice();
+      if (reduced()) { Object.assign(S, g); S.goal = null; S.target = S.home.slice(); S.tgoal = null; } else S.goal = g;
+      S.dirty = true; wake();
+    };
+    /** Orbit around one block (double-click): it becomes the centre, a little closer when far away. */
+    S.focusBlock = (hit) => {
+      if (!S.schem) return;
+      touched(); S.vel = 0; S.goal = null;
+      const s = S.schem;
+      S.tgoal = bound([hit[0] - s.size[0] / 2 + 0.5, hit[1] + 0.5, hit[2] - s.size[2] / 2 + 0.5]);
+      const z0 = S.zgoal != null ? S.zgoal : S.zoom;
+      S.zgoal = clamp(Math.max(z0, Math.min(z0 * 1.6, S.dist / 12)), ZMIN, zmax());
+      if (reduced()) { S.target = S.tgoal; S.tgoal = null; S.zoom = S.zgoal; S.zgoal = null; }
+      S.dirty = true; wake();
+    };
+    S.zoomBy = (f) => { touched(); zoomAt(f); S.dirty = true; wake(); };
     S.setAuto = (on) => { S.auto = !!on && !reduced(); S.autoOk = S.auto; if (S.auto) { S.goal = null; S.vel = 0; } wake(); };
 
     /* hover pick: a voxel walk (DDA) along the mouse ray, only blocks that are shown and landed */
@@ -834,8 +954,8 @@ TH.builds = TH.builds || {};
       }
       if (S.onHover) S.onHover(hit);
     }
-    function hoverAt(e) {
-      if (!S.ready || !S.schem || !S.M) return;
+    function pick(e) {
+      if (!S.ready || !S.schem || !S.M) return null;
       const r = el.getBoundingClientRect();
       const nx = ((e.clientX - r.left) / r.width) * 2 - 1, ny = -(((e.clientY - r.top) / r.height) * 2 - 1);
       const a = new THREE.Vector3(nx, ny, -1).unproject(S.camera), b = new THREE.Vector3(nx, ny, 1).unproject(S.camera);
@@ -846,12 +966,12 @@ TH.builds = TH.builds || {};
       let t0 = 0, t1 = L;
       const lo = [0, 0, 0], hi = [sx, sy, sz];
       for (let k = 0; k < 3; k++) {
-        if (Math.abs(d[k]) < 1e-9) { if (o[k] < lo[k] || o[k] > hi[k]) return hover(null); continue; }
+        if (Math.abs(d[k]) < 1e-9) { if (o[k] < lo[k] || o[k] > hi[k]) return null; continue; }
         let ta = (lo[k] - o[k]) / d[k], tb = (hi[k] - o[k]) / d[k];
         if (ta > tb) [ta, tb] = [tb, ta];
         t0 = Math.max(t0, ta); t1 = Math.min(t1, tb);
       }
-      if (t0 > t1) return hover(null);
+      if (t0 > t1) return null;
       const p = o.map((v, k) => v + d[k] * (t0 + 1e-4));
       let x = Math.min(sx - 1, Math.floor(p[0])), y = Math.min(sy - 1, Math.floor(p[1])), z = Math.min(sz - 1, Math.floor(p[2]));
       const st = d.map((v) => (v > 0 ? 1 : -1));
@@ -861,12 +981,13 @@ TH.builds = TH.builds || {};
       for (let n = 0; n < 2000; n++) {
         if (x < 0 || y < 0 || z < 0 || x >= sx || y >= sy || z >= sz) break;
         const i = (y * sz + z) * sx + x;
-        if (s.blocks[i] && y >= lo2 && y <= hi2 && T[i] >= 0 && S.t >= T[i] + D * 0.8) return hover([x, y, z]);
+        if (s.blocks[i] && y >= lo2 && y <= hi2 && T[i] >= 0 && S.t >= T[i] + D * 0.8) return [x, y, z];
         const k = tMax[0] < tMax[1] ? (tMax[0] < tMax[2] ? 0 : 2) : (tMax[1] < tMax[2] ? 1 : 2);
         if (k === 0) { x += st[0]; tMax[0] += tD[0]; } else if (k === 1) { y += st[1]; tMax[1] += tD[1]; } else { z += st[2]; tMax[2] += tD[2]; }
       }
-      hover(null);
+      return null;
     }
+    function hoverAt(e) { hover(pick(e)); }
 
     /* ---- scene content ---- */
     function clearContent() {
@@ -1091,11 +1212,18 @@ TH.builds = TH.builds || {};
       if (opts.layer === 'top' || S.maxY < 0) S.maxY = schem.size[1] - 1;
       S.minY = S.slice ? S.maxY : 0;
       uni.uMaxY.value = S.maxY; uni.uMinY.value = S.minY;
+      const sizeKey = schem.size.join('x'), sameBox = S.sizeKey === sizeKey;
+      S.sizeKey = sizeKey;
+      S.home = [0, schem.size[1] * 0.47, 0];
       if (!opts.keepView) {
-        S.target = [0, schem.size[1] * 0.47, 0];
+        S.target = S.home.slice(); S.tgoal = null;
         S.w = 0; resize(); S.dist = fitDist();
-        if (!opts.keepZoom) { S.zoom = 1; S.goal = null; }
-      } else { S.target = [0, schem.size[1] * 0.47, 0]; S.dist = fitDist(); }
+        if (!opts.keepZoom) { S.zoom = 1; S.goal = null; S.zgoal = null; }
+      } else {
+        // the same build again (block swaps, the mirrored preview): the camera stays exactly where the user moved it
+        if (!sameBox) { S.target = S.home.slice(); S.tgoal = null; }
+        S.dist = fitDist();
+      }
       if (opts.animate && S.mode !== 'still' && !reduced()) { S.t = 0; S.phase = 'in'; S.playing = true; }
       else { S.t = Tend(); S.phase = S.mode === 'loop' && S.playing && !reduced() ? 'hold' : 'done'; S.hold = 0; }
       uni.uT.value = S.t;

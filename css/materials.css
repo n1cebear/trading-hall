@@ -328,3 +328,34 @@
 }
 
 .mt-warn { margin: 2px 0 0; padding: 0; font: 500 12px/1.45 var(--font); color: var(--muted); }
+
+/* ---------- replace a row (same-kind blocks; on a build it swaps the build itself) ----------
+   the key shows on hover / focus of the stripe (always on touch); a replaced row says what it was, with a revert key */
+.mt-nametxt { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.mt-was { font: 500 11px/1.25 var(--font); color: color-mix(in srgb, var(--accent) 70%, var(--muted)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mt-repkey, .mt-revert { display: grid; place-items: center; flex: none; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 6px; cursor: pointer; background: transparent; color: var(--muted); transition: opacity .12s, background .12s, color .12s; }
+.mt-repkey { opacity: 0; }
+.mt-row:hover .mt-repkey, .mt-row:focus-within .mt-repkey, .mt-repkey[aria-expanded="true"] { opacity: 1; }
+.mt-repkey:hover, .mt-repkey[aria-expanded="true"] { color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.mt-revert { color: var(--faint); }
+.mt-revert:hover { color: var(--danger); background: color-mix(in srgb, var(--text) 7%, transparent); }
+.mt-repkey .mt-gl, .mt-revert .mt-gl { width: 10px; height: 10px; }
+.mt-repkey:focus-visible, .mt-revert:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; opacity: 1; }
+@media (hover: none) { .mt-repkey { opacity: .8; } }
+.mt-rep { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 10px; padding: 8px 0 16px 68px; min-width: 0; }
+.mt-rep[hidden] { display: none; }
+.mt-rep-head { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 14px; min-width: 0; }
+.mt-rep-eff { flex: 1 1 200px; min-width: 0; font: 500 12.5px/1.35 var(--font); color: var(--muted); }
+.mt-rep-eff b { font: 400 12.5px var(--display); color: var(--text); }
+.mt-rep-eff .mt-rep-to { color: var(--accent); }
+.mt-rep-q { max-width: 280px; height: 34px; }
+.mt-rep-grid { display: grid; grid-template-columns: repeat(auto-fill, 40px); gap: 6px; }
+.mt-rep-tile { position: relative; width: 40px; height: 40px; padding: 0; }
+.mt-rep-dot { position: absolute; right: 3px; bottom: 3px; width: 6px; height: 6px; background: var(--accent); }
+.mt-rep-set { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+.mt-undo { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; min-height: 34px; font: 500 12.5px/1.3 var(--font); color: var(--muted); }
+.mt-undo[hidden] { display: none; }
+.mt-undo-ico { color: var(--accent); }
+.mt-undo-txt { flex: 1 1 200px; min-width: 0; color: var(--text); }
+@container (max-width: 600px) { .mt-rep { padding-left: 0; } .mt-repkey, .mt-revert { width: 36px; height: 36px; } }
+@media (prefers-reduced-motion: reduce) { .mt-repkey, .mt-revert { transition: none; } }

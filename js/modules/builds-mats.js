@@ -445,9 +445,36 @@ TH.builds.mats = (function () {
     return v;
   }
   function baseRows(key) {
-    if (key.startsWith('list:')) { const l = listRec(key); return l ? listRows(l.text || '').rows.map((r) => Object.assign({}, r)) : []; }
+    if (key.startsWith('list:')) {
+      const l = listRec(key);
+      if (!l) return [];
+      // replacements on a list (l.rep = { original item: item now }) rename a row, and merge it with a row of that item
+      const rep = l.rep || {}, m = new Map();
+      listRows(l.text || '').rows.forEach((r0) => {
+        const to = rep[r0.item] && !isTextItem(r0.item) ? rep[r0.item] : r0.item;
+        const e = m.get(to);
+        if (e) { e.n += r0.n; e.have0 += r0.have0 || 0; if (to !== r0.item) e.was.push(r0.item); }
+        else m.set(to, Object.assign({}, r0, { item: to, label: to === r0.item ? r0.label : null, was: to !== r0.item ? [r0.item] : [] }));
+      });
+      return [...m.values()];
+    }
     const s = A.effective(key);
-    return s ? core().materials(s).map((m) => ({ item: m.item, n: m.n, have0: 0, label: null })) : [];
+    return s ? core().materials(s).map((m) => ({ item: m.item, n: m.n, have0: 0, label: null, bases: m.bases, was: [] })) : [];
+  }
+  /** Rows of a build that show swapped blocks: { item now: [original items] } (the swaps live in state.builds.swaps). */
+  function wasOfBuild(key) {
+    const out = new Map();
+    if (!A.swappable || !A.swappable(key)) return out;
+    const sw = A.swaps(key);
+    Object.keys(sw).forEach((o) => {
+      if (!core().canSwap(o, sw[o])) return;
+      const a = core().itemOf(o), b = core().itemOf(sw[o]);
+      if (!a || !b || a.item === b.item) return;
+      const l = out.get(b.item) || [];
+      if (!l.includes(a.item)) l.push(a.item);
+      out.set(b.item, l);
+    });
+    return out;
   }
 
   /* ---- the rows on screen ---- */
@@ -474,6 +501,7 @@ TH.builds.mats = (function () {
     if (st.sort === 'name') rows.sort((a, b) => a.name.localeCompare(b.name));
     else if (st.sort === 'group') rows.sort((a, b) => gi(a.grp) - gi(b.grp) || b.n - a.n || a.name.localeCompare(b.name));
     else rows.sort((a, b) => b.n - a.n || a.name.localeCompare(b.name));
+    if (!raw && !key.startsWith('list:')) { const w = wasOfBuild(key); rows.forEach((r) => { r.was = w.get(r.item) || []; }); }
     const names = new Map(rows.map((r) => [r.item, r.name]));
     base.forEach((b) => { if (b.label && !names.has(b.item)) names.set(b.item, b.label); });
     return { key, tk: key + (raw ? '#raw' : ''), raw, base, rows, steps, usedBy, names };
@@ -527,10 +555,11 @@ TH.builds.mats = (function () {
     M.colHead = h('div.mt-colhead', { 'aria-hidden': 'true' }, h('span.mt-ch-need', 'Needed'), M.colItems, h('span.mt-ch-have', 'Have'), h('span.mt-ch-still', 'Still needed'));
     M.empty = h('p.mt-note.mt-empty', { hidden: true });
     M.acts = h('div.mt-actions.mt-lacts');
+    M.undoBar = h('div.mt-undo', { role: 'status', hidden: true });
     M.list = h('section.panel.mt-pan.mt-list', { 'aria-label': 'Material list' },
       h('div.mt-pan-head', M.listTitle, M.listCount),
       h('div.mt-tools', h('div.mt-tools-a', M.q, hideSw, rawSw), h('div.mt-tools-b', M.sortSeg, M.unitSeg)),
-      M.colHead, M.rows, M.empty, M.acts);
+      M.undoBar, M.colHead, M.rows, M.empty, M.acts);
     // side: the source card + packing in one panel, raw materials below
     M.card = h('div.mt-card');
     M.packBody = h('div.mt-packbody');
@@ -619,7 +648,7 @@ TH.builds.mats = (function () {
   }
   function choose(key) {
     save((b) => { b.matSrc = key; });
-    M.open.clear(); M.packAll = false; M.rawAll = false;
+    M.open.clear(); M.packAll = false; M.rawAll = false; M.undo = null; M.undoBar.hidden = true;
     togglePick(false);
     refresh();
   }
@@ -839,22 +868,29 @@ TH.builds.mats = (function () {
     const done = isDone(r), open = M.open.has(r.item);
     const cb = h('input', { type: 'checkbox', checked: done, 'aria-label': 'Got all of ' + r.name, onchange: () => { setHave(r, cb.checked ? r.n : 0, cb.checked); patchRow(r); } });
     const chk = tip(h('label.check.mt-chk', cb, h('span')), 'Got it all');
-    const nameBtn = h('button.mt-name', { type: 'button', 'aria-expanded': String(open), onclick: () => toggleRow(r) }, h('span.mt-label', r.name));
+    const was = (r.was || []).filter((x) => x !== r.item);
+    const nameBtn = h('button.mt-name', { type: 'button', 'aria-expanded': String(open), onclick: () => toggleRow(r) },
+      h('span.mt-nametxt', h('span.mt-label', r.name), was.length ? h('span.mt-was', 'was ' + was.map((x) => RC().nameOf(x)).join(', ')) : null));
     let rkey = null;
     if (r.nrec) {
       const st = RC().stationOf(RC().best(r.item, ropts())) || 'block/crafting_table_front';
       rkey = h('button.mt-rkey', { type: 'button', 'aria-expanded': String(open), 'aria-label': 'How to make ' + r.name, onclick: () => toggleRow(r) }, TH.icon(st, { size: 16 }));
       tip(rkey, () => recipeTip(r));
     }
+    // replace: a small key (hover / focus; always on touch) that opens the picker of sensible same-kind blocks
+    const ri = repInfo(r);
+    const repKey = ri ? tip(h('button.mt-repkey', { type: 'button', 'aria-expanded': 'false', 'aria-label': 'Replace ' + r.name, onclick: () => toggleRep(r) }, gl('swap')), 'Replace with a block of the same kind') : null;
+    const revert = was.length ? tip(h('button.mt-revert', { type: 'button', 'aria-label': 'Back to ' + RC().nameOf(was[0]), onclick: () => revertRow(r) }, gl('x')), 'Back to ' + was.map((x) => RC().nameOf(x)).join(', ')) : null;
     const need = h('div.mt-need');
     const have = haveField(r);
     const plusSt = r.stack > 1 ? tip(h('button.mt-qk', { type: 'button', 'aria-label': 'Add a stack of ' + r.name, onclick: () => bump(r, r.stack) }, gl('plus', 'mt-qk-plus'), unitIco('st', 12)), 'Add one stack (' + r.stack + ')') : null;
     const plusSb = tip(h('button.mt-qk', { type: 'button', 'aria-label': 'Add a shulker box of ' + r.name, onclick: () => bump(r, r.stack * 27) }, gl('plus', 'mt-qk-plus'), unitIco('sb', 14)), 'Add one shulker box (' + fmt(r.stack * 27) + ')');
     const det = h('div.mt-det', { hidden: !open });
     const itemsC = h('div.mt-items'), stillC = h('div.mt-still');   // wide lists only: the exact count and what is still missing
-    const el = h('div.mt-row' + (done ? '.done' : '') + (open ? '.open' : ''), { role: 'listitem', 'data-item': r.item },
-      chk, h('span.mt-ico', iconFor(r.item, 32)), h('div.mt-namecell', nameBtn, rkey), need, itemsC, have.wrap, stillC, h('div.mt-quick', plusSt, plusSb), det);
-    el._r = r; el._cb = cb; el._need = need; el._have = have; el._det = det; el._items = itemsC; el._still = stillC; el._btns = [nameBtn, rkey].filter(Boolean);
+    const rep = h('div.mt-rep', { hidden: true });
+    const el = h('div.mt-row' + (done ? '.done' : '') + (open ? '.open' : '') + (was.length ? '.is-rep' : ''), { role: 'listitem', 'data-item': r.item },
+      chk, h('span.mt-ico', iconFor(r.item, 32)), h('div.mt-namecell', nameBtn, rkey, repKey, revert), need, itemsC, have.wrap, stillC, h('div.mt-quick', plusSt, plusSb), det, rep);
+    el._r = r; el._cb = cb; el._need = need; el._have = have; el._det = det; el._items = itemsC; el._still = stillC; el._btns = [nameBtn, rkey].filter(Boolean); el._rep = rep; el._repKey = repKey;
     M.rowEls.set(r.item, el);
     fillNeed(el);
     if (open) fillDet(el);
@@ -934,6 +970,190 @@ TH.builds.mats = (function () {
     });
     M.empty.hidden = !!vis || (!!M.d.rows.length && !(t || hide));
     if (M.d.rows.length && !vis) M.empty.textContent = hide && !t ? 'Everything is gathered.' : 'Nothing matches the filter.';
+  }
+
+  /* ---- replace: swap a row for a block of the same kind ----
+     A list from a build: the swap goes into state.builds.swaps of that build, so this list, the 3D view and the download
+     all change together (functional blocks never swap, states are kept: TH.builds.core.canSwap / swapState).
+     A saved text list: the row is renamed (list.rep = { original item: item now }) and merges with a row of that item. */
+  const C_ = () => core();
+  const isBuildKey = (key) => !!(A.swappable && A.swappable(key));
+  /** { primary (block id the row stands for), alts (block ids), set ({ kind, token, role } or null) } or null when nothing fits. */
+  function repInfo(r) {
+    const d = M && M.d;
+    if (!d || d.raw || isTextItem(r.item)) return null;
+    let primary;
+    if (d.key.startsWith('list:')) primary = r.item;
+    else if (isBuildKey(d.key) && r.bases) {
+      const bs = Object.keys(r.bases).sort((a, b) => r.bases[b] - r.bases[a]);
+      primary = bs.find((b) => C_().parse(b).name === C_().parse(r.item).name) || bs[0];
+    } else return null;
+    if (!primary || !C_().known(primary) || !C_().replaceable(primary).ok) return null;
+    const fam = C_().def(primary).fam;
+    const alts = C_().familyOf(fam).map((n) => 'minecraft:' + n).filter((x) => x !== C_().parse(primary).base);
+    if (!alts.length) return null;
+    const set = C_().setOf(C_().parse(primary).name);
+    return { primary: C_().parse(primary).base, alts, fam, set };
+  }
+  /** The item a block gives you (oak_wall_sign -> oak_sign). */
+  const itemFor = (id) => { const it = C_().itemOf(id); return it ? it.item : id; };
+  function toggleRep(r) {
+    const el = M.rowEls.get(r.item);
+    if (!el || !el._rep) return;
+    const open = el._rep.hidden;
+    M.rowEls.forEach((x) => { if (x._rep && !x._rep.hidden) { x._rep.hidden = true; x._rep.replaceChildren(); if (x._repKey) x._repKey.setAttribute('aria-expanded', 'false'); } });
+    if (!open) return;
+    el._rep.hidden = false;
+    if (el._repKey) el._repKey.setAttribute('aria-expanded', 'true');
+    fillRep(el);
+  }
+  function closeRep(el, focus) {
+    el._rep.hidden = true; el._rep.replaceChildren();
+    if (el._repKey) { el._repKey.setAttribute('aria-expanded', 'false'); if (focus) el._repKey.focus(); }
+  }
+  function fillRep(el) {
+    const r = el._r, info = repInfo(r);
+    if (!info) { closeRep(el); return; }
+    const d = M.d, list = d.key.startsWith('list:');
+    const here = new Set(d.rows.map((x) => x.item));
+    const eff = h('span.mt-rep-eff', { 'aria-live': 'polite' });
+    const idle = () => { eff.replaceChildren(h('b', r.name + ' ' + fmt(r.n)), ' → pick one'); };
+    const show = (to, words) => { eff.replaceChildren(h('b', r.name + ' ' + fmt(r.n)), ' → ', h('b.mt-rep-to', words || nameOf(to))); };
+    idle();
+    const tile = (id, label, onPick, extra) => {
+      const b = h('button.btn.mt-rep-tile', { type: 'button', 'aria-label': label, onclick: onPick }, iconFor(id, 24), extra || null);
+      b.addEventListener('pointerenter', () => show(null, label)); b.addEventListener('focus', () => show(null, label));
+      b.addEventListener('pointerleave', idle); b.addEventListener('blur', idle);
+      return tip(b, label);
+    };
+    // same-kind blocks: those already in this list first (picking one merges the rows)
+    // then the same kind of material (other woods for a wooden block, other colours for wool ...), then the rest
+    const kindOf = (id) => { const s = C_().setOf(C_().parse(id).name); return s ? s.kind : null; }, myKind = info.set ? info.set.kind : null;
+    const rank = (id) => (here.has(itemFor(id)) ? 0 : myKind && kindOf(id) === myKind ? 1 : 2);
+    const alts = info.alts.map((a, i) => [a, i]).sort((x, y) => rank(x[0]) - rank(y[0]) || x[1] - y[1]).map((x) => x[0]);
+    const q = alts.length > 14 ? h('input.field.mt-rep-q', { type: 'search', placeholder: 'Search', 'aria-label': 'Search blocks', autocomplete: 'off', spellcheck: false }) : null;
+    const grid = h('div.mt-rep-grid');
+    const fillGrid = () => {
+      const t = q ? q.value.trim().toLowerCase() : '';
+      grid.replaceChildren(...alts.filter((a) => !t || C_().nameOf(a).toLowerCase().includes(t)).map((a) => {
+        const it = itemFor(a), inList = here.has(it);
+        return tile(it, C_().nameOf(a) + (inList ? ' (in the list)' : ''), () => replaceRow(r, info, a), inList ? h('span.mt-rep-dot', { 'aria-hidden': 'true' }) : null);
+      }));
+    };
+    if (q) q.addEventListener('input', fillGrid);
+    fillGrid();
+    // the whole set (every oak block, every red one ...) from this row
+    let setPart = null;
+    if (info.set) {
+      const s = info.set, kinds = d.rows.filter((x) => { const p = repSetOf(x); return p && p.kind === s.kind && p.token === s.token; }).length;
+      if (kinds > 1) {
+        const toks = C_().setTokens(s.kind).filter((t) => t !== s.token).map((t) => {
+          const rep = C_().setName(s.kind, t, s.role);
+          const plan = setPlanFor(s, t);
+          if (!plan.n) return null;
+          const lbl = 'All ' + C_().setLabel(s.kind, s.token) + ' → ' + C_().setLabel(s.kind, t) + ' (' + plan.n + (plan.n === 1 ? ' kind' : ' kinds') + ')';
+          return tile(rep ? 'minecraft:' + rep : C_().setIcon(s.kind, t), lbl, () => replaceSet(s, t, plan));
+        }).filter(Boolean);
+        if (toks.length) setPart = h('div.mt-rep-set', h('span.mt-eyebrow', 'Whole ' + C_().setLabel(s.kind, s.token) + ' set · ' + kinds + ' kinds'), h('div.mt-rep-grid', toks));
+      }
+    }
+    const note = C_().famNote(info.fam);
+    el._rep.replaceChildren(...[
+      h('div.mt-rep-head', h('span.mt-eyebrow.mt-acc', 'Replace'), eff, h('button.btn.ghost.mt-key.mt-rep-x', { type: 'button', onclick: () => closeRep(el, true) }, 'Done')),
+      note ? h('p.mt-note', note) : null,
+      q, grid, setPart,
+      !list && isBuildKey(d.key) ? h('p.mt-note', 'Changes the build itself: its 3D view and its download change too.') : null].filter(Boolean));
+    el._rep.onkeydown = (e) => { if (e.key === 'Escape') { e.stopPropagation(); closeRep(el, true); } };
+    if (q && hovers()) q.focus({ preventScroll: true });
+  }
+  /** The set of a row (from its main block). */
+  function repSetOf(row) {
+    const i = repInfo(row);
+    return i ? i.set : (isTextItem(row.item) ? null : C_().setOf(RC().bare(row.item)));
+  }
+  /** What a whole-set change does here: a build plan (TH.builds.core.setPlan) or, on a list, the rows it renames. n = kinds that change. */
+  function setPlanFor(s, to) {
+    const d = M.d;
+    if (isBuildKey(d.key)) { const p = C_().setPlan(A.original(d.key), A.swaps(d.key), s.kind, s.token, to); return { build: p, n: p.kinds }; }
+    const moves = [];
+    d.rows.forEach((x) => {
+      if (isTextItem(x.item)) return;
+      const st = C_().setOf(RC().bare(x.item));
+      if (!st || st.kind !== s.kind || st.token !== s.token || !C_().replaceable(x.item).ok) return;
+      const t = C_().setName(s.kind, to, st.role);
+      if (t && C_().canSwap(x.item, 'minecraft:' + t)) moves.push([x.item, 'minecraft:' + t]);
+    });
+    return { moves, n: moves.length };
+  }
+  /** Remember the state before a change, so the Undo key can bring it back. */
+  function remember(text) {
+    const d = M.d;
+    M.undo = { key: d.key, text, swaps: isBuildKey(d.key) ? A.swaps(d.key) : null, rep: d.key.startsWith('list:') ? Object.assign({}, (listRec(d.key) || {}).rep || {}) : null };
+  }
+  function setListRep(key, fn) {
+    save((b) => { const l = (b.lists || []).find((x) => 'list:' + x.id === key); if (!l) return; const rep = Object.assign({}, l.rep || {}); fn(rep); Object.keys(rep).forEach((k) => { if (rep[k] === k) delete rep[k]; }); if (Object.keys(rep).length) l.rep = rep; else delete l.rep; });
+  }
+  /** Replace one row: on a build, every block that makes this item swaps (oak_sign + oak_wall_sign); on a list, the row is renamed. */
+  function replaceRow(r, info, to) {
+    const d = M.d, toItem = itemFor(to), text = r.name + ' → ' + C_().nameOf(to);
+    remember(text);
+    if (isBuildKey(d.key)) {
+      const change = [];
+      Object.keys(r.bases || {}).forEach((b) => {
+        const t = b === info.primary ? to : C_().relate(info.primary, to, b) || (C_().canSwap(b, to) ? to : null);
+        if (t && t !== b) change.push({ from: b, to: t });
+      });
+      A.setSwaps(d.key, C_().withChanges(A.original(d.key), A.swaps(d.key), change));
+    } else {
+      setListRep(d.key, (rep) => {
+        const origs = Object.keys(rep).filter((k) => rep[k] === r.item);
+        if (!origs.length || listRows((listRec(d.key) || {}).text || '').rows.some((x) => x.item === r.item && !rep[x.item])) origs.push(r.item);
+        origs.forEach((o) => { rep[o] = toItem; });
+      });
+    }
+    M.open.delete(r.item);
+    refresh();
+    showUndo();
+    TH.util.toast(text);
+  }
+  function replaceSet(s, to, plan) {
+    const d = M.d, text = 'All ' + C_().setLabel(s.kind, s.token) + ' → ' + C_().setLabel(s.kind, to);
+    remember(text);
+    if (plan.build) A.setSwaps(d.key, C_().withChanges(A.original(d.key), A.swaps(d.key), plan.build.change));
+    else setListRep(d.key, (rep) => { plan.moves.forEach(([from, t]) => { const origs = Object.keys(rep).filter((k) => rep[k] === from); if (!origs.length) origs.push(from); origs.forEach((o) => { rep[o] = t; }); }); });
+    refresh();
+    showUndo();
+    TH.util.toast(text + (plan.build && plan.build.note ? ' · ' + plan.build.note : ''));
+  }
+  /** Back to what the row was before it was replaced (only this row). */
+  function revertRow(r) {
+    const d = M.d;
+    remember('Back to ' + (r.was || []).map((x) => RC().nameOf(x)).join(', '));
+    if (isBuildKey(d.key)) {
+      const sw = A.swaps(d.key);
+      Object.keys(sw).forEach((o) => { const b = C_().itemOf(sw[o]); if (b && b.item === r.item) delete sw[o]; });
+      A.setSwaps(d.key, sw);
+    } else setListRep(d.key, (rep) => { Object.keys(rep).forEach((k) => { if (rep[k] === r.item) delete rep[k]; }); });
+    refresh();
+    showUndo();
+  }
+  /** The undo strip over the list: what just changed + Undo (the app toast has no action key). */
+  function showUndo() {
+    const u = M.undo;
+    if (!u || u.key !== M.d.key) { M.undoBar.hidden = true; return; }
+    M.undoBar.replaceChildren(gl('swap', 'mt-undo-ico'), h('span.mt-undo-txt', u.text), h('button.btn.mt-key', { type: 'button', onclick: undo }, 'Undo'),
+      tip(h('button.mt-x', { type: 'button', 'aria-label': 'Hide', onclick: () => { M.undo = null; M.undoBar.hidden = true; } }, gl('x')), 'Hide'));
+    M.undoBar.hidden = false;
+  }
+  function undo() {
+    const u = M.undo;
+    if (!u) return;
+    if (u.swaps) A.setSwaps(u.key, u.swaps);
+    else if (u.rep) setListRep(u.key, (rep) => { Object.keys(rep).forEach((k) => delete rep[k]); Object.assign(rep, u.rep); });
+    M.undo = null;
+    refresh();
+    M.undoBar.hidden = true;
+    TH.util.toast('Undone');
   }
 
   /* ---- recipes, drawn the way the game shows them ---- */

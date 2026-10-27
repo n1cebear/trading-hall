@@ -40,7 +40,7 @@
     lib: { q: '', type: 'all', use: 'all', tech: 'all', topic: 'all', sort: 'name', more: false },
     mode: 'once', speed: 1, grid: true, outline: false, auto: true,
     shape: { kind: 'sphere', p: {}, block: {}, block2: {} },
-    swaps: {}, ticks: {}, have: {}, units: 'items', sort: 'count', files: [], paste: null, matSrc: 'stage', lists: [],
+    swaps: {}, ticks: {}, have: {}, units: 'items', sort: 'count', files: [], paste: null, matSrc: 'stage', lists: [], viewHelp: false,
     mats: { raw: false, cont: 'box', pack: 'tight', hide: false, sc: true, pick: {} },
   };
   const SHAPE_BLOCK = { sphere: 'minecraft:stone_bricks', ellipsoid: 'minecraft:white_concrete', circle: 'minecraft:polished_andesite', dome: 'minecraft:glass', cylinder: 'minecraft:bricks', cone: 'minecraft:spruce_planks', pyramid: 'minecraft:sandstone', torus: 'minecraft:prismarine', tree: 'minecraft:oak_log' };
@@ -193,10 +193,12 @@
   }
   async function exportAs(s, fmt, base) {
     const name = fileSafe(base || s.name);
+    const ext = fmt === 'json' ? '.json' : fmt === 'litematic' ? '.litematic' : '.schem';
     try {
-      if (fmt === 'json') downloadBlob(name + '.json', B().io.toJSON(s), 'application/json');
-      else downloadBlob(name + '.schem', await B().io.toSchem(s), 'application/octet-stream');
-      toast('Downloaded ' + name + (fmt === 'json' ? '.json' : '.schem'));
+      if (fmt === 'json') downloadBlob(name + ext, B().io.toJSON(s), 'application/json');
+      else if (fmt === 'litematic') downloadBlob(name + ext, await B().io.toLitematic(s), 'application/octet-stream');
+      else downloadBlob(name + ext, await B().io.toSchem(s), 'application/octet-stream');
+      toast('Downloaded ' + name + ext);
     } catch (e) { toast(e.message || 'Could not write that file'); }
   }
 
@@ -226,15 +228,38 @@
     const title = h('div.bd-title'), meta = h('div.bd-meta');
     const zoomOut = h('button.btn.small.bd-vk.sq', { type: 'button', 'aria-label': 'Zoom out', onclick: () => V && V.zoomBy(1 / 1.25) }, '−');
     const zoomIn = h('button.btn.small.bd-vk.sq', { type: 'button', 'aria-label': 'Zoom in', onclick: () => V && V.zoomBy(1.25) }, '+');
-    const resetV = tip(h('button.btn.small.bd-vk.sq', { type: 'button', 'aria-label': 'Reset the view', onclick: () => V && V.reset() }, glyph('reset')), 'Reset the view (double-click the stage)');
+    const resetV = tip(h('button.btn.small.bd-vk.sq', { type: 'button', 'aria-label': 'Reset the view', onclick: () => V && V.reset() }, glyph('reset')), 'Reset the view (R, or double-click empty space)');
     tip(zoomOut, 'Zoom out'); tip(zoomIn, 'Zoom in');
-    const hint = h('div.bd-hint', { 'aria-hidden': 'true' }, 'Drag to turn · scroll or pinch to zoom · hover a block');
+    const hint = h('div.bd-hint', { 'aria-hidden': 'true', hidden: !!S().viewHelp }, 'Drag to turn · right-drag to move · scroll to zoom · W A S D to fly');
+    // standard views + the controls card (a '?' key: tooltip on hover, a small card on click / touch)
+    const viewKey = (v, label, t) => tip(h('button.btn.small.bd-vk.bd-viewkey', { type: 'button', onclick: () => { if (V) { V.view(v); seen(); } } }, label), t);
+    const helpCard = h('div.bd-help', { id: 'bd-help', role: 'note', hidden: true },
+      h('div.bd-help-title', 'Moving around'),
+      ...[['Drag', 'turn around the centre'], ['Right-drag or Shift+drag', 'move'], ['Scroll', 'zoom to the pointer'], ['W A S D, arrows', 'fly'], ['Space or E · Shift or Q', 'up · down'],
+        ['Double-click a block', 'turn around that block'], ['Two fingers', 'pinch to zoom, drag to move'], ['T · F · G · R', 'top · front · side · reset']]
+        .map(([k, v]) => h('div.bd-help-row', h('span.bd-help-k', k), h('span.bd-help-v', v))));
+    const helpKey = h('button.btn.small.bd-vk.sq.bd-helpkey', { type: 'button', 'aria-label': 'How to move around', 'aria-expanded': 'false', 'aria-controls': 'bd-help', onclick: () => {
+      const open = helpCard.hidden;
+      helpCard.hidden = !open; helpKey.setAttribute('aria-expanded', String(open)); seen();
+    } }, '?');
+    tip(helpKey, () => (helpCard.hidden ? [h('div.th-tooltip-title', 'Moving around'), h('div.th-tooltip-sub', 'Drag to turn · right-drag to move · scroll to zoom'), h('div.th-tooltip-sub', 'W A S D to fly · Space / Shift up and down'), h('div.th-tooltip-sub', 'Double-click a block to turn around it')] : 'Hide the controls'));
+    const views = h('div.bd-views', { role: 'group', 'aria-label': 'Views' },
+      viewKey('top', 'Top', 'Straight down from above (T)'), viewKey('front', 'Front', 'From the south (F)'), viewKey('side', 'Side', 'From the east (G)'), helpKey);
+    /** The first time someone moves the camera, the hint line goes (the '?' key keeps the controls). */
+    function seen() { if (!S().viewHelp) { save((b) => { b.viewHelp = true; }); hint.hidden = true; } }
     const drop = h('div.bd-drop', { 'aria-hidden': 'true' }, h('span', 'Drop a schematic file'), h('small', '.schem · .litematic · .nbt · .schematic · .json'));
     const loading = h('div.bd-loading', 'Loading the 3D view…');
     const runBtn = h('button.btn.small.bd-run', { type: 'button', 'aria-pressed': 'false', hidden: true, onclick: () => { if (!V || !V.hasRun()) return; V.setRun(!V.run); syncRun(); } }, glyph('run'), h('span', 'Run the machine'));
     tip(runBtn, 'Play the machine: the plants grow, the observer fires and the pistons move');
     const phaseCap = h('div.bd-phase', { 'aria-live': 'polite', hidden: true });
-    stage.append(h('div.bd-label', title, meta), h('div.bd-runbox', runBtn, phaseCap), h('div.bd-frametools', { role: 'group', 'aria-label': 'View' }, zoomOut, zoomIn, resetV), hint, drop, loading);
+    stage.append(h('div.bd-label', title, meta), h('div.bd-runbox', runBtn, phaseCap), h('div.bd-frametools', { role: 'group', 'aria-label': 'View' }, zoomOut, zoomIn, resetV), views, helpCard, hint, drop, loading);
+    // the first real move of the camera (drag, wheel, keys) also counts as having seen the hint
+    ['pointerdown', 'wheel', 'keydown'].forEach((ev) => stage.addEventListener(ev, (e) => {
+      if (!e.target.closest || !e.target.closest('.bd-canvas')) return;
+      seen();
+      if (ev === 'pointerdown' && !helpCard.hidden) { helpCard.hidden = true; helpKey.setAttribute('aria-expanded', 'false'); }
+    }, { passive: true }));
+    helpCard.addEventListener('keydown', (e) => { if (e.key === 'Escape') { helpCard.hidden = true; helpKey.setAttribute('aria-expanded', 'false'); helpKey.focus(); } });
 
     // ---- animation bar ----
     const playBtn = h('button.btn.small.bd-vk.bd-play', { type: 'button', 'aria-label': 'Pause', onclick: () => { if (!V) return; if (V.playing && V.mode !== 'still') V.pause(); else { if (S().mode === 'still') setMode('loop'); V.play(); } } }, glyph('pause'));
@@ -716,24 +741,32 @@
       h('ul.bd-tips', f.tips.map((t) => h('li', t))));
   }
 
-  /** Customise blocks: one row per replaceable block (texture, name, count) + the locked functional ones. */
+  /** Blocks whose extra data (text, contents, patterns) lives outside the block state, so no schematic download here carries it. */
+  const ENTITY_DATA = /(_sign|_banner|chest|shulker_box|barrel|hopper|dispenser|dropper|furnace|smoker|lectern|jukebox|decorated_pot|spawner|beehive|bee_nest|command_block|_skull|_head|crafter|brewing_stand|campfire|chiseled_bookshelf|_shelf|vault|trial_spawner)$/;
+  /** Close every open picker in the side column (one is open at a time). */
+  function closePickers() {
+    UI.side.querySelectorAll('[aria-expanded="true"]').forEach((b) => { if (b.matches('.bd-swap, .bd-setkey')) b.setAttribute('aria-expanded', 'false'); });
+    UI.side.querySelectorAll('.bd-picker').forEach((p) => p.remove());
+  }
+  /**
+   * Customise blocks: whole sets (wood type, stone, colour, copper) in one go, then one row per replaceable block
+   * (texture, name, count), the locked functional ones, and the downloads (with your changes, or the original).
+   */
   function customisePanel(key) {
     const st = S(), orig = original(key);
     const swaps = st.swaps[key] || {};
     const rows = core().counts(orig, true);
     const free = rows.filter((r) => core().replaceable(r.id).ok), locked = rows.filter((r) => !core().replaceable(r.id).ok);
     const n = Object.keys(swaps).length;
-    const pickerHost = h('div.bd-pickhost');
     const mkRow = (r) => {
-      const to = swaps[r.id], cur = to || r.id;
+      const to = swaps[r.id] && core().canSwap(r.id, swaps[r.id]) ? swaps[r.id] : null, cur = to || r.id;
       const btn = h('button.btn.bd-swap' + (to ? '.on' : ''), { type: 'button', 'aria-expanded': 'false', onclick: () => {
         const open = btn.getAttribute('aria-expanded') === 'true';
-        UI.side.querySelectorAll('.bd-swap[aria-expanded="true"]').forEach((b) => b.setAttribute('aria-expanded', 'false'));
-        UI.side.querySelectorAll('.bd-picker').forEach((p) => p.remove());
+        closePickers();
         if (open) return;
         btn.setAttribute('aria-expanded', 'true');
         const fam = core().def(r.id).fam;
-        btn.after(blockPicker({ ids: core().familyOf(fam), current: cur, original: r.id, onPick: (id) => setSwap(key, r.id, id), label: 'Replace ' + core().nameOf(r.id) }));
+        btn.after(blockPicker({ ids: core().familyOf(fam), current: cur, original: r.id, note: core().famNote(fam), onPick: (id) => setSwap(key, r.id, id), label: 'Replace ' + core().nameOf(r.id) }));
       } },
       core().blockIcon(cur, { size: 24 }),
       h('span.bd-swap-txt', h('span.bd-swap-name', core().nameOf(cur)), to ? h('span.bd-swap-was', 'was ' + core().nameOf(r.id)) : h('span.bd-swap-was', 'Click to replace')),
@@ -742,17 +775,43 @@
     };
     const lockRow = (r) => tip(h('div.bd-lockrow', { tabindex: 0 }, core().blockIcon(r.id, { size: 20 }), h('span.bd-swap-name', core().nameOf(r.id)), h('span.bd-swap-n', fmtN(r.n)), glyph('lock', 'bd-lock-ico')),
       () => [h('div.th-tooltip-title', core().nameOf(r.id) + ' stays'), h('div.th-tooltip-sub', core().replaceable(r.id).why)]);
-    const name = keyName(key);
+    // whole sets: only those with two or more kinds of block (one kind is the same as its single row)
+    const sets = core().setsIn(orig, swaps).filter((x) => x.blocks.length > 1).slice(0, 6);
+    const setRow = (set) => {
+      const btn = h('button.btn.bd-swap.bd-setkey', { type: 'button', 'aria-expanded': 'false', onclick: () => {
+        const open = btn.getAttribute('aria-expanded') === 'true';
+        closePickers();
+        if (open) return;
+        btn.setAttribute('aria-expanded', 'true');
+        btn.after(setPicker(key, set));
+      } },
+      core().blockIcon(set.icon, { size: 24 }),
+      h('span.bd-swap-txt', h('span.bd-swap-name', set.label), h('span.bd-swap-was', core().KIND_LABEL[set.kind] + ' · ' + set.blocks.length + ' kinds of block')),
+      h('span.bd-swap-n', fmtN(set.n)), glyph('swap', 'bd-swap-ico'));
+      return tip(btn, () => [h('div.th-tooltip-title', 'Change every ' + set.label + ' block at once'), h('div.th-tooltip-sub', set.blocks.slice(0, 6).map((b) => core().nameOf(b.id)).join(', ') + (set.blocks.length > 6 ? ' …' : ''))]);
+    };
+    const name = keyName(key), cur = effective(key);
+    const extra = cur && cur.palette.some((p) => ENTITY_DATA.test(core().parse(p).name));
+    const dl = (fmt) => () => exportAs(effective(key), fmt, name + (n ? '-custom' : ''));
     const panel = h('section.panel.bd-pan.bd-custom-panel' + (n ? '.has-sel' : ''), { 'aria-label': 'Customise blocks' },
       h('div.bd-pan-head', h('h3', 'Customise blocks'), n ? h('span.bd-count', n + ' swapped') : h('span.bd-count', 'your version')),
       free.length ? h('p.bd-note', 'Swap building blocks for ones you like. The parts that make it work stay as they are.') : h('p.bd-note', 'Every block here is part of the mechanism, so nothing can be swapped.'),
-      h('div.bd-swaps', free.map(mkRow)), pickerHost,
+      sets.length ? h('div.bd-sub', 'Whole sets') : null,
+      sets.length ? h('div.bd-swaps.bd-sets', sets.map(setRow)) : null,
+      free.length && sets.length ? h('div.bd-sub', 'Single blocks') : null,
+      h('div.bd-swaps', free.map(mkRow)),
       locked.length ? h('div.bd-sub', 'Keeps working only with these') : null,
       locked.length ? h('div.bd-locks', locked.map(lockRow)) : null,
+      h('div.bd-sub', 'Download'),
+      h('p.bd-note', n ? 'The file is your version: every swap applied, every block keeps its facing, half, open and waterlogged state.' : 'The file is the build as you see it.'),
+      extra ? h('p.bd-note.bd-faint', 'Sign text, chest contents and banner patterns are not in the file.') : null,
       h('div.bd-actions',
-        h('button.btn.small', { type: 'button', disabled: !n, onclick: () => { save((b) => { delete b.swaps[key]; }); show(key, { keepView: true }); patch(); toast('Back to the original blocks'); } }, glyph('reset'), 'Reset to original'),
-        h('button.btn.small.primary', { type: 'button', onclick: () => exportAs(effective(key), 'schem', name + (n ? '-custom' : '')) }, glyph('down'), n ? 'Download my version' : 'Download .schem'),
-        h('button.btn.small', { type: 'button', onclick: () => exportAs(effective(key), 'json', name + (n ? '-custom' : '')) }, 'JSON')));
+        tip(h('button.btn.small.primary', { type: 'button', onclick: dl('schem') }, glyph('down'), n ? 'Download with your changes' : 'Download .schem'), '.schem (Sponge 2): WorldEdit, FAWE, Axiom, Litematica'),
+        tip(h('button.btn.small', { type: 'button', onclick: dl('litematic') }, '.litematic'), 'Litematica schematic' + (n ? ', with your changes' : '')),
+        tip(h('button.btn.small', { type: 'button', onclick: dl('json') }, 'JSON'), 'This toolbox’s own format' + (n ? ', with your changes' : ''))),
+      n ? h('div.bd-actions',
+        tip(h('button.btn.small', { type: 'button', onclick: () => exportAs(original(key), 'schem', name) }, glyph('down'), 'Original .schem'), 'The build as designed, without your swaps'),
+        h('button.btn.small', { type: 'button', onclick: () => { save((b) => { delete b.swaps[key]; }); show(key, { keepView: true }); patch(); toast('Back to the original blocks'); } }, glyph('reset'), 'Reset to original')) : null);
     return panel;
   }
   function setSwap(key, from, to) {
@@ -764,31 +823,72 @@
     show(key, { keepView: true });
     patch();
   }
+  /** Replace the whole swap map of a build (whole-set swaps, the Material List). */
+  function setSwaps(key, map) {
+    save((b) => { if (map && Object.keys(map).length) b.swaps[key] = Object.assign({}, map); else delete b.swaps[key]; });
+    if (UI && UI.wrap.isConnected && UI.shownKey === key) { show(key, { keepView: true }); patch(); }
+  }
+  /** One set picked: every other wood type (stone, colour, copper stage) as a tile, then what changes, with counts. */
+  function setPicker(key, set) {
+    const orig = original(key), swaps = S().swaps[key] || {};
+    const top = set.blocks.slice().sort((a, b) => b.n - a.n)[0];
+    const preview = h('div.bd-plan', h('p.bd-note', 'Pick one to see what changes.'));
+    let chosen = null;
+    const tiles = core().setTokens(set.kind).filter((tk) => tk !== set.token).map((tk) => {
+      const plan = core().setPlan(orig, swaps, set.kind, set.token, tk);
+      const rep = core().setName(set.kind, tk, top.role);
+      const icon = rep ? 'minecraft:' + rep : core().setIcon(set.kind, tk);
+      const b = h('button.btn.bd-pick-tile', { type: 'button', 'aria-pressed': 'false', 'aria-label': core().setLabel(set.kind, tk), disabled: !plan.kinds, onclick: () => pick(tk, plan, b) }, core().blockIcon(icon, { size: 24 }));
+      return tip(b, () => [h('div.th-tooltip-title', core().setLabel(set.kind, tk)), h('div.th-tooltip-sub', plan.kinds ? plan.kinds + ' of ' + set.blocks.length + ' kinds change · ' + fmtN(plan.blocks) + ' blocks' : 'Nothing here has a ' + core().setLabel(set.kind, tk) + ' version'), plan.note ? h('div.th-tooltip-sub', plan.note) : null].filter(Boolean));
+    });
+    const line = (from, to, nn, why) => h('div.bd-plan-row' + (to ? '' : '.stay'), core().blockIcon(from, { size: 20 }), h('span.bd-plan-name', core().nameOf(from)),
+      to ? [glyph('right', 'bd-plan-arr'), core().blockIcon(to, { size: 20 }), h('span.bd-plan-name.bd-plan-new', core().nameOf(to))] : h('span.bd-plan-why', why), h('span.bd-swap-n', fmtN(nn)));
+    function pick(tk, plan, btn) {
+      chosen = tk;
+      tiles.forEach((t) => { const on = t === btn; t.classList.toggle('on', on); t.setAttribute('aria-pressed', String(on)); });
+      const apply = h('button.btn.small.primary', { type: 'button', onclick: () => {
+        setSwaps(key, core().withChanges(orig, S().swaps[key] || {}, plan.change));
+        if (!UI.wrap.isConnected || UI.shownKey !== key) patch();
+        toast(plan.kinds + (plan.kinds === 1 ? ' kind of block is now ' : ' kinds of block are now ') + core().setLabel(set.kind, chosen));
+      } }, 'Change ' + plan.kinds + (plan.kinds === 1 ? ' kind' : ' kinds') + ' · ' + fmtN(plan.blocks) + ' blocks');
+      preview.replaceChildren(...[
+        h('div.bd-plan-rows.th-scroll', plan.change.map((c) => line(c.from, c.to, c.n)), plan.stay.map((x) => line(x.id, null, x.n, x.why))),
+        plan.note ? h('p.bd-note.bd-plan-note', plan.note) : null,
+        h('div.bd-actions', apply, h('button.btn.small', { type: 'button', onclick: () => { closePickers(); } }, 'Cancel'))].filter(Boolean));
+    }
+    const el = h('div.bd-picker.bd-setpick', { role: 'dialog', 'aria-label': 'Change every ' + set.label + ' block' },
+      h('p.bd-note', 'Every ' + set.label + ' block changes at once. Facing, open, half and the rest stay as they are.'),
+      h('div.bd-pick-grid', tiles), preview);
+    el.addEventListener('keydown', (e) => { if (e.key === 'Escape') { const k = el.previousElementSibling; closePickers(); if (k) k.focus(); } });
+    return el;
+  }
 
   /** Compact block picker: search + grouped tiles with real textures. */
   function blockPicker(o) {
     const field = h('input.field.bd-pick-search', { type: 'search', placeholder: 'Search blocks', 'aria-label': 'Search blocks', autocomplete: 'off', spellcheck: false });
     const body = h('div.bd-pick-body.th-scroll');
     const G = core().GROUPS, ord = core().GROUP_ORDER;
+    const origName = o.original ? core().parse(o.original).name : null, origBurns = origName ? core().burns(origName) : null;
     function fill() {
       const q = field.value.trim().toLowerCase();
       const ids = o.ids.filter((n) => !q || core().nameOf('minecraft:' + n).toLowerCase().includes(q) || n.includes(q.replace(/ /g, '_')));
       const groups = new Map();
-      ids.forEach((n) => { const g = core().BLOCKS[n].grp || 'misc'; if (!groups.has(g)) groups.set(g, []); groups.get(g).push(n); });
+      ids.forEach((n) => { const g = core().def('minecraft:' + n).grp || 'misc'; if (!groups.has(g)) groups.set(g, []); groups.get(g).push(n); });
       const out = [];
       [...groups.keys()].sort((a, b) => ord.indexOf(a) - ord.indexOf(b)).forEach((g) => {
         out.push(h('div.bd-pick-grp', G[g] || g));
         out.push(h('div.bd-pick-grid', groups.get(g).map((n) => {
-          const id = 'minecraft:' + n, on = core().parse(o.current).name === n, orig = o.original && core().parse(o.original).name === n;
+          const id = 'minecraft:' + n, on = core().parse(o.current).name === n, orig = origName === n;
+          const fire = origName && !orig && core().burns(n) !== origBurns ? (origBurns ? 'Does not burn' : 'Burns: keep it away from lava and fire') : null;
           const b = h('button.btn.bd-pick-tile' + (on ? '.on' : ''), { type: 'button', 'aria-pressed': String(on), 'aria-label': core().nameOf(id), onclick: () => o.onPick(id) }, core().blockIcon(id, { size: 24 }), orig ? h('span.bd-pick-orig', { 'aria-hidden': 'true' }) : null);
-          return tip(b, () => [h('div.th-tooltip-title', core().nameOf(id)), orig ? h('div.th-tooltip-sub', 'The original block') : null].filter(Boolean));
+          return tip(b, () => [h('div.th-tooltip-title', core().nameOf(id)), orig ? h('div.th-tooltip-sub', 'The original block') : null, fire ? h('div.th-tooltip-sub', fire) : null].filter(Boolean));
         })));
       });
       body.replaceChildren(...(out.length ? out : [h('p.bd-note', 'No block matches “' + field.value + '”.')]));
     }
     field.addEventListener('input', fill);
     fill();
-    const el = h('div.bd-picker', { role: 'dialog', 'aria-label': o.label || 'Pick a block' }, h('div.bd-pick-top', field), body);
+    const el = h('div.bd-picker', { role: 'dialog', 'aria-label': o.label || 'Pick a block' }, o.note ? h('p.bd-note', o.note) : null, o.ids.length > 12 ? h('div.bd-pick-top', field) : null, body);
     setTimeout(() => { if (el.isConnected && matchMedia('(hover: hover)').matches) field.focus({ preventScroll: true }); }, 30);
     el.addEventListener('keydown', (e) => { if (e.key === 'Escape') { el.remove(); UI.side.querySelectorAll('[aria-expanded="true"]').forEach((b) => { b.setAttribute('aria-expanded', 'false'); b.focus(); }); } });
     return el;
@@ -1024,7 +1124,11 @@
   }
   TH.builds.api = {
     load: () => loadAll(), isReady: () => ready, loadError: () => loadErr,
-    S, save, effective, keyName, glyph, sources: matSources, openFile, download: downloadBlob,
+    S, save, effective, original, keyName, glyph, sources: matSources, openFile, download: downloadBlob,
+    /** The user's block swaps of a build ({ original base: shown base }); setSwaps replaces them (the stage follows). */
+    swaps: (key) => Object.assign({}, S().swaps[key] || {}), setSwaps,
+    /** Builds that can take swaps (the shape generator has its own block keys instead). */
+    swappable: (key) => /^(farm|file):/.test(key || ''),
     /** The block count a .litematic header claims for a kept file (0 when unknown). */
     declared(key) { if (!key || !key.startsWith('file:')) return 0; const id = key.slice(5), m = mem.files.get(id), r = fileRec(id); return (m && m.declared) || (r && r.declared) || 0; },
     /** The build last on the Builds stage (what "stage" means as a material list source). */

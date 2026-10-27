@@ -116,6 +116,7 @@ TH.builds = TH.builds || {};
         case 1: num(1, (d) => d.setInt8(0, v)); break;
         case 2: num(2, (d) => d.setInt16(0, v)); break;
         case 3: num(4, (d) => d.setInt32(0, v)); break;
+        case 4: { const hi = Math.floor(v / 4294967296), lo = v - hi * 4294967296; num(8, (d) => { d.setInt32(0, hi); d.setUint32(4, lo >>> 0); }); break; }
         case 7: num(4, (d) => d.setInt32(0, v.length)); push(new Uint8Array(v.buffer, v.byteOffset, v.length)); break;
         case 8: wstr(v); break;
         case 9: { const [et, arr] = v; num(1, (d) => d.setInt8(0, arr.length ? et : 0)); num(4, (d) => d.setInt32(0, arr.length)); arr.forEach((x) => wpay(et, x)); break; }
@@ -335,7 +336,10 @@ TH.builds = TH.builds || {};
    * Sponge .schem v2 writer
    * ====================================================================== */
   const DATA_VERSION = 3955;   // Java 1.21.1
+  /** A copy with one palette entry per state (two entries of the same state would collide in a palette compound). */
+  const clean = (s) => C().compact(C().clone(s));
   async function toSchem(s) {
+    s = clean(s);
     const pal = {};
     s.palette.forEach((p, i) => { pal[i === 0 ? 'minecraft:air' : p] = [3, i]; });
     // duplicate states would collide in the palette compound: compact() merges them, so map through it
@@ -350,6 +354,46 @@ TH.builds = TH.builds || {};
       Metadata: [10, { Name: [8, s.name || 'Build'], Author: [8, "n1cebear's toolbox"] }],
     };
     return gzip(writeNBT('Schematic', root));
+  }
+
+  /* ======================================================================
+   * Litematica .litematic writer (one region at 0 0 0, schematic version 6)
+   * Palette index 0 is air; indices bit-packed across 64-bit words, index = (y * sz + z) * sx + x (as ours).
+   * ====================================================================== */
+  async function toLitematic(s) {
+    s = clean(s);
+    const [sx, sy, sz] = s.size, total = sx * sy * sz;
+    const bits = Math.max(2, Math.ceil(Math.log2(Math.max(1, s.palette.length))));
+    const longs = Math.ceil(total * bits / 64), words = new Int32Array(2 * longs);   // [lo, hi] per long
+    for (let i = 0; i < total; i++) {
+      const v = s.blocks[i];
+      if (!v) continue;
+      const bit = i * bits, w = bit >>> 5, o = bit & 31;
+      words[w] |= v << o;
+      if (o + bits > 32) words[w + 1] |= v >>> (32 - o);
+    }
+    const palette = s.palette.map((id, i) => {
+      if (i === 0) return { Name: [8, 'minecraft:air'] };
+      const p = C().parse(id), keys = Object.keys(p.props);
+      const e = { Name: [8, p.base] };
+      if (keys.length) e.Properties = [10, Object.fromEntries(keys.map((k) => [k, [8, String(p.props[k])]]))];
+      return e;
+    });
+    const now = Date.now(), name = s.name || 'Build', vec = (x, y, z) => [10, { x: [3, x], y: [3, y], z: [3, z] }];
+    const root = {
+      MinecraftDataVersion: [3, DATA_VERSION], Version: [3, 6], SubVersion: [3, 1],
+      Metadata: [10, {
+        Name: [8, name], Author: [8, "n1cebear's toolbox"], Description: [8, ''], RegionCount: [3, 1],
+        TotalVolume: [3, total], TotalBlocks: [3, C().volume(s)], TimeCreated: [4, now], TimeModified: [4, now], EnclosingSize: vec(sx, sy, sz),
+      }],
+      Regions: [10, { [name]: [10, {
+        Position: vec(0, 0, 0), Size: vec(sx, sy, sz),
+        BlockStatePalette: [9, [10, palette]],
+        BlockStates: [12, words],
+        TileEntities: [9, [10, []]], Entities: [9, [10, []]], PendingBlockTicks: [9, [10, []]], PendingFluidTicks: [9, [10, []]],
+      }] }],
+    };
+    return gzip(writeNBT('', root));
   }
 
   /* ======================================================================
@@ -384,5 +428,5 @@ TH.builds = TH.builds || {};
     return finish(s);
   }
 
-  TH.builds.io = { load, readNBT, writeNBT, toJSON, fromJSON, toSchem, gunzip, gzip, readVarints, writeVarints, MAX_BLOCKS, FORMAT };
+  TH.builds.io = { load, readNBT, writeNBT, toJSON, fromJSON, toSchem, toLitematic, gunzip, gzip, readVarints, writeVarints, MAX_BLOCKS, FORMAT };
 })();

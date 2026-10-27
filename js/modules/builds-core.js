@@ -320,6 +320,200 @@ TH.builds = TH.builds || {};
   // families that do not take part in swapping
   Object.values(BLOCKS).forEach((d) => { if (d.fn) d.fam = null; });
 
+  /* ======================================================================
+   * Material sets: wood types, stone types, colours, copper stages.
+   * A block of a set = { kind, token, role }: 'oak_trapdoor' = wood / oak / trapdoor, 'stripped_spruce_log' = wood /
+   * spruce / stripped_log, 'deepslate_brick_wall' = stone / deepslate_brick / wall, 'red_wool' = colour / red / wool,
+   * 'waxed_exposed_cut_copper' = copper / waxed_exposed / cut_copper. setName(kind, token, role) is the way back, so a
+   * whole set swaps by changing the token. Everything is derived from the block ids of the game (block-db.js).
+   * ====================================================================== */
+  const allNames = (() => { let a = null; return () => a || (a = [...new Set(Object.keys(BLOCKS).concat(Object.keys((TH.data && TH.data.blockDb && TH.data.blockDb.b) || {})))]); })();
+  const exists = (n) => !!(BLOCKS[n] || (TH.data && TH.data.blockDb && TH.data.blockDb.b[n]));
+  const memo = (fn) => { let v; return () => v || (v = fn()); };
+  // wood types: every block that has planks (oak ... poplar), longest first so dark_oak wins over oak
+  const woodTokens = memo(() => allNames().filter((n) => /_planks$/.test(n)).map((n) => n.slice(0, -7)).sort((a, b) => b.length - a.length || a.localeCompare(b)));
+  const WOOD_ROLE = { planks: 'planks', log: 'log', stem: 'log', wood: 'wood', hyphae: 'wood', stairs: 'stairs', slab: 'slab', fence: 'fence', fence_gate: 'fence_gate',
+    door: 'door', trapdoor: 'trapdoor', button: 'button', pressure_plate: 'pressure_plate', sign: 'sign', wall_sign: 'wall_sign', hanging_sign: 'hanging_sign',
+    wall_hanging_sign: 'wall_hanging_sign', leaves: 'leaves', mosaic: 'mosaic', mosaic_slab: 'mosaic_slab', mosaic_stairs: 'mosaic_stairs' };
+  function woodOf(name) {
+    let n = name, strip = '';
+    if (n.startsWith('stripped_')) { strip = 'stripped_'; n = n.slice(9); }
+    for (const w of woodTokens()) {
+      if (!n.startsWith(w + '_')) continue;
+      const rest = n.slice(w.length + 1);
+      const role = WOOD_ROLE[rest] || (w === 'bamboo' && rest === 'block' ? 'log' : null);
+      if (!role || (strip && role !== 'log' && role !== 'wood')) return null;
+      return { kind: 'wood', token: w, role: strip + role };
+    }
+    return null;
+  }
+  function woodName(w, role) {
+    const strip = role.startsWith('stripped_') ? 'stripped_' : '', r = strip ? role.slice(9) : role;
+    const c = r === 'log' ? [w + '_log', w + '_stem', w === 'bamboo' ? 'bamboo_block' : null] : r === 'wood' ? [w + '_wood', w + '_hyphae'] : [w + '_' + r];
+    return c.filter(Boolean).map((x) => strip + x).find(exists) || null;
+  }
+  // colours: the 16 dyes (longest first); 'plain' = the undyed version where there is one (glass, candle, shulker box, terracotta)
+  const COLOR_TOKENS = COLORS.slice().sort((a, b) => b.length - a.length);
+  const PLAIN = { glass: 'stained_glass', glass_pane: 'stained_glass_pane', terracotta: 'terracotta', candle: 'candle', candle_cake: 'candle_cake', shulker_box: 'shulker_box' };
+  // a colour role is one the dyes really share (white AND black have it): wool, concrete_slab, bed ... (not red_sand or red_nether_bricks)
+  const colourRoles = memo(() => new Set(allNames().filter((n) => n.startsWith('white_')).map((n) => n.slice(6)).filter((r) => exists('black_' + r) && exists('light_blue_' + r))));
+  function colourOf(name) {
+    if (PLAIN[name]) return { kind: 'colour', token: 'plain', role: PLAIN[name] };
+    for (const c of COLOR_TOKENS) if (name.startsWith(c + '_')) { const r = name.slice(c.length + 1); return colourRoles().has(r) ? { kind: 'colour', token: c, role: r } : null; }
+    return null;
+  }
+  function colourName(c, role) {
+    if (c === 'plain') { const k = Object.keys(PLAIN).find((p) => PLAIN[p] === role); return k && exists(k) ? k : null; }
+    const n = c + '_' + role;
+    return exists(n) ? n : null;
+  }
+  // copper: oxidation stage + waxed (8 looks of the same blocks)
+  const COPPER_ROLES = new Set(['cut_copper', 'cut_copper_stairs', 'cut_copper_slab', 'chiseled_copper', 'copper_grate', 'copper_door', 'copper_trapdoor', 'copper_bars', 'copper_chain', 'copper_lantern', 'copper_bulb', 'copper_chest', 'copper_golem_statue']);
+  const COPPER_TOKENS = ['', 'exposed', 'weathered', 'oxidized', 'waxed', 'waxed_exposed', 'waxed_weathered', 'waxed_oxidized'];
+  function copperOf(name) {
+    const m = name.match(/^(waxed_)?(?:(exposed|weathered|oxidized)_)?(.+)$/);
+    const stage = m[2] || '', rest = m[3];
+    const role = rest === 'copper_block' && !stage ? 'block' : rest === 'copper' && stage ? 'block' : COPPER_ROLES.has(rest) ? rest : null;
+    return role ? { kind: 'copper', token: (m[1] || '') + stage, role } : null;
+  }
+  function copperName(t, role) {
+    const stage = t.replace(/^waxed_?/, ''), pre = t.startsWith('waxed') ? 'waxed_' : '';
+    const n = role === 'block' ? pre + (stage ? stage + '_copper' : 'copper_block') : pre + (stage ? stage + '_' : '') + role;
+    return exists(n) ? n : null;
+  }
+  // stone types: every prefix that has stairs, slabs or walls (and is not wood, colour or copper) + its full block
+  const stoneIndex = memo(() => {
+    const by = new Map(), tokens = new Map();
+    allNames().forEach((n) => {
+      const m = n.match(/^(.+?)_(slab|stairs|wall)$/);
+      if (!m || woodOf(n) || colourOf(n) || copperOf(n) || /^(petrified_oak|bamboo_mosaic)$/.test(m[1]) || /_wall$/.test(m[1])) return;
+      const t = m[1];
+      if (!tokens.has(t)) tokens.set(t, { block: [t + 's', t, t + '_block'].find((x) => exists(x) && !/_(slab|stairs|wall)$/.test(x)) || null });
+      by.set(n, { kind: 'stone', token: t, role: m[2] });
+    });
+    tokens.forEach((v, t) => {
+      if (v.block && !by.has(v.block)) by.set(v.block, { kind: 'stone', token: t, role: 'block' });
+      ['button', 'pressure_plate'].forEach((r) => { if (exists(t + '_' + r)) by.set(t + '_' + r, { kind: 'stone', token: t, role: r }); });
+    });
+    return { by, tokens };
+  });
+  function stoneName(t, role) {
+    const v = stoneIndex().tokens.get(t);
+    if (!v) return null;
+    const n = role === 'block' ? v.block : t + '_' + role;
+    return n && exists(n) ? n : null;
+  }
+  /** The set a block belongs to: { kind, token, role } or null (bare names, 'oak_planks'). */
+  function setOf(name) {
+    if (/^petrified_oak/.test(name)) return null;
+    return woodOf(name) || colourOf(name) || copperOf(name) || stoneIndex().by.get(name) || null;
+  }
+  /** The block of `role` in another set of the same kind ('wood', 'cherry', 'trapdoor' -> 'cherry_trapdoor'), or null. */
+  function setName(kind, token, role) {
+    return kind === 'wood' ? woodName(token, role) : kind === 'colour' ? colourName(token, role) : kind === 'copper' ? copperName(token, role) : kind === 'stone' ? stoneName(token, role) : null;
+  }
+  /** Every token of a kind that exists in the game, in a friendly order. */
+  function setTokens(kind) {
+    if (kind === 'wood') return woodTokens().slice().sort((a, b) => WOOD_ORDER.indexOf(a) - WOOD_ORDER.indexOf(b) || a.localeCompare(b));
+    if (kind === 'colour') return ['plain'].concat(COLORS);
+    if (kind === 'copper') return COPPER_TOKENS.slice();
+    if (kind === 'stone') return [...stoneIndex().tokens.keys()].sort((a, b) => GROUP_ORDER.indexOf(grpGuess(stoneName(a, 'block') || a + '_slab')) - GROUP_ORDER.indexOf(grpGuess(stoneName(b, 'block') || b + '_slab')) || a.localeCompare(b));
+    return [];
+  }
+  const WOOD_ORDER = ['oak', 'spruce', 'birch', 'jungle', 'acacia', 'dark_oak', 'mangrove', 'cherry', 'pale_oak', 'poplar', 'bamboo', 'crimson', 'warped'];
+  const KIND_LABEL = { wood: 'Wood', stone: 'Stone', colour: 'Colour', copper: 'Copper' };
+  /** A set's English name: 'Dark Oak', 'Stone Brick', 'Light Blue', 'Waxed Exposed Copper'. */
+  function setLabel(kind, token) {
+    if (kind === 'colour' && token === 'plain') return 'Undyed';
+    if (kind === 'copper') return titleCase((token ? token + '_' : '') + 'copper');
+    if (kind === 'stone') { const b = stoneName(token, 'block'); return b ? nameOf('minecraft:' + b) : titleCase(token); }
+    return titleCase(token);
+  }
+  /** The block that pictures a set (planks, the full block, wool, the copper block). */
+  function setIcon(kind, token) {
+    const c = kind === 'wood' ? ['planks', 'log'] : kind === 'colour' ? ['wool', 'concrete', 'stained_glass', 'terracotta', 'candle'] : kind === 'copper' ? ['block', 'cut_copper'] : ['block', 'slab', 'stairs'];
+    for (const r of c) { const n = setName(kind, token, r); if (n) return 'minecraft:' + n; }
+    return 'minecraft:barrier';
+  }
+  /** Wood burns (and lava sets it alight); crimson and warped stems, planks and the rest never do. */
+  function burns(name) {
+    const w = woodOf(name);
+    if (w) return !/^(crimson|warped)$/.test(w.token);
+    return /(_wool|_carpet|_leaves|^bookshelf|^hay_block|^dried_kelp_block|^coal_block|^moss_block|^moss_carpet)$/.test(name);
+  }
+
+  /* ---- replacement families beyond the plain building shapes ----
+     A swap must never change how the build works: a family holds only blocks of the same shape AND behaviour
+     (wooden trapdoors open by hand and by redstone, copper ones the same and weather, iron ones only by redstone). */
+  const FAM_RULES = [
+    // [test, family]
+    [(n, w) => w && w.role === 'trapdoor', 'trapdoor_wood'], [(n, w) => w && w.role === 'fence_gate', 'fence_gate_wood'], [(n, w) => w && w.role === 'door', 'door_wood'],
+    [(n, w) => w && w.role === 'button', 'button_wood'], [(n, w) => w && w.role === 'pressure_plate', 'plate_wood'],
+    [(n, w) => w && /^(sign|wall_sign|hanging_sign|wall_hanging_sign)$/.test(w.role), (n, w) => w.role],
+    [(n, w) => w && w.role === 'fence', 'fence'], [(n, w) => w && /log|wood/.test(w.role), 'log'],
+    [(n) => /^(waxed_)?((exposed|weathered|oxidized)_)?copper_trapdoor$/.test(n), 'trapdoor_copper'], [(n) => /^(waxed_)?((exposed|weathered|oxidized)_)?copper_door$/.test(n), 'door_copper'],
+    [(n) => /^(waxed_)?((exposed|weathered|oxidized)_)?copper_grate$/.test(n), 'grate'], [(n) => /^((waxed_)?((exposed|weathered|oxidized)_)?copper|iron)_bars$/.test(n), 'bars'],
+    [(n) => /^((waxed_)?((exposed|weathered|oxidized)_)?copper_chain|iron_chain|chain)$/.test(n), 'chain'], [(n) => /^((waxed_)?((exposed|weathered|oxidized)_)?copper_lantern|lantern)$/.test(n), 'lantern'],
+    [(n) => /^(stone|polished_blackstone)_button$/.test(n), 'button_stone'], [(n) => /^(stone|polished_blackstone)_pressure_plate$/.test(n), 'plate_stone'],
+    [(n) => /^[a-z_]+_glazed_terracotta$/.test(n), 'glazed'], [(n) => /^(glass_pane|[a-z_]+_stained_glass_pane)$/.test(n), 'pane'],
+    [(n, w, c) => c && c.role === 'bed', 'bed'], [(n, w, c) => c && c.role === 'banner', 'banner'], [(n, w, c) => c && c.role === 'wall_banner', 'wall_banner'],
+    [(n, w, c) => c && c.role === 'candle', 'candle'], [(n, w, c) => c && c.role === 'candle_cake', 'candle_cake'], [(n, w, c) => c && c.role === 'shulker_box', 'shulker'],
+  ];
+  /** Blocks that never swap, with the reason (they have no partner that behaves the same). */
+  const LOCKED = {
+    iron_door: 'Iron doors only open with redstone, and no other door works that way, so it stays.',
+    iron_trapdoor: 'Iron trapdoors only open with redstone, and no other trapdoor works that way, so it stays.',
+    light_weighted_pressure_plate: 'Weighted plates give a signal by how many items are on them; no other plate does that.',
+    heavy_weighted_pressure_plate: 'Weighted plates give a signal by how many items are on them; no other plate does that.',
+    pale_moss_carpet: 'Pale moss carpet grows sides on walls, unlike any other carpet, so it stays.',
+    soul_lantern: 'A soul lantern gives less light than a lantern, which changes where mobs can spawn.',
+  };
+  function ruleFam(name) {
+    if (/^petrified_oak/.test(name)) return null;
+    const w = woodOf(name), c = colourOf(name);
+    for (const [test, fam] of FAM_RULES) if (test(name, w, c)) return typeof fam === 'function' ? fam(name, w) : fam;
+    return undefined;
+  }
+  /** What a family is, in words (shown in pickers and summaries). */
+  const FAM_NOTE = {
+    trapdoor_wood: 'Wooden trapdoors all open by hand and by redstone in the same way.',
+    trapdoor_copper: 'Copper trapdoors open by hand and by redstone; they only differ in how weathered they look.',
+    door_wood: 'Wooden doors all open by hand and by redstone. Iron doors need redstone, so they are not offered.',
+    door_copper: 'Copper doors open by hand and by redstone; they only differ in how weathered they look.',
+    fence_gate_wood: 'Every wooden fence gate opens and connects the same way.',
+    button_wood: 'Wooden buttons stay pressed longer than stone ones and arrows press them, so only wooden ones are offered.',
+    button_stone: 'Stone buttons: a short press, arrows do not trigger them.',
+    plate_wood: 'Wooden plates sense every entity and item, so only wooden ones are offered.',
+    plate_stone: 'Stone plates only sense players and mobs, so only stone ones are offered.',
+    sign: 'Standing signs. The text on signs is not kept in downloads.', wall_sign: 'Wall signs. The text on signs is not kept in downloads.',
+    hanging_sign: 'Hanging signs. The text on signs is not kept in downloads.', wall_hanging_sign: 'Wall hanging signs. The text on signs is not kept in downloads.',
+    banner: 'Banners. Their patterns are not kept in downloads.', wall_banner: 'Wall banners. Their patterns are not kept in downloads.',
+    shulker: 'Shulker boxes. What is inside is not kept in downloads.',
+  };
+  // the hand-made table: buttons and plates were 'functional'; in their own behaviour class they may swap now
+  Object.keys(BLOCKS).forEach((n) => {
+    const d = BLOCKS[n], f = ruleFam(n);
+    if (LOCKED[n]) { d.fam = null; d.fn = LOCKED[n]; return; }
+    if (f !== undefined && f) { d.fam = f; if (d.fn) { d.note = d.fn; delete d.fn; } }
+  });
+  if (BLOCKS.bamboo_block) BLOCKS.bamboo_block.fam = 'log';
+  /** Group for pickers and the material list when a block only comes from the database. */
+  function grpGuess(name) {
+    if (setOf(name) && setOf(name).kind === 'wood') return name.endsWith('_leaves') ? 'leaves' : 'wood';
+    if (/glass|_pane$/.test(name)) return 'glass';
+    if (colourOf(name)) return 'colour';
+    if (/copper|^iron_|lantern$|chain$/.test(name)) return 'mineral';
+    if (/_ore$/.test(name)) return 'ore';
+    if (/deepslate/.test(name)) return 'deep';
+    if (/sandstone/.test(name)) return 'sand';
+    if (/nether|blackstone|basalt|quartz|crimson|warped|soul|magma|glowstone/.test(name)) return 'nether';
+    if (/end_stone|purpur|prismarine|chorus/.test(name)) return 'end';
+    if (/_leaves$/.test(name)) return 'leaves';
+    if (/stone|brick|tuff|andesite|granite|diorite|calcite|tiles|cobble|polished|smooth|chiseled|cut_|sulfur|cinnabar|resin|mud|^cracked/.test(name)) return 'stone';
+    if (/dirt|grass|moss|clay|sand|gravel|snow|ice|mushroom|coral|sponge/.test(name)) return 'natural';
+    return 'misc';
+  }
+
   /** Group order for pickers. */
   const GROUP_ORDER = ['stone', 'deep', 'sand', 'wood', 'colour', 'nether', 'end', 'mineral', 'ore', 'natural', 'glass', 'leaves', 'light', 'farm', 'redstone', 'misc'];
 
@@ -356,14 +550,17 @@ TH.builds = TH.builds || {};
       const tsb = [].concat(e[1] || []), flags = e[2] || 0;
       const t = k(tsb[0]), s = k(tsb[1] || tsb[0]), b = k(tsb[2] || tsb[0]);
       if (t || s) {
-        const shape = DB_SHAPE[e[0]] || dbOther(name, flags);
-        const functional = DB_FUNC.test(name);
-        const fam = functional ? null : { slab: 'slab', stairs: 'stairs', wall: 'wall', carpet: 'carpet' }[shape] || (shape === 'fence' && e[0] === 'fence' ? 'fence' : null)
+        const shape = DB_SHAPE[e[0]] || (name === 'bamboo_fence' ? 'fence' : dbOther(name, flags));
+        const functional = DB_FUNC.test(name), rule = ruleFam(name);
+        let fam = functional ? null : { slab: 'slab', stairs: 'stairs', wall: 'wall', carpet: 'carpet' }[shape] || (shape === 'fence' && e[0] === 'fence' ? 'fence' : null)
           || (shape === 'cube' && e[0] === 'cube' ? (flags & 8 ? 'leaves' : flags & 2 ? 'glass' : DB_BUILD.test(name) ? 'cube' : null) : null);
-        d = { t: t || s, s: s || t, b: b || s || t, shape, fam, grp: 'misc', db: true,
+        if (rule !== undefined) fam = rule;   // trapdoors, gates, doors, signs, beds, logs ... swap within their own behaviour class
+        d = { t: t || s, s: s || t, b: b || s || t, shape, fam, grp: grpGuess(name), db: true,
           cut: flags & 2 ? 'translucent' : (flags & 4) || e[0] === 'pane' ? 'cutout' : null, leafy: !!(flags & 8), glow: !!(flags & 16), tint: e[3] || null };
         if (!(flags & 1)) { const m = name.match(/^(.+)_wall_(torch|sign|hanging_sign|banner|fan)$/); if (m) d.item = m[1] + '_' + m[2]; }
         if (d.tint && name === 'grass_block') d.tint = { t: d.tint };
+        if (LOCKED[name]) { d.fam = null; d.fn = LOCKED[name]; }
+        if (d.fam && /(_log|_wood|_stem|_hyphae|basalt|_pillar|^deepslate|bamboo_block|hay_block|bone_block|froglight|muddy_mangrove_roots|chain)$/.test(name)) d.axis = true;
       }
     }
     dbCache.set(name, d);
@@ -383,9 +580,47 @@ TH.builds = TH.builds || {};
     if (!d.fam) return { ok: false, why: 'This block has no safe replacement of the same shape.' };
     return { ok: true, why: '' };
   }
-  /** Every non-functional block of a family (for the picker), in group order. */
+  /** Every non-functional block of a family (for the picker): the hand-made table and the game's database, in group order. */
+  const famCache = new Map();
   function familyOf(fam) {
-    return Object.keys(BLOCKS).filter((n) => BLOCKS[n].fam === fam && !BLOCKS[n].fn).sort((a, b) => GROUP_ORDER.indexOf(BLOCKS[a].grp) - GROUP_ORDER.indexOf(BLOCKS[b].grp) || a.localeCompare(b));
+    if (!fam) return [];
+    let v = famCache.get(fam);
+    if (v) return v;
+    const gi = (n) => { const i = GROUP_ORDER.indexOf(def('minecraft:' + n).grp); return i < 0 ? 99 : i; };
+    v = allNames().filter((n) => { const d = BLOCKS[n] || dbDef(n); return d && d.fam === fam && !d.fn; })
+      .sort((a, b) => gi(a) - gi(b) || (setOf(a) && setOf(a).kind === 'wood' && setOf(b) && setOf(b).kind === 'wood' ? WOOD_ORDER.indexOf(setOf(a).token) - WOOD_ORDER.indexOf(setOf(b).token) : 0) || a.localeCompare(b));
+    famCache.set(fam, v);
+    return v;
+  }
+  /** Can `id` be swapped for `to` (a base id)? Same family, both swappable. */
+  function canSwap(id, to) {
+    const a = def(id), b = def(to);
+    return !!(a.fam && a.fam === b.fam && replaceable(id).ok && replaceable(to).ok);
+  }
+  // properties a plain building cube may carry (the rest of the cube family has none): axis on pillars and logs,
+  // facing on carved pumpkins / glazed terracotta, snowy on grass-like tops
+  function cubeProps(name, d) {
+    const o = {};
+    if (d.axis || /(_log|_wood|_stem|_hyphae|basalt|_pillar|^deepslate|bamboo_block|hay_block|bone_block|froglight|muddy_mangrove_roots)$/.test(name)) o.axis = 1;
+    if (d.dir === 'f4' || /carved_pumpkin|jack_o_lantern|glazed_terracotta/.test(name)) o.facing = 1;
+    if (/^(grass_block|podzol|mycelium)$/.test(name)) o.snowy = 1;
+    if (/_leaves$/.test(name)) { o.distance = 1; o.persistent = 1; o.waterlogged = 1; }
+    return o;
+  }
+  const MIXED = new Set(['cube', 'log', 'light', 'glass', 'gravity', 'leaves']);
+  /**
+   * The state `id` becomes when its block is swapped for `toBase`: every property is kept (facing, half, open, powered,
+   * hinge, waterlogged, in_wall, shape ...), because a family only holds blocks of the same behaviour class. Only in the
+   * mixed cube families (stone <-> a pillar) a property the new block does not have is dropped, so the state stays valid.
+   */
+  function swapState(id, toBase) {
+    const p = parse(id), n = parse(toBase), props = Object.assign({}, p.props);
+    const fam = def(id).fam;
+    if (MIXED.has(fam) && Object.keys(props).length) {
+      const ok = cubeProps(n.name, def(n.base));
+      Object.keys(props).forEach((k) => { if (!ok[k]) delete props[k]; });
+    }
+    return stateOf(n.base, props);
   }
   /** Building blocks offered to the shape generators (full blocks people build with). */
   function buildingBlocks() {
@@ -528,9 +763,85 @@ TH.builds = TH.builds || {};
     if (!swaps || !Object.keys(swaps).length) return s;
     const o = { name: s.name, size: s.size.slice(), palette: s.palette.map((id) => {
       const p = parse(id), to = swaps[p.base];
-      return to && replaceable(id).ok ? withBase(id, to) : id;
+      return to && to !== p.base && canSwap(id, to) ? swapState(id, to) : id;
     }), blocks: new Uint16Array(s.blocks) };
+    if (s.declared) o.declared = s.declared;
     return compact(o);
+  }
+
+  /* ======================================================================
+   * Whole-set swaps ("all oak -> spruce") on top of the single swaps
+   * swaps maps ORIGINAL base ids to the block they show now; a set swap rewrites those entries.
+   * ====================================================================== */
+  /** Base id -> count of the build as it looks now (the original with swaps). */
+  function currentCounts(orig, swaps) {
+    const m = new Map();
+    counts(orig, true).forEach(({ id, n }) => {
+      const cur = swaps && swaps[id] && canSwap(id, swaps[id]) ? swaps[id] : id;
+      m.set(cur, (m.get(cur) || 0) + n);
+    });
+    return m;
+  }
+  /** The sets in a build: [{ kind, token, label, icon, n, blocks: [{ id, n, role }] }] (only sets with something swappable), most blocks first. */
+  function setsIn(orig, swaps) {
+    const by = new Map();
+    currentCounts(orig, swaps).forEach((n, id) => {
+      const p = parse(id);
+      if (p.ns !== 'minecraft' || !replaceable(id).ok) return;
+      const st = setOf(p.name);
+      if (!st) return;
+      const k = st.kind + ':' + st.token;
+      let e = by.get(k);
+      if (!e) by.set(k, e = { kind: st.kind, token: st.token, label: setLabel(st.kind, st.token), icon: setIcon(st.kind, st.token), n: 0, blocks: [] });
+      e.n += n; e.blocks.push({ id, n, role: st.role });
+    });
+    return [...by.values()].sort((a, b) => b.n - a.n || a.label.localeCompare(b.label));
+  }
+  /**
+   * What "change set (kind, from) to token `to`" does: { change: [{ from, to, n }], stay: [{ id, n, why }], blocks, kinds, note }.
+   * from / to are the blocks as they look now; a block whose `to` version does not exist (crimson leaves) or does not
+   * behave the same stays.
+   */
+  function setPlan(orig, swaps, kind, from, to) {
+    const change = [], stay = [];
+    currentCounts(orig, swaps).forEach((n, id) => {
+      const p = parse(id), st = p.ns === 'minecraft' ? setOf(p.name) : null;
+      if (!st || st.kind !== kind || st.token !== from) return;
+      if (!replaceable(id).ok) return;
+      const t = setName(kind, to, st.role);
+      if (!t) { stay.push({ id, n, why: 'No ' + setLabel(kind, to) + ' version' }); return; }
+      if (!canSwap(id, 'minecraft:' + t)) { stay.push({ id, n, why: 'The ' + setLabel(kind, to) + ' one works differently' }); return; }
+      change.push({ from: id, to: 'minecraft:' + t, n });
+    });
+    change.sort((a, b) => b.n - a.n); stay.sort((a, b) => b.n - a.n);
+    let note = null;
+    if (kind === 'wood' && change.length) {
+      const a = burns(parse(change[0].from).name), b = burns(parse(change[0].to).name);
+      if (a && !b) note = setLabel(kind, to) + ' wood never burns: the build becomes fire-proof.';
+      else if (!a && b) note = setLabel(kind, to) + ' wood burns. Keep it away from lava and fire.';
+    }
+    return { change, stay, blocks: change.reduce((x, c) => x + c.n, 0), kinds: change.length, note };
+  }
+  /** New swaps after applying a list of { from (current), to } changes; entries that lead back to the original are dropped. */
+  function withChanges(orig, swaps, change) {
+    const out = Object.assign({}, swaps || {}), map = new Map(change.map((c) => [c.from, c.to]));
+    counts(orig, true).forEach(({ id }) => {
+      const cur = out[id] && canSwap(id, out[id]) ? out[id] : id;
+      const to = map.get(cur);
+      if (!to) return;
+      if (to === id) delete out[id]; else if (canSwap(id, to)) out[id] = to;
+    });
+    return out;
+  }
+  /**
+   * The analogue of `other` when `from` becomes `to`: 'oak_wall_sign' while 'oak_sign' -> 'spruce_sign' gives
+   * 'minecraft:spruce_wall_sign'. Same set kind and token, role kept; else null.
+   */
+  function relate(from, to, other) {
+    const a = setOf(parse(from).name), b = setOf(parse(to).name), o = setOf(parse(other).name);
+    if (!a || !b || !o || a.kind !== b.kind || o.kind !== a.kind || o.token !== a.token) return null;
+    const n = setName(b.kind, b.token, o.role);
+    return n && canSwap(other, 'minecraft:' + n) ? 'minecraft:' + n : null;
   }
   /** Run-length text of the block indices: "count*index" pairs (count omitted when 1), comma separated. */
   function rle(blocks) {
@@ -579,8 +890,9 @@ TH.builds = TH.builds || {};
     counts(s).forEach(({ id, n }) => {
       const it = itemOf(id);
       if (!it) return;
-      const e = m.get(it.item) || { item: it.item, block: it.block, n: 0, stack: stackOf(it.item) };
+      const e = m.get(it.item) || { item: it.item, block: it.block, n: 0, stack: stackOf(it.item), bases: {} };
       e.n += n * it.n;
+      e.bases[it.block] = (e.bases[it.block] || 0) + n;   // the blocks (base ids) that make this item: oak_sign + oak_wall_sign
       m.set(it.item, e);
     });
     return [...m.values()].sort((a, b) => b.n - a.n || a.item.localeCompare(b.item));
@@ -590,5 +902,8 @@ TH.builds = TH.builds || {};
     AIR, parse, isAir, stateOf, withBase, BLOCKS, GROUPS: G, GROUP_ORDER, COLORS, def, known, replaceable, familyOf, buildingBlocks, nameOf, iconOf, blockIcon, titleCase,
     create, idx, inside, pal, get, set, fromFunction, volume, counts, bbox, trim, compact, layers, merge, translate, clone, applySwaps, rle, unrle,
     itemOf, stackOf, materials,
+    // swaps: families, sets, plans
+    canSwap, swapState, famNote: (fam) => FAM_NOTE[fam] || null, burns, setOf, setName, setTokens, setLabel, setIcon, KIND_LABEL,
+    currentCounts, setsIn, setPlan, withChanges, relate,
   };
 })();

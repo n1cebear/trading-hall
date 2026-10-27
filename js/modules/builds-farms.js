@@ -373,8 +373,8 @@ TH.builds = TH.builds || {};
     {
       id: 'creeper_rocket', cat: 'build', dim: 'overworld', icon: 'item/firework_rocket', level: 'Hard', name: 'Creeper rocket',
       tags: ['statue', 'mob-head', 'pixel-art', 'creature'],
-      pitch: 'A rocket that houses your farms: a creeper head cube (face on all four sides) with room for a 27 x 27 farm, a sugar cane body with room for a 34 x 34 cane farm, and a blunt space-shuttle nose with a 2 x 1 AFK chamber at the very top. 36 x 36, so it fits a 36 x 36 plot. At 127 high it covers y 63 to 189: base at y 63, the chamber roof at y 189.',
-      how: 'The head is a perfect 32 block cube, four blocks per texture pixel, hollow: 30 x 30 x 30 inside. The body has rounded corners and is 34 x 34 across inside; sixteen green stalks with the sugar cane texture\'s nodes run up its sandstone (or glass) wall, and its room carries on up into the nose. The three rooms are sealed from each other. Rings, fins and nozzle are grey, the nose light grey with a dark heat-shield cap. Every open top outside is a slab or a stair, so nothing spawns on the outside; the farm rooms are left empty for you.',
+      pitch: 'A rocket that houses your farms: a creeper head cube (face on all four sides) with room for a 27 x 27 farm, a round sugar cane body with a round room about 34 across for a cane farm, and a long slim nose cone with a 2 x 1 AFK chamber in its tip. 36 x 36, so it fits a 36 x 36 plot. At 127 high it covers y 63 to 189: base at y 63, the chamber roof at y 189.',
+      how: 'The head is a perfect 32 block cube, four blocks per texture pixel, hollow: 30 x 30 x 30 inside. The round body, 36 wide, holds a round room about 34 across; sixteen green stalks with the sugar cane texture\'s nodes run up its sandstone (or glass) wall, and the room carries on up into the nose. The nose is a slim cone with gently curved sides, light grey with a dark band at its foot and a darker tip, narrowing to a small 4 block cap. The three rooms are sealed from each other. Every open top outside is a slab or a stair, so nothing spawns on the outside; the farm rooms are left empty for you.',
       opts: [
         { id: 'size', label: 'Height in blocks', def: '127', choices: [['100', '100', '100 blocks high: a shorter cane body'], ['127', '127', 'Covers y 63 to 189, the AFK chamber at the top']] },
         { id: 'flames', label: 'Flames', def: 'on', choices: [['on', 'With flames', 'Yellow, orange and red flames from the nozzle down to the ground, 18 blocks wide at the narrowest'], ['off', 'No flames', 'The rocket stands on its four fins, the 20 block nozzle open below']] },
@@ -386,9 +386,9 @@ TH.builds = TH.builds || {};
       steps: [
         'Mark a 36 x 36 square with its bottom at y 63 (the 127 high rocket then ends at y 189). The four grey fins stand on its corners; with flames, the flame column stands in the middle.',
         'Build the flames and the deepslate bell nozzle, then the creeper head on top: a 32 block cube with a closed floor and roof, the face on every side, four blocks per pixel. Build your farm inside before you close the roof.',
-        'Lay the 36 wide deepslate plate on the head, upside-down stairs under its overhang, then raise the body wall layer by layer with "Only this layer": a grey ring, then sixteen green stalks two blocks wide with their node rows and sandstone (or glass) between them. Build the cane farm inside as you go.',
-        'Close it with the second grey ring and the nose: it rounds in to an 8 wide top, every step a stair or a slab, light grey below, dark on top and down the north side.',
-        'Inside the tip, build the AFK chamber: two blocks of slab floor, three blocks of air above it, one block of blackstone round it and the roof as the highest block.',
+        'Lay the round 36 wide deepslate floor on the head, upside-down stairs under its overhang, then raise the round body wall layer by layer with "Only this layer": a grey ring, then sixteen green stalks two blocks wide with their node rows and sandstone (or glass) between them. Build the cane farm inside as you go.',
+        'Close it with the second grey ring and the nose cone: a dark band, then light grey rings that get smaller every layer, each step a stair or a slab, darker grey near the tip.',
+        'In the tip, build the AFK chamber: two blocks of slab floor, three blocks of air above it, one block of deepslate round it, and the small slab cap on top as the highest block.',
       ],
       tips: [
         'Spawn-proofed outside: no full block has open air on top. The farm rooms are yours to light or slab as the farm needs.',
@@ -905,15 +905,17 @@ TH.builds = TH.builds || {};
   /* ======================================================================
    * Creeper rocket: a rocket that houses farms. 36 x 36 (fits a 36 x 36 plot), even width so the even creeper cube sits
    * exactly in the middle. Three sealed rooms: the creeper head (30 x 30 x 30 inside, for a farm of about 27 x 27), the
-   * sugar cane body (34 x 34 across the sides inside, the corners rounded; it runs on up into the nose) and a 2 x 1
-   * AFK chamber, 3 high, in the tip.
+   * sugar cane body (round, about 34 across inside; it runs on up into the nose) and a 2 x 1 AFK chamber, 3 high, in
+   * the tip.
    *   bottom  flames (optional, 18 wide at the narrowest) and a deepslate bell nozzle, then the creeper head: a perfect
    *           32 x 32 x 32 cube, 4 blocks per texture pixel, the face on all four sides; Creeper colour recolours only
    *           it. Four grey fins stand on the corners. Upside-down stairs under the body's overhang make the collar.
-   *   middle  the sugar cane body, 36 wide, square with rounded corners (a superellipse, power 12) so its corners still reach past the head's: sixteen green stalks two
-   *           blocks wide with the texture's nodes, set in a sandstone, glass or mixed wall, grey rings at both ends.
-   *   top     a blunt space-shuttle nose: rounded shoulders down to an 8 wide top, light grey with a dark heat-shield cap
-   *           that runs further down one side; the AFK chamber inside, its roof the highest block.
+   *   middle  the sugar cane body, round (a superellipse of power 2.2, barely squarer than a circle), 36 wide: sixteen
+   *           green stalks two blocks wide with the texture's nodes, set in a sandstone, glass or mixed wall, grey rings
+   *           at both ends. The head's corners show below it (a round 36 cannot cover a 32 square's corners).
+   *   top     a long slim nose cone (a 0.75 power series), 36 % of the height, from the body's width to a 4 wide cap: a dark band at
+   *           its foot, light grey panels, a darker grey tip; the AFK chamber inside the tip, its slab roof the highest
+   *           block.
    * Every open top outside is a slab or a stair (spawn-proofing and smoothing); the small sealed pockets in the nozzle
    * and the flames get stone buttons; the farm rooms stay empty. The shape is mirror symmetric on both axes except the
    * 2 x 1 chamber; the wear is seeded noise, the same every time. The default height, 127, covers y 63 to 189.
@@ -959,8 +961,8 @@ TH.builds = TH.builds || {};
     const H = +o.size || 127, flames = o.flames !== 'off', cr = ROCKET_CREEPER[o.colour] || ROCKET_CREEPER.charged;
     const wr = ROCKET_WEAR[o.wear] || ROCKET_WEAR.weathered, fill = o.fill === 'glass' || o.fill === 'mixed' ? o.fill : 'sandy';
     const W = 36, M = 17.5, hw = 16;
-    const yf = 9, yh = 15, yt = yh + 31, yb = yt + 1, Ln = Math.round(H * 0.22), yn = H - Ln;   // flame top, head (bottom, top row), body plate, nose
-    const Ro = 17.6, Rt = 4.2;
+    const yf = 9, yh = 15, yt = yh + 31, yb = yt + 1, Ln = Math.round(H * 0.36), yn = H - Ln;   // flame top, head (bottom, top row), body plate, nose
+    const Ro = 17.6, Rtop = 2;
     const N = W * H * W, at = (x, y, z) => (y * W + z) * W + x;
     const se = (a, b, p) => Math.pow(Math.pow(a, p) + Math.pow(b, p), 1 / p);
     // the AFK chamber: x 17..18, z 17, three rows of air over a slab floor, one block of wall all round, the roof on top
@@ -969,17 +971,19 @@ TH.builds = TH.builds || {};
     const chamberFloor = (x, y, z) => x >= CH.x0 && x <= CH.x1 && z === CH.z && y === CH.y0 - 1;
     const chamberWall = (x, y, z) => x >= CH.x0 - 1 && x <= CH.x1 + 1 && z >= CH.z - 1 && z <= CH.z + 1 && y >= CH.y0 - 1 && y <= H - 1;
     // the shuttle nose: rounded shoulders from the body's outline down to an 8 wide top, going from square-ish to round
-    const nose = (a, b, y) => {
-      const t = (y - yn) / (Ln - 1), r = Rt + (Ro - Rt) * Math.pow(1 - Math.pow(t, 1.5), 1 / 1.5);
-      return se(a, b, 12 - 10 * Math.pow(t, 0.6)) <= r;
-    };
+    // the nose: a slim power-series cone (radius ~ distance to the tip ^ 0.75, between a cone and an ogive), its virtual
+    // tip set just above the top so the last row is still Rtop wide (a small rounded cap, no spike)
+    const ogive = (h, L) => Ro * Math.pow(Math.max(0, (L - h) / L), 0.75);
+    let Lv = Ln;
+    while (ogive(Ln - 1, Lv) < Rtop) Lv += 0.25;
+    const nose = (a, b, y) => se(a, b, 2.2 - 0.2 * ((y - yn) / (Ln - 1))) <= ogive(y - yn, Lv);
     const T = 17.5, yTip = 12, yRoot = yt - 1;
     const finTop = (t) => yTip + (yRoot - yTip) * Math.pow((T - t) / (T - 12), 1.2);
     const finBot = (t) => (t >= 14 ? 0 : ((yh - 1) * (14 - t)) / 2);
     const reg = new Uint8Array(N);   // 1 head, 2 fin, 3 nozzle, 4 flame, 5 body plate, 6 body, 8 collar, 9 nose, 10 chamber wall
     const forced = new Uint8Array(N);   // never hollowed: the plates between the rooms, the chamber walls
     for (let y = 0; y < H; y++) for (let z = 0; z < W; z++) for (let x = 0; x < W; x++) {
-      const a = Math.abs(x - M), b = Math.abs(z - M), r = Math.hypot(a, b), q = se(a, b, 12), i = at(x, y, z);
+      const a = Math.abs(x - M), b = Math.abs(z - M), r = Math.hypot(a, b), q = se(a, b, 2.2), i = at(x, y, z);
       let g = 0;
       if (y >= yh && y <= yt && a <= hw && b <= hw) { g = 1; if (y === yh || y === yt) forced[i] = 1; }
       else if (y === yt && q <= Ro) g = 8;
@@ -1059,7 +1063,7 @@ TH.builds = TH.builds || {};
         c = s < 0.3 ? (nn ? ROCKET_BLOCK.glow : ROCKET_BLOCK.hot) : s < 0.7 ? (nn ? ROCKET_BLOCK.fire2 : ROCKET_BLOCK.fire) : (nn ? ROCKET_BLOCK.fire : ROCKET_BLOCK.ember);
       } else if (g === 5) c = 'polished_deepslate';
       else if (g === 8) c = 'polished_andesite';   // the collar stairs, set below
-      else if (g === 10) c = 'polished_blackstone';
+      else if (g === 10) c = 'polished_deepslate';
       else if (g === 6) {
         if (y <= yb + 2 || y >= yn - 2) {   // the grey rings at both ends of the body
           c = y === yb + 1 || y === yn - 1 ? 'polished_deepslate' : 'polished_andesite';
@@ -1073,13 +1077,13 @@ TH.builds = TH.builds || {};
           } else c = fill === 'glass' || (fill === 'mixed' && ((y - yb) % 9 >= 4 && (y - yb) % 9 <= 6)) ? 'glass' : sandy(x, y, z);
           if (c !== 'glass' && kNoise(x, y, z, 4, 51) > wr.moss) c = 'moss_block';
         }
-      } else {   // the nose: light grey, a dark heat-shield cap that runs further down on the north side
-        const t = (y - yn) / (Ln - 1), belly = Math.max(0, (M - z) / 17.5);
-        const edge = 0.6 - 0.45 * Math.pow(belly, 1.4) + 0.05 * Math.sin(Math.atan2(b, a) * 6);
-        if (t >= edge) c = fine < 0.6 ? 'polished_blackstone' : fine < 0.85 ? 'blackstone' : 'deepslate_tiles';
+      } else {   // the nose: a dark band where it meets the body, light grey panels, a darker grey tip
+        const h = y - yn, t = h / (Ln - 1), edge = 0.8 + 0.03 * Math.sin(Math.atan2(b, a) * 8);
+        if (h <= 1) c = 'polished_deepslate';
+        else if (t >= edge) c = fine < 0.7 ? 'gray_concrete' : 'polished_deepslate';
         else c = kNoise(x, y, z, 2, 61) < 0.62 ? 'light_gray_concrete' : 'polished_andesite';
         if (c === 'light_gray_concrete' && n2 > wr.patch) c = fine < 0.5 ? 'andesite' : 'stone';
-        if (n3 > wr.rust && t < edge) c = 'brown_terracotta';
+        if (n3 > wr.rust && h > 1 && t < edge) c = 'brown_terracotta';
       }
       out[i] = c;
     }
@@ -1103,7 +1107,7 @@ TH.builds = TH.builds || {};
       const a = Math.abs(x - M), b = Math.abs(z - M);
       // the collar: upside-down stairs under the body's overhang, their lower step against the head
       if (reg[i] === 8) ids[i] = 'minecraft:polished_andesite_stairs[facing=' + (a >= b ? (x > M ? 'west' : 'east') : (z > M ? 'north' : 'south')) + ',half=top]';
-      if (chamberFloor(x, y, z)) ids[i] = 'minecraft:polished_blackstone_slab[type=bottom]';
+      if (chamberFloor(x, y, z)) ids[i] = 'minecraft:polished_deepslate_slab[type=bottom]';
       if (y === H - 1) ids[i] = 'minecraft:' + capOf(out[i]) + '_slab[type=bottom]';   // the very top: nothing to stand on
     }
     // caps: a slab or stair on every block with open air on top outside (spawn-proofing and smoothing), a stone button
@@ -1112,7 +1116,7 @@ TH.builds = TH.builds || {};
       const i = at(x, y, z), below = at(x, y - 1, z);
       if (out[i] || !out[below] || !/^minecraft:[a-z_]+(\[axis=y\])?$/.test(ids[below]) || out[below] === 'glass') continue;
       if (room[i] !== 1) { if (!farm.has(room[i])) ids[i] = 'minecraft:stone_button[face=floor,facing=north]'; continue; }
-      const base = capOf(out[below]);
+      const base = reg[below] === 1 ? 'polished_andesite' : capOf(out[below]);   // the head's corners get grey slabs in every colour
       const wall = (dx, dz) => solid(x + dx, y, z + dz);
       const ex = wall(1, 0), wx = wall(-1, 0), sz = wall(0, 1), nz = wall(0, -1);
       const fx = ex !== wx ? (ex ? 'east' : 'west') : null, fz = sz !== nz ? (sz ? 'south' : 'north') : null;
@@ -1154,7 +1158,7 @@ TH.builds = TH.builds || {};
       '7|60|pond': [91, 60, 91, 50136, 27228], '7|60|none': [60, 60, 73, 12714],
     },
     creeper_rocket: {
-      '100|on': [36, 100, 36, 19614], '100|off': [36, 100, 36, 17610], '127|on': [36, 127, 36, 23178], '127|off': [36, 127, 36, 21174],
+      '100|on': [36, 100, 36, 17480], '100|off': [36, 100, 36, 15476], '127|on': [36, 127, 36, 20644], '127|off': [36, 127, 36, 18640],
     },
     // @stats-end
   };

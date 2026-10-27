@@ -31,7 +31,7 @@ const nameOf = (id) => C.parse(id).name;
 // 32 x 32 x 32 (x and z 2..33, y 15..46), the body plate y 47, the body from y 48 to the nose (22 % of the height); the
 // AFK chamber at x 17..18, z 17, y H-4..H-2 over a slab floor
 const S = 36, HEAD = { lo: 2, hi: 33, y0: 15, y1: 46 }, PLATE_Y = 47, MID = 17, CEN = 17.5;
-const noseY = (H) => H - Math.round(H * 0.22);
+const noseY = (H) => H - Math.round(H * 0.36);
 const chamber = (H) => [[17, 17], [18, 17]].flatMap(([x, z]) => [H - 4, H - 3, H - 2].map((y) => [x, y, z]));
 // the chamber box and the caps around it (the one place that is not symmetric front to back)
 const inChamberBox = (H, x, y, z) => x >= 15 && x <= 20 && z >= 15 && z <= 20 && y >= H - 6;
@@ -48,7 +48,7 @@ const faceAt = (col, p, r) => COLOURS[col][FACE[r][Math.floor((p < 16 ? p : 31 -
 const STALK = ['lime_wool', 'bamboo_block', 'bone_block', 'lime_concrete', 'lime_terracotta'];
 const SANDY = ['smooth_sandstone', 'sandstone', 'cut_sandstone', 'chiseled_sandstone'];
 const GLOW = ['glowstone', 'shroomlight'];
-const DARK = ['polished_blackstone', 'blackstone', 'deepslate_tiles', 'deepslate_tile'];
+const DARK = ['polished_deepslate', 'gray_concrete'];
 const GREY = ['polished_andesite', 'andesite', 'stone', 'light_gray_concrete', 'gray_concrete', 'cobbled_deepslate', 'polished_deepslate', 'oxidized_copper', 'oxidized_cut_copper'].concat(DARK);
 const stem = (nm) => nm.replace(/_(slab|stairs)$/, '');
 
@@ -118,7 +118,7 @@ t('the rocket is a Structure with tags, icon, options and steps', () => {
   assert.ok(f && f.cat === 'build' && f.icon === 'item/firework_rocket' && !f.art);
   assert.ok(f.tags.includes('statue') && f.tags.includes('mob-head'));
   assert.ok(f.pitch && f.how && f.steps.length >= 4 && f.tips.length >= 3 && f.level && f.dim === 'overworld');
-  for (const s of ['y 63', '189', '36 x 36', '27 x 27', '34 x 34', '2 x 1']) assert.ok(f.pitch.includes(s), 'the pitch says ' + s);
+  for (const s of ['y 63', '189', '36 x 36', '27 x 27', 'about 34 across', '2 x 1']) assert.ok(f.pitch.includes(s), 'the pitch says ' + s);
   assert.ok(f.tips.some((s) => /spawn-proofed/i.test(s)));
   assert.deepStrictEqual(plain(f.opts.map((op) => op.id)), ['size', 'flames', 'colour', 'fill', 'wear']);
   f.opts.forEach((op) => assert.ok(op.choices.some((c) => c[0] === op.def), op.id + ' default is a choice'));
@@ -171,7 +171,7 @@ for (const o of shapes()) {
     for (const y of [PLATE_Y + 1, Math.floor((PLATE_Y + yn) / 2), yn - 1]) {
       for (let x = 1; x <= 34; x++) { assert.strictEqual(R.room(x, y, MID), body, 'the body room is 34 wide at x ' + x + ', y ' + y); assert.strictEqual(R.room(MID, y, x), body); }
       let area = 0; for (let z = 0; z < S; z++) for (let x = 0; x < S; x++) if (R.room(x, y, z) === body) area++;
-      assert.ok(area >= 0.88 * 34 * 34, 'the body room covers ' + area + ' blocks at y ' + y);
+      assert.ok(area >= 0.72 * 34 * 34, 'the round body room covers ' + area + ' blocks at y ' + y);
     }
     // the chamber: exactly 2 x 1 x 3 of air on a slab floor, the roof the highest block
     assert.strictEqual(R.size[ch], 6, 'the chamber holds 6 blocks of air');
@@ -195,17 +195,23 @@ for (const o of shapes()) {
     assert.strictEqual(widthAt(g, HEAD.y0 + 1), 32);
     for (let y = PLATE_Y; y < yn; y++) assert.strictEqual(widthAt(g, y), S, 'body at y ' + y);
     for (let y = yn + 1; y < H; y++) assert.ok(widthAt(g, y) <= widthAt(g, y - 1), 'the nose narrows at y ' + y);
-    // a blunt shuttle nose: the full-block top is 8 wide (its rim smoothed by slabs), no spike
-    let top = 0; for (let x = 0; x < S; x++) { const id = g.id(x, H - 2, MID); if (id && C.def(id).shape === 'cube') top++; }
-    assert.ok(widthAt(g, H - 1) >= 6 && widthAt(g, H - 1) <= 20, 'a blunt top ' + widthAt(g, H - 1) + ' wide');
-    assert.ok(top >= 6 && top <= 12, 'the full blocks under the top layer span ' + top);
-    const spread = (y0, y1, keep) => { let lo = 99, hi = -99; for (let y = y0; y <= y1; y++) for (let z = 0; z < sz; z++) for (let x = 0; x < sx; x++) if (g.at(x, y, z) && keep(x, y, z)) { lo = Math.min(lo, x - z); hi = Math.max(hi, x - z); } return (hi - lo) / Math.SQRT2; };
-    assert.ok(spread(PLATE_Y + 3, yn - 3, () => true) > spread(HEAD.y0, HEAD.y1, inHead), 'the body is wider than the head across the diagonal too');
+    // a long slim nose: at least a third of the height, half the body width by its middle, a small cap on top
+    assert.ok(H - yn >= H / 3, 'the nose is ' + (H - yn) + ' rows long');
+    assert.ok(widthAt(g, yn + Math.floor((H - yn) * 0.6)) <= S / 2 + 4, 'slim: ' + widthAt(g, yn + Math.floor((H - yn) * 0.6)) + ' wide at 60 %');
+    assert.ok(widthAt(g, H - 1) >= 4 && widthAt(g, H - 1) <= 6, 'a small cap ' + widthAt(g, H - 1) + ' wide on top');
+    // round: the outside of the body wall lies on a circle (within the 2.2 superellipse's slight squareness)
+    const ym = Math.floor((PLATE_Y + yn) / 2);
+    for (let z = 0; z < sz; z++) for (let x = 0; x < sx; x++) {
+      if (!g.at(x, ym, z)) continue;
+      const rr = Math.hypot(x - CEN, z - CEN);
+      const edge = N6.some(([dx, , dz]) => !g.at(x + dx, ym, z + dz) && rooms(g).room(x + dx, ym, z + dz) === 1);
+      if (edge) assert.ok(rr >= 16.4 && rr <= 18.8, 'the body is round: wall at radius ' + rr.toFixed(1));
+    }
     for (let y = o.flames === 'off' ? 10 : 0; y < HEAD.y0; y++) assert.ok(widthAt(g, y) >= 16, 'bottom ' + widthAt(g, y) + ' wide at y ' + y);
     report.push([label, s.size.join(' x '), vol, C.counts(s, true).map((r) => nameOf(r.id) + ' ' + r.n).join(', ')]);
   });
 
-  t(label + ': cane wall, grey parts, shuttle nose, flames', () => {
+  t(label + ': cane wall, grey parts, nose cone, flames', () => {
     const s = F.schematic(ID, o), g = grid(s), H = +o.size, yn = noseY(H);
     const counts = Object.fromEntries(C.counts(s, true).map((r) => [nameOf(r.id), r.n]));
     let green = 0, wall = 0, nodes = 0;
@@ -229,7 +235,7 @@ for (const o of shapes()) {
     }
     let dark = 0, light = 0;
     for (let y = yn; y < H; y++) for (let z = 0; z < S; z++) for (let x = 0; x < S; x++) { const b = g.at(x, y, z); if (!b) continue; if (DARK.includes(stem(b))) dark++; else light++; }
-    assert.ok(dark > 300 && light > 300, 'a light grey nose with a dark heat-shield cap (' + dark + ' / ' + light + ')');
+    assert.ok(dark > 100 && light > 2 * dark, 'a light grey nose with a darker band and tip (' + dark + ' / ' + light + ')');
     for (let z = 0; z < S; z++) for (let x = 0; x < S; x++) { const b = g.at(x, H - 1, z); if (b) assert.ok(DARK.includes(stem(b)), 'the top is dark: ' + b); }
     const glow = GLOW.reduce((a, b) => a + (counts[b] || 0), 0);
     if (o.flames === 'off') {

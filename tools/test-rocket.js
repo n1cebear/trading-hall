@@ -2,7 +2,7 @@
 //   node tools/test-rocket.js        (-v lists every option set with its size and blocks)
 // Builds every option set in a VM with the game's block database and checks: 36 x 36 and as high as the option says
 // (127 by default: y 63 to 189); known blocks (full cubes, glass, slabs, stairs, buttons) that never fall; only fully
-// oxidised copper, under 3 %; one connected piece; the shape mirror symmetric (the 2 x 1 chamber is the one exception
+// no copper at all; one connected piece; the shape mirror symmetric (the 2 x 1 chamber is the one exception
 // front to back); hollow; three sealed rooms: the head (30 x 30 x 30), the cane body (34 across, at least 15 high) and
 // the 2 x 1 x 3 AFK chamber with a slab floor and the roof as the highest block; spawn-proof outside and in the small
 // pockets; the 32 block head with the face on all four sides in every colour set; the body wider than the head; the
@@ -50,8 +50,10 @@ const faceAt = (col, p, r) => COLOURS[col][FACE[r][Math.floor((p < 16 ? p : 31 -
 const STALK = ['lime_wool', 'lime_concrete', 'bamboo_block', 'green_wool', 'bone_block', 'lime_terracotta', 'green_terracotta'];
 const SANDY = ['smooth_sandstone', 'sandstone', 'cut_sandstone', 'chiseled_sandstone'];
 const GLOW = ['glowstone', 'shroomlight'];
-const DARK = ['polished_deepslate', 'gray_concrete'];
-const GREY = ['polished_andesite', 'andesite', 'stone', 'light_gray_concrete', 'gray_concrete', 'cobbled_deepslate', 'polished_deepslate', 'oxidized_copper', 'oxidized_cut_copper'].concat(DARK);
+// the dark end of the nose ramp (the tip) and every grey the rocket parts may use: andesite, stone, smooth stone,
+// cobblestone and tuff as the base, deepslate and blackstone as small dark accents
+const DARK = ['polished_deepslate', 'polished_tuff', 'tuff', 'deepslate_tiles', 'deepslate_tile'];
+const GREY = ['polished_andesite', 'andesite', 'stone', 'smooth_stone', 'cobblestone', 'mossy_cobblestone', 'tuff_bricks', 'tuff_brick', 'stone_brick', 'cracked_stone_bricks', 'deepslate_bricks', 'deepslate_brick', 'cobbled_deepslate', 'polished_blackstone', 'blackstone'].concat(DARK);
 const stem = (nm) => nm.replace(/_(slab|stairs)$/, '');
 
 function shapes() {
@@ -136,17 +138,14 @@ for (const o of shapes()) {
     const s = F.schematic(ID, o), g = grid(s), [sx, sy, sz] = s.size, H = +o.size, vol = C.volume(s), yn = noseY(H);
     assert.deepStrictEqual([sx, sy, sz], [S, H, S], '36 x 36 and ' + H + ' high');
     for (const [x, z] of [[0, 0], [S - 1, 0], [0, S - 1], [S - 1, S - 1]]) assert.ok(g.at(x, 0, z), 'a fin stands on the corner ' + [x, z]);
-    let copper = 0;
     s.palette.slice(1).forEach((p) => {
       const nm = nameOf(p), d = C.def(p);
       assert.ok(DB[nm] && C.known(p), nm + ' is a known 26.3 block');
-      assert.ok(['cube', 'slab', 'stairs', 'button'].includes(d.shape), nm + ' is a cube, slab, stair or button (' + d.shape + ')');
+      assert.ok(['cube', 'slab', 'stairs', 'button', 'carpet'].includes(d.shape), nm + ' is a cube, slab, stair, button or carpet (' + d.shape + ')');
       assert.ok(C.replaceable(p).ok, nm + ' can be swapped');
       assert.ok(d.fam !== 'gravity' && !/(^|_)sand$|gravel|powder|anvil|scaffolding/.test(nm), nm + ' does not fall');
-      if (/copper/.test(nm)) assert.ok(/^oxidized_/.test(nm), nm + ': only fully oxidised copper');
+      assert.ok(!/copper/.test(nm), nm + ': no copper');
     });
-    C.counts(s, true).forEach((r) => { if (/copper/.test(nameOf(r.id))) copper += r.n; });
-    assert.ok(copper < 0.03 * vol, 'copper is rare (' + copper + ')');
     assert.strictEqual(pieces(g).length, 1, 'one connected piece');
     // the shape is mirror symmetric left to right; front to back and by quarter turns except the 2 x 1 chamber
     for (let y = 0; y < sy; y++) for (let z = 0; z < sz; z++) for (let x = 0; x < sx; x++) {
@@ -194,6 +193,12 @@ for (const o of shapes()) {
       if (rm !== head && rm !== body) spots.push([x, y, z].join(','));
     }
     assert.strictEqual(spots.length, 0, 'spawnable tops: ' + spots.slice(0, 8).join(' | '));
+    // the head's top is one flat layer: above the roof only the body (inside its circle) and carpets on the corners
+    for (let z = HEAD.lo; z <= HEAD.hi; z++) for (let x = HEAD.lo; x <= HEAD.hi; x++) {
+      const b = g.at(x, HEAD.y1 + 1, z), inBody = Math.pow(Math.pow(Math.abs(x - CEN), 2.2) + Math.pow(Math.abs(z - CEN), 2.2), 1 / 2.2) <= 17.6;
+      if (!inBody) assert.ok(/_carpet$/.test(b || ''), 'a carpet on the head corner at ' + [x, z] + ': ' + b);
+      assert.ok(g.at(x, HEAD.y1, z), 'the roof is closed');
+    }
     // the silhouette
     assert.strictEqual(widthAt(g, HEAD.y0 + 1), 32);
     for (let y = PLATE_Y; y < yn; y++) assert.strictEqual(widthAt(g, y), S, 'body at y ' + y);
@@ -236,6 +241,18 @@ for (const o of shapes()) {
       assert.ok(!/^(white|red)_concrete/.test(b), 'no white or red at ' + [x, y, z]);
       if (y >= yn || y === PLATE_Y || y === HEAD.y1 || (y < HEAD.y1 && Math.hypot(x - CEN, z - CEN) > 22.6)) assert.ok(b === 'stone_button' || GREY.includes(stem(b)) || (y >= yn ? false : true), 'grey at ' + [x, y, z] + ': ' + b);
     }
+    // the nose grades from light at its foot to dark at the tip, with several tones on every stretch
+    const nose = []; for (let y = yn + 2; y < H - 10; y++) for (let z = 0; z < S; z++) for (let x = 0; x < S; x++) { const b = g.at(x, y, z); if (b) nose.push([y, stem(b)]); }
+    const darkShare = (part) => part.filter(([, b]) => DARK.includes(b)).length / Math.max(1, part.length);
+    const lowN = nose.filter(([y]) => y < yn + (H - 10 - yn) / 3), highN = nose.filter(([y]) => y >= yn + (2 * (H - 10 - yn)) / 3);
+    assert.ok(darkShare(highN) > darkShare(lowN) + 0.2, 'the nose darkens upward (' + darkShare(lowN).toFixed(2) + ' -> ' + darkShare(highN).toFixed(2) + ')');
+    assert.ok(new Set(nose.map(([, b]) => b)).size >= 5, 'at least 5 greys on the nose');
+    assert.ok(nose.filter(([, b]) => ['andesite', 'polished_andesite', 'stone', 'smooth_stone'].includes(b)).length > 0.4 * nose.length, 'andesite and stone are the main grey');
+    assert.ok(!Object.keys(counts).some((n) => /^(light_)?gray_concrete/.test(n)), 'no grey concrete');
+    // the cane darkens toward the bottom: more of the darkest stalk tone in the lower third
+    const caneDark = (y0, y1) => { let d = 0, n = 0; for (let y = y0; y < y1; y++) for (let z = 0; z < S; z++) for (let x = 0; x < S; x++) { const b = g.at(x, y, z); if (STALK.includes(b)) { n++; if (b === 'green_terracotta' || b === 'green_wool') d++; } } return d / Math.max(1, n); };
+    const third = Math.floor((yn - PLATE_Y) / 3);
+    assert.ok(caneDark(PLATE_Y + 2, PLATE_Y + third) > caneDark(yn - third, yn - 2), 'the cane is darker low down');
     let dark = 0, light = 0;
     for (let y = yn; y < H; y++) for (let z = 0; z < S; z++) for (let x = 0; x < S; x++) { const b = g.at(x, y, z); if (!b) continue; if (DARK.includes(stem(b))) dark++; else light++; }
     assert.ok(dark > 30 && light > 200, 'a light grey nose with a darker band and tip (' + dark + ' / ' + light + ')');
@@ -271,7 +288,7 @@ for (const col of Object.keys(COLOURS)) {
     const counts = Object.fromEntries(C.counts(s, true).map((r) => [nameOf(r.id), r.n]));
     assert.strictEqual(counts.black_concrete, headK, 'black only on the faces');
     const b = grid(F.schematic(ID, { size: '100', colour: 'charged' }));
-    for (let y = 0; y < 100; y++) for (let z = 0; z < S; z++) for (let x = 0; x < S; x++) if (!inHead(x, y, z)) assert.strictEqual(g.id(x, y, z), b.id(x, y, z), col + ': only the head changes, not ' + [x, y, z]);
+    for (let y = 0; y < 100; y++) for (let z = 0; z < S; z++) for (let x = 0; x < S; x++) if (!inHead(x, y, z) && !(y === HEAD.y1 + 1 && /_carpet$/.test(g.at(x, y, z) || ''))) assert.strictEqual(g.id(x, y, z), b.id(x, y, z), col + ': only the head (and the carpets on its corners) changes, not ' + [x, y, z]);
   });
 }
 
@@ -292,13 +309,14 @@ t('cane wall: sandy, glass or mixed; the same shape and stalks, never sand', () 
     for (const n of Object.keys(cnt(s))) assert.ok(!/(^|_)sand$|gravel/.test(n), n);
   }
 });
-t('wear: clean has no moss, rust or copper; rusty has more of each than weathered; the same shape', () => {
+t('wear: clean has no moss or rust; rusty has more rust, moss and cracks than weathered; never copper; the same shape', () => {
   const cnt = (w) => { const s = F.schematic(ID, { size: '127', wear: w }); const c = Object.fromEntries(C.counts(s, true).map((r) => [nameOf(r.id), r.n])); c.s = s; return c; };
   const clean = cnt('clean'), wea = cnt('weathered'), rusty = cnt('rusty');
   const sum = (c, re) => Object.entries(c).filter(([n]) => re.test(n)).reduce((a, [, n]) => a + n, 0);
-  assert.strictEqual(sum(clean, /copper|^brown_|^orange_terracotta|moss/), 0, 'clean: no copper, rust or moss');
-  assert.ok(sum(wea, /copper/) > 0 && sum(wea, /copper/) < 40, 'weathered: a few copper rivets (' + sum(wea, /copper/) + ')');
-  assert.ok(sum(rusty, /copper/) > sum(wea, /copper/) && sum(rusty, /^brown_|orange_terracotta/) > sum(wea, /^brown_|orange_terracotta/) && (rusty.moss_block || 0) > (wea.moss_block || 0));
+  assert.strictEqual(sum(clean, /^brown_|^orange_terracotta|moss|cracked/), 0, 'clean: no rust, moss or cracks');
+  for (const c of [clean, wea, rusty]) assert.strictEqual(sum(c, /copper/), 0, 'no copper');
+  assert.ok(sum(wea, /cracked|moss/) > 0, 'weathered shows some wear');
+  assert.ok(sum(rusty, /^brown_|orange_terracotta/) > sum(wea, /^brown_|orange_terracotta/) && sum(rusty, /moss/) > sum(wea, /moss/) && sum(rusty, /cracked/) > sum(wea, /cracked/));
   const a = grid(clean.s), b = grid(rusty.s);
   for (let y = 0; y < 127; y++) for (let z = 0; z < S; z++) for (let x = 0; x < S; x++) assert.strictEqual(!a.at(x, y, z), !b.at(x, y, z), 'same shape');
 });

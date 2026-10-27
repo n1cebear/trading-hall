@@ -380,20 +380,20 @@ TH.builds = TH.builds || {};
         { id: 'flames', label: 'Flames', def: 'on', choices: [['on', 'With flames', 'Yellow, orange and red flames from the nozzle down to the ground, 18 blocks wide at the narrowest'], ['off', 'No flames', 'The rocket stands on its four fins, the 20 block nozzle open below']] },
         { id: 'colour', label: 'Creeper colour', def: 'charged', look: true, choices: [['charged', 'Charged', 'Charged blue head: light blue and cyan skin, a dark blue and black face'], ['grey', 'Grey', 'Stone grey head: stone, andesite and tuff, a grey and black face'], ['ember', 'Ember', 'Ember head: orange and red terracotta, a dark red and black face'], ['green', 'Green', 'The real creeper greens']] },
         { id: 'fill', label: 'Cane wall', def: 'sandy', look: true, choices: [['sandy', 'Sandy', 'Smooth, cut and plain sandstone between the green stalks'], ['glass', 'Glass', 'Glass between the stalks: the cane farm inside shows'], ['mixed', 'Mixed', 'Sandstone with bands of glass windows']] },
-        { id: 'wear', label: 'Wear', def: 'weathered', look: true, choices: [['clean', 'Clean', 'Fresh: no moss, no cracks, no rust'], ['weathered', 'Weathered', 'A few moss patches, cracked spots, short rust streaks and a few oxidised copper rivets'], ['rusty', 'Rusty', 'Old and rusty: more moss, long rust streaks, an oxidised copper ring and nozzle rim']] },
+        { id: 'wear', label: 'Wear', def: 'weathered', look: true, choices: [['clean', 'Clean', 'Fresh: no moss, no cracks, no rust'], ['weathered', 'Weathered', 'A few moss and cobblestone patches, cracked bricks and short rust streaks'], ['rusty', 'Rusty', 'Old and rusty: more moss, cobblestone and cracked bricks, long rust streaks']] },
       ],
       make: (o) => creeperRocket(o),
       steps: [
         'Mark a 36 x 36 square with its bottom at y 63 (the 127 high rocket then ends at y 189). The four grey fins stand on its corners; with flames, the flame column stands in the middle.',
         'Build the flames and the deepslate bell nozzle, then the creeper head on top: a 32 block cube with a closed floor and roof, the face on every side, four blocks per pixel. Build your farm inside before you close the roof.',
-        'Lay the round 36 wide deepslate floor on the head, upside-down stairs under its overhang, then raise the round body wall layer by layer with "Only this layer": a grey ring, then twenty green stalks 4 blocks wide (lime wool, lime concrete, bamboo block, green wool), a bone node band over a lime terracotta line every 8 rows, sandstone (or glass) in the gaps. Build the cane farm inside as you go.',
+        'Raise the round body wall straight on the roof of the head (the roof is the floor of the cane room), with andesite upside-down stairs under its overhang and carpets in the colour of the roof on the four corners of the head. Go layer by layer with "Only this layer": a tuff and andesite ring, then twenty green stalks 4 blocks wide (lime wool, lime concrete, bamboo block, green wool, darker low down), a bone node band over a lime terracotta line every 8 rows, sandstone (or glass) in the gaps. Build the cane farm inside as you go.',
         'Close it with the second grey ring and the nose: a dark band, then light grey rings that get smaller every layer, each step a stair or a slab, down to a 6 wide neck.',
         'In the neck, build the AFK chamber: two blocks of slab floor, three blocks of air above it, one block of deepslate round it and a roof; then the dark point on top, 4 and then 2 blocks wide, its last slabs the highest blocks.',
       ],
       tips: [
         'Spawn-proofed outside: no full block has open air on top. The farm rooms are yours to light or slab as the farm needs.',
         'The AFK chamber is sealed: break in through a wall or the floor with a pickaxe and close it behind you.',
-        'Only fully oxidised copper is used (it never changes again), so nothing needs waxing. Wear Clean leaves it out.',
+        'The grey is andesite, smooth stone and stone with tuff bands and a little cobblestone; it darkens to tuff and deepslate toward the tip.',
         'Cane wall Glass shows the farm inside; the stalks stay green either way. The sandstone is never sand, so nothing falls.',
       ],
     },
@@ -941,18 +941,33 @@ TH.builds = TH.builds || {};
     ember: { K: 'black_concrete', D: 'red_nether_bricks', M: 'red_terracotta', G: 'orange_terracotta', P: 'orange_concrete', W: 'yellow_concrete' },
     green: { K: 'black_concrete', D: 'green_concrete', M: 'green_wool', G: 'lime_concrete', P: 'lime_wool', W: 'white_concrete' },
   };
-  // how worn the rocket looks: noise thresholds for moss, cracked patches and rust patches (2 = never), the share of
-  // columns with a rust streak, the share of the upper ring in oxidised copper (1 = the whole ring and the nozzle rim)
+  // how worn the rocket looks: noise thresholds for moss, worn patches and rust patches (2 = never), the share of
+  // columns with a rust streak and the share of cracked bricks in the tuff rings. No copper anywhere.
   const ROCKET_WEAR = {
-    clean: { moss: 2, patch: 2, rust: 2, streak: 0, copper: 0 },
-    weathered: { moss: 0.84, patch: 0.8, rust: 2, streak: 0.03, copper: 0.12 },
-    rusty: { moss: 0.72, patch: 0.74, rust: 0.8, streak: 0.13, copper: 1 },
+    clean: { moss: 2, patch: 2, rust: 2, streak: 0, crack: 0 },
+    weathered: { moss: 0.84, patch: 0.8, rust: 2, streak: 0.03, crack: 0.15 },
+    rusty: { moss: 0.72, patch: 0.74, rust: 0.8, streak: 0.13, crack: 0.4 },
   };
+  // grey ramps from light to dark: every grey surface picks along its ramp from a gradient plus dithering noise
+  const ROCKET_RAMP = {
+    // the base grey: andesite, stone and smooth stone, going into tuff for an older look and deepslate only at the tip
+    nose: ['polished_andesite', 'smooth_stone', 'andesite', 'stone', 'tuff', 'polished_tuff', 'polished_deepslate'],
+    fin: ['polished_andesite', 'andesite', 'stone', 'tuff', 'cobblestone'],
+    deep: ['deepslate_tiles', 'polished_deepslate', 'deepslate_bricks', 'cobbled_deepslate'],
+    tuff: ['polished_tuff', 'tuff_bricks', 'tuff'],
+    light: ['polished_andesite', 'smooth_stone', 'andesite', 'stone'],
+    sand: ['smooth_sandstone', 'cut_sandstone', 'sandstone'],
+    // the stalk's tones from light to dark: each column of a stalk starts at its place and shifts a step darker toward
+    // the bottom of the body, a step lighter near the top
+    cane: ['lime_wool', 'lime_concrete', 'bamboo_block[axis=y]', 'green_wool', 'green_terracotta'],
+  };
+  // the carpet of the same colour, for the head's top corners outside the round body (spawn-proof and nearly flat)
+  const carpetOf = (nm) => { const m = nm.match(/^(white|orange|magenta|light_blue|yellow|lime|pink|gray|light_gray|cyan|purple|blue|brown|green|red|black)_/); return (m ? m[1] : { tuff: 'gray', andesite: 'light_gray', stone: 'light_gray', polished_diorite: 'white' }[nm] || 'light_gray') + '_carpet'; };
   // the slab and stair material for the top of each block (a block without its own slab takes a close one)
   const ROCKET_CAP = {
     polished_andesite: 'polished_andesite', andesite: 'andesite', stone: 'stone', light_gray_concrete: 'light_gray_concrete', gray_concrete: 'gray_concrete',
-    tuff: 'tuff', cobblestone: 'cobblestone', polished_deepslate: 'polished_deepslate', deepslate_tiles: 'deepslate_tile', cobbled_deepslate: 'cobbled_deepslate',
-    polished_blackstone: 'polished_blackstone', blackstone: 'blackstone', oxidized_cut_copper: 'oxidized_cut_copper', oxidized_copper: 'oxidized_cut_copper',
+    tuff: 'tuff', polished_tuff: 'polished_tuff', tuff_bricks: 'tuff_brick', smooth_stone: 'stone', stone_bricks: 'stone_brick', cracked_stone_bricks: 'stone_brick', mossy_cobblestone: 'mossy_cobblestone', cobblestone: 'cobblestone', polished_deepslate: 'polished_deepslate', deepslate_tiles: 'deepslate_tile', cobbled_deepslate: 'cobbled_deepslate',
+    polished_blackstone: 'polished_blackstone', blackstone: 'blackstone', deepslate_bricks: 'deepslate_brick', cracked_deepslate_bricks: 'deepslate_brick',
     brown_terracotta: 'brown_concrete', orange_terracotta: 'orange_concrete', brown_concrete: 'brown_concrete',
     yellow_concrete: 'yellow_concrete', glowstone: 'yellow_concrete', orange_concrete: 'orange_concrete', shroomlight: 'orange_concrete', red_concrete: 'red_concrete',
     smooth_sandstone: 'smooth_sandstone', sandstone: 'sandstone', cut_sandstone: 'sandstone', chiseled_sandstone: 'sandstone', moss_block: 'mossy_cobblestone',
@@ -971,7 +986,7 @@ TH.builds = TH.builds || {};
     const H = +o.size || 127, flames = o.flames !== 'off', cr = ROCKET_CREEPER[o.colour] || ROCKET_CREEPER.charged;
     const wr = ROCKET_WEAR[o.wear] || ROCKET_WEAR.weathered, fill = o.fill === 'glass' || o.fill === 'mixed' ? o.fill : 'sandy';
     const W = 36, M = 17.5, hw = 16;
-    const yf = 9, yh = 15, yt = yh + 31, yb = yt + 1, Ln = Math.round((H - yb - 1) / 3), yn = H - Ln;   // flame top, head (bottom, top row), body plate, nose
+    const yf = 9, yh = 15, yt = yh + 31, yb = yt + 1, Ln = Math.round((H - yb - 1) / 3), yn = H - Ln;   // flame top, head (bottom, top row = roof), body, nose
     const Ro = 17.6, Rch = 2.6, P = 4;   // body radius, nose radius round the chamber, rows of the point above it
     const N = W * H * W, at = (x, y, z) => (y * W + z) * W + x;
     const se = (a, b, p) => Math.pow(Math.pow(a, p) + Math.pow(b, p), 1 / p);
@@ -988,15 +1003,14 @@ TH.builds = TH.builds || {};
     const T = 17.5, yTip = 12, yRoot = yt - 1;
     const finTop = (t) => yTip + (yRoot - yTip) * Math.pow((T - t) / (T - 12), 1.2);
     const finBot = (t) => (t >= 14 ? 0 : ((yh - 1) * (14 - t)) / 2);
-    const reg = new Uint8Array(N);   // 1 head, 2 fin, 3 nozzle, 4 flame, 5 body plate, 6 body, 8 collar, 9 nose, 10 chamber wall
-    const forced = new Uint8Array(N);   // never hollowed: the plates between the rooms, the chamber walls
+    const reg = new Uint8Array(N);   // 1 head, 2 fin, 3 nozzle, 4 flame, 6 body, 8 collar, 9 nose, 10 chamber wall
+    const forced = new Uint8Array(N);   // never hollowed: the head's floor and roof (the roof is also the body's floor), the chamber walls
     for (let y = 0; y < H; y++) for (let z = 0; z < W; z++) for (let x = 0; x < W; x++) {
       const a = Math.abs(x - M), b = Math.abs(z - M), r = Math.hypot(a, b), q = se(a, b, 2.2), i = at(x, y, z);
       let g = 0;
       if (y >= yh && y <= yt && a <= hw && b <= hw) { g = 1; if (y === yh || y === yt) forced[i] = 1; }
       else if (y === yt && q <= Ro) g = 8;
-      else if (y === yb && q <= Ro) { g = 5; forced[i] = 1; }
-      else if (y > yb && y < yn && q <= Ro) g = 6;
+      else if (y >= yb && y < yn && q <= Ro) g = 6;
       else if (y >= yn) {
         if (chamberWall(x, y, z)) { g = inChamber(x, y, z) ? 0 : 10; if (g) forced[i] = 1; }
         else if (nose(a, b, y)) g = 9;
@@ -1014,7 +1028,7 @@ TH.builds = TH.builds || {};
       reg[i] = g;
     }
     const solid = (x, y, z) => x >= 0 && y >= 0 && z >= 0 && x < W && y < H && z < W && reg[at(x, y, z)] > 0;
-    // the shell: the plates and chamber walls, and every block with one of its 26 neighbours outside the solid
+    // the shell: the forced blocks, and every block with one of its 26 neighbours outside the solid
     const shell = new Uint8Array(N);
     for (let y = 0; y < H; y++) for (let z = 0; z < W; z++) for (let x = 0; x < W; x++) {
       const i = at(x, y, z);
@@ -1048,7 +1062,11 @@ TH.builds = TH.builds || {};
     const tex = (u, v) => cr[CREEPER_TEX[v][u]];
     const fold = (p) => Math.floor((p < hw ? p : 2 * hw - 1 - p) / 4);   // 32 blocks a side: 4 per texel, the right half mirrors the left
     const stalkArc = (17.5 * 2 * Math.PI) / 20;
-    const sandy = (x, y, z) => { const n = kNoise(x, y, z, 3, 71); return n < 0.25 ? 'sandstone' : n < 0.36 ? 'cut_sandstone' : rHash(x, y, z, 73) < 0.03 ? 'chiseled_sandstone' : 'smooth_sandstone'; };
+    /** The tone at v (0 light .. 1 dark) on a ramp, dithered: noise moves it up to half a step either way. */
+    const ramp = (list, v, x, y, z, seed) => list[Math.max(0, Math.min(list.length - 1, Math.floor(v * list.length + (kNoise(x, y, z, 2.5, seed) - 0.5) * 1.2 + (rHash(x, y, z, seed + 1) - 0.5) * 0.6)))];
+    const bodyV = (y) => (y - yb) / Math.max(1, yn - yb);   // 0 at the bottom of the body, 1 at the top
+    // the sandy fill: more plain sandstone low down, smoother higher up, a few chiseled blocks
+    const sandy = (x, y, z) => (rHash(x, y, z, 73) < 0.03 ? 'chiseled_sandstone' : ramp(ROCKET_RAMP.sand, 0.85 - 0.7 * bodyV(y), x, y, z, 71));
     const out = new Array(N).fill(null);
     for (let y = 0; y < H; y++) for (let z = 0; z < W; z++) for (let x = 0; x < W; x++) {
       const i = at(x, y, z), g = reg[i];
@@ -1064,39 +1082,41 @@ TH.builds = TH.builds || {};
         else c = tex(16 + fold(px), fold(pz));   // bottom
       } else if (g === 2) {
         const t = (a + b) / 2;
-        c = n3 > wr.rust ? 'brown_terracotta' : n2 > wr.patch ? 'cobbled_deepslate' : t >= 17 || finTop(t) - y < 1.5 ? 'light_gray_concrete' : 'gray_concrete';
-      } else if (g === 3) c = y === yf + 1 ? (wr.copper >= 1 ? 'oxidized_copper' : 'polished_blackstone') : n3 > wr.rust ? 'brown_terracotta' : y === yh - 1 || r < 8.8 ? 'deepslate_tiles' : 'polished_deepslate';
+        // darker at the foot, lighter up the fin and along its edges
+        c = n3 > wr.rust ? 'brown_terracotta' : n2 > wr.patch ? (fine < 0.8 ? 'cobblestone' : 'mossy_cobblestone') : ramp(ROCKET_RAMP.fin, t >= 17 || finTop(t) - y < 1.5 ? 0.1 : 0.95 - 0.7 * (y / finTop(t)), x, y, z, 91);
+      } else if (g === 3) c = y === yf + 1 ? (fine < 0.7 ? 'polished_blackstone' : 'blackstone') : n3 > wr.rust ? 'brown_terracotta' : ramp(ROCKET_RAMP.deep, r < 8.8 ? 0.15 : 0.3 + 0.5 * ((yh - 1 - y) / 4), x, y, z, 93);
       else if (g === 4) {
         const nn = kNoise(a, y, b, 2, 21) > 0.55, s = (yf - y) / yf;
         c = s < 0.3 ? (nn ? ROCKET_BLOCK.glow : ROCKET_BLOCK.hot) : s < 0.7 ? (nn ? ROCKET_BLOCK.fire2 : ROCKET_BLOCK.fire) : (nn ? ROCKET_BLOCK.fire : ROCKET_BLOCK.ember);
-      } else if (g === 5) c = 'polished_deepslate';
-      else if (g === 8) c = 'polished_andesite';   // the collar stairs, set below
-      else if (g === 10) c = 'polished_deepslate';
+      } else if (g === 8) c = fine < 0.6 ? 'polished_andesite' : 'andesite';   // the collar stairs, set below
+      else if (g === 10) c = fine < 0.6 ? 'polished_deepslate' : 'deepslate_tiles';
       else if (g === 6) {
-        if (y <= yb + 2 || y >= yn - 2) {   // the grey rings at both ends of the body
-          c = y === yb + 1 || y === yn - 1 ? 'polished_deepslate' : 'polished_andesite';
-          if (y === yn - 1 && (wr.copper >= 1 || rHash(x, y, z, 81) < wr.copper)) c = 'oxidized_cut_copper';
-          if (n2 > wr.patch) c = 'cobbled_deepslate';
+        if (y <= yb + 1 || y >= yn - 2) {   // the grey rings at both ends of the body: deepslate, a lighter row
+          const deep = y === yb || y === yn - 1;
+          c = deep ? ramp(ROCKET_RAMP.tuff, 0.4, x, y, z, 95) : ramp(ROCKET_RAMP.light, 0.4, x, y, z, 97);
+          if (deep && rHash(x, y, z, 81) < wr.crack) c = 'cracked_stone_bricks';
+          if (n2 > wr.patch) c = fine < 0.8 ? 'cobblestone' : 'mossy_cobblestone';
         } else {
           // twenty stalks round the body, 4 blocks wide each (lit side first, going round), the wall fill only in the
           // narrow gaps between them; a node every 8 rows at each stalk's own height, a leaf in the gap beside it
           const th = Math.atan2(z - M, x - M) + Math.PI, s = th * 17.5, k = Math.round(s / stalkArc), d = s - k * stalkArc, kk = ((k % 20) + 20) % 20;
           const nodeAt = (st) => ((((y - yb - 3 + CANE_NODES[st % 5]) % 8) + 8) % 8);
           if (Math.abs(d) < 2) {
-            const col = Math.min(3, Math.floor(d + 2)), r8 = nodeAt(kk);
-            c = r8 === 0 ? CANE_STALK.node[col] : r8 === 7 ? CANE_STALK.line[col] : CANE_STALK.body[col];
+            const col = Math.min(3, Math.floor(d + 2)), r8 = nodeAt(kk), v = bodyV(y), dn = kNoise(x, y, z, 3, 99) - 0.5;
+            const shift = (v < 0.4 && dn < 0.35 - v) ? 1 : (v > 0.7 && dn > 0.75 - v) ? -1 : 0;   // darker low down, lighter near the top
+            c = r8 === 0 ? CANE_STALK.node[col] : r8 === 7 ? CANE_STALK.line[col] : ROCKET_RAMP.cane[Math.max(0, Math.min(4, col + shift))];
           } else {
             const nb = d > 0 ? kk : (kk + 19) % 20;   // the stalk on the lit side of the gap
             c = nodeAt(nb) === 1 ? 'lime_concrete' : fill === 'glass' || (fill === 'mixed' && ((y - yb) % 9 >= 4 && (y - yb) % 9 <= 6)) ? 'glass' : sandy(x, y, z);
           }
           if (c !== 'glass' && kNoise(x, y, z, 4, 51) > wr.moss) c = 'moss_block';
         }
-      } else {   // the nose: a dark band where it meets the body, light grey panels, a darker grey tip
-        const h = y - yn, dark = y >= yNeck - 2;
-        if (h <= 1) c = 'polished_deepslate';
-        else if (dark) c = fine < 0.7 ? 'gray_concrete' : 'polished_deepslate';
-        else c = kNoise(x, y, z, 2, 61) < 0.62 ? 'light_gray_concrete' : 'polished_andesite';
-        if (c === 'light_gray_concrete' && n2 > wr.patch) c = fine < 0.5 ? 'andesite' : 'stone';
+      } else {   // the nose: a deepslate band where it meets the body, then light grey grading through the greys to a dark tip
+        const h = y - yn, dark = y >= yNeck - 2, t = Math.min(1, (y - yn) / Math.max(1, yNeck - 2 - yn));
+        if (h <= 1) c = ramp(ROCKET_RAMP.deep, 0.35, x, y, z, 101);
+        else c = ramp(ROCKET_RAMP.nose, dark ? 0.86 : 0.75 * Math.pow(t, 1.4), x, y, z, 61);
+        if (!dark && n2 > wr.patch) c = fine < 0.6 ? 'cobblestone' : fine < 0.75 ? 'mossy_cobblestone' : 'tuff_bricks';
+        else if (!dark && rHash(x, y, z, 103) < 0.03) c = 'cobblestone';   // a few cobblestone blocks here and there, even when clean
         if (n3 > wr.rust && h > 1 && !dark) c = 'brown_terracotta';
       }
       out[i] = c;
@@ -1120,7 +1140,7 @@ TH.builds = TH.builds || {};
       if (!out[i]) continue;
       const a = Math.abs(x - M), b = Math.abs(z - M);
       // the collar: upside-down stairs under the body's overhang, their lower step against the head
-      if (reg[i] === 8) ids[i] = 'minecraft:polished_andesite_stairs[facing=' + (a >= b ? (x > M ? 'west' : 'east') : (z > M ? 'north' : 'south')) + ',half=top]';
+      if (reg[i] === 8) ids[i] = 'minecraft:' + out[i] + '_stairs[facing=' + (a >= b ? (x > M ? 'west' : 'east') : (z > M ? 'north' : 'south')) + ',half=top]';
       if (chamberFloor(x, y, z)) ids[i] = 'minecraft:polished_deepslate_slab[type=bottom]';
       if (y === H - 1) ids[i] = 'minecraft:' + capOf(out[i]) + '_slab[type=bottom]';   // the very top: nothing to stand on
     }
@@ -1130,7 +1150,8 @@ TH.builds = TH.builds || {};
       const i = at(x, y, z), below = at(x, y - 1, z);
       if (out[i] || !out[below] || !/^minecraft:[a-z_]+(\[axis=y\])?$/.test(ids[below]) || out[below] === 'glass') continue;
       if (room[i] !== 1) { if (!farm.has(room[i])) ids[i] = 'minecraft:stone_button[face=floor,facing=north]'; continue; }
-      const base = reg[below] === 1 ? 'polished_andesite' : capOf(out[below]);   // the head's corners get grey slabs in every colour
+      if (reg[below] === 1) { ids[i] = 'minecraft:' + carpetOf(out[below]); continue; }   // the head's corners: a carpet in the roof's own colour, so the top stays one flat square
+      const base = capOf(out[below]);
       const wall = (dx, dz) => solid(x + dx, y, z + dz);
       const ex = wall(1, 0), wx = wall(-1, 0), sz = wall(0, 1), nz = wall(0, -1);
       const fx = ex !== wx ? (ex ? 'east' : 'west') : null, fz = sz !== nz ? (sz ? 'south' : 'north') : null;
@@ -1172,7 +1193,7 @@ TH.builds = TH.builds || {};
       '7|60|pond': [91, 60, 91, 50136, 27228], '7|60|none': [60, 60, 73, 12714],
     },
     creeper_rocket: {
-      '100|on': [36, 100, 36, 17926], '100|off': [36, 100, 36, 15922], '127|on': [36, 127, 36, 21066], '127|off': [36, 127, 36, 19062],
+      '100|on': [36, 100, 36, 17062], '100|off': [36, 100, 36, 15058], '127|on': [36, 127, 36, 20202], '127|off': [36, 127, 36, 18198],
     },
     // @stats-end
   };

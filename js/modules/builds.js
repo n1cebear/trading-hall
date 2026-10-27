@@ -15,6 +15,7 @@
  *   mode: 'loop'|'once'|'still', speed, grid, outline, auto,
  *   shape: { kind, p: { [kind]: params }, block: { [kind]: id }, block2: { [kind]: id } },
  *   swaps: { [key]: { 'minecraft:stone_bricks': 'minecraft:deepslate_bricks' } },
+ *   fopt: { [farmId]: { size: '24', tail: 'off' } }   (options of built-in builds that have some, e.g. the mob heads)
  *   ticks: { [key]: { [itemId]: 1 } }, have: { [key]: { [itemId]: n } }, units: 'items'|'stacks'|'boxes'|'dc',
  *   sort: 'count'|'name'|'group', matSrc: 'stage'|<key>, lists: [{ id, name, text, at }],
  *   mats: { raw, cont: 'box'|'dc', pack: 'tight'|'sorted', hide, sc, pick: { [itemId]: recipe index } },
@@ -40,7 +41,7 @@
     lib: { q: '', type: 'all', use: 'all', tech: 'all', topic: 'all', sort: 'name', more: false },
     mode: 'once', speed: 1, grid: true, outline: false, auto: true,
     shape: { kind: 'sphere', p: {}, block: {}, block2: {} },
-    swaps: {}, ticks: {}, have: {}, units: 'items', sort: 'count', files: [], paste: null, matSrc: 'stage', lists: [], viewHelp: false,
+    swaps: {}, fopt: {}, ticks: {}, have: {}, units: 'items', sort: 'count', files: [], paste: null, matSrc: 'stage', lists: [], viewHelp: false,
     mats: { raw: false, cont: 'box', pack: 'tight', hide: false, sc: true, pick: {} },
   };
   const SHAPE_BLOCK = { sphere: 'minecraft:stone_bricks', ellipsoid: 'minecraft:white_concrete', circle: 'minecraft:polished_andesite', dome: 'minecraft:glass', cylinder: 'minecraft:bricks', cone: 'minecraft:spruce_planks', pyramid: 'minecraft:sandstone', torus: 'minecraft:prismarine', tree: 'minecraft:oak_log' };
@@ -137,7 +138,7 @@
   function fileRec(id) { return (S().files || []).find((f) => f.id === id); }
   function original(key) {
     if (!key) return null;
-    if (key.startsWith('farm:')) return B().farms.schematic(key.slice(5));
+    if (key.startsWith('farm:')) return B().farms.schematic(key.slice(5), (S().fopt || {})[key.slice(5)]);
     if (key.startsWith('file:')) {
       const id = key.slice(5);
       if (mem.files.has(id)) return mem.files.get(id);
@@ -162,11 +163,19 @@
   }
   function keyName(key) {
     if (!key) return '';
-    if (key.startsWith('farm:')) { const f = B().farms.FARMS.find((x) => x.id === key.slice(5)); return f ? f.name : 'Farm'; }
+    if (key.startsWith('farm:')) { const f = B().farms.FARMS.find((x) => x.id === key.slice(5)); return f ? f.name + optSuffix(f) : 'Farm'; }
     if (key.startsWith('file:')) { const r = fileRec(key.slice(5)); const m = mem.files.get(key.slice(5)); const meta = S().meta && S().meta[key]; return (meta && meta.name) || (m && m.name) || (r && r.name) || 'File'; }
     if (key === 'shape') { const s = shapeSchem(); return s ? s.name : 'Shape'; }
     if (key === 'paste') return 'Pasted material list';
     return '';
+  }
+  /** The chosen options of a built-in build that has some (size, tail ...), defaults filled in. */
+  const farmOpts = (f) => B().farms.options(f.id, (S().fopt || {})[f.id]);
+  /** ' · 24' style suffix for names and file names: the size picked (the first option), only for builds with options. */
+  function optSuffix(f) {
+    if (!f.opts || !f.opts.length) return '';
+    const o = farmOpts(f);
+    return f.opts.map((op) => { const c = op.choices.find((x) => x[0] === o[op.id]); return op.id === 'size' ? c[1] : o[op.id] !== op.def ? c[1].toLowerCase() : null; }).filter(Boolean).map((t) => ' · ' + t).join('');
   }
   function shapeParams(kind) {
     const st = S().shape, d = B().shapes.defaults()[kind];
@@ -568,7 +577,20 @@
    * Library
    * ====================================================================== */
   const DIM_NAME = { overworld: 'Overworld', nether: 'Nether', end: 'End' };
-  function thumb(icon) { return h('span.bd-thumb', { 'aria-hidden': 'true' }, TH.icon(icon, { size: 32 })); }
+  /**
+   * Card art: the texture icon, or (art) a crop of a mob skin: [entity texture, skin w, h, crop x, y, w, h, optional
+   * overlay [x, y, w, h, colour] in crop texels, e.g. the guardian's pupil, a separate box in the game model].
+   */
+  function thumb(icon, art) {
+    if (art && TH.icon.tex) {
+      const [tex, tw, th, x, y, w, hh, dot] = art, px = Math.max(1, Math.floor(36 / Math.max(w, hh)));
+      const el = h('span.mc.bd-face', { 'aria-hidden': 'true' });
+      el.style.cssText = '--mc:' + w * px + 'px;width:' + w * px + 'px;height:' + hh * px + 'px;background-image:url("' + TH.icon.tex(tex) + '");background-size:' + tw * px + 'px ' + th * px + 'px;background-position:' + -x * px + 'px ' + -y * px + 'px';
+      if (dot) { const d = h('span.bd-face-dot'); d.style.cssText = 'left:' + dot[0] * px + 'px;top:' + dot[1] * px + 'px;width:' + dot[2] * px + 'px;height:' + dot[3] * px + 'px;background:' + dot[4]; el.append(d); }
+      return h('span.bd-thumb', { 'aria-hidden': 'true' }, el);
+    }
+    return h('span.bd-thumb', { 'aria-hidden': 'true' }, TH.icon(icon, { size: 32 }));
+  }
   function pickKey(key) {
     save((b) => { b.cur = key; b.section = 'library'; b.browse = false; });
     patch();   // the viewer is on screen again before it is filled
@@ -577,7 +599,7 @@
   const USE = { afk: ['AFK', 'Runs by itself while you do something else nearby'], semi: ['Semi-AFK', 'Mostly automatic, you top it up or collect now and then'], manual: ['Manual', 'You do the work by hand'] };
   const CATS = [['all', 'All'], ['farm', 'Farms'], ['machine', 'Machines'], ['build', 'Structures'], ['yours', 'Yours']];
   const TECH = [['all', 'Any'], ['redstone', 'Redstone'], ['no-redstone', 'No redstone']];
-  const TAG_LABEL = { pistons: 'Pistons', observer: 'Observers', hoppers: 'Hoppers', crops: 'Crops', mobs: 'Mobs', food: 'Food', utility: 'Utility', house: 'Houses', defence: 'Defence', medieval: 'Medieval', landmark: 'Landmarks', coastal: 'Coastal', decor: 'Decor', japanese: 'Japanese', village: 'Village', wood: 'Wood', stone: 'Stone', 'no-redstone': 'No redstone', redstone: 'Redstone' };
+  const TAG_LABEL = { pistons: 'Pistons', observer: 'Observers', hoppers: 'Hoppers', crops: 'Crops', mobs: 'Mobs', food: 'Food', utility: 'Utility', house: 'Houses', defence: 'Defence', medieval: 'Medieval', landmark: 'Landmarks', coastal: 'Coastal', decor: 'Decor', japanese: 'Japanese', village: 'Village', wood: 'Wood', stone: 'Stone', 'no-redstone': 'No redstone', redstone: 'Redstone', statue: 'Statues', 'mob-head': 'Mob heads', ocean: 'Ocean', 'pixel-art': 'Pixel art' };
   const tagLabel = (t) => TAG_LABEL[t] || (t[0].toUpperCase() + t.slice(1));
   const NOT_TOPIC = new Set(['redstone', 'no-redstone', 'yours']);
   const LEVEL_RANK = { Easy: 0, Medium: 1, Hard: 2 };
@@ -587,7 +609,7 @@
   /** Everything the Library can show: our builds plus the files you opened (with the tags you gave them). */
   function libEntries() {
     const st = S(), fp = fileParts();
-    const farms = B().farms.FARMS.map((f) => ({ key: 'farm:' + f.id, farm: f, cat: f.cat || 'farm', name: f.name, pitch: f.pitch, icon: f.icon, use: f.use || null, tags: f.tags || [], level: f.level, dim: f.dim }));
+    const farms = B().farms.FARMS.map((f) => ({ key: 'farm:' + f.id, farm: f, cat: f.cat || 'farm', name: f.name, pitch: f.pitch, icon: f.icon, art: f.art || null, use: f.use || null, tags: f.tags || [], level: f.level, dim: f.dim }));
     const mine = fp.rows.map((r) => {
       const m = st.meta[r.key] || {};
       return { key: r.key, rec: r.rec, cat: 'yours', name: m.name || r.rec.name, pitch: r.rec.size.join(' × ') + (r.rec.session ? ' · this visit only' : ''), icon: null, use: m.use || null, tags: ['yours'].concat(m.tags || []), level: 'Easy', dim: null };
@@ -624,7 +646,7 @@
     const st = S(), on = st.cur === e.key;
     const del = e.rec ? tip(h('button.bd-x.bd-card-x', { type: 'button', 'aria-label': 'Remove ' + e.name, onclick: (ev) => { ev.stopPropagation(); removeFile(e.rec); } }, glyph('x')), 'Remove from the library') : null;
     return h('div.bd-cardwrap', h('button.bd-card' + (on ? '.on' : ''), { type: 'button', 'aria-pressed': String(on), onclick: () => pickKey(e.key) },
-      h('span.bd-card-top', e.icon ? thumb(e.icon) : h('span.bd-thumb.bd-thumb-file', { 'aria-hidden': 'true' }, glyph('file')), h('span.bd-card-name', e.name)),
+      h('span.bd-card-top', e.icon ? thumb(e.icon, e.art) : h('span.bd-thumb.bd-thumb-file', { 'aria-hidden': 'true' }, glyph('file')), h('span.bd-card-name', e.name)),
       h('span.bd-card-sub', e.pitch),
       h('span.bd-card-tags', useBadge(e.use), e.dim ? h('span.pill.bd-dim', DIM_NAME[e.dim]) : null, e.cat !== 'yours' ? h('span.pill.bd-level', e.level) : null,
         st.swaps[e.key] && Object.keys(st.swaps[e.key]).length ? h('span.pill.bd-custom', 'custom') : null)), del);
@@ -679,7 +701,7 @@
     const step = (d) => { if (!list.length) return; const j = i < 0 ? (d > 0 ? 0 : list.length - 1) : (i + d + list.length) % list.length; pickKey(list[j].key); };
     const act = [st.lib.type !== 'all', st.lib.use !== 'all', st.lib.tech !== 'all', st.lib.topic !== 'all', (st.lib.q || '').trim()].filter(Boolean).length;
     const key = h('button.btn.bd-ckey', { type: 'button', 'aria-label': 'Current build: ' + cur.name + '. Browse all builds', onclick: () => { save((b) => { b.browse = true; }); patch(); } },
-      cur.icon ? thumb(cur.icon) : h('span.bd-thumb.bd-thumb-file', { 'aria-hidden': 'true' }, glyph('file')),
+      cur.icon ? thumb(cur.icon, cur.art) : h('span.bd-thumb.bd-thumb-file', { 'aria-hidden': 'true' }, glyph('file')),
       h('span.bd-ckey-txt', h('span.bd-ckey-name', cur.name), h('span.bd-ckey-sub', [USE[cur.use] ? USE[cur.use][0] : null, cur.level, cur.dim ? DIM_NAME[cur.dim] : null].filter(Boolean).join(' · '))));
     tip(key, 'Browse all builds, with search and filters');
     const prev = tip(h('button.btn.small.bd-vk.sq', { type: 'button', 'aria-label': 'Previous build', disabled: list.length < 2, onclick: () => step(-1) }, glyph('left')), 'Previous build' + (act ? ' in this filter' : ''));
@@ -729,6 +751,7 @@
       h('div.bd-pan-head', h('h3', f.name), h('span.bd-pills', useBadge(f.use), h('span.pill.bd-dim', DIM_NAME[f.dim]), h('span.pill.bd-level', f.level), h('span.pill.bd-ed', 'Java'))),
       h('p.bd-pitch', f.pitch),
       h('p.bd-how', f.how),
+      optRows(f),
       f.useText ? [h('div.bd-sub', 'How you use it'), h('p.bd-use-text', f.useText)] : null,
       f.tags && f.tags.length ? h('div.bd-tagrow', f.tags.map((t) => h('span.pill.bd-tag', (t === 'no-redstone' ? 'No redstone' : t === 'redstone' ? 'Redstone' : TAG_LABEL[t] || t)))) : null,
       h('div.bd-sub', 'You need'),
@@ -739,6 +762,28 @@
       h('ol.bd-steps', f.steps.map((t) => h('li', t))),
       h('div.bd-sub', 'Good to know'),
       h('ul.bd-tips', f.tips.map((t) => h('li', t))));
+  }
+
+  /** Option rows of a built-in build that has some (the mob heads: size, tail): one exclusive seg each, the stage follows. */
+  function optRows(f) {
+    if (!f.opts || !f.opts.length) return null;
+    const o = farmOpts(f), key = 'farm:' + f.id;
+    const pick = (op, v) => {
+      if (o[op.id] === v) return;
+      save((b) => { b.fopt = b.fopt || {}; const m = b.fopt[f.id] || (b.fopt[f.id] = {}); m[op.id] = v; });
+      if (UI.shownKey === key) show(key, { layer: 'top' });   // no build animation: the new size just stands there, framed
+      patch();
+    };
+    /** Tooltip: what the choice means, and the size and block count it gives (built on first hover, then cached). */
+    const info = (op, c) => () => {
+      const s = B().farms.schematic(f.id, Object.assign({}, o, { [op.id]: c[0] }));
+      return [h('div.th-tooltip-title', c[2] || c[1]), s ? h('div.th-tooltip-sub', s.size.join(' × ') + ' · ' + fmtN(core().volume(s)) + ' blocks') : null].filter(Boolean);
+    };
+    return f.opts.map((op) => [h('div.bd-sub', op.label),
+      h('div.seg.bd-optseg', { role: 'radiogroup', 'aria-label': f.name + ' ' + op.label.toLowerCase() }, op.choices.map((c) => {
+        const on = o[op.id] === c[0];
+        return tip(h('button', { type: 'button', role: 'radio', 'aria-checked': String(on), class: on ? 'on' : null, onclick: () => pick(op, c[0]) }, c[1]), info(op, c));
+      }))]);
   }
 
   /** Blocks whose extra data (text, contents, patterns) lives outside the block state, so no schematic download here carries it. */
@@ -1171,6 +1216,7 @@
     init(store) {
       store.define('builds', DEFAULTS);
       const b = store.get().builds;
+      if (!b.fopt || typeof b.fopt !== 'object' || Array.isArray(b.fopt)) b.fopt = {};
       ['swaps', 'ticks', 'shape'].forEach((k) => { if (!b[k] || typeof b[k] !== 'object') b[k] = structuredClone(DEFAULTS[k]); });
       ['p', 'block', 'block2'].forEach((k) => { if (!b.shape[k] || typeof b.shape[k] !== 'object') b.shape[k] = {}; });
       if (!Array.isArray(b.files)) b.files = [];

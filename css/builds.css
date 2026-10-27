@@ -142,6 +142,12 @@
 }
 .bd-thumb .mc { filter: drop-shadow(0 2px 2px rgb(0 0 0 / .35)); }
 .bd-strip.on .bd-thumb .mc { filter: drop-shadow(0 0 6px color-mix(in srgb, var(--accent) 70%, transparent)) drop-shadow(0 2px 2px rgb(0 0 0 / .35)); }
+/* mob-head cards: the face cropped from the real mob skin (builds.js thumb, art); the dot is the guardian's pupil */
+.bd-thumb .bd-face { display: block; margin: 0; background-repeat: no-repeat; image-rendering: pixelated; image-rendering: crisp-edges; }
+.bd-face-dot { position: absolute; }
+/* size / tail of the mob heads (builds.js optRows): the well hugs its keys */
+.bd-optseg { width: fit-content; max-width: 100%; }
+.bd-optseg button { min-width: 44px; }
 .bd-thumb-file { color: var(--accent); }
 .bd-thumb-file .bd-ico { width: 20px; height: 20px; }
 .bd-filerow { display: flex; align-items: center; gap: 8px; }

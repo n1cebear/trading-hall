@@ -295,6 +295,53 @@ TH.builds = TH.builds || {};
         'Blast furnaces and smokers work the same way and smelt ores or food twice as fast.',
       ],
     },
+    {
+      id: 'guardian_head', cat: 'build', dim: 'overworld', icon: 'item/guardian_spawn_egg', level: 'Medium', name: 'Guardian head',
+      art: ['entity/guardian', 64, 64, 16, 16, 12, 12, [5, 5, 2, 2, '#790b12']],
+      tags: ['statue', 'mob-head', 'ocean'],
+      pitch: 'The ocean monument guardian as a giant statue: prismarine body, the big eye with its red pupil and twelve orange spikes, one on every edge. Perfectly symmetric.',
+      how: 'Made from the real mob: the game’s guardian model and texture, every texture pixel matched to the block with the closest colour. The spikes sit where the game puts them, in the middle of each edge at 45 degrees.',
+      opts: [
+        { id: 'size', label: 'Body width in blocks', def: '24', choices: [['16', '16', 'Body 16 blocks wide: one block per texture pixel'], ['24', '24', 'Body 24 blocks wide: one and a half blocks per pixel'], ['32', '32', 'Body 32 blocks wide: two blocks per pixel']] },
+        { id: 'tail', label: 'Tail', def: 'off', choices: [['off', 'Head only', 'Just the head with its spikes'], ['on', 'With tail', 'The three tail segments and the fin, straight back from the head']] },
+      ],
+      make: (o) => guardianHead(o),
+      steps: [
+        'Pick a size. Lay the bottom plate first, then go up layer by layer: the body is a hollow box with notched edges, one block thick.',
+        'Mottle the walls as in the picture: prismarine, dark prismarine for the shade, prismarine bricks for the light flecks and acacia wood where the spikes come out.',
+        'On the front, build the eye: white concrete with polished diorite corners, a dark prismarine band above it and the red concrete pupil in the middle.',
+        'Add the twelve spikes, one in the middle of every edge, pointing out at 45 degrees: orange concrete at the base, orange wool at the tip.',
+        'With the tail: three shrinking segments straight back from the rear, and the fin of stripped oak, mossy cobblestone and yellow terracotta on the last one.',
+      ],
+      tips: [
+        'Use "Only this layer" under the 3D view to read one layer at a time; the spikes are easiest from the side view.',
+        'It is hollow inside: a hidden room behind the eye, or a sea lantern chamber, fits easily.',
+        'Swap the whole orange colour set in Customise blocks for red or yellow spikes in one click.',
+        'Build it underwater next to an ocean monument; the prismarine looks right at home there.',
+      ],
+    },
+    {
+      id: 'creeper_head', cat: 'build', dim: 'overworld', icon: 'item/creeper_spawn_egg', level: 'Easy', name: 'Creeper head',
+      art: ['entity/creeper/creeper', 64, 32, 8, 8, 8, 8],
+      tags: ['statue', 'mob-head', 'pixel-art'],
+      pitch: 'A giant creeper head: the famous face on the front and the mottled green skin on the other five sides, copied pixel by pixel from the game texture.',
+      how: 'Every pixel of the creeper’s 8 x 8 head texture becomes a square of blocks. Six tones: black and green concrete for the face, lime concrete, lime wool, green wool and white concrete for the skin.',
+      opts: [
+        { id: 'size', label: 'Size in blocks', def: '24', choices: [['16', '16', '16 blocks a side: each texture pixel is 2 x 2 blocks'], ['24', '24', '24 blocks a side: each texture pixel is 3 x 3 blocks'], ['32', '32', '32 blocks a side: each texture pixel is 4 x 4 blocks']] },
+      ],
+      make: (o) => creeperHead(o),
+      steps: [
+        'Pick a size: every texture pixel is a 2 x 2, 3 x 3 or 4 x 4 square of blocks.',
+        'Lay the bottom face, then build the four walls ring by ring and close the top. The head is hollow, one block thick.',
+        'The south side is the face: black concrete for the eyes and the mouth, green concrete around them.',
+        'The other sides copy the creeper’s skin: lime concrete, lime wool, green wool and a few white concrete flecks.',
+      ],
+      tips: [
+        'Each side mirrors the left half of the real texture, so the head is perfectly symmetric. The face is symmetric in the game too.',
+        'Mobs can spawn on the flat top at night: put a few torches or lanterns up there.',
+        'A door in the back turns it into a small house.',
+      ],
+    },
   ];
 
   // the old roadmap list: [dimension, icon, name, pitch, optional link]
@@ -346,17 +393,233 @@ TH.builds = TH.builds || {};
     });
   }
 
+  /* ======================================================================
+   * Mob heads: statues voxelised from the real mob models and textures (Java 1.21.11 entity/guardian.png,
+   * entity/creeper/creeper.png). Every texel was matched once to the block whose texture has the closest average
+   * colour (CIELAB distance); the letters below are those blocks, '.' = a transparent texel. Both heads are mirror
+   * images left to right: the left half (the mob's right) is the source, the other half is its mirror.
+   * ====================================================================== */
+  const GUARDIAN_TEX = [
+    '.........RRRR...PPDPSSSSPPPPPPPPPSSPPPPP........BBPBPPPP........',
+    '........RRRRRR..DDDDSSSSDDDDDDDDSSSSDDDD........BDPBPPDB........',
+    '........RRRRRR..................................PPDPPPPP........',
+    '................................................PPPPPDPP........',
+    '................................................BDDPPDDP........',
+    '................................................PPPPPPPP........',
+    '................................................PPDPPPPP........',
+    '................................................PBPPPPPP........',
+    '........................................PPPPPBBPDDDDPPPPPPPPDDDD',
+    '........................................PDPDPPPPDPPDPDPPPDPPDPDD',
+    '........................................PPPDPPDPDDPDPDPPDDDPDPPD',
+    '........................................PPPPPPPPPDDDPPBPPPPPDDDD',
+    '................................................................',
+    '................................................................',
+    '................DDDDSSSDDDDDDDDDSSSSDDDD........................',
+    '................PPPPPSDDPPPPPPPPPSSPPDPP........................',
+    'PD............DPPPBBBBDBPPBBPD............DPBBPBBBPBBDPB........',
+    'PD............DPPPPPPDDPPPPPPD............DPBPDDPPPPDDDP........',
+    'PD............DPBPPPPPDPPPPBPD............DPPPDDDPPDDPPP........',
+    'PD............DPBPPPPPPPPPPPPD............DPPDDPDDDDPPPB........',
+    'PS............SPBDDDDDDDDDDPPS............SPBPPPPPDPPPPB........',
+    'SS............SSPDDwWWWWwDDPSS............SSPDPPDDDPPPPP........',
+    'SS............SSBDDWWWWWWDDPSS............SSPDPPDDDDPPPP........',
+    'PS............SPPPPwWWWWwPPPPS............SPPDDPPPPDDPPB........',
+    'PD............DPPPPPDPPPDPPPPD............DPDPDDPPPPDDPP........',
+    'PD............DPPPDDDPPDDPPDPD............DPDPPPPPPPDPPP........',
+    'PD............DPPDDDPPPPDPPDPD............DPPPPPPPPPPPPP........',
+    'PD............DPPPPPPDPPPDPPPD............DPPPPPPPPPPPPP........',
+    '............PDDP.........FMMMD..................................',
+    '............PDDP..........YYFMDD................................',
+    '............PDDP.........FFMMMPMD...............................',
+    '............DDDP..........YYYMMMMD..............................',
+    '............PSSP.........FFFMFMMPD.............PPPP.............',
+    '............SSSS..........YYYMMMDD.............DPPP.............',
+    '............SSSS.........FFMMMPDD..............PPPP.............',
+    '............PSSP..........YYFMDD...............PPDP.............',
+    '............PDDP.........FMMMD.................PPPP.............',
+    '............PDDP...............................PDPP.............',
+    '............PDDP.........................DPPPDPPPDPPDPPPP.......',
+    '............PDDP.........................PPDDPPDDPPPPPPDD.......',
+    'PPPDPPPPPPPPPD............DPPPPDPPPPPPPPPPPPPPPPPPPP............',
+    'PDDDPDPPPDDPPD............DPPPDPPPPPPPPPPPDDDDPPDDPP............',
+    'PDDDPPDPDDDPPD............DPPPDPPPPPPPPPPDDPDDPDDDDP............',
+    'PDPDDPDDDDPPPD............DPPPPPDPPPPPPPPDPPDDDDDDDP............',
+    'PDDDDDDDDPDPPS............SPPPPPDDPPPPPPPDDDDDPDDDPP............',
+    'PDPDDDPDPPDPSS............SSPPPPDDPPPPDDPDDDDPDPDPDP............',
+    'PPPDDPPDDDDPSS............SSPPPDDPDDDDPPPDDPPPPDPDDP............',
+    'PPPDPPDDDDDPPS............SPPPPDPPPPDPPPPDPPDPDDDDPP............',
+    'PPDDDDDDDPDPPD............DPPPDPPPPPDPPPPDDDDDDPDDDP............',
+    'PDDPPDDPDPPPPD............DPPPDPPPPDDPPPPPDDPPDDDDPP............',
+    'PDPPPDPDPPDPPD............DPPPPPPPDDPPPPPDPDPDDDDPDP............',
+    'PPPPPPPDPPPPPD............DPPPPPPPPDPPPPPPPPPPPPPDPP............',
+    '................PPPPSSSSPPPPPPPPSSSSPPPPPPPPSSSSPPPPPPPPSSSSDPPP',
+    '................DDDDSSSSDDDDDDDDSSSSDDDDDDDDSSSSDDDDDDDDSSSSDDDD',
+    '.......PPBPPP...................................................',
+    '.......PDPPDP...................................................',
+    '.......BDPPDP...................................................',
+    '.......BDPPDP...................................................',
+    '.......PDPPDP...................................................',
+    '.......PDPPDP...................................................',
+    '.......PPPPPP...................................................',
+    'BPBBPPPDPDPPPPPPPDDD............................................',
+    'PDDDDDPDDDPDDDDDPDDD............................................',
+    'PPPPPPPDDDPPPPPPPDDP............................................',
+  ];
+  const GUARDIAN_BLOCK = {
+    P: 'minecraft:prismarine', B: 'minecraft:prismarine_bricks', D: 'minecraft:dark_prismarine', S: 'minecraft:acacia_wood',
+    W: 'minecraft:white_concrete', w: 'minecraft:polished_diorite', R: 'minecraft:red_concrete',
+    O: 'minecraft:orange_wool', o: 'minecraft:orange_concrete', T: 'minecraft:orange_terracotta',
+    F: 'minecraft:stripped_oak_wood', M: 'minecraft:mossy_cobblestone', Y: 'minecraft:yellow_terracotta',
+  };
+  // vanilla GuardianModel boxes in model units (x = the mob's left, y DOWN, z = back; the eye looks toward -z):
+  // [x0, y0, z0, w, h, d, texture u, v]. The body is a 12 x 12 x 16 core with 2 px plates on four sides, so a 16 px
+  // cube with notched edges; the right plate is a mirrored copy of the left one in the game as well.
+  const G_BODY = [[-6, 10, -8, 12, 12, 16, 0, 0], [-8, 10, -6, 2, 12, 12, 0, 28], [6, 10, -6, 2, 12, 12, 0, 28], [-6, 8, -6, 12, 2, 12, 16, 40], [-6, 22, -6, 12, 2, 12, 16, 40]];
+  const G_TAIL = [[-2, 14, 7, 4, 4, 8, 40, 0], [-1.5, 14.5, 14, 3, 3, 7, 0, 54], [-1, 15, 20, 2, 2, 6, 41, 32]];
+  const G_FIN = [-0.5, 11.5, 23, 1, 9, 9, 25, 19];   // the game puts it at x 0..1, half a texel off the middle; centred here
+  /** The texel of a box face at a point (model units). f: n = front (-z), s = back, w = -x, e = +x, u = top (-y), d = bottom. */
+  function gTexel(b, f, x, y, z) {
+    const [x0, y0, z0, w, h, d, u, v] = b;
+    const cl = (t, n) => Math.max(0, Math.min(n - 1, Math.floor(t + 1e-6)));
+    const i = cl(x - x0, w), j = cl(y - y0, h), k = cl(z - z0, d);
+    const uv = { n: [u + d + i, v + d + j], s: [u + 2 * d + w + (w - 1 - i), v + d + j], w: [u + (d - 1 - k), v + d + j], e: [u + d + w + k, v + d + j],
+      u: [u + d + i, v + (d - 1 - k)], d: [u + d + w + i, v + (d - 1 - k)] }[f];
+    const c = (GUARDIAN_TEX[uv[1]] || '')[uv[0]];
+    return c && c !== '.' ? c : null;
+  }
+  const inBox = (b, x, y, z) => x >= b[0] && x < b[0] + b[3] && y >= b[1] && y < b[1] + b[4] && z >= b[2] && z < b[2] + b[5];
+  /**
+   * The twelve spikes: one in the middle of every edge of the 16 px cube, 2 x 9 x 2, turned 45 degrees so it points
+   * straight out of the edge (vanilla SPIKE_X/Y/Z and their rotations). World units: X right, Y up, Z toward the viewer.
+   * The tip of the spike texture (bright orange) is the outer end.
+   */
+  const G_SPIKES = (function () {
+    const out = [], r = Math.SQRT1_2;
+    [-1, 1].forEach((a) => [-1, 1].forEach((b) => {
+      out.push({ p: [0, 8 * a, 8 * b], e: [1, 0, 0], n: [0, a * r, b * r] });   // edges along X
+      out.push({ p: [8 * a, 0, 8 * b], e: [0, 1, 0], n: [a * r, 0, b * r] });   // along Y
+      out.push({ p: [8 * a, 8 * b, 0], e: [0, 0, 1], n: [a * r, b * r, 0] });   // along Z
+    }));
+    out.forEach((sp) => { const [a, b, c] = sp.n, [d, e, f] = sp.e; sp.m = [b * f - c * e, c * d - a * f, a * e - b * d]; });
+    return out;
+  })();
+  const G_SCALE = { 16: 1, 24: 1.5, 32: 2 };
+
+  /** Guardian: o.size '16' | '24' | '32' (the body's width in blocks), o.tail 'off' | 'on'. Hollow body; solid spikes, tail and fin. */
+  function guardianHead(o) {
+    const s = G_SCALE[o.size] || 1.5, tail = o.tail === 'on';
+    const W = Math.round(24 * s), H = W, Zmin = tail ? -34 : -12, L = Math.round((12 - Zmin) * s);   // -34: whole voxel steps from -12 at every scale, so the head is the same with and without the tail
+    const at = (i, j, k) => (j * L + k) * W + i;
+    const X = (i) => (i + 0.5) / s - 12, Y = (j) => (j + 0.5) / s - 12, Z = (k) => (k + 0.5) / s + Zmin;
+    const boxes = tail ? G_BODY.concat(G_TAIL) : G_BODY;
+    // model coordinates of a voxel centre: x = X, y = 16 - Y, z = -Z
+    const solid = new Uint8Array(W * H * L);
+    for (let j = 0; j < H; j++) for (let k = 0; k < L; k++) for (let i = 0; i < W; i++) {
+      const x = X(i), y = 16 - Y(j), z = -Z(k);
+      if (G_BODY.some((b) => inBox(b, x, y, z))) solid[at(i, j, k)] = 1;
+      else if (tail && G_TAIL.some((b) => inBox(b, x, y, z))) solid[at(i, j, k)] = 2;   // the tail is solid: hollow segments would only touch at their corners
+    }
+    // a body block is on the surface when a neighbour is not body (the tail counts as outside, so the back wall stays
+    // closed behind it and the tail sits on it); a tail block when a neighbour is empty
+    const isSolid = (i, j, k, only) => i >= 0 && j >= 0 && k >= 0 && i < W && j < H && k < L && (only ? solid[at(i, j, k)] === only : solid[at(i, j, k)] > 0);
+    // faces in the order that wins on an edge: front, top, sides, back, bottom ([di, dj, dk, model face])
+    const DIRS = [[0, 0, 1, 'n'], [0, 1, 0, 'u'], [-1, 0, 0, 'w'], [1, 0, 0, 'e'], [0, 0, -1, 's'], [0, -1, 0, 'd']];
+    const out = new Array(W * H * L).fill(null);
+    const eps = 1e-6;
+    for (let j = 0; j < H; j++) for (let k = 0; k < L; k++) for (let i = 0; i < W / 2; i++) {
+      const x = X(i), y = 16 - Y(j), z = -Z(k), id = at(i, j, k);
+      if (solid[id]) {
+        let c = null, face = null;
+        for (const [di, dj, dk, f] of DIRS) {
+          if (isSolid(i + di, j + dj, k + dk, solid[id] === 1 ? 1 : 0)) continue;
+          if (!face) face = f;
+          const nx = x + di / s, ny = y - dj / s, nz = z - dk / s;
+          for (const b of boxes) if (inBox(b, x, y, z) && !inBox(b, nx, ny, nz)) { c = gTexel(b, f, x, y, z); if (c) break; }
+          if (c) { face = f; break; }
+        }
+        if (!face) { if (solid[id] === 2) out[id] = 'P'; continue; }   // inside: the body is hollow, the tail solid
+        // the eye: a 2 x 2 x 1 box just in front of the face, centred (it follows the player in the game)
+        if (face === 'n' && z < -7 && Math.abs(x) <= 1 + eps && y >= 15 - eps && y <= 17 + eps) c = 'R';
+        out[id] = c || 'P';
+        continue;
+      }
+      let sp = null;
+      for (const S of G_SPIKES) {
+        const dx = x - S.p[0], dy = Y(j) - S.p[1], dz = Z(k) - S.p[2];
+        const al = dx * S.n[0] + dy * S.n[1] + dz * S.n[2];
+        if (Math.abs(al) > 4.5 + eps) continue;
+        if (Math.abs(dx * S.e[0] + dy * S.e[1] + dz * S.e[2]) > 1 + eps || Math.abs(dx * S.m[0] + dy * S.m[1] + dz * S.m[2]) > 1 + eps) continue;
+        const tip = 4.5 - al;   // texture rows from the tip: bright orange, then orange, then the dark base
+        sp = tip < 1.5 ? 'O' : tip < 7.5 ? 'o' : 'T';
+        break;
+      }
+      if (sp) { out[id] = sp; continue; }
+      if (tail && x >= G_FIN[0] - eps && y >= G_FIN[1] && y < G_FIN[1] + G_FIN[4] && z >= G_FIN[2] && z < G_FIN[2] + G_FIN[5]) out[id] = gTexel(G_FIN, 'w', x, y, z);
+    }
+    for (let j = 0; j < H; j++) for (let k = 0; k < L; k++) for (let i = W / 2; i < W; i++) out[at(i, j, k)] = out[at(W - 1 - i, j, k)];
+    const name = 'Guardian head ' + (o.size || '24') + (tail ? ' with tail' : '');
+    return TH.builds.core.trim(TH.builds.core.fromFunction([W, H, L], (i, j, k) => { const c = out[at(i, j, k)]; return c ? GUARDIAN_BLOCK[c] : null; }, name));
+  }
+
+  // creeper head (8 x 8 x 8 box at texture 0,0): top 8..16 x 0..8, bottom 16..24, then the sides in a row at y 8..16:
+  // right side 0..8, face 8..16, left side 16..24, back 24..32
+  const CREEPER_TEX = [
+    '........GPPPPMPGGPPGMPPP........',
+    '........MMPPPMPMGPGGPMPP........',
+    '........GGMPGWPPPPGPMPGP........',
+    '........GGMGGPGGPPWWWGGP........',
+    '........GGPPGWGGWGGWWGMP........',
+    '........MGPMWMWGPPGWMGMP........',
+    '........PPMGPMMMMGWMMPGG........',
+    '........GGMMWMPMGPGGPMPG........',
+    'GGPGGMGGPMGPWPGMGGPMGMGGWGGWPPGM',
+    'GMPMGPGPMGGGMPGWGMWMMPGWMPGMMGGP',
+    'MWPPPMMPGDDPMDDWMWPGMMMWPGWMMGPG',
+    'GWGGPPPPGDKGGKDGPWGGWPPWPGPGMPMG',
+    'GPGMGGGPPGPDDWMGGWPGWPGPPGWGGPMP',
+    'GPMMMGGPPMDKKDPPGWMGWGGPPMPGMPGW',
+    'MPGMMGPPPMKKKKGMMWPMMGWWPMMGWGGM',
+    'GWPPPGPMPPDPPDMGGPPPWGWMGGMPPGMG',
+  ];
+  const CREEPER_BLOCK = {
+    K: 'minecraft:black_concrete', D: 'minecraft:green_concrete', M: 'minecraft:green_wool', G: 'minecraft:lime_concrete', P: 'minecraft:lime_wool', W: 'minecraft:white_concrete',
+  };
+  /** Creeper: o.size '16' | '24' | '32' (the cube's side), each texel a 2, 3 or 4 block square; the face looks south. Hollow. */
+  function creeperHead(o) {
+    const s = { 16: 2, 24: 3, 32: 4 }[o.size] || 3, N = 8 * s;
+    const t = (u, v) => CREEPER_TEX[v][u];
+    return TH.builds.core.fromFunction([N, N, N], (i, j, k) => {
+      if (i > 0 && j > 0 && k > 0 && i < N - 1 && j < N - 1 && k < N - 1) return null;   // hollow
+      const m = i < N / 2 ? i : N - 1 - i;   // the right half mirrors the left half
+      const c = Math.floor(m / s), r = 7 - Math.floor(j / s), q = Math.floor(k / s);
+      let ch;
+      if (k === N - 1) ch = t(8 + c, 8 + r);   // the face
+      else if (j === N - 1) ch = t(8 + c, q);   // top
+      else if (m === 0) ch = t(q, 8 + r);   // the sides (the mob's right side, mirrored on the left)
+      else if (k === 0) ch = t(31 - c, 8 + r);   // back
+      else ch = t(16 + c, q);   // bottom
+      return CREEPER_BLOCK[ch] || CREEPER_BLOCK.G;
+    }, 'Creeper head ' + (o.size || '24'));
+  }
+
+  /** A build's options with every missing or unknown value set to its default ({} for builds without options). */
+  function options(id, o) {
+    const f = FARMS.find((x) => x.id === id), out = {};
+    ((f && f.opts) || []).forEach((op) => { const v = o && o[op.id]; out[op.id] = op.choices.some((c) => c[0] === v) ? v : op.def; });
+    return out;
+  }
   const cache = new Map();
-  /** The farm's original schematic (built once, never modified: callers get a fresh copy when they need to change it). */
-  function schematic(id) {
+  /** The farm's original schematic (built once per option set, never modified: callers get a fresh copy when they need to change it). */
+  function schematic(id, o) {
     const f = FARMS.find((x) => x.id === id);
     if (!f) return null;
-    let s = cache.get(id);
-    if (!s) { s = TH.builds.io.fromJSON({ name: f.name, legend: f.legend, layers: f.layers }); cache.set(id, s); }
+    const opt = options(id, o), ck = f.make ? id + '|' + JSON.stringify(opt) : id;
+    let s = cache.get(ck);
+    if (!s) { s = f.make ? f.make(opt) : TH.builds.io.fromJSON({ name: f.name, legend: f.legend, layers: f.layers }); cache.set(ck, s); }
     return s;
   }
 
   FARMS.forEach((f) => { f.cat = f.cat || 'farm'; });
 
-  TH.builds.farms = { FARMS, PLANNED, DIMS, schematic, phases, hasPhases: (id) => !!PHASES[id] };
+  TH.builds.farms = { FARMS, PLANNED, DIMS, schematic, options, phases, hasPhases: (id) => !!PHASES[id] };
 })();

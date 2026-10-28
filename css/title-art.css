@@ -55,6 +55,13 @@
 :root[data-tool="portal"] .th-art u:nth-child(3n) { background: #e08bff; }
 :root[data-tool="portal"] .th-art u:nth-child(5n) { background: #7a2dd6; }
 
+/* ----- Skin Editor: square paint pixels in skin colours drip down, then fade, like dabs of a pencil ----- */
+@keyframes th-dab { 0% { transform: translate(0, -96px) scale(.4); opacity: 0; } 20% { opacity: .95; } 55% { transform: translate(calc(var(--s) * .3), -20px) scale(1); opacity: .9; } 70% { transform: translate(calc(var(--s) * .3), -20px) scale(1); opacity: .9; } 100% { transform: translate(calc(var(--s) * .3), -20px) scale(1); opacity: 0; } }
+:root[data-tool="skins"] .th-art u { animation-name: th-dab; animation-timing-function: steps(8, end); background: var(--accent); box-shadow: inset calc(var(--z) / -4) calc(var(--z) / -4) 0 rgb(0 0 0 / .25); }
+:root[data-tool="skins"] .th-art u:nth-child(4n + 1) { background: #c68642; }
+:root[data-tool="skins"] .th-art u:nth-child(4n + 2) { background: #3ab3da; }
+:root[data-tool="skins"] .th-art u:nth-child(5n) { background: #80c71f; }
+
 /* ----- Enchanting: the bookshelves of the enchanting room stand to both sides of the title ----- */
 .th-shelf { --sp1: color-mix(in srgb, var(--accent) 52%, var(--bg)); --sp2: color-mix(in srgb, var(--accent) 24%, var(--text) 14%); --sp3: color-mix(in srgb, var(--accent) 34%, var(--bg)); --sp4: color-mix(in srgb, var(--text) 24%, var(--bg)); --plank: color-mix(in srgb, var(--accent) 16%, var(--text) 18%);
   position: absolute; bottom: 4px; width: 26%; display: flex; flex-direction: column-reverse; opacity: .55;

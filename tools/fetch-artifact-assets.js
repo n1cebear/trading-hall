@@ -11,7 +11,9 @@ const RAW = `https://raw.githubusercontent.com/InventivetalentDev/minecraft-asse
 const API = (d) => `https://api.github.com/repos/InventivetalentDev/minecraft-assets/contents/assets/minecraft/textures/${d.slice(0, -1)}?ref=${VERSION}`;
 const DIRS = ['entity/equipment/humanoid/', 'entity/equipment/humanoid_leggings/', 'entity/equipment/wings/', 'trims/entity/humanoid/',
   'trims/entity/humanoid_leggings/', 'trims/color_palettes/', 'trims/items/'];
-const FILES = ['entity/player/wide/steve.png', 'entity/player/slim/alex.png', 'misc/enchanted_glint_item.png', 'misc/enchanted_glint_armor.png'];
+const FILES = ['misc/enchanted_glint_item.png', 'misc/enchanted_glint_armor.png'];
+// the nine default player skins in both arm models (Skin Editor templates + gallery; Trims uses steve / alex)
+['steve', 'alex', 'ari', 'efe', 'kai', 'makena', 'noor', 'sunny', 'zuri'].forEach((n) => ['wide', 'slim'].forEach((m) => FILES.push('entity/player/' + m + '/' + n + '.png')));
 
 // mob faces of the page background (entity skins listed in icons.js) and the mob-head card art in builds-farms.js (art: ['entity/...', ...])
 for (const f of ['js/core/icons.js', 'js/modules/builds-farms.js']) {

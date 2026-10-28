@@ -21,7 +21,7 @@ vm.runInContext(`
     util: { h: () => document.createElement('div'), uid: (p) => p + Math.random(), toast() {}, clamp: (n, a, b) => Math.max(a, Math.min(b, n)), tooltip() {} },
     icon: Object.assign(() => null, { tex: (p) => 'https://x/' + p + '.png', trimKey: (id) => 'item/' + id + '_armor_trim_smithing_template', trimMaterialKey: (n) => 'item/' + n }),
     app: { register() {} } };`, ctx);
-for (const f of ['js/data/trims.js', 'js/modules/trims.js']) vm.runInContext(fs.readFileSync(path.join(root, f), 'utf8'), ctx, { filename: f });
+for (const f of ['js/data/trims.js', 'js/core/mc-skin.js', 'js/modules/trims.js']) vm.runInContext(fs.readFileSync(path.join(root, f), 'utf8'), ctx, { filename: f });
 const T = ctx.TH.trims, D = ctx.TH.data;
 
 let n = 0;

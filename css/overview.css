@@ -35,6 +35,7 @@
 .lp-pane[data-tool="palettes"] { --tc: var(--c-pal); }
 .lp-pane[data-tool="materials"] { --tc: var(--c-mat); }
 .lp-pane[data-tool="potions"] { --tc: var(--c-pot); }
+.lp-pane[data-tool="skins"] { --tc: var(--c-skin); }
 .lp-stage.has-open .lp-pane.is-open { flex-grow: 5; }
 .lp-pane:focus-visible { outline: 2px solid var(--tc); outline-offset: -4px; }
 
@@ -329,3 +330,16 @@
   animation: lp-pbub 3.6s ease-in infinite; animation-delay: var(--o, 0s); }
 @keyframes lp-pbub { 0% { transform: translate(0, 0) scale(.5); opacity: 0; } 15% { opacity: .95; } 100% { transform: translate(var(--dx, 0), -150px) scale(1.1); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .lp-pbub { display: none; } }
+
+/* skins scene: the flat skin sheet with a brush cursor gliding over it, swatches bobbing, pixels popping off the brush */
+.lp-sksheet { width: 208px; height: 208px; padding: 8px; border-radius: 6px; background: repeating-conic-gradient(color-mix(in srgb, var(--text) 10%, transparent) 0 25%, transparent 0 50%) 0 0 / 13px 13px;
+  box-shadow: 0 14px 30px -14px rgb(0 0 0 / .55); transform: rotate(-4deg); }
+.lp-sksheet img { display: block; width: 192px; height: 192px; image-rendering: pixelated; }
+.lp-skcur { position: absolute; left: 8px; top: 8px; width: 12px; height: 12px; border: 2px solid var(--tc); box-shadow: 0 0 10px var(--tc); animation: lp-skcur 7s steps(1) infinite; }
+@keyframes lp-skcur { 0% { transform: translate(24px, 24px); } 12% { transform: translate(36px, 24px); } 24% { transform: translate(60px, 72px); } 36% { transform: translate(120px, 72px); }
+  48% { transform: translate(132px, 60px); } 60% { transform: translate(72px, 132px); } 72% { transform: translate(24px, 156px); } 84% { transform: translate(156px, 156px); } 100% { transform: translate(24px, 24px); } }
+.lp-skswatch { width: 40px; height: 40px; border-radius: 5px; box-shadow: inset 2px 2px 0 rgb(255 255 255 / .3), inset -3px -3px 0 rgb(0 0 0 / .25), 0 8px 16px -8px rgb(0 0 0 / .6); animation: lp-sw-bob 4.2s ease-in-out infinite; animation-delay: var(--o, 0s); }
+.lp-skbrush { width: 88px; height: 88px; filter: drop-shadow(0 10px 12px rgb(0 0 0 / .35)); }
+.lp-skpops { position: absolute; inset: 0; }
+.lp-skpop { position: absolute; top: 214px; width: 9px; height: 9px; border-radius: 1px; background: var(--c); opacity: 0; animation: lp-mpop 3.6s ease-out infinite; animation-delay: var(--o, 0s); }
+@media (prefers-reduced-motion: reduce) { .lp-skpop, .lp-skcur { display: none; } }

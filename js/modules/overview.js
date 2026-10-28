@@ -43,6 +43,9 @@
     { id: 'trims', line: 'Every armor trim, live in 3D.', kicker: 'Armor trims', wall: 'block/deepslate_tiles',
       pitch: 'Dress a 3D character in any armor and trim, piece by piece, then get the shopping list.',
       points: ['Live 3D preview', 'Every pattern and material', 'Skins and saved outfits'], unit: 'templates' },
+    { id: 'skins', line: 'Paint your own skin, in 3D and flat.', kicker: 'Skin editor', wall: 'block/white_wool',
+      pitch: 'Make a skin from scratch or edit any skin: paint on the 3D model or the flat sheet, with layers, mirror painting and saved versions.',
+      points: ['Paint on the model and the sheet', 'Layers, mirror and undo', 'Versions and My skins'], unit: '' },
     { id: 'builds', line: 'Farms and builds in 3D, block by block.', kicker: 'Build planning', wall: 'block/bricks',
       pitch: 'Look at farms and builds in 3D, open your own schematics and shape domes, spheres and towers.',
       points: ['3D viewer, layer by layer', 'Your own schematics', 'Shape generator'], unit: '' },
@@ -144,6 +147,18 @@
     ];
   }
 
+  function sceneSkins() {
+    // the flat skin sheet with a brush cursor gliding over it, paint swatches bobbing and pixels popping off the brush
+    const sw = ['#3c44aa', '#c68642', '#80c71f', '#b02e26'].map((c, i) => at(262, 40 + i * 52, '.lp-skswatch', null, { background: c, '--o': (-i * 0.6).toFixed(2) + 's' }));
+    const pops = ['#3c44aa', '#c68642', '#80c71f', '#fed83d', '#b02e26', '#3ab3da'].map((c, i) => h('span.lp-skpop', { style: { left: px(150 + (i % 3) * 26), '--c': c, '--o': (-i * 0.55).toFixed(2) + 's', '--dx': px(((i * 19) % 40) - 20) } }));
+    return [
+      layer(4, h('div.lp-halo')),
+      layer(10, at(26, 56, '.lp-sksheet', [h('img', { src: tex('entity/player/wide/steve'), alt: '', draggable: false }), h('i.lp-skcur')])),
+      layer(18, ...sw),
+      layer(24, h('div.lp-skpops', pops), at(168, 196, '.lp-skbrush', h('div.lp-bob', TH.icon('item/brush', { size: 88 })))),
+    ];
+  }
+
   function sceneBuilds() {
     const s = 34, ox = 180, oy = 132;   // iso origin of grid corner (0,0,0) inside the scene box
     const P = 'block/oak_planks', L = { top: 'block/oak_log_top', side: 'block/oak_log' }, G = 'block/glass', C = 'block/cobblestone';
@@ -212,7 +227,7 @@
     ];
   }
 
-  const SCENES = { enchanting: sceneEnchanting, potions: scenePotions, hall: sceneHall, trims: sceneTrims, builds: sceneBuilds, materials: sceneMaterials, palettes: scenePalettes, portal: scenePortal };
+  const SCENES = { enchanting: sceneEnchanting, potions: scenePotions, hall: sceneHall, trims: sceneTrims, skins: sceneSkins, builds: sceneBuilds, materials: sceneMaterials, palettes: scenePalettes, portal: scenePortal };
 
   const reduced = () => !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
   const hovers = () => !!(window.matchMedia && matchMedia('(hover: hover)').matches);
@@ -319,7 +334,7 @@
     root.append(stage);
   }
 
-  // number keys 1-8 open the tools while the landing page is showing
+  // number keys 1-9 open the tools while the landing page is showing
   document.addEventListener('keydown', (e) => {
     if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
     if (!/^[1-9]$/.test(e.key)) return;

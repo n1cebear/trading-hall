@@ -17,7 +17,7 @@
   --muted: #a4a3ae;
   --faint: #6b6a76;
   /* per-feature colours (see [data-tool] block below); dark values */
-  --c-hall: #17dd62; --c-ench: #b07cff; --c-trim: #4aedd9; --c-home: #f5c04a; --c-build: #ff8a3d; --c-portal: #ff5a4e; --c-pal: #ff7ab8; --c-mat: #cfd64a; --c-pot: #4ab0ff;
+  --c-hall: #17dd62; --c-ench: #b07cff; --c-trim: #4aedd9; --c-home: #f5c04a; --c-build: #ff8a3d; --c-portal: #ff5a4e; --c-pal: #ff7ab8; --c-mat: #cfd64a; --c-pot: #4ab0ff; --c-skin: #8c96ff;
   --on-accent: #04140a; --mix-hi: #fff;
   --accent: #17dd62;          /* default = Hall emerald; [data-tool] swaps the whole family */
   --accent-2: #7af0b3;
@@ -62,7 +62,7 @@
     --edge-hi: rgb(255 255 255 / .6); --edge-lo: rgb(90 60 20 / .18); --sel-sh: rgb(90 60 20 / .34);
     --shadow: 0 1px 0 var(--edge-hi) inset, 0 -2px 0 var(--edge-lo) inset, 0 8px 22px -14px rgb(70 45 10 / .45);
     --grid-line: rgb(90 60 20 / .045); --glow-a: rgb(38 71 184 / .10); --glow-b: rgb(18 134 79 / .10); --mob-op: .16;
-    --c-hall: #0b7a35; --c-ench: #7b3fc4; --c-trim: #0d7d76; --c-home: #8f5f0c; --c-build: #b85a12; --c-portal: #b3261e; --c-pal: #b3265f; --c-mat: #69730b; --c-pot: #1a5fa6; --on-accent: #fbf5e6; --mix-hi: #000;
+    --c-hall: #0b7a35; --c-ench: #7b3fc4; --c-trim: #0d7d76; --c-home: #8f5f0c; --c-build: #b85a12; --c-portal: #b3261e; --c-pal: #b3265f; --c-mat: #69730b; --c-pot: #1a5fa6; --c-skin: #3f47b8; --on-accent: #fbf5e6; --mix-hi: #000;
     color-scheme: light;
   }
 }
@@ -76,7 +76,7 @@
   --edge-hi: rgb(255 255 255 / .6); --edge-lo: rgb(90 60 20 / .18); --sel-sh: rgb(90 60 20 / .34);
   --shadow: 0 1px 0 var(--edge-hi) inset, 0 -2px 0 var(--edge-lo) inset, 0 8px 22px -14px rgb(70 45 10 / .45);
   --grid-line: rgb(90 60 20 / .045); --glow-a: rgb(38 71 184 / .10); --glow-b: rgb(18 134 79 / .10); --mob-op: .16;
-  --c-hall: #0b7a35; --c-ench: #7b3fc4; --c-trim: #0d7d76; --c-home: #8f5f0c; --c-build: #b85a12; --c-portal: #b3261e; --c-pal: #b3265f; --c-mat: #69730b; --c-pot: #1a5fa6; --on-accent: #fbf5e6; --mix-hi: #000;
+  --c-hall: #0b7a35; --c-ench: #7b3fc4; --c-trim: #0d7d76; --c-home: #8f5f0c; --c-build: #b85a12; --c-portal: #b3261e; --c-pal: #b3265f; --c-mat: #69730b; --c-pot: #1a5fa6; --c-skin: #3f47b8; --on-accent: #fbf5e6; --mix-hi: #000;
   color-scheme: light;
 }
 
@@ -93,6 +93,7 @@
 :root[data-tool="palettes"] { --tc: var(--c-pal); }
 :root[data-tool="materials"] { --tc: var(--c-mat); }
 :root[data-tool="potions"] { --tc: var(--c-pot); }
+:root[data-tool="skins"] { --tc: var(--c-skin); }
 :root[data-tool] {
   --accent: var(--tc);
   --accent-2: color-mix(in srgb, var(--tc) 72%, var(--mix-hi));
@@ -310,6 +311,7 @@ h1, h2, h3 { margin: 0; }
 .nav-item[data-tool="palettes"] { --tc: var(--c-pal); }
 .nav-item[data-tool="materials"] { --tc: var(--c-mat); }
 .nav-item[data-tool="potions"] { --tc: var(--c-pot); }
+.nav-item[data-tool="skins"] { --tc: var(--c-skin); }
 /* Nav fit (app.js fitNav, measured, not a breakpoint): #nav[data-fit] = full | short | icons (inactive tabs icon-only,
    the active one keeps its label) | all (every tab icon-only) | tight (= all, and .topbar[data-brand="compact"] folds the brand
    to its hourglass; name stays in its aria-label + tooltip). No data-fit yet = short names. Phones ignore it (bottom bar). */
@@ -1014,4 +1016,15 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; }
 @media (max-width: 640px) {
   :root:root:root .nav { gap: 3px; }
   :root:root:root .nav .nav-item .nav-name { font-size: 9px; letter-spacing: 0; }
+}
+
+/* phones: nine tabs (Skin Editor joined). Measured at 390 / 360 / 320 px: the longest short labels (ENCHANT, PALETTE) need
+   a notch smaller type and slightly tighter letters below ~400px so no label is ever clipped */
+@media (max-width: 400px) {
+  :root:root:root .nav { gap: 2px; }
+  :root:root:root .nav .nav-item .nav-name { font-size: 8px; letter-spacing: -.3px; }
+}
+@media (max-width: 350px) {
+  :root:root:root .nav .nav-item .nav-name { font-size: 7px; letter-spacing: -.4px; }
+  :root:root:root .nav-item .nav-icon { width: 24px; height: 24px; }
 }

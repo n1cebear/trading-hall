@@ -210,7 +210,8 @@ TH.skinsView = (function () {
       let r = curRect;
       if (selMask || selDirty) {   // repaint the whole small canvas: selection tint, then the cursor
         x.clearRect(0, 0, 64, 64);
-        if (selMask) { x.fillStyle = 'rgba(140,150,255,.42)'; for (let i = 0; i < 4096; i++) if (selMask[i]) x.fillRect(i & 63, i >> 6, 1, 1); }
+        // only the rim of the selection is marked, so the selected pixels keep their true colours on the model
+        if (selMask) { x.fillStyle = 'rgba(140,150,255,.6)'; const m = selMask; for (let i = 0; i < 4096; i++) { if (!m[i]) continue; const cx = i & 63, cy = i >> 6; if (cx === 0 || cy === 0 || cx === 63 || cy === 63 || !m[i - 1] || !m[i + 1] || !m[i - 64] || !m[i + 64]) x.fillRect(cx, cy, 1, 1); } }
         r = { y0: 0, y1: 63 }; selDirty = false;
       } else if (curRect) x.clearRect(0, curRect.y0, 64, curRect.y1 - curRect.y0 + 1);
       curRect = null;

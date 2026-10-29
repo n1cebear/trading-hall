@@ -60,8 +60,8 @@
 
   const UI_DEFAULTS = {
     tool: 'pencil', size: 1, shape: 'square', hardness: 1, opacity: 1, amount: 0.25, shadeMode: 'darken', noiseMode: 'noise', tolerance: 0, contiguous: true, limit: 'none',
-    sample: 'layer', filled: false, gradType: 'linear', gradSteps: 0, dither: false, selMode: 'rect', selOp: 'new', sym: { body: false, faceX: false, faceY: false },
-    color: '#3c44aaff', color2: '#f9fffeff', recent: [], palettes: [], anim: 'idle', speed: 1, bg: 'studio', bgColor: '#20212b', lit: true, overlay: 'none', gameLook: true,
+    sample: 'layer', filled: false, gradType: 'linear', gradAxis: 'height', gradLayers: 'this', gradEnds: 'picked', gradSteps: 0, dither: false, selMode: 'rect', selOp: 'new', sym: { body: false, faceX: false, faceY: false },
+    color: '#3c44aaff', color2: '#f9fffeff', recent: [], palettes: [], anim: 'idle', speed: 1, bg: 'studio', bgColor: '#20212b', lit: false, litV: 2, overlay: 'none', gameLook: true,
     main: 'model', dock: true, dockZoom: 4, sheetZoom: 0, sheetGrid: true, sheetLabels: false, hidden: {}, locks: {}, capeOn: true, elytra: false, side: 'versions', view: 'model', defModel: 'auto',
     tab: 'layers', swatches: 'skin',
   };
@@ -85,6 +85,13 @@
     if (!ANIMS.some((a) => a[0] === u.anim)) u.anim = 'idle';
     if (!BGS.some((b) => b.id === u.bg)) u.bg = 'studio';
     if (!['none', 'grid', 'parts'].includes(u.overlay)) u.overlay = 'none';
+    // true colours by default (Oct 2026): shading made the back and side faces look darker / shifted although the pixels
+    // matched the front; it stays one key away in View. Old saves switch to true colours once.
+    if (u.litV !== 2) { u.lit = false; u.litV = 2; }
+    if (!['linear', 'radial', 'part'].includes(u.gradType)) u.gradType = 'linear';
+    if (!['height', 'width'].includes(u.gradAxis)) u.gradAxis = 'height';
+    if (!['this', 'both'].includes(u.gradLayers)) u.gradLayers = 'this';
+    if (!['picked', 'skin'].includes(u.gradEnds)) u.gradEnds = 'picked';
     if (!['model', 'sheet'].includes(u.main)) u.main = 'model';
     u.dock = u.dock !== false; u.dockZoom = clamp(Math.round(+u.dockZoom || 4), 2, 8);
     delete u.view; delete u.sheetOpen;
@@ -381,8 +388,8 @@
     patchAll();
     return true;
   }
-  function undo() { if (ED.stroke) return; commitFloat(); const r = ED.hist.undo(ED.doc); if (!r) { toast('Nothing to undo'); return; } afterHist(r); toast('Undo: ' + r.name); }
-  function redo() { if (ED.stroke) return; commitFloat(); const r = ED.hist.redo(ED.doc); if (!r) { toast('Nothing to redo'); return; } afterHist(r); toast('Redo: ' + r.name); }
+  function undo() { if (ED.stroke || ED.grad) return; commitFloat(); const r = ED.hist.undo(ED.doc); if (!r) { toast('Nothing to undo'); return; } afterHist(r); toast('Undo: ' + r.name); }
+  function redo() { if (ED.stroke || ED.grad) return; commitFloat(); const r = ED.hist.redo(ED.doc); if (!r) { toast('Nothing to redo'); return; } afterHist(r); toast('Redo: ' + r.name); }
   function afterHist(r) { if (r.all) { usedMaskCache = {}; touched(null, { full: true }); patchAll(); } else { touched(r.rect); patchHistory(); patchPalette(); } }
 
   /* ---- strokes (shared by the 3D view and the sheet) ---- */
@@ -427,12 +434,47 @@
     if (t === 'ellipse') return E.ellipsePts(a[0], a[1], b[0], b[1], ui().filled);
     return E.linePts(a[0], a[1], b[0], b[1]);
   }
+  /*
+   * ---- gradient: drawn LIVE while dragging (the real result on the layer, restored from a snapshot on every move), so the
+   * preview is exactly what is written; one undo step on release. Colours: the two picked colours (exact at both ends,
+   * straight line in sRGB) or, with Ends = Skin, the colours under the start and end pixel. Type 'part' = across the whole
+   * part in 3D: every face (and with Both, the other layer) gets the same colour at the same height / across position.
+   */
+  function gradColours(G) {
+    const u = ui();
+    let c1 = E.hex2rgba(G.sec ? u.color2 : u.color), c2 = E.hex2rgba(G.sec ? u.color : u.color2);
+    if (u.gradEnds === 'skin') {
+      const s1 = E.get(G.comp0, G.a[0], G.a[1]), s2 = E.get(G.comp0, G.b[0], G.b[1]);
+      if (s1[3]) c1 = s1; if (s2[3]) c2 = s2;
+    }
+    return [c1, c2];
+  }
+  function gradApply(buf, G) {
+    const u = ui(), [c1, c2] = gradColours(G), a = G.a, b = G.b;
+    if (u.gradType === 'part') return E.partGradient(buf, model(), { a, b, c1, c2, axis: u.gradAxis, layers: u.gradLayers, mask: maskFor(null), opacity: u.opacity });   // smooth: its strip has no steps / dither
+    return E.gradient(buf, a[0], a[1], b[0], b[1], { type: u.gradType, c1, c2, steps: u.gradSteps, dither: u.dither, mask: maskFor(a[0], a[1], u.limit === 'none' && !selActive() ? 'face' : u.limit), opacity: u.opacity });
+  }
+  function gradStart(a, sec, face) {
+    const L = layer();
+    if (!L) return false;
+    if (L.locked) { toast('This layer is locked'); return false; }
+    if (!E.regionAt(model(), a[0], a[1])) return false;
+    commitFloat();
+    ED.grad = { a, b: a, sec, face, L, before: E.cloneBuf(L.buf), comp0: E.cloneBuf(ED.comp) };
+    gradDraw();
+    return true;
+  }
+  function gradDraw() { const G = ED.grad; if (!G) return; G.L.buf.data.set(G.before.data); gradApply(G.L.buf, G); touched(null, { quiet: true }); }
+  function gradMove(b) { const G = ED.grad; if (!G || (b[0] === G.b[0] && b[1] === G.b[1])) return; G.b = b; gradDraw(); }
+  function gradEnd() {
+    const G = ED.grad; if (!G) return;
+    ED.grad = null;
+    if (ED.hist.pixels('Gradient', G.L.id, G.before, G.L.buf)) { pushRecent(G.sec ? ui().color2 : ui().color); patchHistory(); patchPalette(); markEdited(); }
+    touched(null, { quiet: true });
+  }
+  function gradCancel() { const G = ED.grad; if (!G) return; ED.grad = null; G.L.buf.data.set(G.before.data); touched(null, { quiet: true }); }
   function shapeApply(a, b, secondary) {
     const t = ui().tool, u = ui();
-    if (t === 'gradient') {
-      const c1 = E.hex2rgba(secondary ? u.color2 : u.color), c2 = E.hex2rgba(secondary ? u.color : u.color2);
-      return op('Gradient', (buf) => E.gradient(buf, a[0], a[1], b[0], b[1], { type: u.gradType, c1, c2, steps: u.gradSteps, dither: u.dither, mask: maskFor(a[0], a[1], u.limit === 'none' && !selActive() ? 'face' : u.limit), opacity: u.opacity }));
-    }
     const o = strokeOpts(a[0], a[1], secondary);
     o.tool = 'pencil';
     const r = op(TOOL[t].label, (buf) => { const s = E.beginStroke(buf, o); shapePts(t, a, b).forEach(([x, y]) => { s.last = null; E.strokeTo(s, x, y); }); return s.dirty.r; });
@@ -477,7 +519,7 @@
   function setSel(s) { commitFloat(); ED.sel = s && E.selCount(s) ? s : null; Sheet.invalidate(); patchOptions(); selShown(); }
   /** the model tints the selected pixels (not while a piece floats: the piece shows itself) */
   let selOnModel = null;
-  function selShown() { const m = !ED.float && !ED.peek && selActive() ? ED.sel : null; if (m !== selOnModel) { selOnModel = m; V.setSelection(m); } }
+  function selShown() { const m = UI && ui().tool === 'select' && !ED.float && !ED.peek && selActive() ? ED.sel : null; if (m !== selOnModel) { selOnModel = m; V.setSelection(m); } }
 
   /* ---- floating selection (move tool, paste, duplicate) ----
      ED.float = { piece: { x, y, w, h, data }, before (layer copy), layer, name, paste }. While it floats it is drawn over the
@@ -533,10 +575,34 @@
   }
   function moveFloat(dx, dy) { if (!ED.float && !liftSel()) return; ED.float.piece.x += dx; ED.float.piece.y += dy; touched(null); patchOptions(); }
   /** put the float's grab point on pixel (x, y): it follows the pointer on the model and on the sheet */
-  function placeFloat(x, y, off) { const p = ED.float.piece, nx = x - off[0], ny = y - off[1]; if (nx === p.x && ny === p.y) return; p.x = nx; p.y = ny; touched(null); }
+  /**
+   * Face snapping: a piece copied from inside ONE face remembers that face ({ w, h, ox, oy }: its size and the piece's
+   * place in it). Pasted or dragged over a face of the same size (front <-> back, left <-> right, an arm <-> its sleeve,
+   * one arm <-> the other), it lands at exactly the same place in that face, pixel for pixel, never half on the
+   * neighbouring faces. Flip keys (Shift+H / Shift+V) turn it when the orientation should be mirrored.
+   */
+  function faceSrc(p) {
+    const a = E.regionAt(model(), p.x, p.y), b = E.regionAt(model(), p.x + p.w - 1, p.y + p.h - 1);
+    if (!a || !b || a.rect !== b.rect) return null;
+    return { w: a.rect.w, h: a.rect.h, ox: p.x - a.rect.x, oy: p.y - a.rect.y };
+  }
+  /** the face rect a piece snaps to when the pointer is on pixel (x, y), or null */
+  function snapRect(p, x, y) {
+    if (!p.src || ui().snapFace === false) return null;
+    const r = E.regionAt(model(), x, y);
+    return r && r.rect.w === p.src.w && r.rect.h === p.src.h ? r.rect : null;
+  }
+  function placeFloat(x, y, off) {
+    const p = ED.float.piece, R = snapRect(p, x, y);
+    const nx = R ? R.x + p.src.ox : x - off[0], ny = R ? R.y + p.src.oy : y - off[1];
+    if (nx === p.x && ny === p.y) return;
+    p.x = nx; p.y = ny; touched(null);
+  }
   function transformFloat(kind) {
     if (!ED.float && !liftSel()) return;
-    ED.float.piece = E.flTransform(ED.float.piece, kind);
+    const was = ED.float.piece;
+    ED.float.piece = E.flTransform(was, kind);
+    if (kind === 'flipH' || kind === 'flipV') ED.float.piece.src = was.src;   // a flipped piece still snaps to its faces
     ED.float.name = { flipH: 'Flip', flipV: 'Flip', rotCW: 'Rotate', rotCCW: 'Rotate' }[kind] || 'Move';
     touched(null);
   }
@@ -555,7 +621,7 @@
     patchOptions();
   }
   function cancelFloat() { const F = ED.float; if (!F) return; ED.float = null; F.layer.buf.data.set(F.before.data); touched(null); patchOptions(); }
-  const clonePiece = (p) => ({ x: p.x, y: p.y, w: p.w, h: p.h, data: new Uint8ClampedArray(p.data) });
+  const clonePiece = (p) => ({ x: p.x, y: p.y, w: p.w, h: p.h, data: new Uint8ClampedArray(p.data), src: p.src });
   /** Ctrl+C / Ctrl+X: the selection of the active layer (or the floating piece itself) goes to the clipboard */
   function copySel(cut) {
     if (ED.float && !cut) { ED.clip = clonePiece(ED.float.piece); toast('Copied the floating piece'); patchOptions(); return true; }
@@ -565,6 +631,7 @@
     const sel = ED.sel || s;
     if (cut) op('Cut', (buf) => { ED.clip = E.lift(buf, sel, true); return true; });
     else ED.clip = E.lift(layer().buf, sel, false);
+    if (ED.clip) ED.clip.src = faceSrc(ED.clip);
     if (!ED.clip || !ED.clip.data.some((v, i) => (i & 3) === 3 && v)) toast('The selection is empty on this layer');
     else toast(cut ? 'Cut: Ctrl+V drops it where the pointer is' : 'Copied: Ctrl+V drops it where the pointer is');
     patchOptions();
@@ -575,12 +642,16 @@
    * (at: [x, y] centre). It shows at once on the model and the sheet; drag it, nudge it with the arrows, Enter or a click
    * outside drops it (one undo step), Esc cancels.
    */
-  function floatPaste(p, at, name) {
+  function floatPaste(p, at, name, offset) {
     commitFloat();
     const L = layer();
     if (L.locked) { toast('This layer is locked'); return false; }
     if (!L.visible) toast('The active layer is hidden');
-    if (at) { p.x = at[0] - (p.w >> 1); p.y = at[1] - (p.h >> 1); }
+    if (p.src === undefined) p.src = faceSrc(p);
+    const R = at && snapRect(p, at[0], at[1]);
+    if (R) { p.x = R.x + p.src.ox; p.y = R.y + p.src.oy; }
+    else if (at) { p.x = at[0] - (p.w >> 1); p.y = at[1] - (p.h >> 1); }
+    else if (offset) { p.x = clamp(p.x + 2, -p.w + 1, 63); p.y = clamp(p.y + 2, -p.h + 1, 63); }
     ED.float = { piece: p, before: E.cloneBuf(L.buf), layer: L, name, paste: true };
     if (ui().tool !== 'move') setTool('move');
     touched(null); patchOptions();
@@ -595,8 +666,7 @@
     const src = ED.float ? clonePiece(ED.float.piece) : selActive() ? E.lift(layer().buf, ED.sel, false) : null;
     if (!src) { toast('Select something first (M), then duplicate'); return false; }
     if (!ED.float) ED.clip = clonePiece(src);
-    if (!ED.hover) { src.x = clamp(src.x + 2, -src.w + 1, 63); src.y = clamp(src.y + 2, -src.h + 1, 63); }
-    return floatPaste(src, ED.hover, 'Duplicate');
+    return floatPaste(src, ED.hover, 'Duplicate', true);
   }
   function deleteSel() {
     if (ED.float) { cancelFloat(); }
@@ -954,12 +1024,13 @@
     cv.addEventListener('pointerdown', (e) => {
       try { cv.setPointerCapture(e.pointerId); } catch (x) { /* ignore */ }
       ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
-      if (ptrs.size === 2) { if (drag && drag.kind === 'paint') strokeCancel(); drag = null; const a = [...ptrs.values()]; pinch = { d: Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y), z: z, sx: wrap.scrollLeft, sy: wrap.scrollTop, mx: (a[0].x + a[1].x) / 2, my: (a[0].y + a[1].y) / 2 }; return; }
+      if (ptrs.size === 2) { if (drag && drag.kind === 'paint') strokeCancel(); if (drag && drag.kind === 'grad') gradCancel(); drag = null; const a = [...ptrs.values()]; pinch = { d: Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y), z: z, sx: wrap.scrollLeft, sy: wrap.scrollTop, mx: (a[0].x + a[1].x) / 2, my: (a[0].y + a[1].y) / 2 }; return; }
       if (ED.peek) return;
       const [px, py, fx, fy] = at(e), t = ui().tool, sec = e.button === 2;
       if (e.button === 1 || spaceDown || t === 'orbit') { drag = { kind: 'pan', x: e.clientX, y: e.clientY, sx: wrap.scrollLeft, sy: wrap.scrollTop }; cv.classList.add('grab'); return; }
       if (e.altKey && t !== 'select' && t !== 'move') { pickAt(px, py, sec); return; }
       if (PAINT_TOOLS.has(t)) { if (strokeStart(px, py, sec)) drag = { kind: 'paint' }; return; }
+      if (t === 'gradient') { if (gradStart([px, py], sec)) drag = { kind: 'grad' }; return; }
       if (SHAPE_TOOLS.has(t)) { ED.shape = { a: [px, py], b: [px, py], sec }; drag = { kind: 'shape' }; S.invalidate(); return; }
       if (t === 'select') {
         const mode = ui().selMode;
@@ -998,6 +1069,7 @@
         hoverInfo(ED.hover);
         return;
       }
+      if (drag.kind === 'grad') { gradMove([clamp(px, 0, 63), clamp(py, 0, 63)]); return; }
       if (drag.kind === 'shape') { ED.shape.b = [clamp(px, 0, 63), clamp(py, 0, 63)]; S.invalidate(); syncCursor3D(); return; }
       if (drag.kind === 'box') { ED.boxSel = [drag.a[0], drag.a[1], clamp(px, 0, 63), clamp(py, 0, 63)]; S.invalidate(); return; }
       if (drag.kind === 'lasso') { ED.lasso.push([clamp(fx, 0, 64), clamp(fy, 0, 64)]); S.invalidate(); return; }
@@ -1009,6 +1081,7 @@
       const d = drag; drag = null; cv.classList.remove('grab');
       if (!d) return;
       if (d.kind === 'paint') strokeEnd();
+      else if (d.kind === 'grad') gradEnd();
       else if (d.kind === 'shape') { const s = ED.shape; ED.shape = null; shapeApply(s.a, s.b, s.sec); S.invalidate(); syncCursor3D(); }
       else if (d.kind === 'box') { const b = ED.boxSel; ED.boxSel = null; setSel(combineSel(E.selRect(64, 64, b[0], b[1], b[2], b[3]), d.ev)); }
       else if (d.kind === 'lasso') { const L = ED.lasso; ED.lasso = null; setSel(L.length > 2 ? combineSel(E.selLasso(64, 64, L), d.ev) : null); }
@@ -1050,12 +1123,13 @@
   V.onPaint = (phase, hit, ev) => {
     const t = ui().tool, sec = false;
     if (ED.peek) return;
-    if (phase === 'cancel') { strokeCancel(); ED.shape = null; ED.box3 = null; ED.boxSel = null; ED.move3 = null; last3D = null; syncCursor3D(); return; }
+    if (phase === 'cancel') { strokeCancel(); gradCancel(); ED.shape = null; ED.box3 = null; ED.boxSel = null; ED.move3 = null; last3D = null; syncCursor3D(); return; }
     if (phase === 'start') {
       last3D = null;
       if (!hit) { if (ED.float && t === 'move') commitFloat(); return; }   // a click beside the model drops a floating piece
       ED.hover = [hit.x, hit.y];
       if (PAINT_TOOLS.has(t)) { if (strokeStart(hit.x, hit.y, sec)) last3D = hit; return; }
+      if (t === 'gradient') { gradStart([hit.x, hit.y], sec, hit.part + hit.face); return; }
       if (SHAPE_TOOLS.has(t)) { ED.shape = { a: [hit.x, hit.y], b: [hit.x, hit.y], sec, face: hit.part + hit.face }; syncCursor3D(); return; }
       if (t === 'select' && ui().selMode === 'lasso') { toast('Draw lasso selections on the flat sheet (box, wand and colour work on the model)'); return; }
       if (t === 'select' && ui().selMode === 'rect') {   // a box on one face of the model
@@ -1075,6 +1149,11 @@
         const same = last3D && last3D.part === hit.part && last3D.face === hit.face;
         if (!last3D || hit.x !== last3D.x || hit.y !== last3D.y) strokeMove(hit.x, hit.y, same);
         last3D = hit;
+      } else if (ED.grad && hit) {
+        // linear / radial stay on the face they start on; across the whole part any face of that part (or its other layer) counts
+        const G = ED.grad, ra = E.regionAt(model(), G.a[0], G.a[1]), P = ra && E.PART[ra.part];
+        const ok = ui().gradType === 'part' ? P && (hit.part === ra.part || hit.part === P.outer || hit.part === P.base) : hit.part + hit.face === G.face;
+        if (ok) gradMove([hit.x, hit.y]);
       } else if (ED.shape && hit && hit.part + hit.face === ED.shape.face) { ED.shape.b = [hit.x, hit.y]; syncCursor3D(); Sheet.invalidate(); }
       else if (ED.box3 && hit && hit.part + hit.face === ED.box3.face) { ED.boxSel = [ED.box3.a[0], ED.box3.a[1], hit.x, hit.y]; syncCursor3D(); Sheet.invalidate(); }
       else if (ED.move3 && hit && ED.float) placeFloat(hit.x, hit.y, ED.move3);
@@ -1082,6 +1161,7 @@
     }
     if (phase === 'end') {
       if (ED.stroke) strokeEnd();
+      if (ED.grad) gradEnd();
       if (ED.shape) { const s = ED.shape; ED.shape = null; shapeApply(s.a, s.b, s.sec); syncCursor3D(); }
       if (ED.box3) { const b = ED.boxSel, ev2 = ED.box3.ev; ED.box3 = null; ED.boxSel = null; setSel(combineSel(E.selRect(64, 64, b[0], b[1], b[2], b[3]), ev2)); syncCursor3D(); }
       ED.move3 = null;
@@ -1112,12 +1192,13 @@
     if (!TOOL[id]) return;
     if (id !== 'move') commitFloat();
     if (ED.stroke) strokeEnd();
+    if (ED.grad) gradEnd();
     ED.shape = null;
     save((s) => { s.ui.tool = id; });
     // pose lock: painting always happens in the still pose; the Turn tool plays the chosen animation
     V.setLock(id !== 'orbit');
     V.setMode(id === 'orbit' ? 'orbit' : 'paint');
-    patchTools(); patchOptions(); patchViewBar(); syncCursor3D(); Sheet.invalidate();
+    patchTools(); patchOptions(); patchViewBar(); syncCursor3D(); Sheet.invalidate(); selShown();
     if (UI) UI.stage.dataset.tool = id;
   }
   /**
@@ -1202,7 +1283,11 @@
     W.shade = opt('Mode', seg('Shade mode', [['darken', 'Darken'], ['lighten', 'Lighten'], ['smudge', 'Smudge'], ['blur', 'Blur']], () => u().shadeMode, set('shadeMode')));
     W.noise = opt('Mode', seg('Noise mode', [['noise', 'Noise', 'Random light and dark pixels'], ['dither', 'Dither', 'A checker of the two colours']], () => u().noiseMode, set('noiseMode')));
     W.filled = opt('Style', seg('Fill', [[false, 'Outline'], [true, 'Filled']], () => u().filled, set('filled')));
-    W.grad = opt('Type', seg('Gradient type', [['linear', 'Linear'], ['radial', 'Radial']], () => u().gradType, set('gradType')));
+    W.grad = opt('Type', seg('Gradient type', [['linear', 'Linear', 'Along the line you drag, on one face'], ['radial', 'Radial', 'Rings around the start, on one face'],
+      ['part', 'Whole part', 'Around the whole body part in 3D: front, back and sides get the same colour at the same height (drag along the part)']], () => u().gradType, (v) => { set('gradType')(v); bar.paint(); }));
+    W.gends = opt('Colours', seg('Gradient colours', [['picked', 'Picked', 'From the first colour to the second, exactly'], ['skin', 'Skin', 'From the colour under the start to the colour under the end']], () => u().gradEnds, set('gradEnds')));
+    W.gaxis = opt('Runs', seg('Gradient direction', [['height', 'Down', 'Along the height of the part'], ['width', 'Across', 'Across the part, from its right side to its left']], () => u().gradAxis, set('gradAxis')));
+    W.glayers = opt('Layers', seg('Gradient layers', [['this', 'This', 'Only the layer you start on (base or outer)'], ['both', 'Both', 'The base and the outer layer of the part']], () => u().gradLayers, set('gradLayers')));
     W.steps = stepper('Steps', 'Fewer steps', 'More steps', () => save((s) => { s.ui.gradSteps = s.ui.gradSteps <= 2 ? 0 : s.ui.gradSteps - 1; }),
       () => save((s) => { s.ui.gradSteps = s.ui.gradSteps < 2 ? 2 : Math.min(12, s.ui.gradSteps + 1); }), () => (u().gradSteps ? String(u().gradSteps) : 'Smooth'));
     W.dither = opt('Pattern', toggle('Dither', () => u().dither, (v) => set('dither')(v), { tip: ['Dither', 'Mix neighbouring steps in a pixel pattern'] }));
@@ -1224,6 +1309,7 @@
     const cDup = ck('dup', 'Duplicate', 'Duplicate', 'Ctrl+D', 'A floating copy of the selection, right next to it', () => duplicateSel());
     W.clip = opt('Clipboard', h('div.sk-acts.sk-clip', cCopy, cCut, cPaste, cDup));
     W.clip.paint = () => { const has = selActive() || !!ED.float; cCopy.disabled = !has; cCut.disabled = !selActive() || !!ED.float; cDup.disabled = !has; cPaste.disabled = !ED.clip; };
+    W.snap = opt('Faces', toggle('Snap', () => ui().snapFace !== false, (v) => { save((s) => { s.ui.snapFace = v; }); }, { icon: 'side', tip: ['Snap to faces', 'A piece copied from one face lands at the same place on a face of the same size (front and back, the sides, an arm and its sleeve), pixel for pixel'] }));
     W.moveActs = opt('Transform', h('div.sk-acts', act('flipH', 'Flip left-right', () => transformFloat('flipH'), 'Shift+H'), act('flipV', 'Flip upside down', () => transformFloat('flipV'), 'Shift+V'),
       act('rotL', 'Turn left', () => transformFloat('rotCCW'), 'Shift+,'), act('rotR', 'Turn right', () => transformFloat('rotCW'), 'Shift+.'),
       act('check', 'Drop it here', () => commitFloat(), 'Enter'), act('x', 'Cancel the move', () => cancelFloat(), 'Esc')));
@@ -1236,8 +1322,8 @@
       orbit: ['orbit'], pencil: ['size', 'shape', 'hard', 'opacity', 'limit'], eraser: ['size', 'shape', 'hard', 'opacity', 'limit'],
       shade: ['shade', 'size', 'shape', 'amount', 'limit'], noise: ['noise', 'size', 'shape', 'amount', 'limit'],
       line: ['size', 'opacity'], rect: ['filled', 'size', 'opacity'], ellipse: ['filled', 'size', 'opacity'],
-      gradient: ['grad', 'steps', 'dither', 'opacity', 'limit'], fill: ['tol', 'contig', 'limit', 'sample', 'opacity'], replace: ['replace', 'tol', 'sample'],
-      picker: ['picker', 'sample'], select: ['selMode', 'selOp', 'tol', 'clip', 'selActs', 'selInfo'], move: ['clip', 'moveActs', 'selInfo'],
+      gradient: ['grad', 'gends', 'gaxis', 'glayers', 'steps', 'dither', 'opacity', 'limit'], fill: ['tol', 'contig', 'limit', 'sample', 'opacity'], replace: ['replace', 'tol', 'sample'],
+      picker: ['picker', 'sample'], select: ['selMode', 'selOp', 'tol', 'clip', 'selActs', 'selInfo'], move: ['clip', 'snap', 'moveActs', 'selInfo'],
     };
     const tIco = h('span.sk-ot-ico'), tName = h('b.sk-ot-name'), tKey = h('kbd.sk-ot-key');
     const title = h('div.sk-ot', tIco, h('span.sk-ot-txt', tName, tKey));
@@ -1257,6 +1343,11 @@
       // hardness only means something for brushes bigger than one pixel; tolerance only for the wand and colour selections
       W.hard.hidden = u().size === 1;
       W.tol.hidden = t === 'select' && (u().selMode === 'rect' || u().selMode === 'lasso');
+      const whole = u().gradType === 'part';
+      W.gaxis.hidden = W.glayers.hidden = !whole;
+      // whole part: always smooth (room for its own options); Stay in does not apply
+      if (t === 'gradient') { W.steps.hidden = W.dither.hidden = whole; } else { W.steps.hidden = W.dither.hidden = false; }
+      if (t === 'gradient') W.limit.hidden = whole; else W.limit.hidden = false;
       Object.values(W).forEach((w) => w.paint && w.paint());
       W.selInfo.textContent = ED.float ? 'Moving ' + ED.float.piece.w + ' × ' + ED.float.piece.h : selActive() ? E.selCount(ED.sel) + ' px selected' : t === 'move' ? 'No selection: moves the whole layer' : '';
       fit();
@@ -1265,7 +1356,7 @@
     let fitW = 0, fitFor = '';
     function fit() {
       if (!bar.isConnected || !bar.clientWidth) return;
-      const sig = shown + (W.hard.hidden ? '' : 'h') + (W.tol.hidden ? '' : 't');
+      const sig = shown + (W.hard.hidden ? '' : 'h') + (W.tol.hidden ? '' : 't') + u().gradType;
       if (sig === fitFor && bar.clientWidth === fitW) return;
       fitFor = sig; fitW = bar.clientWidth;
       bar.classList.add('fitting');   // no transitions while measuring (seg keys animate their padding)
@@ -1334,7 +1425,7 @@
       b.paint();
       return b;
     };
-    const lightBtn = TK('light', 'Shading', 'Off = flat colours, exactly as painted (Shift+L)', () => ui().lit, (v) => { save((s) => { s.ui.lit = v; }); V.setLighting(v); });
+    const lightBtn = TK('light', 'Shading', 'On: darker sides for depth, so the screen no longer shows the exact pixels. Off (default): exactly the colours of the file (Shift+L)', () => ui().lit, (v) => { save((s) => { s.ui.lit = v; }); V.setLighting(v); });
     const gameBtn = TK('eye', 'Game look', 'On: the base layer is solid like in the game (see-through base pixels show their colour, often black). Off: gaps show', () => ui().gameLook, (v) => { save((s) => { s.ui.gameLook = v; }); touched(null, { quiet: true, full: true }); });
     const capeBtn = TK('cape', 'Cape', 'Show the cape on the back', () => ui().capeOn, (v) => { save((s) => { s.ui.capeOn = v; }); if (v && !ED.cape) { openCape(); } applyCape(); patchCape(); });
     const elyBtn = TK('wing', 'Elytra', 'Wear an elytra (uses the cape’s elytra look when it has one)', () => ui().elytra, (v) => { save((s) => { s.ui.elytra = v; }); applyCape(); });
@@ -1862,8 +1953,21 @@
   }
 
   /* ---- Part tools ---- */
+  /** used pixels outside locked parts (a selection does not limit the part tools) */
+  function lockMask() { const m = usedMask(model()).slice(), locked = Object.keys(ui().locks).filter((k) => ui().locks[k]); if (locked.length) { const L = E.partsMask(model(), locked); for (let i = 0; i < m.length; i++) if (L[i]) m[i] = 0; } return m; }
+  function copyFaceNow(part, from, to, mode) {
+    if (from === to) { toast('Pick two different faces'); return; }
+    if (op('Copy ' + from + ' to ' + to, (buf) => E.copyFace(buf, model(), part, from, to, mode, { mask: lockMask() }))) toast(E.PART[part].label + ': ' + from + ' copied to ' + to);
+  }
   function openPartTools() {
-    let mirror = true, puffMode = 'copy', fit = 'middle';
+    let mirror = true, puffMode = 'copy', fit = 'middle', cfPart = 'rsleeve', cfFrom = 'front', cfTo = 'back', cfMode = 'same';
+    const FACE_KEYS = [['front', 'Front'], ['back', 'Back'], ['right', 'Right'], ['left', 'Left'], ['top', 'Top'], ['bottom', 'Bottom']];
+    const faceRow = h('div.sk-cfgrid',
+      h('span.sk-slbl', 'Part'), seg('Part', E.PARTS.map((p) => [p.id, p.label]), () => cfPart, (v) => { cfPart = v; }, 'sk-wrapseg'),
+      h('span.sk-slbl', 'From'), seg('From face', FACE_KEYS, () => cfFrom, (v) => { cfFrom = v; }, 'sk-wrapseg'),
+      h('span.sk-slbl', 'To'), seg('To face', FACE_KEYS, () => cfTo, (v) => { cfTo = v; }, 'sk-wrapseg'),
+      h('span.sk-slbl', 'Order'), seg('Orientation', [['same', 'Same', 'Keep the texture order (how the default skins do front and back)'], ['mirror', 'Mirrored', 'Flip left-right']], () => cfMode, (v) => { cfMode = v; }));
+    const copyFaceMany = (parts, faces) => op('Copy faces', (buf) => { let r = null; parts.forEach((p) => (faces || ['back']).forEach((to) => { r = E.unionRect(r, E.copyFace(buf, model(), p, 'front', to, 'same', { mask: lockMask() })); })); return r; });
     const pt = (label, fn, sub) => { const b = h('button.btn.small', { type: 'button', onclick: fn }, label); if (sub) tip(b, [label, sub]); return b; };
     const copyRow = [['rarm', 'larm', 'Right arm → left arm'], ['larm', 'rarm', 'Left arm → right arm'], ['rleg', 'lleg', 'Right leg → left leg'], ['lleg', 'rleg', 'Left leg → right leg']]
       .map(([a, b, l]) => pt(l, () => op('Copy ' + E.PART[a].label.toLowerCase(), (buf) => E.unionRect(E.copyPart(buf, model(), a, b, mirror), E.copyPart(buf, model(), E.PART[a].outer, E.PART[b].outer, mirror)))));
@@ -1877,6 +1981,10 @@
       h('h4', 'Arm width'), h('p.sk-hint', 'Converting re-fits the arm pixels: slim drops one column of each arm face, classic doubles one.'),
       h('div.sk-row', seg('Column', [['middle', 'Middle', 'Drop or double the column next to the middle'], ['inner', 'Inner', 'Drop or double the column at the body'], ['outer', 'Outer', 'Drop or double the outside column']], () => fit, (v) => { fit = v; })),
       h('div.sk-btnrow', pt('Convert to slim (3 px)', () => convertModel('slim', fit)), pt('Convert to classic (4 px)', () => convertModel('classic', fit)), pt('Only switch the model', () => convertModel(model() === 'slim' ? 'classic' : 'slim', null, true), 'Keeps every pixel where it is')),
+      h('h4', 'Copy a face'), h('p.sk-hint', 'Gives one face the pixels of another, row for row at the same height (narrower or wider faces are resampled). Same keeps the texture order, Mirrored flips it.'),
+      faceRow, h('div.sk-btnrow', pt('Copy the face', () => copyFaceNow(cfPart, cfFrom, cfTo, cfMode)),
+        pt('Front → back: arms and sleeves', () => copyFaceMany(['rarm', 'larm', 'rsleeve', 'lsleeve']), 'Both arms and both sleeves: the back gets the front, as in the default skins'),
+        pt('Front → back: every part', () => copyFaceMany(E.PARTS.map((p) => p.id))), pt('Front → all four sides', () => copyFaceMany([cfPart], ['back', 'right', 'left']), 'Back, right and left of the chosen part')),
       h('h4', 'Clear a part'), h('div.sk-btnrow', clearRow),
       h('h4', 'Clean up'), h('div.sk-btnrow',
         pt('Make the base solid', () => op('Make base solid', (buf) => E.flattenBase(buf, model(), 'fill', E.hex2rgba(ui().color2))), 'See-through base pixels are filled with the second colour, as the game cannot show them'),

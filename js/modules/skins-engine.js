@@ -486,6 +486,79 @@ TH.skinsEngine = (function () {
     return dr.r;
   }
 
+  /**
+   * Where a texture pixel sits on its part in 3D, along an axis, in part pixels (0 .. size):
+   *   'height': top of the part = 0, bottom = h (side faces: row + 0.5; the top face = 0, the bottom face = h)
+   *   'width' : the player's right edge = 0, left edge = w (front / top / bottom: column + 0.5, back mirrored, the right
+   *             side face = 0, the left side face = w)
+   * So pixels of different faces at the same height (or across position) get the same number. null for unused pixels.
+   */
+  function partCoord(model, x, y, axis) {
+    const r = regionAt(model, x, y);
+    if (!r) return null;
+    const R = r.rect, f = R.face, [w, hh] = partSize(r.part, model);
+    if (axis === 'width') {
+      if (f === 'right') return 0;
+      if (f === 'left') return w;
+      return f === 'back' ? R.w - (r.fx + 0.5) : r.fx + 0.5;
+    }
+    if (f === 'top') return 0;
+    if (f === 'bottom') return hh;
+    return r.fy + 0.5;
+  }
+  /**
+   * A gradient that runs along a whole part in 3D (not across one face of the texture): every face of the part (and of its
+   * other layer with layers: 'both') gets the same colour at the same height (axis 'height') or the same place across
+   * (axis 'width'). a / b = texture pixels on the part (start / end, may be on different faces of it); the start pixel
+   * gets exactly c1 and the end pixel exactly c2, linear in sRGB between them. opts: { a, b, c1, c2, axis, layers:
+   * 'this' | 'both', steps, dither, mask, opacity }. Returns the changed rect.
+   */
+  function partGradient(buf, model, opts) {
+    const o = Object.assign({ axis: 'height', layers: 'this', c1: [0, 0, 0, 255], c2: [255, 255, 255, 255], steps: 0, dither: false, mask: null, opacity: 1 }, opts);
+    const ra = regionAt(model, o.a[0], o.a[1]);
+    if (!ra) return null;
+    const part = ra.part, other = PART[part].outer || PART[part].base, parts = o.layers === 'both' ? [part, other] : [part];
+    const rb = regionAt(model, o.b[0], o.b[1]);
+    const ca = partCoord(model, o.a[0], o.a[1], o.axis);
+    let cb = rb && (rb.part === part || rb.part === other) ? partCoord(model, o.b[0], o.b[1], o.axis) : null;
+    const size = partSize(part, model)[o.axis === 'width' ? 0 : 1];
+    let from = ca, to = cb;
+    if (to == null || Math.abs(to - from) < 1e-6) { from = 0; to = size; }   // no usable end: the whole length of the part
+    const map = regionMap(model), rects = faceRects(model), d = buf.data, dr = { r: null }, span = to - from;
+    for (let i = 0; i < W * H; i++) {
+      const k = map[i];
+      if (k < 0 || !parts.includes(rects[k].part) || (o.mask && !o.mask[i])) continue;
+      const x = i % W, y = (i / W) | 0;
+      let t = clamp((partCoord(model, x, y, o.axis) - from) / span, 0, 1);
+      if (o.steps > 1) { const f = t * (o.steps - 1), lo = Math.floor(f); t = (o.dither ? (f - lo > bayer(x, y) ? lo + 1 : lo) : Math.round(f)) / (o.steps - 1); }
+      else if (o.dither) t = clamp(t + (bayer(x, y) - 0.5) / 8, 0, 1);
+      const c = [0, 1, 2, 3].map((q) => Math.round(o.c1[q] + (o.c2[q] - o.c1[q]) * t));
+      if (o.opacity >= 1 && c[3] === 255) { d[i * 4] = c[0]; d[i * 4 + 1] = c[1]; d[i * 4 + 2] = c[2]; d[i * 4 + 3] = 255; }
+      else over(d, i * 4, c[0], c[1], c[2], c[3] * o.opacity);
+      grow(dr, x, y);
+    }
+    return dr.r;
+  }
+  /**
+   * Copy one face of a part onto another face of the same part (or of another part: opts.toPart): 'same' keeps the
+   * texture order, 'mirror' flips it left-right. Faces of a different size are resampled (nearest pixel) so every row
+   * lands at the same height. mask limits what is written. Returns the changed rect.
+   */
+  function copyFace(buf, model, part, from, to, mode, opts) {
+    const o = opts || {}, A = rectOf(model, part, from), B = rectOf(model, o.toPart || part, to);
+    if (!A || !B) return null;
+    const src = cloneBuf(buf), dr = { r: null };
+    for (let y = 0; y < B.h; y++) for (let x = 0; x < B.w; x++) {
+      const sx0 = Math.min(A.w - 1, Math.floor((x + 0.5) * A.w / B.w)), sy = Math.min(A.h - 1, Math.floor((y + 0.5) * A.h / B.h));
+      const sx = mode === 'mirror' ? A.w - 1 - sx0 : sx0, ti = (B.y + y) * W + B.x + x;
+      if (o.mask && !o.mask[ti]) continue;
+      const si = ((A.y + sy) * W + A.x + sx) * 4;
+      for (let c = 0; c < 4; c++) buf.data[ti * 4 + c] = src.data[si + c];
+      grow(dr, B.x + x, B.y + y);
+    }
+    return dr.r;
+  }
+
   /* ====================================================================== fill, replace, pick */
   /**
    * Bucket fill at (x, y). opts: { tolerance 0..255, contiguous (default true), limit: 'none' | 'face' | 'part', model, mask,
@@ -1028,7 +1101,7 @@ TH.skinsEngine = (function () {
     PARTS, PART, FACES, FACE_PAIR, partSize, boxRects, faceRects, regionMap, regionAt, rectOf, regionMask, partsMask, CAPE_PARTS, capeRects,
     rayBox, partBox, hitPixel, pick, mirrorPixel, symPixels,
     BLENDS, newLayer, newDoc, addLayer, removeLayer, moveLayer, duplicateLayer, blendOnto, composite, mergeDown, flattenDoc, snapshot, restore,
-    footprint, beginStroke, strokeTo, endStroke, linePts, drawLine, rectPts, drawRect, ellipsePts, drawEllipse, gradient, unionRect, bayer,
+    footprint, beginStroke, strokeTo, endStroke, linePts, drawLine, rectPts, drawRect, ellipsePts, drawEllipse, gradient, partCoord, partGradient, copyFace, unionRect, bayer,
     floodSet, fill, replaceColor, pickColor, selNew, selRect, selLasso, selWand, selCombine, selInvert, selCount, selBounds, selEdges, lift, flTransform, drop,
     adjust, palette, History,
     fromLegacy, noAlpha, inNoAlpha, flattenBase, check, clearUnused, detectSlim, refitArms, clearPart, copyPart, puff, project, validate, downscale, importImage,

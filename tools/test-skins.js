@@ -449,4 +449,46 @@ t('pose maths: every Skin Editor animation produces finite numbers', () => {
   assert.deepStrictEqual(Array.from(P), Array.from(Q), 'the rest pose never moves');
 });
 
+/* ---- gradients across a whole part, face to face copies (Oct 2026 bug report: arm backs did not match the fronts) ---- */
+t('gradient: straight sRGB line, the exact picked colours at both ends (no hue detour)', () => {
+  const b = E.newBuf(), c1 = [226, 232, 230, 255], c2 = [0, 0, 52, 255];
+  E.gradient(b, 10, 0, 10, 11, { c1, c2 });
+  assert.deepStrictEqual(px(b, 10, 0), c1); assert.deepStrictEqual(px(b, 10, 11), c2);
+  for (let y = 0; y < 12; y++) { const t2 = y / 11, c = px(b, 3, y); [0, 1, 2].forEach((k) => assert(Math.abs(c[k] - (c1[k] + (c2[k] - c1[k]) * t2)) <= 1, 'row ' + y)); }
+});
+['classic', 'slim'].forEach((m) => t('partGradient (' + m + '): every side face of an arm and its sleeve has the same colour at the same height, ends exact', () => {
+  const b = E.newBuf(), c1 = [226, 232, 230, 255], c2 = [0, 0, 52, 255], F = E.rectOf(m, 'rarm', 'front');
+  const r = E.partGradient(b, m, { a: [F.x + 1, F.y], b: [F.x + 1, F.y + F.h - 1], c1, c2, layers: 'both' });
+  assert(r, 'paints something');
+  ['rarm', 'rsleeve'].forEach((part) => ['front', 'back', 'right', 'left'].forEach((face) => {
+    const R = E.rectOf(m, part, face);
+    for (let y = 0; y < R.h; y++) for (let x = 0; x < R.w; x++) assert.deepStrictEqual(px(b, R.x + x, R.y + y), px(b, F.x, F.y + y), part + ' ' + face + ' row ' + y);
+  }));
+  assert.deepStrictEqual(px(b, F.x, F.y), c1); assert.deepStrictEqual(px(b, F.x, F.y + F.h - 1), c2);
+  assert.deepStrictEqual(px(b, E.rectOf(m, 'larm', 'front').x, E.rectOf(m, 'larm', 'front').y), CLEAR, 'other parts stay untouched');
+}));
+t('partGradient: only this layer by default; top and bottom take the end colours; width axis runs across front and back mirrored', () => {
+  const m = 'classic', b = E.newBuf(), F = E.rectOf(m, 'rleg', 'front');
+  E.partGradient(b, m, { a: [F.x, F.y], b: [F.x, F.y + F.h - 1], c1: RED, c2: BLUE });
+  assert.deepStrictEqual(px(b, E.rectOf(m, 'rpants', 'front').x, E.rectOf(m, 'rpants', 'front').y), CLEAR);
+  assert.deepStrictEqual(px(b, E.rectOf(m, 'rleg', 'top').x, E.rectOf(m, 'rleg', 'top').y), RED);
+  assert.deepStrictEqual(px(b, E.rectOf(m, 'rleg', 'bottom').x, E.rectOf(m, 'rleg', 'bottom').y), BLUE);
+  const w = E.newBuf();
+  E.partGradient(w, m, { a: [F.x, F.y + 3], b: [F.x + F.w - 1, F.y + 3], c1: RED, c2: BLUE, axis: 'width' });
+  const B = E.rectOf(m, 'rleg', 'back');
+  assert.deepStrictEqual(px(w, F.x, F.y), RED); assert.deepStrictEqual(px(w, F.x + 3, F.y), BLUE);
+  assert.deepStrictEqual(px(w, B.x + 3, B.y), RED, 'the back is the mirror of the front');
+});
+t('copyFace: front to back keeps every pixel (same or mirrored); different widths resample by row', () => {
+  const m = 'slim', b = traced(m), F = E.rectOf(m, 'rsleeve', 'front'), B = E.rectOf(m, 'rsleeve', 'back');
+  const r = E.copyFace(b, m, 'rsleeve', 'front', 'back', 'same');
+  assert(r);
+  for (let y = 0; y < F.h; y++) for (let x = 0; x < F.w; x++) assert.deepStrictEqual(px(b, B.x + x, B.y + y), px(b, F.x + x, F.y + y));
+  E.copyFace(b, m, 'rsleeve', 'front', 'back', 'mirror');
+  for (let y = 0; y < F.h; y++) for (let x = 0; x < F.w; x++) assert.deepStrictEqual(px(b, B.x + x, B.y + y), px(b, F.x + F.w - 1 - x, F.y + y));
+  const L = E.rectOf(m, 'rsleeve', 'left');
+  E.copyFace(b, m, 'rsleeve', 'front', 'left', 'same');
+  for (let y = 0; y < L.h; y++) assert.deepStrictEqual(px(b, L.x, L.y + y), px(b, F.x, F.y + y), 'row ' + y);
+});
+
 console.log(n + ' skins tests passed' + (process.exitCode ? ' (with failures)' : ''));

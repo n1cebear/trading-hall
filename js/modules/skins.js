@@ -134,6 +134,7 @@
     swap: 'M5 7h10l-3-3M15 13H5l3 3', help: 'M7 7a3 3 0 1 1 4 2.8c-.7.3-1 .8-1 1.7M10 15h.01', zoomin: 'M8 3a5 5 0 1 0 0 10A5 5 0 0 0 8 3zM12 12l5 5M6 8h4M8 6v4', zoomout: 'M8 3a5 5 0 1 0 0 10A5 5 0 0 0 8 3zM12 12l5 5M6 8h4',
     flipH: 'M10 2v16M7 5L3 10l4 5zM13 5l4 5-4 5', flipV: 'M2 10h16M5 7l5-4 5 4zM5 13l5 4 5-4', rotL: 'M4 10a6 6 0 1 0 2-4.5M4 3v4h4', rotR: 'M16 10a6 6 0 1 1-2-4.5M16 3v4h-4',
     check: 'M4 10l4 4 8-8', side: 'M3 3h14v14H3zM12 3v14',
+    cut: 'M6 3l8 10M14 3L6 13M3 13h5v5H3zM12 13h5v5h-5z', lasso: 'M5 4h10v2h2v6h-2v2H8v2H6v2M5 4H3v8h2M8 14H5v-2', wand: 'M3 17L13 7M12 3v2M16 6h-2M16 2l-1 1M9 4l1 1M15 9l-1-1', drop: 'M10 3l5 7v3l-2 3H7l-2-3v-3z', paste: 'M7 3h6v3H7zM5 5H4v13h12V5h-1M7 10h6M7 13h4', dup: 'M3 3h10v10H3zM7 7h10v10H7z',
     bsq: 'M5 5h10v10H5z', bround: 'M8 4h4v1h2v1h1v2h1v4h-1v2h-1v1h-2v1H8v-1H6v-1H5v-2H4V8h1V6h1V5h2z', bdia: 'M10 3l7 7-7 7-7-7z',
     view: 'M2 10s3-5 8-5 8 5 8 5-3 5-8 5-8-5-8-5zM8 10a2 2 0 1 0 4 0 2 2 0 1 0-4 0', layers: 'M10 3l7 4-7 4-7-4zM3 11l7 4 7-4',
   };
@@ -296,7 +297,7 @@
   function touched(rect, opts) {
     if (ED.float) rect = null;
     if (rect) E.composite(ED.doc, ED.comp, rect); else E.composite(ED.doc, ED.comp);
-    if (ED.float) E.drop(ED.comp, ED.float.piece);
+    if (ED.float) dropFloat(ED.comp, ED.float);   // live preview of a floating paste / move on the model and the sheet
     ED.disp.data.set(ED.comp.data);
     if (ui().gameLook) E.flattenBase(ED.disp, model(), 'game');
     if (!ED.peek) {
@@ -304,6 +305,7 @@
       Sheet.invalidate();
     }
     if (!(opts && opts.quiet)) markEdited();
+    selShown();
   }
   /** show another skin for a moment (version compare); null = back to the working copy */
   function peek(buf, slim) {
@@ -472,9 +474,53 @@
     if (o === 'new' || !ED.sel) return o === 'sub' ? null : s;
     return E.selCombine(ED.sel, s, o);
   };
-  function setSel(s) { commitFloat(); ED.sel = s && E.selCount(s) ? s : null; Sheet.invalidate(); patchOptions(); }
+  function setSel(s) { commitFloat(); ED.sel = s && E.selCount(s) ? s : null; Sheet.invalidate(); patchOptions(); selShown(); }
+  /** the model tints the selected pixels (not while a piece floats: the piece shows itself) */
+  let selOnModel = null;
+  function selShown() { const m = !ED.float && !ED.peek && selActive() ? ED.sel : null; if (m !== selOnModel) { selOnModel = m; V.setSelection(m); } }
 
-  /* ---- floating selection (move tool, paste) ---- */
+  /* ---- floating selection (move tool, paste, duplicate) ----
+     ED.float = { piece: { x, y, w, h, data }, before (layer copy), layer, name, paste }. While it floats it is drawn over the
+     composite (model + sheet); dropping it is ONE undo step. A paste / duplicate (paste: true) lands like paint: only on used
+     pixels outside locked parts, inside the "Stay in" face / part under its centre, and mirrored when mirror painting is on. */
+  const inPiece = (p, x, y) => x >= p.x && y >= p.y && x < p.x + p.w && y < p.y + p.h;
+  /** the pixel the piece is "on" for Stay in: its centre, or else its first solid pixel that lands on the skin */
+  function floatAnchor(p) {
+    const cx = p.x + (p.w >> 1), cy = p.y + (p.h >> 1);
+    if (E.regionAt(model(), cx, cy)) return [cx, cy];
+    for (let y = 0; y < p.h; y++) for (let x = 0; x < p.w; x++) if (p.data[(y * p.w + x) * 4 + 3] && E.regionAt(model(), p.x + x, p.y + y)) return [p.x + x, p.y + y];
+    return null;
+  }
+  function floatMask(F) {
+    if (!F.paste) return null;
+    const m = usedMask(model()).slice();
+    const locked = Object.keys(ui().locks).filter((k) => ui().locks[k]);
+    if (locked.length) { const L = E.partsMask(model(), locked); for (let i = 0; i < m.length; i++) if (L[i]) m[i] = 0; }
+    const lim = ui().limit, a = (lim === 'face' || lim === 'part') && floatAnchor(F.piece);
+    if (a) { const R = E.regionMask(model(), a[0], a[1], lim); if (R) for (let i = 0; i < m.length; i++) m[i] &= R[i]; }
+    return m;
+  }
+  /** drop a float onto buf (mask + mirror for pastes); returns the changed rect */
+  function dropFloat(buf, F) {
+    const p = F.piece, mask = floatMask(F);
+    let r = E.drop(buf, p, mask);
+    const sym = ui().sym;
+    if (F.paste && (sym.body || sym.faceX || sym.faceY)) {
+      const twin = { x: 0, y: 0, w: 1, h: 1, data: new Uint8ClampedArray(4) };
+      for (let y = 0; y < p.h; y++) for (let x = 0; x < p.w; x++) {
+        const tx = p.x + x, ty = p.y + y, sp = (y * p.w + x) * 4;
+        if (!p.data[sp + 3] || tx < 0 || ty < 0 || tx > 63 || ty > 63 || (mask && !mask[ty * 64 + tx])) continue;
+        twin.data.set(p.data.subarray(sp, sp + 4));
+        E.symPixels(model(), tx, ty, sym).forEach(([qx, qy]) => {
+          if ((qx === tx && qy === ty) || inPiece(p, qx, qy)) return;
+          twin.x = qx; twin.y = qy;
+          const d = E.drop(buf, twin, mask);
+          if (d) r = r ? E.unionRect(r, d) : d;
+        });
+      }
+    }
+    return r;
+  }
   function liftSel() {
     if (ED.float) return true;
     const L = layer();
@@ -485,7 +531,9 @@
     ED.float = { piece, before, layer: L, name: 'Move' };
     return true;
   }
-  function moveFloat(dx, dy) { if (!ED.float && !liftSel()) return; ED.float.piece.x += dx; ED.float.piece.y += dy; touched(null); }
+  function moveFloat(dx, dy) { if (!ED.float && !liftSel()) return; ED.float.piece.x += dx; ED.float.piece.y += dy; touched(null); patchOptions(); }
+  /** put the float's grab point on pixel (x, y): it follows the pointer on the model and on the sheet */
+  function placeFloat(x, y, off) { const p = ED.float.piece, nx = x - off[0], ny = y - off[1]; if (nx === p.x && ny === p.y) return; p.x = nx; p.y = ny; touched(null); }
   function transformFloat(kind) {
     if (!ED.float && !liftSel()) return;
     ED.float.piece = E.flTransform(ED.float.piece, kind);
@@ -496,36 +544,59 @@
     const F = ED.float;
     if (!F) return;
     ED.float = null;
-    E.drop(F.layer.buf, F.piece);
-    if (ED.sel) {   // the selection follows the moved pixels
+    dropFloat(F.layer.buf, F);
+    if (ED.sel || F.paste) {   // the selection follows the moved / pasted pixels (so Ctrl+D, Ctrl+C go on from there)
       const s = E.selNew();
       for (let y = 0; y < F.piece.h; y++) for (let x = 0; x < F.piece.w; x++) { const tx = F.piece.x + x, ty = F.piece.y + y; if (tx >= 0 && ty >= 0 && tx < 64 && ty < 64 && F.piece.data[(y * F.piece.w + x) * 4 + 3]) s[ty * 64 + tx] = 1; }
       ED.sel = s;
     }
     if (ED.hist.pixels(F.name, F.layer.id, F.before, F.layer.buf)) patchHistory();
     touched(null);
+    patchOptions();
   }
-  function cancelFloat() { const F = ED.float; if (!F) return; ED.float = null; F.layer.buf.data.set(F.before.data); touched(null); }
+  function cancelFloat() { const F = ED.float; if (!F) return; ED.float = null; F.layer.buf.data.set(F.before.data); touched(null); patchOptions(); }
+  const clonePiece = (p) => ({ x: p.x, y: p.y, w: p.w, h: p.h, data: new Uint8ClampedArray(p.data) });
+  /** Ctrl+C / Ctrl+X: the selection of the active layer (or the floating piece itself) goes to the clipboard */
   function copySel(cut) {
+    if (ED.float && !cut) { ED.clip = clonePiece(ED.float.piece); toast('Copied the floating piece'); patchOptions(); return true; }
     const s = selActive() ? ED.sel : null;
-    if (!s) { toast('Select something first (M)'); return; }
+    if (!s) { toast('Select something first (M), then copy'); return false; }
     commitFloat();
-    if (cut) op('Cut', (buf) => { ED.clip = E.lift(buf, s, true); return true; });
-    else ED.clip = E.lift(layer().buf, s, false);
-    toast(cut ? 'Cut' : 'Copied');
+    const sel = ED.sel || s;
+    if (cut) op('Cut', (buf) => { ED.clip = E.lift(buf, sel, true); return true; });
+    else ED.clip = E.lift(layer().buf, sel, false);
+    if (!ED.clip || !ED.clip.data.some((v, i) => (i & 3) === 3 && v)) toast('The selection is empty on this layer');
+    else toast(cut ? 'Cut: Ctrl+V drops it where the pointer is' : 'Copied: Ctrl+V drops it where the pointer is');
+    patchOptions();
+    return true;
   }
-  function pasteSel() {
-    if (!ED.clip) return false;
+  /**
+   * Make a floating paste of piece p on the active layer, centred on the pointer (model or sheet) or at its own place
+   * (at: [x, y] centre). It shows at once on the model and the sheet; drag it, nudge it with the arrows, Enter or a click
+   * outside drops it (one undo step), Esc cancels.
+   */
+  function floatPaste(p, at, name) {
     commitFloat();
     const L = layer();
-    if (L.locked) { toast('This layer is locked'); return true; }
-    const p = { x: ED.clip.x, y: ED.clip.y, w: ED.clip.w, h: ED.clip.h, data: new Uint8ClampedArray(ED.clip.data) };
-    if (ED.hover) { p.x = ED.hover[0]; p.y = ED.hover[1]; }
-    ED.float = { piece: p, before: E.cloneBuf(L.buf), layer: L, name: 'Paste' };
-    setTool('move');
-    touched(null);
-    toast('Pasted: drag it into place, Enter drops it');
+    if (L.locked) { toast('This layer is locked'); return false; }
+    if (!L.visible) toast('The active layer is hidden');
+    if (at) { p.x = at[0] - (p.w >> 1); p.y = at[1] - (p.h >> 1); }
+    ED.float = { piece: p, before: E.cloneBuf(L.buf), layer: L, name, paste: true };
+    if (ui().tool !== 'move') setTool('move');
+    touched(null); patchOptions();
     return true;
+  }
+  function pasteSel() {
+    if (!ED.clip) { toast('Copy a selection first (Ctrl+C)'); return false; }
+    return floatPaste(clonePiece(ED.clip), ED.hover, 'Paste');
+  }
+  /** Ctrl+D: a copy of the selection floats next to it (or at the pointer) */
+  function duplicateSel() {
+    const src = ED.float ? clonePiece(ED.float.piece) : selActive() ? E.lift(layer().buf, ED.sel, false) : null;
+    if (!src) { toast('Select something first (M), then duplicate'); return false; }
+    if (!ED.float) ED.clip = clonePiece(src);
+    if (!ED.hover) { src.x = clamp(src.x + 2, -src.w + 1, 63); src.y = clamp(src.y + 2, -src.h + 1, 63); }
+    return floatPaste(src, ED.hover, 'Duplicate');
   }
   function deleteSel() {
     if (ED.float) { cancelFloat(); }
@@ -897,7 +968,12 @@
         else clickTool(px, py, sec, e);
         S.invalidate(); return;
       }
-      if (t === 'move') { drag = { kind: 'move', last: [px, py] }; if (!liftSel()) drag = null; else touched(null); return; }
+      if (t === 'move') {
+        // a floating piece: grab it, or a click outside drops it; else lift the selection (or the layer) and drag it
+        if (ED.float && !inPiece(ED.float.piece, px, py)) { commitFloat(); return; }
+        if (!liftSel()) return;
+        drag = { kind: 'move', off: [px - ED.float.piece.x, py - ED.float.piece.y] }; touched(null); return;
+      }
       clickTool(px, py, sec, e);
     });
     cv.addEventListener('pointermove', (e) => {
@@ -925,7 +1001,7 @@
       if (drag.kind === 'shape') { ED.shape.b = [clamp(px, 0, 63), clamp(py, 0, 63)]; S.invalidate(); syncCursor3D(); return; }
       if (drag.kind === 'box') { ED.boxSel = [drag.a[0], drag.a[1], clamp(px, 0, 63), clamp(py, 0, 63)]; S.invalidate(); return; }
       if (drag.kind === 'lasso') { ED.lasso.push([clamp(fx, 0, 64), clamp(fy, 0, 64)]); S.invalidate(); return; }
-      if (drag.kind === 'move') { const dx = px - drag.last[0], dy = py - drag.last[1]; if (dx || dy) { drag.last = [px, py]; moveFloat(dx, dy); } }
+      if (drag.kind === 'move' && ED.float) { placeFloat(px, py, drag.off); S.invalidate(); }
     });
     const up = (e) => {
       ptrs.delete(e.pointerId);
@@ -974,15 +1050,22 @@
   V.onPaint = (phase, hit, ev) => {
     const t = ui().tool, sec = false;
     if (ED.peek) return;
-    if (phase === 'cancel') { strokeCancel(); ED.shape = null; last3D = null; syncCursor3D(); return; }
+    if (phase === 'cancel') { strokeCancel(); ED.shape = null; ED.box3 = null; ED.boxSel = null; ED.move3 = null; last3D = null; syncCursor3D(); return; }
     if (phase === 'start') {
       last3D = null;
-      if (!hit) return;
+      if (!hit) { if (ED.float && t === 'move') commitFloat(); return; }   // a click beside the model drops a floating piece
       ED.hover = [hit.x, hit.y];
       if (PAINT_TOOLS.has(t)) { if (strokeStart(hit.x, hit.y, sec)) last3D = hit; return; }
       if (SHAPE_TOOLS.has(t)) { ED.shape = { a: [hit.x, hit.y], b: [hit.x, hit.y], sec, face: hit.part + hit.face }; syncCursor3D(); return; }
-      if (t === 'select' && (ui().selMode === 'rect' || ui().selMode === 'lasso')) { toast('Draw box and lasso selections on the flat sheet'); return; }
-      if (t === 'move') { toast('Move pixels on the flat sheet (or with the arrow keys)'); return; }
+      if (t === 'select' && ui().selMode === 'lasso') { toast('Draw lasso selections on the flat sheet (box, wand and colour work on the model)'); return; }
+      if (t === 'select' && ui().selMode === 'rect') {   // a box on one face of the model
+        ED.box3 = { a: [hit.x, hit.y], face: hit.part + hit.face, ev }; ED.boxSel = [hit.x, hit.y, hit.x, hit.y]; syncCursor3D(); Sheet.invalidate(); return;
+      }
+      if (t === 'move') {   // grab the floating piece on the model (it follows the pixel under the pointer), a click outside drops it
+        if (ED.float && !inPiece(ED.float.piece, hit.x, hit.y)) { commitFloat(); return; }
+        if (!liftSel()) return;
+        ED.move3 = [hit.x - ED.float.piece.x, hit.y - ED.float.piece.y]; touched(null); return;
+      }
       clickTool(hit.x, hit.y, sec, ev);
       return;
     }
@@ -993,11 +1076,15 @@
         if (!last3D || hit.x !== last3D.x || hit.y !== last3D.y) strokeMove(hit.x, hit.y, same);
         last3D = hit;
       } else if (ED.shape && hit && hit.part + hit.face === ED.shape.face) { ED.shape.b = [hit.x, hit.y]; syncCursor3D(); Sheet.invalidate(); }
+      else if (ED.box3 && hit && hit.part + hit.face === ED.box3.face) { ED.boxSel = [ED.box3.a[0], ED.box3.a[1], hit.x, hit.y]; syncCursor3D(); Sheet.invalidate(); }
+      else if (ED.move3 && hit && ED.float) placeFloat(hit.x, hit.y, ED.move3);
       return;
     }
     if (phase === 'end') {
       if (ED.stroke) strokeEnd();
       if (ED.shape) { const s = ED.shape; ED.shape = null; shapeApply(s.a, s.b, s.sec); syncCursor3D(); }
+      if (ED.box3) { const b = ED.boxSel, ev2 = ED.box3.ev; ED.box3 = null; ED.boxSel = null; setSel(combineSel(E.selRect(64, 64, b[0], b[1], b[2], b[3]), ev2)); syncCursor3D(); }
+      ED.move3 = null;
       last3D = null;
     }
   };
@@ -1073,13 +1160,14 @@
     // tall windows: what the active tool does and what the mouse buttons do, at the foot of the palette
     const hName = h('b.sk-thelp-name'), hText = h('p.sk-thelp-text'), hMouse = h('p.sk-thelp-mouse');
     pal.append(h('div.sk-thelp', { 'aria-live': 'polite' }, hName, hText, hMouse));
-    const MOUSE = { orbit: 'Drag: turn · right-drag: pan · wheel: zoom', picker: 'Left: first colour · right: second colour', select: 'Shift: add · Alt: take away · Ctrl+D: none', move: 'Drag or arrow keys · Enter drops it' };
+    const MOUSE = { orbit: 'Drag: turn · Shift-drag or middle-drag: move · wheel: zoom · double-click a part: go there', picker: 'Left: first colour · right: second colour',
+      select: 'Shift: add · Alt: take away · Ctrl+C / X / V, Ctrl+D duplicate', move: 'Drag or arrow keys · Enter or a click outside drops it · Esc cancels' };
     const SYM = { '@mirror': 'body', '@mirrorX': 'faceX', '@mirrorY': 'faceY' };
     pal.paint = () => {
       btns.forEach((b, id) => { if (SYM[id]) press(b, ui().sym[SYM[id]]); else if (id[0] !== '@') press(b, ui().tool === id); });
       const t = TOOL[ui().tool];
       hName.textContent = t.label; hText.textContent = t.hint + '.';
-      hMouse.textContent = MOUSE[t.id] || 'Left: first colour · right: second · Alt: pick · right-drag on the model: turn';
+      hMouse.textContent = MOUSE[t.id] || 'Left: paint · Alt-click: pick · right-drag or Alt-drag: turn · middle or Space-drag: move · wheel: zoom · double-click a part: go there';
     };
     return pal;
   }
@@ -1121,17 +1209,26 @@
     W.tol = slider('Tolerance', 0, 128, 1, () => u().tolerance, set('tolerance'), (v) => String(v));
     W.contig = opt('Area', seg('Fill area', [[true, 'Touching', 'Only the touching pixels of that colour'], [false, 'All', 'Every pixel of that colour']], () => u().contiguous, set('contiguous')));
     W.sample = opt('Look at', seg('Look at', [['layer', 'Layer', 'Compare colours on the active layer'], ['all', 'All', 'Compare what you see (all layers)']], () => u().sample, set('sample')));
-    W.selMode = opt('Select by', seg('Selection', [['rect', 'Box'], ['lasso', 'Lasso'], ['wand', 'Wand', 'Magic wand: the touching pixels of one colour'], ['colour', 'Colour', 'Every pixel of one colour']], () => u().selMode, (v) => { set('selMode')(v); bar.paint(); }));
-    W.selOp = opt('Combine', seg('Selection mode', [['new', 'New'], ['add', 'Add', 'Add (or hold Shift)'], ['sub', 'Cut', 'Subtract (or hold Alt)']], () => u().selOp, set('selOp')));
+    W.selMode = opt('Select by', seg('Selection', [['rect', 'Box', 'Drag a box (on the sheet, or on one face of the model)', 'select'], ['lasso', 'Lasso', 'Draw around pixels on the flat sheet', 'lasso'],
+      ['wand', 'Magic wand', 'The touching pixels of one colour', 'wand'], ['colour', 'Same colour', 'Every pixel of one colour', 'drop']], () => u().selMode, (v) => { set('selMode')(v); bar.paint(); }, 'sk-iseg'));
+    W.selOp = opt('Combine', seg('Selection mode', [['new', 'New'], ['add', 'Add', 'Add (or hold Shift)'], ['sub', 'Minus', 'Take away (or hold Alt)']], () => u().selOp, set('selOp')));
     const act = (icon, label, fn, key) => ibtn(icon, label, fn, { key, size: 14, cls: 'sk-mini' });
-    W.selActs = opt('Selection', h('div.sk-acts', act('select', 'Select all', () => setSel(usedMask(model()).slice()), 'Ctrl+A'), act('x', 'Deselect', () => setSel(null), 'Ctrl+D'),
+    W.selActs = opt('Selection', h('div.sk-acts', act('select', 'Select all', () => setSel(usedMask(model()).slice()), 'Ctrl+A'), act('x', 'Select nothing', () => setSel(null), 'Ctrl+Shift+A'),
       act('swap', 'Invert selection', () => setSel(ED.sel ? E.selInvert(ED.sel).map((v, i) => v & usedMask(model())[i]) : usedMask(model()).slice()), 'Ctrl+I'),
-      act('copy', 'Copy', () => copySel(false), 'Ctrl+C'), act('dl', 'Paste', () => { if (!pasteSel()) toast('Copy a selection first'); }, 'Ctrl+V'), act('eraser', 'Delete the selected pixels', deleteSel, 'Del')));
+      act('eraser', 'Delete the selected pixels', deleteSel, 'Del')));
+    // the clipboard: visible keys (icon + name); the paste floats at the pointer, ready to drag
+    const ck = (icon, label, full, key, sub, fn) => { const b = h('button.btn.small.sk-ck', { type: 'button', onclick: fn, 'aria-label': full + ', ' + key }, ico(icon, 14), h('span', label)); tip(b, [full + ' (' + key + ')', sub]); return b; };
+    const cCopy = ck('copy', 'Copy', 'Copy', 'Ctrl+C', 'The selected pixels of the active layer', () => copySel(false));
+    const cCut = ck('cut', 'Cut', 'Cut', 'Ctrl+X', 'Copy and clear the selected pixels', () => copySel(true));
+    const cPaste = ck('paste', 'Paste', 'Paste', 'Ctrl+V', 'Floats at the pointer (or where it came from): drag it, arrows nudge, Enter or a click outside drops it, Esc cancels', () => pasteSel());
+    const cDup = ck('dup', 'Duplicate', 'Duplicate', 'Ctrl+D', 'A floating copy of the selection, right next to it', () => duplicateSel());
+    W.clip = opt('Clipboard', h('div.sk-acts.sk-clip', cCopy, cCut, cPaste, cDup));
+    W.clip.paint = () => { const has = selActive() || !!ED.float; cCopy.disabled = !has; cCut.disabled = !selActive() || !!ED.float; cDup.disabled = !has; cPaste.disabled = !ED.clip; };
     W.moveActs = opt('Transform', h('div.sk-acts', act('flipH', 'Flip left-right', () => transformFloat('flipH'), 'Shift+H'), act('flipV', 'Flip upside down', () => transformFloat('flipV'), 'Shift+V'),
       act('rotL', 'Turn left', () => transformFloat('rotCCW'), 'Shift+,'), act('rotR', 'Turn right', () => transformFloat('rotCW'), 'Shift+.'),
       act('check', 'Drop it here', () => commitFloat(), 'Enter'), act('x', 'Cancel the move', () => cancelFloat(), 'Esc')));
     const hint = (text) => h('p.sk-ohint', text);
-    W.orbit = hint('Drag to turn, right-drag to pan, scroll to zoom. The animation plays with this tool (▶ on the model).');
+    W.orbit = hint('Drag to turn, Shift- or middle-drag to move, scroll to zoom toward the pointer, double-click a part to go there. The animation plays with this tool.');
     W.picker = hint('Click a pixel to take its colour. Right-click sets the second colour. Alt-click picks with every tool.');
     W.replace = hint('Click a colour: every pixel of it becomes the current colour.');
     W.selInfo = h('span.sk-selinfo');
@@ -1140,7 +1237,7 @@
       shade: ['shade', 'size', 'shape', 'amount', 'limit'], noise: ['noise', 'size', 'shape', 'amount', 'limit'],
       line: ['size', 'opacity'], rect: ['filled', 'size', 'opacity'], ellipse: ['filled', 'size', 'opacity'],
       gradient: ['grad', 'steps', 'dither', 'opacity', 'limit'], fill: ['tol', 'contig', 'limit', 'sample', 'opacity'], replace: ['replace', 'tol', 'sample'],
-      picker: ['picker', 'sample'], select: ['selMode', 'selOp', 'tol', 'selActs', 'selInfo'], move: ['moveActs', 'selInfo'],
+      picker: ['picker', 'sample'], select: ['selMode', 'selOp', 'tol', 'clip', 'selActs', 'selInfo'], move: ['clip', 'moveActs', 'selInfo'],
     };
     const tIco = h('span.sk-ot-ico'), tName = h('b.sk-ot-name'), tKey = h('kbd.sk-ot-key');
     const title = h('div.sk-ot', tIco, h('span.sk-ot-txt', tName, tKey));
@@ -1171,8 +1268,11 @@
       const sig = shown + (W.hard.hidden ? '' : 'h') + (W.tol.hidden ? '' : 't');
       if (sig === fitFor && bar.clientWidth === fitW) return;
       fitFor = sig; fitW = bar.clientWidth;
-      bar.classList.remove('tight');
+      bar.classList.add('fitting');   // no transitions while measuring (seg keys animate their padding)
+      bar.classList.remove('tight', 'tighter');
       if (bar.scrollWidth > bar.clientWidth + 1) bar.classList.add('tight');
+      if (bar.scrollWidth > bar.clientWidth + 1) bar.classList.add('tighter');   // last resort: the clipboard keys keep only their icons
+      void bar.offsetWidth; bar.classList.remove('fitting');
     }
     new ResizeObserver(() => fit()).observe(bar);
     return bar;
@@ -1261,14 +1361,22 @@
       [['front', 'Front'], ['back', 'Back'], ['right', 'Right'], ['left', 'Left'], ['top', 'Top']].map(([id, l]) => {
         const b = h('button.btn.small.sk-vb.sk-side', { type: 'button', onclick: () => V.view(id) }, l); tip(b, 'Look at the ' + (id === 'right' || id === 'left' ? id + ' side' : id)); return b;
       }));
+    // fly the camera to a part (double-click a part on the model does the same, turned to the face you clicked)
+    const focusKeys = [['head', 'Head'], ['body', 'Body'], ['arms', 'Arms'], ['legs', 'Legs'], ['cape', 'Cape']].map(([id, l]) => {
+      const b = h('button.btn.small.sk-vb.sk-side.sk-focus', { type: 'button', 'data-part': id, onclick: () => { if (!V.focus(id)) toast(id === 'cape' ? 'Show a cape first (View, Cape)' : 'The 3D view is not ready'); } }, l);
+      tip(b, ['Go to the ' + (id === 'body' ? 'body' : l.toLowerCase()), 'The camera flies there. Reset view (Home) goes back. Tip: double-click any part on the model']);
+      return b;
+    });
+    const focusGrp = h('div.sk-ovg', { role: 'group', 'aria-label': 'Go to a part' }, h('span.sk-ovl', { 'aria-hidden': 'true' }, 'Go to'), focusKeys);
+    const camHelp = vb('help', 'Camera', () => openKeys(), { tip: ['Camera', 'Right-drag or Alt+drag: turn', 'Middle-drag, Space+drag or Shift+right-drag: move', 'Wheel: zoom toward the pointer', 'Double-click a part: fly to it · Home: reset', 'Touch: two fingers move and pinch; one finger turns with the Turn tool'] });
     const zoomGrp = h('div.sk-ovg', { role: 'group', 'aria-label': 'Zoom' }, h('span.sk-ovl', { 'aria-hidden': 'true' }, 'Zoom'),
       vb('zoomout', 'Zoom out', () => V.zoomBy(1 / 1.2), { key: '-' }), vb('zoomin', 'Zoom in', () => V.zoomBy(1.2), { key: '+' }),
-      vb('reset', 'Reset the view', () => V.reset(), { key: 'Home', sub: 'or double-click with the Turn tool' }));
+      vb('reset', 'Reset view', () => V.reset(), { key: 'Home', sub: 'The whole model from the front again' }), camHelp);
     const playGrp = h('div.sk-ovg', { role: 'group', 'aria-label': 'Animation' }, playBtn, animBtn);
     const info = h('div.sk-info', { 'aria-live': 'off' });
     const swapM = vb('swap', 'Make the model big', () => setMain('model'), { sub: 'Swap the model and the flat sheet (Shift+1)' });
     const modelPane = h('div.sk-pane.sk-pane-model', V.el,
-      h('div.sk-ov.sk-ov-tl', sides),
+      h('div.sk-ov.sk-ov-tl', sides, focusGrp),
       h('div.sk-ov.sk-ov-tr', zoomGrp, viewBtn),
       h('div.sk-ov.sk-ov-bl', playGrp, info),
       h('div.sk-ov.sk-ov-dock', h('span.sk-ovl', 'Model'), swapM));
@@ -1302,6 +1410,7 @@
       [lightBtn, gameBtn, capeBtn, elyBtn].forEach((b) => b.paint());
       overlaySeg.paint();
       bgKeys.forEach((k) => press(k, k.dataset.bg === ui().bg));
+      focusKeys[4].hidden = !(ED.capeCv && ui().capeOn && !ui().elytra);
       if (bgCol.value !== ui().bgColor) bgCol.value = ui().bgColor;
       bgKeys.forEach((k) => { if (k.dataset.bg === 'custom') vars(k.firstChild, { '--sk-bgc': ui().bgColor }); });
       sheetCtl.querySelectorAll('.sk-tg').forEach((b) => b.paint());
@@ -1838,8 +1947,11 @@
     const rows = TOOLS.map((t) => [t[2], t[1]]).concat([
       ['[ / ]', 'Brush smaller / bigger'], ['X', 'Swap the two colours'], ['Alt + click', 'Pick a colour'], ['Y', 'Mirror painting on / off'], ['H', 'Show / hide the outer layer'],
       ['1 … 9, 0', 'Opacity 10 … 90 %, 100 %'], ['Shift + 1 / 2 / 3', 'Model big / flat sheet big / fold the docked view'], ['Ctrl + Z', 'Undo'], ['Ctrl + Y, Ctrl + Shift + Z', 'Redo'],
-      ['Ctrl + C / X / V', 'Copy / cut / paste the selection'], ['Ctrl + A / D', 'Select all / nothing'], ['Delete', 'Clear the selected pixels'], ['Arrows', 'Move the selection (Move tool), turn the model'],
-      ['Enter / Esc', 'Drop / cancel a move'], ['Space + drag', 'Pan the view'], ['Right-drag', 'Turn the model while painting'], ['K', 'Play / pause the animation'], ['Home (on the model)', 'Reset the view'],
+      ['Ctrl + C / X / V', 'Copy / cut / paste the selection (paste floats at the pointer)'], ['Ctrl + D', 'Duplicate the selection (floats next to it)'], ['Ctrl + A', 'Select all'], ['Ctrl + Shift + A', 'Select nothing'],
+      ['Delete', 'Clear the selected pixels'], ['Arrows', 'Nudge a floating paste or the selection (Move tool), turn the model'],
+      ['Enter / Esc', 'Drop / cancel a floating paste or move (a click outside it drops it too)'],
+      ['Right-drag, Alt + drag', 'Turn the camera around the model'], ['Middle-drag, Space + drag, Shift + right-drag', 'Move the camera'], ['Wheel', 'Zoom toward the pointer'],
+      ['Double-click a part', 'Fly the camera to it, turned to that face'], ['Two fingers', 'Move and pinch-zoom (touch)'], ['K', 'Play / pause the animation'], ['Home (on the model)', 'Reset the view'],
       ['A', 'Adjust colours'], ['P', 'Part tools'], ['J', 'Reference image'], ['Ctrl + S', 'Save to My skins'], ['?', 'This card']]);
     openSheet('Keyboard shortcuts', h('dl.sk-keys', rows.map(([k, d]) => [h('dt', h('kbd', k)), h('dd', d)])), { wide: true });
   }
@@ -1855,11 +1967,12 @@
       if (lk === 'z' && !e.shiftKey) { done(); undo(); }
       else if (lk === 'y' || (lk === 'z' && e.shiftKey)) { done(); redo(); }
       else if (lk === 's') { done(); saveToLibrary(); }
-      else if (lk === 'c' && selActive()) { done(); copySel(false); }
+      else if (lk === 'c' && (selActive() || ED.float)) { done(); copySel(false); }
       else if (lk === 'x' && selActive()) { done(); copySel(true); }
       else if (lk === 'v' && ED.clip) { done(); pasteSel(); }
+      else if (lk === 'd') { done(); duplicateSel(); }
+      else if (lk === 'a' && e.shiftKey) { done(); commitFloat(); setSel(null); }
       else if (lk === 'a') { done(); setSel(usedMask(model()).slice()); }
-      else if (lk === 'd') { done(); setSel(null); }
       else if (lk === 'i') { done(); setSel(ED.sel ? E.selInvert(ED.sel).map((v, i) => v & usedMask(model())[i]) : null); }
       else if (lk === 'n' && e.altKey) { done(); openNew(); }
       return;
@@ -1885,11 +1998,11 @@
     if (lk === 'p') { done(); openPartTools(); return; }
     if (lk === 'j') { done(); openReference(); return; }
     if (k === '?') { done(); openKeys(); return; }
-    if (k === 'Enter' && ED.float) { done(); commitFloat(); return; }
+    if (k === 'Enter' && ED.float) { done(); commitFloat(); toast('Dropped'); return; }
     if (k === 'Escape') { if (ED.float) { done(); cancelFloat(); } else if (ED.sel) { done(); setSel(null); } return; }
     if ((k === 'Delete' || k === 'Backspace') && (selActive() || ED.float)) { done(); deleteSel(); return; }
     const arrow = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[k];
-    if (arrow && (ui().tool === 'move' || ED.float) && !(document.activeElement && document.activeElement.closest && document.activeElement.closest('.sk-canvas'))) { done(); const n = e.shiftKey ? 4 : 1; moveFloat(arrow[0] * n, arrow[1] * n); return; }
+    if (arrow && (ED.float || (ui().tool === 'move' && !(document.activeElement && document.activeElement.closest && document.activeElement.closest('.sk-canvas'))))) { done(); const n = e.shiftKey ? 4 : 1; moveFloat(arrow[0] * n, arrow[1] * n); return; }
     if (k === '0' && !e.shiftKey) { done(); V.reset(); }
   }, true);
   window.addEventListener('paste', (e) => {

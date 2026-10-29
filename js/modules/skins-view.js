@@ -7,7 +7,9 @@ window.TH = window.TH || {};
  *     re-upload as the fallback
  *   - per part: skin mesh + grid overlay mesh (pixel grid / part tint) + cursor overlay mesh (brush footprint)
  *   - picking: the camera ray is moved into every visible part's bone space and handed to TH.skinsEngine.pick (pure maths)
- *   - camera: orbit (drag), pan (right / shift / middle drag, two fingers in the Orbit tool), zoom (wheel / pinch), double-click reset
+ *   - free camera around a look-at point (tx, ty, tz): orbit (right-drag, Alt+left-drag, one finger with the Turn tool),
+ *     pan (middle-drag, Shift+right-drag, Space+left-drag, two fingers), zoom toward the cursor (wheel, pinch), double-click
+ *     a part = fly to it (S.focus), eased flights (S.view sides, S.reset)
  *   - animations = TH.mcSkin.ANIM_CFG; while a paint tool is active the model holds the still 'rest' pose (pose lock)
  *   - cape (on the torso) and elytra (wings), as in Trims
  * Rendering is on demand (no loop while nothing moves); hidden / off-screen viewports stop.
@@ -28,17 +30,19 @@ TH.skinsView = (function () {
     el.className = 'sk-canvas';
     el.tabIndex = 0;
     el.setAttribute('role', 'img');
-    el.setAttribute('aria-label', '3D skin preview. Paint with the active tool, right-drag to turn, scroll to zoom, double-click to reset.');
+    el.setAttribute('aria-label', '3D skin preview. Paint with the active tool. Right-drag or Alt-drag turns, middle-drag or Space-drag pans, scroll zooms toward the pointer, double-click a part to fly to it.');
     const S = {
       el, ready: false, error: null, renderer: null, scene: null, camera: null, bones: null, rig: null, rigRoot: null,
       parts: {}, slim: null, skinCv: null, skinTex: null, gridCv: null, gridTex: null, curCv: null, curTex: null,
       pose: null, from: null, tgt: null, blend: 1, anim: 'rest', want: 'idle', speed: 1, paused: false, lock: true,
       animT: 0, age: 0, limb: 0, amt: 0, wing: [0.2617994, 0, -0.2617994, 0], spinYaw: 0,
-      yaw: 0.5, pitch: 0.12, zoom: 1, panX: 0, panY: 0, vel: 0, goal: null, dirty: true, raf: 0, last: 0, inView: true, w: 0, h: 0,
+      yaw: 0.5, pitch: 0.12, zoom: 1, tx: 0, ty: 16, tz: 0, vel: 0, goal: null, dirty: true, raf: 0, last: 0, inView: true, w: 0, h: 0,
       mode: 'paint', lit: true, overlay: 'none', hidden: {}, cape: null, capeOn: false, elytraOn: false, elytraTex: null,
     };
-    const HOME = { yaw: 0.5, pitch: 0.12, zoom: 1, panX: 0, panY: 0 };
-    const ZMIN = 0.45, ZMAX = 4.5, PMAX = 1.35;
+    // free camera: it orbits the look-at point (tx, ty, tz) at yaw / pitch, distance = fit() / zoom
+    const HOME = { yaw: 0.5, pitch: 0.12, zoom: 1, tx: 0, ty: 16, tz: 0 };
+    const CAM = ['yaw', 'pitch', 'zoom', 'tx', 'ty', 'tz'];
+    const ZMIN = 0.45, ZMAX = 8, PMAX = 1.45;
     let initP = null;
 
     const mkCanvas = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
@@ -196,12 +200,19 @@ TH.skinsView = (function () {
       S.dirty = true; wake();
     };
     /** brush cursor: pixels [[x, y]] highlighted on the model (colour = rgba css) */
-    let curRect = null;
+    let curRect = null, selMask = null, selDirty = false;
+    /** the selection (64x64 mask or null) shows as a tint on the model, under the brush cursor */
+    S.setSelection = (mask) => { selMask = mask || null; selDirty = true; S.setCursor(S.lastCur || null, S.lastCurColor); };
     S.setCursor = (pts, color) => {
       if (!S.ready) return;
+      S.lastCur = pts; S.lastCurColor = color;
       const x = S.curCv.getContext('2d');
       let r = curRect;
-      if (curRect) x.clearRect(0, curRect.y0, 64, curRect.y1 - curRect.y0 + 1);
+      if (selMask || selDirty) {   // repaint the whole small canvas: selection tint, then the cursor
+        x.clearRect(0, 0, 64, 64);
+        if (selMask) { x.fillStyle = 'rgba(140,150,255,.42)'; for (let i = 0; i < 4096; i++) if (selMask[i]) x.fillRect(i & 63, i >> 6, 1, 1); }
+        r = { y0: 0, y1: 63 }; selDirty = false;
+      } else if (curRect) x.clearRect(0, curRect.y0, 64, curRect.y1 - curRect.y0 + 1);
       curRect = null;
       if (pts && pts.length) {
         x.fillStyle = color || 'rgba(255,255,255,.55)';
@@ -265,11 +276,15 @@ TH.skinsView = (function () {
       const t = Math.tan((S.camera.fov * Math.PI) / 360), aspect = Math.max(0.2, S.w / Math.max(1, S.h));
       return Math.max(21 / t, 14 / (t * aspect));   // the model fills the stage: it is the hero of the page
     }
+    /** camera basis for yaw / pitch: right, up (screen directions in the world) and the view direction */
+    const basis = (yaw, pitch) => {
+      const sy = Math.sin(yaw), cy = Math.cos(yaw), sp = Math.sin(pitch), cp = Math.cos(pitch);
+      return { r: [cy, 0, -sy], u: [-sy * sp, cp, -cy * sp], f: [-sy * cp, -sp, -cy * cp] };
+    };
+    const clampTarget = () => { S.tx = clamp(S.tx, -40, 40); S.ty = clamp(S.ty, -12, 52); S.tz = clamp(S.tz, -40, 40); };
     function place() {
       const d = fit() / S.zoom, cp = Math.cos(S.pitch);
-      // pan moves the look-at point in the camera plane
-      const rx = Math.cos(S.yaw), rz = -Math.sin(S.yaw);
-      S.target.set(rx * S.panX, 16 + S.panY, rz * S.panX);
+      S.target.set(S.tx, S.ty, S.tz);
       S.camera.position.set(S.target.x + d * Math.sin(S.yaw) * cp, S.target.y + d * Math.sin(S.pitch), S.target.z + d * Math.cos(S.yaw) * cp);
       S.camera.lookAt(S.target);
       S.camera.updateMatrixWorld();
@@ -294,10 +309,12 @@ TH.skinsView = (function () {
       const dt = Math.min(0.05, (now - (S.last || now)) / 1000);
       S.last = now;
       let moving = false;
-      if (S.goal) {
-        const k = 1 - Math.pow(0.0005, dt);
-        ['yaw', 'pitch', 'zoom', 'panX', 'panY'].forEach((key) => { S[key] += (S.goal[key] - S[key]) * k; });
-        if (['yaw', 'pitch', 'zoom', 'panX', 'panY'].every((key) => Math.abs(S.goal[key] - S[key]) < 0.002)) { Object.assign(S, S.goal); S.goal = null; }
+      if (S.goal) {   // a camera flight: ease-in-out over the goal's duration (focus, side, reset)
+        const g = S.goal;
+        g.t = Math.min(1, g.t + dt / g.dur);
+        const e = g.t < 0.5 ? 4 * g.t * g.t * g.t : 1 - Math.pow(-2 * g.t + 2, 3) / 2;
+        CAM.forEach((key) => { S[key] = g.from[key] + (g.to[key] - g.from[key]) * e; });
+        if (g.t >= 1) { Object.assign(S, g.to); S.goal = null; S.onView && S.onView(); }
         moving = true;
       }
       if (!drag && Math.abs(S.vel) > 0.01) { S.yaw += S.vel * dt; S.vel *= Math.exp(-3.4 * dt); moving = true; }
@@ -307,24 +324,88 @@ TH.skinsView = (function () {
     }
     function wake() { if (!S.raf && visible()) { S.last = 0; S.raf = requestAnimationFrame(frame); } }
     S.wake = () => { S.dirty = true; wake(); };
-    S.reset = () => {
+    /** fly the camera to a goal (any of CAM keys); the shortest way round for yaw; reduced motion jumps */
+    function flyTo(to, dur) {
+      const goal = Object.assign({}, ...CAM.map((k) => ({ [k]: S[k] })), to);
+      goal.yaw = S.yaw + Math.atan2(Math.sin(goal.yaw - S.yaw), Math.cos(goal.yaw - S.yaw));
       S.vel = 0;
-      const goal = Object.assign({}, HOME, { yaw: Math.round((S.yaw - HOME.yaw) / (Math.PI * 2)) * Math.PI * 2 + HOME.yaw });
-      if (reduced()) { Object.assign(S, goal); S.goal = null; } else S.goal = goal;
+      if (reduced() || !S.ready) { S.goal = null; Object.assign(S, goal); S.onView && S.onView(); }
+      else S.goal = { from: Object.assign({}, ...CAM.map((k) => ({ [k]: S[k] }))), to: goal, t: 0, dur: dur || 0.55 };
       S.dirty = true; wake();
-    };
-    /** look at the model from a side: 'front' | 'back' | 'left' | 'right' | 'top' */
-    S.view = (side) => {
-      const yaws = { front: 0, back: Math.PI, right: -Math.PI / 2, left: Math.PI / 2, top: 0 };
-      const base = Math.round(S.yaw / (Math.PI * 2)) * Math.PI * 2;
-      const goal = { yaw: base + (yaws[side] || 0), pitch: side === 'top' ? 1.3 : 0.08, zoom: S.zoom, panX: 0, panY: 0 };
-      if (reduced()) Object.assign(S, goal); else S.goal = goal;
-      S.vel = 0; S.dirty = true; wake();
+    }
+    S.reset = () => flyTo(HOME);
+    const SIDE_YAW = { front: 0, back: Math.PI, right: -Math.PI / 2, left: Math.PI / 2 };
+    /** look at what the camera looks at now from a side: 'front' | 'back' | 'left' | 'right' | 'top' (keeps the focus and zoom) */
+    S.view = (side) => flyTo({ yaw: side === 'top' ? S.yaw : SIDE_YAW[side] || 0, pitch: side === 'top' ? 1.3 : 0.08 });
+    /** world-space box of some parts ([ids], visible or not) or of the cape: { c: [x, y, z], r: radius } */
+    function boxOf(ids) {
+      if (!S.ready) return null;
+      S.scene.updateMatrixWorld();
+      const mn = [Infinity, Infinity, Infinity], mx = [-Infinity, -Infinity, -Infinity], v = new THREE.Vector3();
+      const meshes = ids === 'cape' ? (S.capeG.visible ? S.capeG.children : []) : ids.map((id) => S.parts[id] && S.parts[id].mesh).filter(Boolean);
+      meshes.forEach((m) => {
+        if (!m.geometry.boundingBox) m.geometry.computeBoundingBox();
+        const b = m.geometry.boundingBox;
+        for (let i = 0; i < 8; i++) {
+          v.set(i & 1 ? b.max.x : b.min.x, i & 2 ? b.max.y : b.min.y, i & 4 ? b.max.z : b.min.z).applyMatrix4(m.matrixWorld);
+          mn[0] = Math.min(mn[0], v.x); mn[1] = Math.min(mn[1], v.y); mn[2] = Math.min(mn[2], v.z);
+          mx[0] = Math.max(mx[0], v.x); mx[1] = Math.max(mx[1], v.y); mx[2] = Math.max(mx[2], v.z);
+        }
+      });
+      if (!isFinite(mn[0])) return null;
+      return { c: [(mn[0] + mx[0]) / 2, (mn[1] + mx[1]) / 2, (mn[2] + mx[2]) / 2], r: Math.hypot(mx[0] - mn[0], mx[1] - mn[1], mx[2] - mn[2]) / 2 };
+    }
+    /** the parts a focus name stands for (a picked part focuses its limb, base and outer layer together) */
+    const FOCUS = { head: ['head', 'hat'], body: ['body', 'jacket'], arms: ['rarm', 'larm', 'rsleeve', 'lsleeve'], legs: ['rleg', 'lleg', 'rpants', 'lpants'],
+      rarm: ['rarm', 'rsleeve'], larm: ['larm', 'lsleeve'], rleg: ['rleg', 'rpants'], lleg: ['lleg', 'lpants'], cape: 'cape' };
+    const OWNER = { hat: 'head', jacket: 'body', rsleeve: 'rarm', lsleeve: 'larm', rpants: 'rleg', lpants: 'lleg' };
+    /**
+     * Fly to a part: name = head | body | arms | legs | rarm | larm | rleg | lleg | cape (or any part id), face = the face to
+     * turn to (front, back, left, right, top, bottom; optional: else the camera keeps its side). Returns false if not there.
+     */
+    S.focus = (name, face) => {
+      const ids = FOCUS[OWNER[name] || name];
+      const b = ids && boxOf(ids);
+      if (!b) return false;
+      const t = Math.tan((S.camera.fov * Math.PI) / 360), aspect = Math.max(0.2, S.w / Math.max(1, S.h));
+      const d = Math.max(b.r / t, b.r / (t * aspect)) * 1.15;
+      const to = { tx: b.c[0], ty: b.c[1], tz: b.c[2], zoom: clamp(fit() / d, ZMIN, ZMAX) };
+      if (face === 'top') to.pitch = 1.1;
+      else if (face === 'bottom') to.pitch = -1.0;
+      else if (face && face in SIDE_YAW) { to.yaw = SIDE_YAW[face]; to.pitch = 0.12; }
+      else if (name === 'cape') { to.yaw = Math.PI; to.pitch = 0.12; }
+      else to.pitch = clamp(S.pitch, -0.35, 0.6);
+      flyTo(to, 0.6);
+      return true;
     };
     S.zoomTo = (z) => { S.zoom = clamp(z, ZMIN, ZMAX); S.goal = null; S.dirty = true; wake(); };
     S.zoomBy = (f) => S.zoomTo(S.zoom * f);
+    /** zoom by f keeping the point under the client point (cx, cy) where it is (no point: zoom on the look-at point) */
+    S.zoomAt = (f, cx, cy) => {
+      const z1 = clamp(S.zoom * f, ZMIN, ZMAX);
+      if (cx == null || !S.ready || !S.w) return S.zoomTo(z1);
+      resize(); place();
+      const r = S.canvas.getBoundingClientRect(), nx = ((cx - r.left) / r.width) * 2 - 1, ny = -((cy - r.top) / r.height) * 2 + 1;
+      const o = S.camera.position, p = new THREE.Vector3(nx, ny, 0.5).unproject(S.camera).sub(o);
+      const B = basis(S.yaw, S.pitch), f3 = B.f, den = p.x * f3[0] + p.y * f3[1] + p.z * f3[2];
+      if (Math.abs(den) > 1e-6) {
+        // the point on the plane through the look-at point, facing the camera; the look-at point slides toward it
+        const dist = ((S.tx - o.x) * f3[0] + (S.ty - o.y) * f3[1] + (S.tz - o.z) * f3[2]) / den;
+        const P = [o.x + p.x * dist, o.y + p.y * dist, o.z + p.z * dist], k = S.zoom / z1;
+        S.tx = P[0] + (S.tx - P[0]) * k; S.ty = P[1] + (S.ty - P[1]) * k; S.tz = P[2] + (S.tz - P[2]) * k;
+        clampTarget();
+      }
+      S.zoomTo(z1);
+    };
     S.orbitBy = (dx, dy) => { S.yaw -= dx * 0.0105; S.pitch = clamp(S.pitch + dy * 0.007, -PMAX, PMAX); S.goal = null; S.dirty = true; wake(); };
-    S.panBy = (dx, dy) => { const k = fit() / S.zoom / Math.max(1, S.h) * 0.52; S.panX = clamp(S.panX - dx * k, -40, 40); S.panY = clamp(S.panY + dy * k, -30, 30); S.goal = null; S.dirty = true; wake(); };
+    /** move the look-at point with the pointer (dx, dy in client px): the model follows the hand */
+    S.panBy = (dx, dy) => {
+      const B = basis(S.yaw, S.pitch), k = (2 * (fit() / S.zoom) * Math.tan((S.camera ? S.camera.fov : 28) * Math.PI / 360)) / Math.max(1, S.h);
+      S.tx -= (B.r[0] * dx - B.u[0] * dy) * k; S.ty -= (B.r[1] * dx - B.u[1] * dy) * k; S.tz -= (B.r[2] * dx - B.u[2] * dy) * k;
+      clampTarget(); S.goal = null; S.dirty = true; wake();
+    };
+    /** the camera as plain numbers (for the UI / tests) */
+    S.cam = () => ({ yaw: S.yaw, pitch: S.pitch, zoom: S.zoom, target: [S.tx, S.ty, S.tz], flying: !!S.goal });
 
     /* ---- picking ---- */
     const tmpV = () => new THREE.Vector3();
@@ -344,38 +425,54 @@ TH.skinsView = (function () {
       return E().pick(S.slim ? 'slim' : 'classic', rays);
     };
 
-    /* ---- input: paint (primary button / one finger) or orbit, by mode ---- */
-    let drag = null;   // { kind: 'paint' | 'orbit' | 'pan', id, x, y, t }
+    /*
+     * ---- input ----
+     * left button / one finger: paint with the active tool (the Turn tool: orbit) · right-drag or Alt+left-drag: orbit
+     * (Alt+click without moving still picks a colour) · middle-drag, Shift+right-drag or Space+left-drag: pan ·
+     * wheel: zoom toward the cursor · two fingers: pan + pinch zoom (always) · double-click a part: fly to it.
+     */
+    let drag = null;   // { kind: 'paint' | 'orbit' | 'pan' | 'alt' | 'multi', id, x, y, t }
     const ptrs = new Map();
-    let pinch0 = 0, zoom0 = 1, mid0 = null, spaceDown = false;
+    let pinch0 = 0, zoom0 = 1, mid0 = null, spaceDown = false, lastDown = null;
     const pdist = () => { const a = [...ptrs.values()]; return Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y) || 1; };
     const pmid = () => { const a = [...ptrs.values()]; return { x: (a[0].x + a[1].x) / 2, y: (a[0].y + a[1].y) / 2 }; };
     window.addEventListener('keydown', (e) => { if (e.code === 'Space' && el.matches(':hover')) spaceDown = true; });
     window.addEventListener('keyup', (e) => { if (e.code === 'Space') spaceDown = false; });
+    window.addEventListener('blur', () => { spaceDown = false; });
     el.addEventListener('contextmenu', (e) => e.preventDefault());
+    /** a second left click on the same spot within 350 ms = double-click: fly to the part under it (and do not paint again) */
+    function dblFocus(e) {
+      const now = e.timeStamp, prev = lastDown;
+      lastDown = { t: now, x: e.clientX, y: e.clientY };
+      if (!prev || now - prev.t > 350 || Math.hypot(e.clientX - prev.x, e.clientY - prev.y) > 6) return false;
+      lastDown = null;
+      const hit = S.pickAt(e.clientX, e.clientY);
+      if (!hit) { S.reset(); return true; }
+      S.focus(hit.part, hit.face);
+      S.onFocus && S.onFocus(hit);
+      return true;
+    }
     el.addEventListener('pointerdown', (e) => {
       if (!S.ready) return;
       try { el.setPointerCapture(e.pointerId); } catch (x) { /* ignore */ }
       ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
       S.goal = null; S.vel = 0;
-      if (ptrs.size === 2) {   // second finger: cancel a stroke, start pinch + two-finger orbit / pan
+      if (ptrs.size === 2) {   // second finger: cancel a stroke, start pinch + two-finger pan
         if (drag && drag.kind === 'paint') S.onPaint && S.onPaint('cancel', null, e);
         drag = { kind: 'multi' }; pinch0 = pdist(); zoom0 = S.zoom; mid0 = pmid();
         return;
       }
       if (ptrs.size > 2) return;
       const btn = e.pointerType === 'mouse' ? e.button : 0;
+      if (btn === 0 && !e.altKey && !spaceDown && !e.shiftKey && dblFocus(e)) { drag = null; ptrs.delete(e.pointerId); return; }
       let kind = 'orbit';
       if (btn === 1 || (btn === 0 && spaceDown) || (btn === 2 && e.shiftKey) || (btn === 0 && e.shiftKey && S.mode === 'orbit')) kind = 'pan';
       else if (btn === 2) kind = 'orbit';
-      else if (btn === 0 && S.mode === 'paint') kind = e.altKey ? 'pickc' : 'paint';
-      drag = { kind, id: e.pointerId, x: e.clientX, y: e.clientY, t: e.timeStamp };
+      else if (btn === 0 && e.altKey) kind = 'alt';   // drag = orbit, click = pick a colour
+      else if (btn === 0 && S.mode === 'paint') kind = 'paint';
+      drag = { kind, id: e.pointerId, x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY, t: e.timeStamp };
       el.classList.toggle('grab', kind === 'orbit' || kind === 'pan');
-      if (kind === 'paint' || kind === 'pickc') {
-        const hit = S.pickAt(e.clientX, e.clientY);
-        if (kind === 'pickc') { if (hit && S.onPickColor) S.onPickColor(hit); drag = null; return; }
-        S.onPaint && S.onPaint('start', hit, e);
-      }
+      if (kind === 'paint') S.onPaint && S.onPaint('start', S.pickAt(e.clientX, e.clientY), e);
       wake();
     });
     el.addEventListener('pointermove', (e) => {
@@ -387,13 +484,20 @@ TH.skinsView = (function () {
       const dx = e.clientX - p.x, dy = e.clientY - p.y;
       p.x = e.clientX; p.y = e.clientY;
       if (drag.kind === 'multi' && ptrs.size === 2) {
-        S.zoom = clamp(zoom0 * pdist() / pinch0, ZMIN, ZMAX);
         const m = pmid(), mx = m.x - mid0.x, my = m.y - mid0.y; mid0 = m;
-        if (S.mode === 'orbit') S.panBy(mx, my); else S.orbitBy(mx, my);
+        S.panBy(mx, my);
+        const nz = clamp(zoom0 * pdist() / pinch0, ZMIN, ZMAX);
+        if (Math.abs(nz - S.zoom) > 1e-4) S.zoomAt(nz / S.zoom, m.x, m.y);
         S.dirty = true; wake();
+        S.onView && S.onView();
         return;
       }
       if (drag.id !== e.pointerId) return;
+      if (drag.kind === 'alt') {   // Alt + left: becomes an orbit once it moves a few pixels
+        if (Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) < 4) return;
+        drag.kind = 'orbit'; el.classList.add('grab');
+      }
+      if (drag.kind === 'none') return;
       if (drag.kind === 'paint') {
         const evs = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
         (evs.length ? evs : [e]).forEach((ce) => { const hit = S.pickAt(ce.clientX, ce.clientY); S.onPaint && S.onPaint('move', hit, ce); });
@@ -412,6 +516,8 @@ TH.skinsView = (function () {
     const up = (e) => {
       if (!ptrs.delete(e.pointerId)) return;
       if (drag && drag.kind === 'paint' && drag.id === e.pointerId) S.onPaint && S.onPaint('end', null, e);
+      if (drag && drag.kind === 'alt' && drag.id === e.pointerId && e.type === 'pointerup') { const hit = S.pickAt(e.clientX, e.clientY); if (hit && S.onPickColor) S.onPickColor(hit); }
+      if (drag && drag.kind === 'multi' && ptrs.size === 1) { const [id, p] = [...ptrs.entries()][0]; drag = { kind: S.mode === 'orbit' ? 'orbit' : 'none', id, x: p.x, y: p.y, t: e.timeStamp }; wake(); return; }
       if (drag && drag.kind === 'orbit' && (e.timeStamp - drag.t > 90 || reduced())) S.vel = 0;
       if (drag && drag.kind !== 'orbit') S.vel = 0;
       if (!ptrs.size || (drag && drag.id === e.pointerId)) { drag = ptrs.size ? { kind: 'none' } : null; el.classList.remove('grab'); }
@@ -423,12 +529,12 @@ TH.skinsView = (function () {
     el.addEventListener('pointerleave', (e) => { if (!drag && S.onHover) S.onHover(null, e); });
     el.addEventListener('wheel', (e) => {
       e.preventDefault();
-      if (e.ctrlKey || !e.shiftKey) S.zoom = clamp(S.zoom * Math.exp(-e.deltaY * (e.deltaMode ? 0.05 : 0.0015)), ZMIN, ZMAX);
+      S.goal = null;
+      if (e.ctrlKey || !e.shiftKey) S.zoomAt(Math.exp(-e.deltaY * (e.deltaMode ? 0.05 : 0.0015)), e.clientX, e.clientY);
       else S.orbitBy(e.deltaY * 0.4, 0);
-      S.goal = null; S.dirty = true; wake();
+      S.dirty = true; wake();
       S.onView && S.onView();
     }, { passive: false });
-    el.addEventListener('dblclick', (e) => { if (S.mode === 'orbit' || e.button !== 0) S.reset(); });
     el.addEventListener('keydown', (e) => {
       const k = e.key, step = { ArrowLeft: [-16, 0], ArrowRight: [16, 0], ArrowUp: [0, -12], ArrowDown: [0, 12] }[k];
       if (step && !e.ctrlKey && !e.metaKey) { e.preventDefault(); if (e.shiftKey) S.panBy(step[0], step[1]); else S.orbitBy(step[0], step[1]); }

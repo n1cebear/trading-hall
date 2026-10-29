@@ -263,7 +263,7 @@ TH.skinsView = (function () {
     /* ---- camera ---- */
     function fit() {
       const t = Math.tan((S.camera.fov * Math.PI) / 360), aspect = Math.max(0.2, S.w / Math.max(1, S.h));
-      return Math.max(24 / t, 15 / (t * aspect));
+      return Math.max(21 / t, 14 / (t * aspect));   // the model fills the stage: it is the hero of the page
     }
     function place() {
       const d = fit() / S.zoom, cp = Math.cos(S.pitch);

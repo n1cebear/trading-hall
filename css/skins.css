@@ -1,7 +1,7 @@
 /* =====================================================================
    Skin Editor (js/modules/skins.js): top bar, tool rail | options + 3D model + flat sheet | colour, layers, versions.
    Accent = periwinkle (--c-skin) via data-tool="skins". Tokens only, neumorphic tokens always with a fallback (Classic has
-   no data-neu). Containers = .panel (T1), keys = .btn / .seg (T2), wells = .sk-stage / .sk-sheet-scroll / .field.
+   no data-neu). Containers = .panel (T1), keys = .btn / .seg (T2), wells = .sk-stage / .field; the docked view is an overlay card.
    No divider lines, no boxes inside panels, no round shapes; only transform / opacity animate.
    ===================================================================== */
 .module-skins { --sk-gap: 20px; --sk-rail: 52px; --sk-side: 340px; --sk-key: 40px; }
@@ -44,7 +44,6 @@
 .sk-tool:hover { color: var(--text); }
 .sk-centre { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
 .sk-centre-top { display: flex; align-items: center; gap: 12px; min-width: 0; }
-.sk-viewseg { display: none; }
 .sk-right { position: sticky; top: 74px; display: flex; flex-direction: column; gap: var(--sk-gap); max-height: calc(100vh / var(--zoom, 1) - 96px); overflow-y: auto; overscroll-behavior: contain; padding: 4px 6px 8px 4px; margin: -4px -6px 0 -4px; }
 
 /* ---------- options bar: fixed height, only the active tool's options ---------- */
@@ -64,16 +63,61 @@
 .sk-hint.sk-opt, .sk-opt.sk-hint { color: var(--muted); font-size: 12.5px; white-space: nowrap; }
 .sk-selinfo { flex: none; font: 500 12px var(--font); color: var(--muted); white-space: nowrap; }
 
-/* ---------- views: model | sheet ---------- */
-.sk-views { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--sk-gap); min-width: 0; }
-.sk-views[data-view="both"] { grid-template-columns: minmax(0, 1.15fr) minmax(300px, 1fr); }
-.sk-views[data-view="model"] .sk-sheet, .sk-views[data-view="sheet"] .sk-viewer { display: none; }
-.sk-viewer, .sk-sheet { display: flex; flex-direction: column; gap: 12px; padding: 12px; min-width: 0; }
+/* ---------- the stage: ONE well with both views. The main view fills it; the other one docks small in the
+   bottom-right corner (the flat sheet at its real 64 x 64 x zoom size). Every view control is a small overlay inside its
+   view, like the Trims viewer. Overlays fade back while the pointer is away, so the model stays the hero. ---------- */
+.sk-viewer { display: flex; flex-direction: column; padding: 12px; min-width: 0; }
+.sk-stage { --sk-dock-m: 12px; height: clamp(440px, calc(100vh - 300px), 860px); }   /* ends just above the window bottom on desktop */
+.sk-pane { position: absolute; }
+.sk-stage[data-main="model"] .sk-pane-model, .sk-stage[data-main="sheet"] .sk-pane-sheet { inset: 0; }
+/* the docked view: a floating card in the corner (an overlay on the well, like a minimap; no surface of its own around the canvas) */
+.sk-stage[data-main="model"] .sk-pane-sheet, .sk-stage[data-main="sheet"] .sk-pane-model {
+  right: var(--sk-dock-m); bottom: var(--sk-dock-m); z-index: 3; border-radius: var(--radius); overflow: hidden;
+  background: color-mix(in srgb, var(--neu-bg, var(--panel)) 88%, transparent); box-shadow: 0 0 0 1px var(--line-2), 0 16px 34px -14px rgb(0 0 0 / .65); }
+.sk-stage[data-main="sheet"] .sk-pane-model { width: clamp(150px, 24%, 230px); height: clamp(200px, 42%, 320px); }
+.sk-stage[data-dock="closed"][data-main="model"] .sk-pane-sheet, .sk-stage[data-dock="closed"][data-main="sheet"] .sk-pane-model { display: none; }
+.sk-unfold { position: absolute; right: var(--sk-dock-m); bottom: var(--sk-dock-m); z-index: 3; gap: 6px; height: 32px; padding: 0 10px; display: none; }
+.sk-stage[data-dock="closed"] .sk-unfold { display: inline-flex; }
+/* overlays */
+.sk-ov { position: absolute; z-index: 2; display: flex; align-items: center; gap: 6px; pointer-events: none; transition: opacity .2s; }
+.sk-ov > * { pointer-events: auto; }
+.sk-ov-tl { left: 10px; top: 10px; }
+.sk-ov-tr { right: 10px; top: 10px; gap: 12px; }
+.sk-ov-bl { left: 10px; bottom: 10px; }
+.sk-ov-dock { right: 6px; top: 6px; display: none; }
+.sk-ovg { display: flex; gap: 4px; }
+.sk-pane-model:not(:hover):not(:focus-within) :is(.sk-ov-tl, .sk-ov-tr) { opacity: .5; }
+.sk-stage[data-main="sheet"] .sk-pane-model :is(.sk-ov-tl, .sk-ov-tr, .sk-ov-bl) { display: none; }
+.sk-stage[data-main="sheet"] .sk-pane-model .sk-ov-dock { display: flex; }
+.sk-vb, .sk-vb.sk-ib { width: 30px; height: 30px; padding: 0; }
+.sk-vb.btn.small:not(.sk-ib) { width: auto; padding: 0 9px; }
+.sk-side { height: 30px; padding: 0 8px; font-size: 11.5px; }
+.sk-more { display: none; }
+.sk-info { margin-left: 6px; font: 400 11px/1.2 var(--mono); color: var(--muted); pointer-events: none; text-shadow: 0 1px 2px rgb(0 0 0 / .35); white-space: nowrap; }
+.sk-stage:not([data-bg="studio"]):not([data-bg="light"]) .sk-info { color: rgb(255 255 255 / .82); }
+.sk-bgsw { width: 14px; height: 14px; }
+/* the flat sheet pane */
+.sk-pane-sheet { display: flex; flex-direction: column; }
+.sk-ov-sheet { position: static; order: -1; justify-content: flex-end; gap: 4px; padding: 6px 6px 0; pointer-events: auto; }
+.sk-ov-sheet .sk-vb { width: 26px; height: 26px; }
+.sk-ov-sheet .sk-tg.sk-vb { width: 26px; height: 26px; padding: 0; justify-content: center; }
+.sk-zoomv { min-width: 26px; text-align: center; font: 400 10.5px/1 var(--mono); color: var(--muted); }
+.sk-stage[data-main="sheet"] .sk-ov-sheet { position: absolute; right: 10px; top: 10px; padding: 0; gap: 6px; }
+.sk-stage[data-main="sheet"] .sk-ov-sheet .sk-vb { width: 30px; height: 30px; }
+.sk-stage[data-main="sheet"] .sk-foldkey { display: none; }
+.sk-sheet-scroll { position: relative; overflow: hidden; display: grid; place-items: center; touch-action: none; padding: 6px; }
+.sk-stage[data-main="sheet"] .sk-sheet-scroll { position: absolute; inset: 0; overflow: auto; padding: 52px calc(clamp(150px, 24%, 230px) + 24px) 12px 12px; }   /* keeps the sheet clear of the docked model */
+.sk-stage[data-main="sheet"][data-dock="closed"] .sk-sheet-scroll { padding-right: 12px; }
+.sk-sheet-cv { display: block; image-rendering: pixelated; cursor: crosshair; touch-action: none; border-radius: 2px; }
+.sk-sheet-cv:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sk-stage[data-tool="orbit"] .sk-sheet-cv, .sk-sheet-cv.grab { cursor: grab; }
+.sk-stage[data-tool="move"] .sk-sheet-cv { cursor: move; }
+
 .sk-stage {
-  position: relative; height: var(--stage-h); overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--slot-shadow, none);
+  position: relative; overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--slot-shadow, none);
   background: radial-gradient(ellipse 60% 42% at 50% 92%, color-mix(in srgb, var(--accent) 20%, transparent), transparent 70%), radial-gradient(ellipse 70% 60% at 50% 40%, color-mix(in srgb, var(--accent) 8%, var(--panel-2)), var(--bg-2) 85%);
 }
-:root[data-neu] .sk-stage, :root[data-neu] .sk-sheet-scroll { border-color: transparent; box-shadow: var(--neu-well, var(--slot-shadow, none)); }
+:root[data-neu] .sk-stage { border-color: transparent; box-shadow: var(--neu-well, var(--slot-shadow, none)); }
 .sk-canvas { position: absolute; inset: 0; outline: none; touch-action: none; user-select: none; -webkit-user-select: none; cursor: crosshair; }
 .sk-canvas[data-mode="orbit"] { cursor: grab; }
 .sk-canvas.grab { cursor: grabbing; }
@@ -81,18 +125,6 @@
 .sk-gl { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 .sk-loading, .sk-error { position: absolute; inset: 0; display: grid; place-content: center; gap: 4px; text-align: center; color: var(--muted); pointer-events: none; }
 .sk-error { color: var(--text); }
-.sk-vtop { position: absolute; left: 10px; right: 10px; top: 10px; display: flex; justify-content: space-between; gap: 10px; pointer-events: none; }
-.sk-vtop > * { pointer-events: auto; }
-.sk-sides, .sk-zoom { display: flex; gap: 6px; opacity: .55; transition: opacity .2s; }
-.sk-stage:hover :is(.sk-sides, .sk-zoom), .sk-stage:focus-within :is(.sk-sides, .sk-zoom) { opacity: 1; }
-.sk-side { height: 30px; padding: 0 9px; font-size: 12px; }
-.sk-zoom .sk-ib, .sk-vb.sk-ib { width: 34px; height: 34px; }
-.sk-info { position: absolute; left: 12px; bottom: 10px; font: 400 11px/1.2 var(--mono); color: var(--muted); pointer-events: none; text-shadow: 0 1px 2px rgb(0 0 0 / .35); }
-.sk-stage:not([data-bg="studio"]):not([data-bg="light"]) .sk-info { color: rgb(255 255 255 / .78); }
-.sk-vbar { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
-.sk-vgrp { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.sk-vgrp.end { justify-content: flex-end; }
-.sk-vb { height: 34px; padding-block: 0; }
 .sk-animbtn { gap: 8px; min-width: 96px; justify-content: space-between; }
 .sk-chev { width: 7px; height: 7px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: translateY(-2px) rotate(45deg); opacity: .7; }
 .sk-bgsw { width: 16px; height: 16px; border-radius: 3px; box-shadow: inset 0 0 0 1px var(--line-2); background: var(--sk-bgc, var(--bg-2)); }
@@ -133,13 +165,6 @@
 .sk-bgprev[data-bg="plains"], .sk-bgprev[data-bg="snow"], .sk-bgprev[data-bg="nether"], .sk-bgprev[data-bg="end"], .sk-bgprev[data-bg="water"] { background-size: 12px 12px, auto; }
 
 /* ---------- the flat sheet ---------- */
-.sk-sheetbar { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
-.sk-zoomv { min-width: 34px; text-align: center; font: 400 11.5px/1 var(--mono); color: var(--muted); }
-.sk-sheet-scroll { position: relative; height: var(--stage-h); overflow: auto; display: grid; place-items: center; border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg-2); box-shadow: var(--slot-shadow, none); touch-action: none; }
-.sk-sheet-cv { display: block; image-rendering: pixelated; cursor: crosshair; touch-action: none; margin: 12px; }
-.sk-sheet-cv:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.sk-sheet[data-tool="orbit"] .sk-sheet-cv, .sk-sheet-cv.grab { cursor: grab; }
-.sk-sheet[data-tool="move"] .sk-sheet-cv { cursor: move; }
 
 /* ---------- right column panels ---------- */
 .sk-panel { display: flex; flex-direction: column; gap: 12px; padding: 16px; min-width: 0; }
@@ -267,10 +292,6 @@
 @media (max-width: 1280px) and (min-width: 761px) {
   .sk-work { grid-template-columns: var(--sk-rail) minmax(0, 1fr); }
   .sk-right { grid-column: 1 / -1; position: static; max-height: none; overflow: visible; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); align-items: start; margin: 0; padding: 0; }
-  .sk-views[data-view="both"] { grid-template-columns: minmax(0, 1fr) minmax(280px, .9fr); }
-}
-@media (max-width: 1000px) and (min-width: 761px) {
-  .sk-views[data-view="both"] { grid-template-columns: minmax(0, 1fr); }
 }
 
 /* ---------- phones: model OR sheet, options + tool strip stick above the tab bar, panels open as bottom sheets ---------- */
@@ -285,13 +306,19 @@
   .sk-work { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
   .sk-work > * { min-width: 0; max-width: 100%; }
   .sk-centre { order: 1; }
-  .sk-centre-top { flex-wrap: wrap; }
-  .sk-viewseg { display: inline-flex; }
-  .sk-centre-top > .sk-ib { display: none; }
-  .sk-views[data-view] { grid-template-columns: minmax(0, 1fr); }
-  .sk-stage, .sk-sheet-scroll { height: min(56vh, 460px); }
-  .sk-vbar .sk-vlabel { display: none; }
-  .sk-sides { display: none; }
+  .sk-viewer { padding: 8px; }
+  .sk-stage { --sk-dock-m: 8px; height: min(62vh, 520px); }
+  .sk-sides, .sk-toggles { display: none; }
+  .sk-more { display: inline-grid; }
+  .sk-ov-tr { gap: 6px; }
+  .sk-info { display: none; }
+  .sk-vb, .sk-vb.sk-ib { width: 36px; height: 36px; }
+  .sk-pane-model:not(:hover):not(:focus-within) :is(.sk-ov-tl, .sk-ov-tr) { opacity: 1; }
+  .sk-stage[data-main="sheet"] .sk-pane-model { width: 120px; height: 170px; }
+  .sk-ov-sheet .sk-vb, .sk-ov-sheet .sk-tg.sk-vb { width: 30px; height: 30px; }
+  /* the docked sheet stays as small as the sheet itself: its size keys live in the big view only */
+  .sk-stage[data-main="model"] .sk-ov-sheet > :nth-child(-n+3) { display: none; }
+  .sk-stage[data-main="model"] .sk-ov-sheet { justify-content: center; }
   .sk-rail { order: 2; width: 100%; position: sticky; top: auto; bottom: calc(var(--bottom-bar, 0px) + 6px); z-index: 20; flex-direction: row; gap: 14px; padding: 8px; overflow-x: auto; scrollbar-width: none;
     background: var(--neu-bg, var(--panel)); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: 0 10px 24px -12px rgb(0 0 0 / .55); }
   .sk-rail::-webkit-scrollbar { display: none; }
@@ -311,7 +338,9 @@
   .sk-pop-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .sk-bggrid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
-@media (prefers-reduced-motion: reduce) { .sk-dlg { animation: none !important; } .sk-swatch, .sk-sides, .sk-zoom, .sk-gmore { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .sk-dlg { animation: none !important; } .sk-swatch, .sk-ov, .sk-gmore { transition: none; } }
 /* a side panel shown inside a sheet (phones) is flat: no segment in a segment */
 .sk-dlg .sk-panel, :root[data-neu] .sk-dlg .sk-panel { padding: 0; background: none; border: 0; box-shadow: none; }
 .sk-dlg .sk-color > .sk-ph:first-child h3 { visibility: hidden; }
+.sk-moregrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.sk-moregrid .btn { justify-content: flex-start; gap: 8px; height: 36px; }

@@ -62,7 +62,7 @@
     tool: 'pencil', size: 1, shape: 'square', hardness: 1, opacity: 1, amount: 0.25, shadeMode: 'darken', noiseMode: 'noise', tolerance: 0, contiguous: true, limit: 'none',
     sample: 'layer', filled: false, gradType: 'linear', gradSteps: 0, dither: false, selMode: 'rect', selOp: 'new', sym: { body: false, faceX: false, faceY: false },
     color: '#3c44aaff', color2: '#f9fffeff', recent: [], palettes: [], anim: 'idle', speed: 1, bg: 'studio', bgColor: '#20212b', lit: true, overlay: 'none', gameLook: true,
-    sheetOpen: true, sheetZoom: 0, sheetGrid: true, sheetLabels: false, hidden: {}, locks: {}, capeOn: true, elytra: false, side: 'versions', view: 'model', defModel: 'auto',
+    main: 'model', dock: true, dockZoom: 4, sheetZoom: 0, sheetGrid: true, sheetLabels: false, hidden: {}, locks: {}, capeOn: true, elytra: false, side: 'versions', view: 'model', defModel: 'auto',
   };
   const defaults = () => ({ v: 1, work: null, lib: [], ui: JSON.parse(JSON.stringify(UI_DEFAULTS)) });
   function norm(s) {
@@ -84,7 +84,9 @@
     if (!ANIMS.some((a) => a[0] === u.anim)) u.anim = 'idle';
     if (!BGS.some((b) => b.id === u.bg)) u.bg = 'studio';
     if (!['none', 'grid', 'parts'].includes(u.overlay)) u.overlay = 'none';
-    if (!['model', 'sheet'].includes(u.view)) u.view = 'model';
+    if (!['model', 'sheet'].includes(u.main)) u.main = 'model';
+    u.dock = u.dock !== false; u.dockZoom = clamp(Math.round(+u.dockZoom || 4), 2, 8);
+    delete u.view; delete u.sheetOpen;
     if (!['versions', 'history'].includes(u.side)) u.side = 'versions';
     if (typeof u.hidden !== 'object' || !u.hidden) u.hidden = {};
     if (typeof u.locks !== 'object' || !u.locks) u.locks = {};
@@ -759,14 +761,22 @@
     let raf = 0, z = 6, dpr = 1, peekBuf = null;
     const S = { el: wrap, cv };
     S.invalidate = (pb) => { peekBuf = ED.peek ? (pb || (ED.peek && ED.peek.buf)) : null; if (!raf) raf = requestAnimationFrame(draw); };
+    /** docked: the chosen size (never more than ~half the stage); main view: fit the stage (or the chosen zoom) */
+    const docked = () => ui().main !== 'sheet';
+    function maxDock() { const st = wrap.closest('.sk-stage'); if (!st || !st.clientHeight) return 8; return Math.max(2, Math.floor(Math.min(st.clientHeight * 0.5, st.clientWidth * 0.45) / 64)); }
     function fitZoom() {
       const u = ui();
+      if (docked()) return clamp(u.dockZoom, 2, maxDock());
       if (u.sheetZoom) return u.sheetZoom;
-      const w = wrap.clientWidth || 384, hh = wrap.clientHeight || 384;
-      return clamp(Math.floor(Math.min(w, hh) / 64), 3, 14);
+      const cs = getComputedStyle(wrap), w = (wrap.clientWidth || 384) - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight), hh = (wrap.clientHeight || 384) - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+      return clamp(Math.floor(Math.min(w, hh) / 64), 2, 16);
     }
     S.zoom = () => z;
-    S.setZoom = (nz) => { save((s) => { s.ui.sheetZoom = nz ? clamp(nz, 3, 20) : 0; }); S.invalidate(); patchSheetZoom(); };
+    S.setZoom = (nz) => {
+      if (docked()) save((s) => { s.ui.dockZoom = clamp(nz, 2, Math.min(8, maxDock())); });
+      else save((s) => { s.ui.sheetZoom = nz ? clamp(nz, 2, 20) : 0; });
+      S.invalidate(); patchSheetZoom();
+    };
     function size() {
       z = fitZoom(); dpr = Math.min(2, window.devicePixelRatio || 1);
       const px = 64 * z;
@@ -777,6 +787,7 @@
       raf = 0;
       if (!wrap.isConnected) return;
       size();
+      if (UI && UI.sheetZoom && UI.sheetZoom.textContent !== z + '×') UI.sheetZoom.textContent = z + '×';
       const x = cv.getContext('2d'), k = z * dpr, u = ui(), m = ED.peek ? (ED.peek.slim ? 'slim' : 'classic') : model();
       x.setTransform(1, 0, 0, 1, 0, 0);
       x.clearRect(0, 0, cv.width, cv.height);
@@ -922,7 +933,7 @@
     wrap.addEventListener('wheel', (e) => {
       if (!(e.ctrlKey || e.metaKey)) return;
       e.preventDefault();
-      S.setZoom(clamp(z + (e.deltaY < 0 ? 1 : -1), 3, 20));
+      S.setZoom(z + (e.deltaY < 0 ? 1 : -1));
     }, { passive: false });
     new ResizeObserver(() => S.invalidate()).observe(wrap);
     return S;
@@ -1010,7 +1021,7 @@
     V.setLock(id !== 'orbit');
     V.setMode(id === 'orbit' ? 'orbit' : 'paint');
     patchTools(); patchOptions(); patchViewBar(); syncCursor3D(); Sheet.invalidate();
-    if (UI) { UI.stage.dataset.tool = id; UI.sheetBox.dataset.tool = id; }
+    if (UI) UI.stage.dataset.tool = id;
   }
   function buildRail() {
     const groups = [['view', 'View'], ['draw', 'Draw'], ['shape', 'Shapes'], ['fill', 'Fill and pick'], ['select', 'Select']];
@@ -1135,13 +1146,20 @@
     pop.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.stopPropagation(); close(); btn.focus(); } });
     return pop;
   }
+  /**
+   * The stage: ONE well holding both views. The main view fills it (3D model by default); the other one is docked in the
+   * bottom-right corner as a compact card at its real size (the flat sheet = exactly 64 × 64 × zoom). Every view control
+   * is a small overlay inside its own view. Swap (⇄) trades places, the dock folds to a small key.
+   */
   function buildStage() {
     const stage = h('div.sk-stage', { 'data-bg': 'studio' });
     applyBg(stage);
-    const playBtn = ibtn('pause', 'Pause', () => {
+    const vb = (icon, label, fn, o) => ibtn(icon, label, fn, Object.assign({ cls: 'sk-vb', size: 16 }, o));
+    /* ---- model overlays ---- */
+    const playBtn = vb('pause', 'Pause', () => {
       if (ui().tool !== 'orbit') { setTool('orbit'); V.setPaused(false); return; }
       V.setPaused(!V.paused);
-    }, { key: 'K', cls: 'sk-vb', tip: () => [V.lock ? 'Play the animation (K)' : V.paused ? 'Play (K)' : 'Pause (K)', V.lock ? 'Switches to the Turn tool: paint tools always hold the still pose' : ''] });
+    }, { key: 'K', tip: () => [V.lock ? 'Play the animation (K)' : V.paused ? 'Play (K)' : 'Pause (K)', V.lock ? 'Switches to the Turn tool: paint tools always hold the still pose' : ''] });
     const animBtn = h('button.btn.small.sk-vb.sk-animbtn', { type: 'button', 'aria-label': 'Animation' }, h('span.sk-animname'), h('span.sk-chev', { 'aria-hidden': 'true' }));
     tip(animBtn, () => ['Animation', 'Plays with the Turn tool (C). Painting always uses the still pose']);
     const animPop = popover(animBtn, (close) => [h('div.sk-pop-title', 'Animation'), h('div.sk-pop-grid', ANIMS.map(([id, l]) => {
@@ -1149,58 +1167,90 @@
       press(b, ui().anim === id);
       return b;
     })), slider('Speed', 0.25, 2.5, 0.25, () => ui().speed, (v) => { save((s) => { s.ui.speed = v; }); V.setSpeed(v); }, (v) => v + '×')], 'Animation');
-    const bgBtn = h('button.btn.small.sk-vb', { type: 'button', 'aria-label': 'Background' }, h('span.sk-bgsw'), h('span.sk-vlabel', 'Background'));
+    const bgBtn = h('button.btn.small.sk-vb.sk-ib', { type: 'button', 'aria-label': 'Background' }, h('span.sk-bgsw'));
     tip(bgBtn, () => ['Background', (BGS.find((b) => b.id === ui().bg) || BGS[0]).name]);
-    const bgPop = popover(bgBtn, (close) => {
+    const bgPop = popover(bgBtn, () => {
       const groups = ['Plain', 'Gradient', 'Scenery'].map((g) => [h('div.sk-pop-title', g), h('div.sk-pop-grid.sk-bggrid', BGS.filter((b) => b.group === g).map((b) => {
         const k = h('button.btn.sk-bgkey', { type: 'button', 'data-bg': b.id, 'aria-label': b.name, onclick: () => { save((s) => { s.ui.bg = b.id; }); applyBg(stage); patchViewBar(); grid.querySelectorAll('.sk-bgkey').forEach((x) => press(x, x.dataset.bg === b.id)); } },
           vars(h('span.sk-bgprev', { 'data-bg': b.id }), b.tex ? { '--sk-tex': 'url("' + TH.icon.src(b.tex) + '")' } : { '--sk-bgc': ui().bgColor }), h('span', b.name));
         press(k, ui().bg === b.id);
         return k;
       }))]);
-      const col = h('input.sk-colin', { type: 'color', value: ui().bgColor, 'aria-label': 'Your background colour', oninput: (e) => { save((s) => { s.ui.bgColor = e.target.value; s.ui.bg = 'custom'; }); applyBg(stage); } });
+      const col = h('input.sk-colin', { type: 'color', value: ui().bgColor, 'aria-label': 'Your background colour', oninput: (e) => { save((s) => { s.ui.bgColor = e.target.value; s.ui.bg = 'custom'; }); applyBg(stage); patchViewBar(); } });
       const grid = h('div.sk-bgwrap', groups, h('label.sk-colrow', h('span', 'Your colour'), col));
       return grid;
     }, 'Background');
-    const T = (icon, label, k, sub, get, set) => { const b = ibtn(icon, label, () => { set(!get()); b.paint(); }, { key: k, sub, cls: 'sk-vb' }); b.paint = () => press(b, get()); b.paint(); return b; };
+    const T = (icon, label, k, sub, get, set) => { const b = vb(icon, label, () => { set(!get()); b.paint(); }, { key: k, sub }); b.paint = () => press(b, get()); b.paint(); return b; };
     const lightBtn = T('light', 'Shading', 'Shift+L', 'Off = flat colours, exactly as painted', () => ui().lit, (v) => { save((s) => { s.ui.lit = v; }); V.setLighting(v); });
-    const gridBtn = h('button.btn.small.sk-vb', { type: 'button', onclick: () => { const n = { none: 'grid', grid: 'parts', parts: 'none' }[ui().overlay]; save((s) => { s.ui.overlay = n; }); V.setOverlay(n); patchViewBar(); } }, ico('grid', 18));
-    tip(gridBtn, () => ['Overlay on the model (Shift+G)', { none: 'Off. Click: pixel grid', grid: 'Pixel grid. Click: body parts', parts: 'Body parts. Click: off' }[ui().overlay]]);
-    gridBtn.setAttribute('aria-label', 'Overlay on the model');
+    const gridBtn = vb('grid', 'Overlay on the model', () => { const n = { none: 'grid', grid: 'parts', parts: 'none' }[ui().overlay]; save((s) => { s.ui.overlay = n; }); V.setOverlay(n); patchViewBar(); },
+      { tip: () => ['Overlay on the model (Shift+G)', { none: 'Off. Click: pixel grid', grid: 'Pixel grid. Click: body parts', parts: 'Body parts. Click: off' }[ui().overlay]] });
     const gameBtn = T('eye', 'Game look', null, 'On: the base layer is solid like in the game (see-through base pixels show their colour, often black). Off: gaps show', () => ui().gameLook, (v) => { save((s) => { s.ui.gameLook = v; }); touched(null, { quiet: true, full: true }); });
     const capeBtn = T('cape', 'Cape', null, 'Show the cape on the back', () => ui().capeOn, (v) => { save((s) => { s.ui.capeOn = v; }); if (v && !ED.cape) { openCape(); } applyCape(); patchCape(); });
     const elyBtn = T('wing', 'Elytra', null, 'Wear an elytra (uses the cape’s elytra look when it has one)', () => ui().elytra, (v) => { save((s) => { s.ui.elytra = v; }); applyCape(); });
-    const resetBtn = ibtn('reset', 'Reset the view', () => V.reset(), { key: '0', cls: 'sk-vb', sub: 'or double-click with the Turn tool' });
-    const shotBtn = ibtn('cam', 'Save a picture of the model', downloadShot, { cls: 'sk-vb' });
+    const shotBtn = vb('cam', 'Save a picture of the model', downloadShot);
     const sides = h('div.sk-sides', { role: 'group', 'aria-label': 'Look from' }, [['front', 'Front'], ['back', 'Back'], ['right', 'Right'], ['left', 'Left'], ['top', 'Top']].map(([id, l]) => {
       const b = h('button.btn.small.sk-side', { type: 'button', onclick: () => V.view(id) }, l); tip(b, 'Look at the ' + (id === 'right' || id === 'left' ? id + ' side' : id)); return b;
     }));
-    const zoomGrp = h('div.sk-zoom', { role: 'group', 'aria-label': 'Zoom' }, ibtn('zoomout', 'Zoom out', () => V.zoomBy(1 / 1.2), { key: '-', cls: 'sk-vb' }), ibtn('zoomin', 'Zoom in', () => V.zoomBy(1.2), { key: '+', cls: 'sk-vb' }), resetBtn);
+    const zoomGrp = h('div.sk-ovg', { role: 'group', 'aria-label': 'Zoom' }, vb('zoomout', 'Zoom out', () => V.zoomBy(1 / 1.2), { key: '-' }), vb('zoomin', 'Zoom in', () => V.zoomBy(1.2), { key: '+' }),
+      vb('reset', 'Reset the view', () => V.reset(), { key: 'Home', sub: 'or double-click with the Turn tool' }));
+    const toggles = h('div.sk-ovg.sk-toggles', { role: 'group', 'aria-label': 'Show' }, bgBtn, gridBtn, lightBtn, gameBtn, capeBtn, elyBtn, shotBtn);
+    // phones: the toggles fold into one key (same keys, in a small grid)
+    const moreBtn = vb('adjust', 'View options', () => {}, { cls: 'sk-vb.sk-more', sub: 'Background, overlay, shading, game look, cape, elytra' });
+    const morePop = popover(moreBtn, () => h('div.sk-pop-grid.sk-moregrid', [bgBtn, gridBtn, lightBtn, gameBtn, capeBtn, elyBtn, shotBtn].map((b) => {
+      const c = h('button.btn.small', { type: 'button', onclick: () => { b.click(); c.classList.toggle('on', b.classList.contains('on')); } }, ico(b === bgBtn ? 'ref' : iconOf(b), 16), h('span', b.getAttribute('aria-label').split(',')[0]));
+      c.classList.toggle('on', b.classList.contains('on'));
+      return c;
+    })), 'View options');
     const info = h('div.sk-info', { 'aria-live': 'off' });
-    const top = h('div.sk-vtop', sides, zoomGrp);
-    const bottom = h('div.sk-vbar', h('div.sk-vgrp', playBtn, animBtn), h('div.sk-vgrp.end', bgBtn, gridBtn, lightBtn, gameBtn, capeBtn, elyBtn, shotBtn));
+    const swapM = vb('side', 'Make the model big', () => setMain('model'), { cls: 'sk-vb.sk-swapkey', sub: 'Swap the model and the flat sheet (Shift+1)' });
+    const modelPane = h('div.sk-pane.sk-pane-model', V.el,
+      h('div.sk-ov.sk-ov-tl', sides),
+      h('div.sk-ov.sk-ov-tr', toggles, moreBtn, zoomGrp),
+      h('div.sk-ov.sk-ov-bl', playBtn, animBtn, info),
+      h('div.sk-ov.sk-ov-dock', swapM));
+    if (!V.ready) modelPane.append(h('div.sk-loading', 'Loading the 3D viewer…'));
+    /* ---- sheet pane + its overlays ---- */
+    const sheetZoom = h('span.sk-zoomv');
+    const sheetCtl = h('div.sk-ov.sk-ov-sheet', { role: 'group', 'aria-label': 'Flat sheet' },
+      vb('zoomout', 'Smaller sheet', () => Sheet.setZoom(Sheet.zoom() - 1), { sub: 'Ctrl + scroll on the sheet' }), sheetZoom, vb('zoomin', 'Bigger sheet', () => Sheet.setZoom(Sheet.zoom() + 1), { sub: 'Ctrl + scroll on the sheet' }),
+      toggle('Pixel grid', () => ui().sheetGrid, (v) => { save((s) => { s.ui.sheetGrid = v; }); Sheet.invalidate(); }, { icon: 'grid', text: false, tip: ['Pixel grid', 'Lines between the pixels'] }),
+      toggle('Body parts', () => ui().sheetLabels, (v) => { save((s) => { s.ui.sheetLabels = v; }); Sheet.invalidate(); }, { icon: 'parts', text: false, tip: ['Body parts', 'Colour every part and name it'] }),
+      vb('swap', 'Swap views', () => setMain(ui().main === 'sheet' ? 'model' : 'sheet'), { sub: 'Make the flat sheet big, the model small (Shift+2)' }),
+      vb('x', 'Fold the sheet away', () => setDock(false), { cls: 'sk-vb.sk-foldkey', sub: 'Shift+3 brings it back' }));
+    sheetCtl.querySelectorAll('.sk-tg').forEach((b) => b.classList.add('sk-vb'));
+    const sheetPane = h('div.sk-pane.sk-pane-sheet', Sheet.el, sheetCtl);
+    const unfold = h('button.btn.small.sk-unfold', { type: 'button', onclick: () => setDock(true) }, ico('side', 16), h('span', 'Flat sheet'));
+    tip(unfold, ['Show the flat sheet (Shift+3)', 'The 64 × 64 texture, docked in the corner']);
     const drop = h('div.sk-drop', { 'aria-hidden': 'true' }, 'Drop a skin PNG to open it');
-    stage.append(V.el, top, info, animPop, bgPop, drop);
-    if (!V.ready) stage.append(h('div.sk-loading', 'Loading the 3D viewer…'));
+    stage.append(modelPane, sheetPane, unfold, animPop, bgPop, morePop, drop);
     V.init().then(() => { const s = stage.querySelector('.sk-loading'); if (s) s.remove(); V.setLighting(ui().lit); V.setOverlay(ui().overlay); V.setHidden(ui().hidden); V.setSpeed(ui().speed); V.want = ui().anim; V.setLock(ui().tool !== 'orbit'); V.setMode(ui().tool === 'orbit' ? 'orbit' : 'paint'); if (ED.loaded) touched(null, { quiet: true, full: true }); applyCape(); V.wake(); })
-      .catch(() => { stage.replaceChildren(h('div.sk-error', V.error || 'The 3D viewer could not start.', h('br'), h('span', 'The flat sheet still works.'))); });
-    const box = h('section.panel.sk-viewer', { 'aria-label': '3D model' }, stage, bottom);
+      .catch(() => { const s = stage.querySelector('.sk-loading'); if (s) s.remove(); modelPane.append(h('div.sk-error', V.error || 'The 3D viewer could not start.', h('br'), h('span', 'The flat sheet still works.'))); setMain('sheet'); });
+    const box = h('section.panel.sk-viewer', { 'aria-label': 'Model and flat sheet' }, stage);
     box.paint = () => {
       const a = ANIMS.find((x) => x[0] === ui().anim);
       animBtn.querySelector('.sk-animname').textContent = a ? a[1] : 'Idle';
       const playing = !V.lock && !V.paused;
-      playBtn.querySelector('.sk-ico').replaceWith(ico(playing ? 'pause' : 'play', 18));
+      playBtn.querySelector('.sk-ico').replaceWith(ico(playing ? 'pause' : 'play', 16));
       playBtn.setAttribute('aria-label', playing ? 'Pause' : 'Play');
       press(playBtn, playing);
       [lightBtn, gameBtn, capeBtn, elyBtn].forEach((b) => b.paint());
       press(gridBtn, ui().overlay !== 'none');
       bgBtn.querySelector('.sk-bgsw').dataset.bg = ui().bg;
+      vars(bgBtn.querySelector('.sk-bgsw'), { '--sk-bgc': ui().bgColor });
+      sheetCtl.querySelectorAll('.sk-tg').forEach((b) => b.paint());
     };
-    UI_STAGE.info = info;
+    UI_STAGE.info = info; UI_STAGE.sheetZoom = sheetZoom; UI_STAGE.sheetPane = sheetPane;
     return { stage, box };
   }
   const UI_STAGE = {};
-
+  /** the icon name a view key was built with (for the phone "View options" grid) */
+  const iconOf = (b) => { const d = b.querySelector('path') && b.querySelector('path').getAttribute('d'); return Object.keys(ICON).find((k) => ICON[k] === d) || 'grid'; };
+  /** which view fills the stage: 'model' | 'sheet' */
+  function setMain(m) {
+    save((s) => { s.ui.main = m === 'sheet' ? 'sheet' : 'model'; s.ui.dock = true; });
+    applyView();
+  }
+  function setDock(on) { save((s) => { s.ui.dock = !!on; }); applyView(); }
   /* ====================================================================== colour panel */
   function buildColor() {
     const sv = h('canvas.sk-sv', { width: 200, height: 120, 'aria-label': 'Saturation and brightness', role: 'slider', tabindex: 0 });
@@ -1685,7 +1735,7 @@
   function openKeys() {
     const rows = TOOLS.map((t) => [t[2], t[1]]).concat([
       ['[ / ]', 'Brush smaller / bigger'], ['X', 'Swap the two colours'], ['Alt + click', 'Pick a colour'], ['Y', 'Mirror painting on / off'], ['H', 'Show / hide the outer layer'],
-      ['1 … 9, 0', 'Opacity 10 … 90 %, 100 %'], ['Shift + 1 / 2 / 3', 'Model / sheet / both (phones: model or sheet)'], ['Ctrl + Z', 'Undo'], ['Ctrl + Y, Ctrl + Shift + Z', 'Redo'],
+      ['1 … 9, 0', 'Opacity 10 … 90 %, 100 %'], ['Shift + 1 / 2 / 3', 'Model big / flat sheet big / fold the docked view'], ['Ctrl + Z', 'Undo'], ['Ctrl + Y, Ctrl + Shift + Z', 'Redo'],
       ['Ctrl + C / X / V', 'Copy / cut / paste the selection'], ['Ctrl + A / D', 'Select all / nothing'], ['Delete', 'Clear the selected pixels'], ['Arrows', 'Move the selection (Move tool), turn the model'],
       ['Enter / Esc', 'Drop / cancel a move'], ['Space + drag', 'Pan the view'], ['Right-drag', 'Turn the model while painting'], ['K', 'Play / pause the animation'], ['Home (on the model)', 'Reset the view'],
       ['A', 'Adjust colours'], ['P', 'Part tools'], ['J', 'Reference image'], ['Ctrl + S', 'Save to My skins'], ['?', 'This card']]);
@@ -1766,7 +1816,7 @@
   const patchPalette = () => { if (!UI) return; clearTimeout(palT); palT = setTimeout(() => { UI.color.paintSkinPal(); UI.layers.paintList(); }, 250); };
   const patchHistory = () => { if (UI) Side.paintHistory(); };
   const patchCape = () => { if (UI) { UI.layers.paintCape(); UI.viewer.paint(); } };
-  const patchSheetZoom = () => { if (UI) UI.sheetZoom.textContent = Sheet.zoom() + '×'; };
+  const patchSheetZoom = () => { if (UI && UI.sheetZoom) UI.sheetZoom.textContent = Sheet.zoom() + '×'; };
   function patchAll() {
     if (!UI) return;
     [UI.top, UI.rail, UI.opts, UI.viewer, UI.color, UI.layers].forEach((p) => p.paint());
@@ -1774,19 +1824,15 @@
     UI.stage.dataset.tool = ui().tool;
   }
 
-  /** desktop: model + sheet side by side ('both') or one of them; phones: one at a time */
-  function setView(v) {
-    if (v === 'both') save((s) => { s.ui.sheetOpen = true; s.ui.view = 'model'; });
-    else if (v === 'sheet') save((s) => { s.ui.view = 'sheet'; s.ui.sheetOpen = true; });
-    else save((s) => { s.ui.view = 'model'; if (!phoneMQ.matches) s.ui.sheetOpen = v !== 'model'; });
-    applyView();
-  }
+  /** Shift+1 / 2 / 3: model big, sheet big, fold / unfold the docked view */
+  function setView(v) { if (v === 'both') { if (ui().main === 'sheet') setMain('model'); else setDock(!ui().dock); } else setMain(v); }
   function applyView() {
     if (!UI) return;
-    const u = ui(), phone = phoneMQ.matches;
-    UI.views.dataset.view = phone ? u.view : u.sheetOpen ? 'both' : 'model';
-    UI.viewSeg.paint(); press(UI.sheetToggle, u.sheetOpen);
+    const u = ui();
+    UI.stage.dataset.main = u.main;
+    UI.stage.dataset.dock = u.dock ? 'open' : 'closed';
     Sheet.invalidate(); V.wake();
+    setTimeout(() => { Sheet.invalidate(); patchSheetZoom(); V.wake(); }, 30);
   }
   /** phones: the side panels open as bottom sheets */
   function openPanel(which) {
@@ -1800,28 +1846,17 @@
     const top = buildTop(), rail = buildRail(), opts = buildOptions();
     const { stage, box: viewer } = buildStage();
     const color = buildColor(), layers = buildLayers(), side = buildSide();
-    const sheetZoom = h('span.sk-zoomv');
-    const sheetToggle = ibtn('side', 'Flat sheet', () => setView(ui().sheetOpen ? 'model' : 'both'), { key: 'Shift+3', sub: 'Show the flat 64 × 64 texture beside the model' });
-    const sheetBox = h('section.panel.sk-sheet', { 'aria-label': 'Flat texture' },
-      h('div.sk-sheetbar',
-        h('div.sk-vgrp', ibtn('zoomout', 'Zoom out', () => Sheet.setZoom(Sheet.zoom() - 1), { size: 16, cls: 'sk-mini' }), sheetZoom, ibtn('zoomin', 'Zoom in', () => Sheet.setZoom(Sheet.zoom() + 1), { size: 16, cls: 'sk-mini' }),
-          h('button.btn.small', { type: 'button', onclick: () => Sheet.setZoom(0) }, 'Fit')),
-        h('div.sk-vgrp.end', toggle('Grid', () => ui().sheetGrid, (v) => { save((s) => { s.ui.sheetGrid = v; }); Sheet.invalidate(); }, { icon: 'grid', text: false, tip: ['Pixel grid', 'Lines between the pixels'] }),
-          toggle('Parts', () => ui().sheetLabels, (v) => { save((s) => { s.ui.sheetLabels = v; }); Sheet.invalidate(); }, { icon: 'parts', text: false, tip: ['Body parts', 'Colour every part and name it'] }))),
-      Sheet.el);
-    const viewSeg = seg('View', [['model', '3D model'], ['sheet', 'Flat sheet']], () => ui().view, (v) => setView(v), 'sk-viewseg');
-    const views = h('div.sk-views', viewer, sheetBox);
     const panelKeys = h('div.sk-pkeys', [['color', 'Colour', 'adjust'], ['layers', 'Layers', 'parts'], ['side', 'Versions', 'copy']].map(([id, l, ic]) => {
       const b = h('button.btn.sk-pkey', { type: 'button', onclick: () => openPanel(id) }, ico(ic, 18), h('span', l)); return b;
     }));
-    const centre = h('div.sk-centre', h('div.sk-centre-top', viewSeg, opts, sheetToggle), views);
+    const centre = h('div.sk-centre', h('div.sk-centre-top', opts), viewer);
     wrap.append(
       h('div.page-head.sk-head', h('h2', 'Skin editor')),
       top,
       h('div.sk-work', rail, centre, h('div.sk-right.th-scroll', color, layers, side)),
       panelKeys,
       h('div.sk-dropall', { 'aria-hidden': 'true' }, 'Drop a skin PNG to open it'));
-    UI = { wrap, top, rail, opts, viewer, stage, color, layers, side, sheetBox, sheetZoom, views, viewSeg, sheetToggle, info: UI_STAGE.info };
+    UI = { wrap, top, rail, opts, viewer, stage, color, layers, side, sheetZoom: UI_STAGE.sheetZoom, info: UI_STAGE.info };
     phoneMQ.addEventListener('change', () => { if (sheetEl && sheetEl.querySelector('.sk-panel')) closeSheet(); applyView(); });
     new MutationObserver(() => Sheet.themeChanged()).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'data-tool', 'data-style'] });
     return UI;

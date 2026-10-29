@@ -34,24 +34,24 @@
     { id: 'water', name: 'Underwater', group: 'Scenery', tex: 'block/sand' }, { id: 'snow', name: 'Snowy', group: 'Scenery', tex: 'block/snow' },
     { id: 'nether', name: 'Nether', group: 'Scenery', tex: 'block/netherrack' }, { id: 'end', name: 'The End', group: 'Scenery', tex: 'block/end_stone' },
   ];
-  /* tools: [id, label, key, group, hint] */
+  /* tools: [id, label, key, group, hint, short name on the key] */
   const TOOLS = [
-    ['orbit', 'Turn and play', 'C', 'view', 'Drag to turn the model, right-drag or Shift-drag to pan. Animations play with this tool'],
-    ['pencil', 'Pencil', 'B', 'draw', 'Paint pixels. Alt-click picks a colour'],
-    ['eraser', 'Eraser', 'E', 'draw', 'Erase pixels'],
-    ['shade', 'Shade', 'S', 'draw', 'Lighten, darken, smudge or blur what is there'],
-    ['noise', 'Noise and dither', 'N', 'draw', 'Add texture: random noise or a dither of both colours'],
-    ['line', 'Line', 'L', 'shape', 'Drag a straight line'],
-    ['rect', 'Rectangle', 'R', 'shape', 'Drag a rectangle (filled or outline)'],
-    ['ellipse', 'Ellipse', 'O', 'shape', 'Drag an ellipse (filled or outline)'],
-    ['gradient', 'Gradient', 'Q', 'shape', 'Drag from the first colour to the second'],
-    ['fill', 'Fill', 'G', 'fill', 'Fill an area of one colour'],
-    ['replace', 'Replace colour', 'F', 'fill', 'Click a colour: every pixel of it becomes the current colour'],
-    ['picker', 'Colour picker', 'I', 'fill', 'Click to take a colour'],
-    ['select', 'Select', 'M', 'select', 'Select pixels: box, lasso, magic wand or one colour'],
-    ['move', 'Move', 'V', 'select', 'Drag the selection (or the whole layer) to move it'],
+    ['orbit', 'Turn and play', 'C', 'view', 'Drag to turn the model, right-drag or Shift-drag to pan. Animations play with this tool', 'Turn'],
+    ['pencil', 'Pencil', 'B', 'draw', 'Paint pixels. Alt-click picks a colour', 'Pencil'],
+    ['eraser', 'Eraser', 'E', 'draw', 'Erase pixels', 'Eraser'],
+    ['shade', 'Shade', 'S', 'draw', 'Lighten, darken, smudge or blur what is there', 'Shade'],
+    ['noise', 'Noise and dither', 'N', 'draw', 'Add texture: random noise or a dither of both colours', 'Noise'],
+    ['line', 'Line', 'L', 'shape', 'Drag a straight line', 'Line'],
+    ['rect', 'Rectangle', 'R', 'shape', 'Drag a rectangle (filled or outline)', 'Box'],
+    ['ellipse', 'Ellipse', 'O', 'shape', 'Drag an ellipse (filled or outline)', 'Ellipse'],
+    ['gradient', 'Gradient', 'Q', 'shape', 'Drag from the first colour to the second', 'Gradient'],
+    ['fill', 'Fill', 'G', 'fill', 'Fill an area of one colour', 'Fill'],
+    ['replace', 'Replace colour', 'F', 'fill', 'Click a colour: every pixel of it becomes the current colour', 'Replace'],
+    ['picker', 'Colour picker', 'I', 'fill', 'Click to take a colour', 'Picker'],
+    ['select', 'Select', 'M', 'select', 'Select pixels: box, lasso, magic wand or one colour', 'Select'],
+    ['move', 'Move', 'V', 'select', 'Drag the selection (or the whole layer) to move it', 'Move'],
   ];
-  const TOOL = Object.fromEntries(TOOLS.map((t) => [t[0], { id: t[0], label: t[1], key: t[2], group: t[3], hint: t[4] }]));
+  const TOOL = Object.fromEntries(TOOLS.map((t) => [t[0], { id: t[0], label: t[1], key: t[2], group: t[3], hint: t[4], short: t[5] }]));
   const PAINT_TOOLS = new Set(['pencil', 'eraser', 'shade', 'noise']);
   const SHAPE_TOOLS = new Set(['line', 'rect', 'ellipse', 'gradient']);
   const BASE_PARTS = [['head', 'Head'], ['body', 'Body'], ['rarm', 'Right arm'], ['larm', 'Left arm'], ['rleg', 'Right leg'], ['lleg', 'Left leg']];
@@ -63,6 +63,7 @@
     sample: 'layer', filled: false, gradType: 'linear', gradSteps: 0, dither: false, selMode: 'rect', selOp: 'new', sym: { body: false, faceX: false, faceY: false },
     color: '#3c44aaff', color2: '#f9fffeff', recent: [], palettes: [], anim: 'idle', speed: 1, bg: 'studio', bgColor: '#20212b', lit: true, overlay: 'none', gameLook: true,
     main: 'model', dock: true, dockZoom: 4, sheetZoom: 0, sheetGrid: true, sheetLabels: false, hidden: {}, locks: {}, capeOn: true, elytra: false, side: 'versions', view: 'model', defModel: 'auto',
+    tab: 'layers', swatches: 'skin',
   };
   const defaults = () => ({ v: 1, work: null, lib: [], ui: JSON.parse(JSON.stringify(UI_DEFAULTS)) });
   function norm(s) {
@@ -88,6 +89,8 @@
     u.dock = u.dock !== false; u.dockZoom = clamp(Math.round(+u.dockZoom || 4), 2, 8);
     delete u.view; delete u.sheetOpen;
     if (!['versions', 'history'].includes(u.side)) u.side = 'versions';
+    if (!['layers', 'body', 'versions', 'cape'].includes(u.tab)) u.tab = 'layers';
+    if (!['recent', 'skin', 'mc', 'saved'].includes(u.swatches)) u.swatches = 'skin';
     if (typeof u.hidden !== 'object' || !u.hidden) u.hidden = {};
     if (typeof u.locks !== 'object' || !u.locks) u.locks = {};
     if (s.work && (!Array.isArray(s.work.layers) || !s.work.layers.length)) s.work = null;
@@ -107,7 +110,7 @@
     noise: 'M4 4h2v2H4zM10 4h2v2h-2zM7 7h2v2H7zM13 7h2v2h-2zM4 10h2v2H4zM10 10h2v2h-2zM7 13h2v2H7zM14 14h2v2h-2z',
     line: 'M4 16L16 4M3 15h3v3H3zM14 2h3v3h-3z',
     rect: 'M4 5h12v10H4z',
-    ellipse: 'M10 4c4 0 7 2.7 7 6s-3 6-7 6-7-2.7-7-6 3-6 7-6z',
+    ellipse: 'M7 4h6v1h2v1h1v1h1v6h-1v1h-1v1h-2v1H7v-1H5v-1H4v-1H3V7h1V6h1V5h2z',   // a pixel ellipse (no round shapes)
     gradient: 'M4 4h12v12H4zM8 4v12M12 4v12M16 4v12',
     fill: 'M5 9l5-5 6 6-5 5zM5 9h11M17 13c0 1.5 1 2.5 1 3.5a1 1 0 0 1-2 0c0-1 1-2 1-3.5z',
     replace: 'M3 3h6v6H3zM11 11h6v6h-6zM12 5h3v3M15 5l-3 3M8 15H5v-3M5 15l3-3',
@@ -131,6 +134,8 @@
     swap: 'M5 7h10l-3-3M15 13H5l3 3', help: 'M7 7a3 3 0 1 1 4 2.8c-.7.3-1 .8-1 1.7M10 15h.01', zoomin: 'M8 3a5 5 0 1 0 0 10A5 5 0 0 0 8 3zM12 12l5 5M6 8h4M8 6v4', zoomout: 'M8 3a5 5 0 1 0 0 10A5 5 0 0 0 8 3zM12 12l5 5M6 8h4',
     flipH: 'M10 2v16M7 5L3 10l4 5zM13 5l4 5-4 5', flipV: 'M2 10h16M5 7l5-4 5 4zM5 13l5 4 5-4', rotL: 'M4 10a6 6 0 1 0 2-4.5M4 3v4h4', rotR: 'M16 10a6 6 0 1 1-2-4.5M16 3v4h-4',
     check: 'M4 10l4 4 8-8', side: 'M3 3h14v14H3zM12 3v14',
+    bsq: 'M5 5h10v10H5z', bround: 'M8 4h4v1h2v1h1v2h1v4h-1v2h-1v1h-2v1H8v-1H6v-1H5v-2H4V8h1V6h1V5h2z', bdia: 'M10 3l7 7-7 7-7-7z',
+    view: 'M2 10s3-5 8-5 8 5 8 5-3 5-8 5-8-5-8-5zM8 10a2 2 0 1 0 4 0 2 2 0 1 0-4 0', layers: 'M10 3l7 4-7 4-7-4zM3 11l7 4 7-4',
   };
   function ico(name, size) {
     const s = document.createElement('span');
@@ -157,9 +162,13 @@
   const vars = (el, o) => { Object.keys(o).forEach((k) => el.style.setProperty(k, o[k])); return el; };
   const press = (b, on) => { b.classList.toggle('on', !!on); b.setAttribute('aria-pressed', String(!!on)); };
   const sel = (b, on) => { b.classList.toggle('on', !!on); b.setAttribute('aria-checked', String(!!on)); };
-  /** an exclusive .seg of text keys: items [[value, label, tip]] */
+  /** an exclusive .seg of text keys: items [[value, label, tip, icon]] (with an icon the label is only read out) */
   function seg(label, items, get, set, cls) {
-    const keys = items.map(([v, l, t]) => { const b = h('button', { type: 'button', role: 'radio', 'data-v': String(v), onclick: () => { set(v); paint(); } }, l); if (t) tip(b, t); return b; });
+    const keys = items.map(([v, l, t, icon]) => {
+      const b = h('button', { type: 'button', role: 'radio', 'data-v': String(v), 'aria-label': icon ? l : null, onclick: () => { set(v); paint(); } }, icon ? ico(icon, 16) : l);
+      if (t || icon) tip(b, icon ? [l].concat(t ? [t] : []) : t);
+      return b;
+    });
     const el = h('div.seg.sk-seg' + (cls ? '.' + cls : ''), { role: 'radiogroup', 'aria-label': label }, keys);
     const paint = () => { const cur = String(get()); keys.forEach((b) => { const on = b.dataset.v === cur; sel(b, on); b.tabIndex = on ? 0 : -1; }); };
     el.addEventListener('keydown', (e) => {
@@ -763,7 +772,8 @@
     S.invalidate = (pb) => { peekBuf = ED.peek ? (pb || (ED.peek && ED.peek.buf)) : null; if (!raf) raf = requestAnimationFrame(draw); };
     /** docked: the chosen size (never more than ~half the stage); main view: fit the stage (or the chosen zoom) */
     const docked = () => ui().main !== 'sheet';
-    function maxDock() { const st = wrap.closest('.sk-stage'); if (!st || !st.clientHeight) return 8; return Math.max(2, Math.floor(Math.min(st.clientHeight * 0.5, st.clientWidth * 0.45) / 64)); }
+    /** the docked sheet never takes more than ~2/3 of the stage height (minus its head) or ~45% of its width */
+    function maxDock() { const st = wrap.closest('.sk-stage'); if (!st || !st.clientHeight) return 8; return Math.max(2, Math.floor(Math.min((st.clientHeight - 60) * 0.7, st.clientWidth * 0.45) / 64)); }
     function fitZoom() {
       const u = ui();
       if (docked()) return clamp(u.dockZoom, 2, maxDock());
@@ -1023,103 +1033,148 @@
     patchTools(); patchOptions(); patchViewBar(); syncCursor3D(); Sheet.invalidate();
     if (UI) UI.stage.dataset.tool = id;
   }
-  function buildRail() {
-    const groups = [['view', 'View'], ['draw', 'Draw'], ['shape', 'Shapes'], ['fill', 'Fill and pick'], ['select', 'Select']];
+  /**
+   * The tool palette: tools sorted into labelled groups, every key = icon + short name (2 per row on desktop), the full
+   * name, shortcut and what it does in the app tooltip. Keys that open a panel (Adjust, Parts, Trace) end in "…".
+   */
+  const PALETTE = [
+    ['Draw', ['pencil', 'eraser', 'shade', 'noise']],
+    ['Shapes', ['line', 'rect', 'ellipse', 'gradient']],
+    ['Colour', ['fill', 'replace', 'picker', '@adjust']],
+    ['Select', ['select', 'move']],
+    ['View', ['orbit', '@ref']],
+    ['Mirror and parts', ['@mirror', '@mirrorX', '@mirrorY', '@parts']],
+  ];
+  const symToggle = (k, msg) => () => { save((s) => { s.ui.sym[k] = !s.ui.sym[k]; }); patchTools(); syncCursor3D(); Sheet.invalidate(); if (msg) toast(ui().sym[k] ? msg + ' on' : msg + ' off'); };
+  const ACTIONS = {
+    adjust: ['adjust', 'Adjust colours', 'Adjust…', 'A', 'Hue, saturation, brightness, contrast, posterise, invert', () => openAdjust()],
+    ref: ['ref', 'Reference image', 'Trace…', 'J', 'Trace over a picture on the flat sheet or stamp it onto a face', () => openReference()],
+    mirror: ['mirror', 'Mirror painting', 'Mirror', 'Y', 'Paint the left and right side together: arm to arm, leg to leg, head and body onto themselves', symToggle('body')],
+    mirrorX: ['flipH', 'Mirror across each face', 'Face ↔', null, 'Left half to right half of the same face', symToggle('faceX')],
+    mirrorY: ['flipV', 'Mirror up and down', 'Face ↕', null, 'Top half to bottom half of the same face', symToggle('faceY')],
+    parts: ['parts', 'Part tools', 'Parts…', 'P', 'Copy a limb, clear a part, build the outer layer, classic ⇄ slim', () => openPartTools()],
+  };
+  function buildPalette() {
     const btns = new Map();
-    const rail = h('div.sk-rail', { role: 'toolbar', 'aria-label': 'Tools', 'aria-orientation': 'vertical' },
-      groups.map(([g, gl]) => h('div.sk-rg', { role: 'group', 'aria-label': gl }, TOOLS.filter((t) => t[3] === g).map((t) => {
-        const b = ibtn(t[0], t[1], () => setTool(t[0]), { key: t[2], sub: t[4], cls: 'sk-tool', focus: 'sk-tool-' + t[0] });
-        b.dataset.tool = t[0];
-        btns.set(t[0], b);
-        return b;
-      }))),
-      h('div.sk-rg', { role: 'group', 'aria-label': 'Helpers' },
-        UI_HELPERS.mirror = ibtn('mirror', 'Mirror painting', () => { save((s) => { s.ui.sym.body = !s.ui.sym.body; }); patchTools(); patchOptions(); syncCursor3D(); }, { key: 'Y', sub: 'Paint the left and right side together (arms, legs and the head)', cls: 'sk-tool' }),
-        ibtn('adjust', 'Adjust colours', () => openAdjust(), { key: 'A', sub: 'Hue, saturation, brightness, contrast, posterise, invert', cls: 'sk-tool' }),
-        ibtn('parts', 'Part tools', () => openPartTools(), { key: 'P', sub: 'Mirror a limb, clear a part, make the outer layer, classic ⇄ slim', cls: 'sk-tool' }),
-        ibtn('ref', 'Reference image', () => openReference(), { key: 'J', sub: 'Trace over a picture or stamp it onto a face', cls: 'sk-tool' })));
-    rail.paint = () => { btns.forEach((b, id) => press(b, ui().tool === id)); press(UI_HELPERS.mirror, ui().sym.body); };
-    return rail;
+    const key = (icon, name, full, k, sub, fn) => {
+      const b = h('button.btn.small.sk-tool', { type: 'button', onclick: fn, 'aria-label': full + (k ? ', ' + k : '') }, ico(icon, 16), h('span.sk-tname', name));
+      tip(b, [full + keyName(k), sub]);
+      return b;
+    };
+    const pal = h('nav.panel.sk-tools', { 'aria-label': 'Tools' },
+      PALETTE.map(([gl, ids]) => h('div.sk-pg', { role: 'group', 'aria-label': gl }, h('span.sk-pgl', { 'aria-hidden': 'true' }, gl),
+        h('div.sk-pgrid', ids.map((id) => {
+          if (id[0] === '@') { const a = ACTIONS[id.slice(1)], b = key(a[0], a[2], a[1], a[3], a[4], a[5]); b.classList.add('sk-act'); btns.set(id, b); return b; }
+          const t = TOOL[id], b = key(id, t.short, t.label, t.key, t.hint, () => setTool(id));
+          b.dataset.tool = id; b.dataset.focus = 'sk-tool-' + id;
+          btns.set(id, b);
+          return b;
+        })))));
+    // tall windows: what the active tool does and what the mouse buttons do, at the foot of the palette
+    const hName = h('b.sk-thelp-name'), hText = h('p.sk-thelp-text'), hMouse = h('p.sk-thelp-mouse');
+    pal.append(h('div.sk-thelp', { 'aria-live': 'polite' }, hName, hText, hMouse));
+    const MOUSE = { orbit: 'Drag: turn · right-drag: pan · wheel: zoom', picker: 'Left: first colour · right: second colour', select: 'Shift: add · Alt: take away · Ctrl+D: none', move: 'Drag or arrow keys · Enter drops it' };
+    const SYM = { '@mirror': 'body', '@mirrorX': 'faceX', '@mirrorY': 'faceY' };
+    pal.paint = () => {
+      btns.forEach((b, id) => { if (SYM[id]) press(b, ui().sym[SYM[id]]); else if (id[0] !== '@') press(b, ui().tool === id); });
+      const t = TOOL[ui().tool];
+      hName.textContent = t.label; hText.textContent = t.hint + '.';
+      hMouse.textContent = MOUSE[t.id] || 'Left: first colour · right: second · Alt: pick · right-drag on the model: turn';
+    };
+    return pal;
   }
-  const UI_HELPERS = {};
 
-  /* ---- the options bar: only the options of the active tool, in a bar of fixed height ---- */
+  /*
+   * The options bar: the active tool (icon + name) followed by ONLY its options, in a strip of fixed height on top of the
+   * stage. Every option is a small column: a Monocraft eyebrow label on top, the control under it (sliders show their
+   * value in the label row), so the strip never changes height and every control says what it is.
+   */
   function buildOptions() {
     const u = ui;
     const set = (k) => (v) => save((s) => { s.ui[k] = v; });
     const pct = (v) => Math.round(v * 100) + '%';
     const W = {};
-    W.size = (() => {
+    /** a labelled option column */
+    const opt = (label, ctl, cls) => { const el = h('div.sk-opt' + (cls ? '.' + cls : ''), h('span.sk-ol', label), ctl); el.paint = () => ctl.paint && ctl.paint(); return el; };
+    const stepper = (label, lessLbl, moreLbl, less, more, text, keys) => {
       const out = h('b.sk-num');
-      const minus = ibtn('zoomout', 'Smaller brush', () => { save((s) => { s.ui.size = clamp(s.ui.size - 1, 1, 8); }); W.size.paint(); syncCursor3D(); Sheet.invalidate(); }, { key: '[', size: 16, cls: 'sk-mini' });
-      const plus = ibtn('zoomin', 'Bigger brush', () => { save((s) => { s.ui.size = clamp(s.ui.size + 1, 1, 8); }); W.size.paint(); syncCursor3D(); Sheet.invalidate(); }, { key: ']', size: 16, cls: 'sk-mini' });
-      const el = h('div.sk-opt.sk-size', h('span.sk-slbl', 'Size'), minus, out, plus);
-      el.paint = () => { out.textContent = u().size + ' px'; };
+      const ctl = h('div.sk-step', ibtn('zoomout', lessLbl, () => { less(); el.paint(); }, { key: keys && keys[0], size: 14, cls: 'sk-mini' }), out, ibtn('zoomin', moreLbl, () => { more(); el.paint(); }, { key: keys && keys[1], size: 14, cls: 'sk-mini' }));
+      const el = opt(label, ctl);
+      el.paint = () => { out.textContent = text(); };
       return el;
-    })();
-    W.shape = seg('Brush shape', [['square', 'Square', 'Square brush'], ['circle', 'Round', 'Round brush'], ['diamond', 'Diamond', 'Diamond brush']], () => u().shape, (v) => { set('shape')(v); syncCursor3D(); Sheet.invalidate(); });
+    };
+    const brushChanged = () => { syncCursor3D(); Sheet.invalidate(); };
+    W.size = stepper('Size', 'Smaller brush', 'Bigger brush', () => { save((s) => { s.ui.size = clamp(s.ui.size - 1, 1, 8); }); brushChanged(); },
+      () => { save((s) => { s.ui.size = clamp(s.ui.size + 1, 1, 8); }); brushChanged(); }, () => u().size + ' px', ['[', ']']);
+    W.shape = opt('Shape', seg('Brush shape', [['square', 'Square brush', null, 'bsq'], ['circle', 'Round brush', null, 'bround'], ['diamond', 'Diamond brush', null, 'bdia']], () => u().shape, (v) => { set('shape')(v); brushChanged(); }, 'sk-iseg'));
     W.hard = slider('Hardness', 0, 1, 0.05, () => u().hardness, set('hardness'), pct);
     W.opacity = slider('Opacity', 0.05, 1, 0.05, () => u().opacity, set('opacity'), pct);
     W.amount = slider('Strength', 0.02, 1, 0.02, () => u().amount, set('amount'), pct);
-    W.limit = seg('Stay inside', [['none', 'Anywhere', 'Paint anywhere'], ['face', 'Face', 'Stay inside the face you start on'], ['part', 'Part', 'Stay inside the body part you start on']], () => u().limit, set('limit'));
-    W.shade = seg('Shade mode', [['darken', 'Darken'], ['lighten', 'Lighten'], ['smudge', 'Smudge'], ['blur', 'Blur']], () => u().shadeMode, set('shadeMode'));
-    W.noise = seg('Noise mode', [['noise', 'Noise', 'Random light and dark pixels'], ['dither', 'Dither', 'A checker of the two colours']], () => u().noiseMode, set('noiseMode'));
-    W.filled = seg('Fill', [[false, 'Outline'], [true, 'Filled']], () => u().filled, set('filled'));
-    W.grad = seg('Gradient type', [['linear', 'Linear'], ['radial', 'Radial']], () => u().gradType, set('gradType'));
-    W.steps = (() => {
-      const out = h('b.sk-num');
-      const el = h('div.sk-opt', h('span.sk-slbl', 'Steps'),
-        ibtn('zoomout', 'Fewer steps', () => { save((s) => { s.ui.gradSteps = s.ui.gradSteps <= 2 ? 0 : s.ui.gradSteps - 1; }); el.paint(); }, { size: 16, cls: 'sk-mini' }), out,
-        ibtn('zoomin', 'More steps', () => { save((s) => { s.ui.gradSteps = s.ui.gradSteps < 2 ? 2 : Math.min(12, s.ui.gradSteps + 1); }); el.paint(); }, { size: 16, cls: 'sk-mini' }));
-      el.paint = () => { out.textContent = u().gradSteps ? String(u().gradSteps) : 'Smooth'; };
-      return el;
-    })();
-    W.dither = toggle('Dither', () => u().dither, (v) => set('dither')(v), { tip: ['Dither', 'Mix neighbouring steps in a pixel pattern'] });
+    W.limit = opt('Stay in', seg('Stay inside', [['none', 'Any', 'Paint anywhere'], ['face', 'Face', 'Stay inside the face you start on'], ['part', 'Part', 'Stay inside the body part you start on']], () => u().limit, set('limit')));
+    W.shade = opt('Mode', seg('Shade mode', [['darken', 'Darken'], ['lighten', 'Lighten'], ['smudge', 'Smudge'], ['blur', 'Blur']], () => u().shadeMode, set('shadeMode')));
+    W.noise = opt('Mode', seg('Noise mode', [['noise', 'Noise', 'Random light and dark pixels'], ['dither', 'Dither', 'A checker of the two colours']], () => u().noiseMode, set('noiseMode')));
+    W.filled = opt('Style', seg('Fill', [[false, 'Outline'], [true, 'Filled']], () => u().filled, set('filled')));
+    W.grad = opt('Type', seg('Gradient type', [['linear', 'Linear'], ['radial', 'Radial']], () => u().gradType, set('gradType')));
+    W.steps = stepper('Steps', 'Fewer steps', 'More steps', () => save((s) => { s.ui.gradSteps = s.ui.gradSteps <= 2 ? 0 : s.ui.gradSteps - 1; }),
+      () => save((s) => { s.ui.gradSteps = s.ui.gradSteps < 2 ? 2 : Math.min(12, s.ui.gradSteps + 1); }), () => (u().gradSteps ? String(u().gradSteps) : 'Smooth'));
+    W.dither = opt('Pattern', toggle('Dither', () => u().dither, (v) => set('dither')(v), { tip: ['Dither', 'Mix neighbouring steps in a pixel pattern'] }));
     W.tol = slider('Tolerance', 0, 128, 1, () => u().tolerance, set('tolerance'), (v) => String(v));
-    W.contig = seg('Fill area', [[true, 'Connected', 'Only the touching pixels of that colour'], [false, 'Everywhere', 'Every pixel of that colour']], () => u().contiguous, set('contiguous'));
-    W.sample = seg('Look at', [['layer', 'This layer', 'Compare colours on the active layer'], ['all', 'All layers', 'Compare what you see (all layers)']], () => u().sample, set('sample'));
-    W.selMode = seg('Selection', [['rect', 'Box'], ['lasso', 'Lasso'], ['wand', 'Wand', 'Magic wand: the touching pixels of one colour'], ['colour', 'Colour', 'Every pixel of one colour']], () => u().selMode, set('selMode'));
-    W.selOp = seg('Selection mode', [['new', 'New'], ['add', 'Add', 'Add (or hold Shift)'], ['sub', 'Subtract', 'Subtract (or hold Alt)']], () => u().selOp, set('selOp'));
-    const act = (icon, label, fn, key) => ibtn(icon, label, fn, { key, size: 16, cls: 'sk-mini' });
-    W.selActs = h('div.sk-opt.sk-acts', act('select', 'Select all', () => setSel(usedMask(model()).slice()), 'Ctrl+A'), act('x', 'Deselect', () => setSel(null), 'Ctrl+D'),
+    W.contig = opt('Area', seg('Fill area', [[true, 'Touching', 'Only the touching pixels of that colour'], [false, 'All', 'Every pixel of that colour']], () => u().contiguous, set('contiguous')));
+    W.sample = opt('Look at', seg('Look at', [['layer', 'Layer', 'Compare colours on the active layer'], ['all', 'All', 'Compare what you see (all layers)']], () => u().sample, set('sample')));
+    W.selMode = opt('Select by', seg('Selection', [['rect', 'Box'], ['lasso', 'Lasso'], ['wand', 'Wand', 'Magic wand: the touching pixels of one colour'], ['colour', 'Colour', 'Every pixel of one colour']], () => u().selMode, (v) => { set('selMode')(v); bar.paint(); }));
+    W.selOp = opt('Combine', seg('Selection mode', [['new', 'New'], ['add', 'Add', 'Add (or hold Shift)'], ['sub', 'Cut', 'Subtract (or hold Alt)']], () => u().selOp, set('selOp')));
+    const act = (icon, label, fn, key) => ibtn(icon, label, fn, { key, size: 14, cls: 'sk-mini' });
+    W.selActs = opt('Selection', h('div.sk-acts', act('select', 'Select all', () => setSel(usedMask(model()).slice()), 'Ctrl+A'), act('x', 'Deselect', () => setSel(null), 'Ctrl+D'),
       act('swap', 'Invert selection', () => setSel(ED.sel ? E.selInvert(ED.sel).map((v, i) => v & usedMask(model())[i]) : usedMask(model()).slice()), 'Ctrl+I'),
-      act('copy', 'Copy', () => copySel(false), 'Ctrl+C'), act('dl', 'Paste', () => { if (!pasteSel()) toast('Copy a selection first'); }, 'Ctrl+V'), act('x', 'Delete the selected pixels', deleteSel, 'Del'));
-    W.moveActs = h('div.sk-opt.sk-acts', act('flipH', 'Flip left-right', () => transformFloat('flipH'), 'Shift+H'), act('flipV', 'Flip upside down', () => transformFloat('flipV'), 'Shift+V'),
+      act('copy', 'Copy', () => copySel(false), 'Ctrl+C'), act('dl', 'Paste', () => { if (!pasteSel()) toast('Copy a selection first'); }, 'Ctrl+V'), act('eraser', 'Delete the selected pixels', deleteSel, 'Del')));
+    W.moveActs = opt('Transform', h('div.sk-acts', act('flipH', 'Flip left-right', () => transformFloat('flipH'), 'Shift+H'), act('flipV', 'Flip upside down', () => transformFloat('flipV'), 'Shift+V'),
       act('rotL', 'Turn left', () => transformFloat('rotCCW'), 'Shift+,'), act('rotR', 'Turn right', () => transformFloat('rotCW'), 'Shift+.'),
-      act('check', 'Drop it here', () => commitFloat(), 'Enter'), act('x', 'Cancel the move', () => cancelFloat(), 'Esc'));
-    W.sym = h('div.sk-opt.sk-sym', { role: 'group', 'aria-label': 'Mirror' },
-      toggle('Body mirror', () => u().sym.body, (v) => { save((s) => { s.ui.sym.body = v; }); patchTools(); syncCursor3D(); }, { icon: 'mirror', text: false, tip: ['Body mirror (Y)', 'Left and right side together: arm to arm, leg to leg, head and body onto themselves'] }),
-      toggle('Mirror across each face', () => u().sym.faceX, (v) => { save((s) => { s.ui.sym.faceX = v; }); syncCursor3D(); }, { icon: 'flipH', text: false, tip: ['Mirror across each face', 'Left half to right half of the same face'] }),
-      toggle('Mirror up and down', () => u().sym.faceY, (v) => { save((s) => { s.ui.sym.faceY = v; }); syncCursor3D(); }, { icon: 'flipV', text: false, tip: ['Mirror up and down', 'Top half to bottom half of the same face'] }));
-    W.orbit = h('div.sk-opt.sk-hint', 'Drag to turn · right-drag or Shift-drag to pan · scroll to zoom. Pick an animation under the model.');
-    W.picker = h('div.sk-opt.sk-hint', 'Click a pixel to take its colour. Right-click sets the second colour. Alt-click works with every tool.');
-    W.replace = h('div.sk-opt.sk-hint', 'Click a colour: every pixel of it becomes the current colour.');
+      act('check', 'Drop it here', () => commitFloat(), 'Enter'), act('x', 'Cancel the move', () => cancelFloat(), 'Esc')));
+    const hint = (text) => h('p.sk-ohint', text);
+    W.orbit = hint('Drag to turn, right-drag to pan, scroll to zoom. The animation plays with this tool (▶ on the model).');
+    W.picker = hint('Click a pixel to take its colour. Right-click sets the second colour. Alt-click picks with every tool.');
+    W.replace = hint('Click a colour: every pixel of it becomes the current colour.');
     W.selInfo = h('span.sk-selinfo');
     const ROWS = {
-      orbit: ['orbit'], pencil: ['size', 'shape', 'opacity', 'limit', 'sym'], eraser: ['size', 'shape', 'hard', 'opacity', 'limit', 'sym'],
-      shade: ['shade', 'size', 'shape', 'amount', 'limit', 'sym'], noise: ['noise', 'size', 'shape', 'amount', 'limit', 'sym'],
-      line: ['size', 'opacity', 'sym'], rect: ['filled', 'size', 'opacity', 'sym'], ellipse: ['filled', 'size', 'opacity', 'sym'],
+      orbit: ['orbit'], pencil: ['size', 'shape', 'hard', 'opacity', 'limit'], eraser: ['size', 'shape', 'hard', 'opacity', 'limit'],
+      shade: ['shade', 'size', 'shape', 'amount', 'limit'], noise: ['noise', 'size', 'shape', 'amount', 'limit'],
+      line: ['size', 'opacity'], rect: ['filled', 'size', 'opacity'], ellipse: ['filled', 'size', 'opacity'],
       gradient: ['grad', 'steps', 'dither', 'opacity', 'limit'], fill: ['tol', 'contig', 'limit', 'sample', 'opacity'], replace: ['replace', 'tol', 'sample'],
       picker: ['picker', 'sample'], select: ['selMode', 'selOp', 'tol', 'selActs', 'selInfo'], move: ['moveActs', 'selInfo'],
     };
-    const bar = h('div.sk-opts', { role: 'group', 'aria-label': 'Tool options' });
-    const title = h('span.sk-opt-title');
+    const tIco = h('span.sk-ot-ico'), tName = h('b.sk-ot-name'), tKey = h('kbd.sk-ot-key');
+    const title = h('div.sk-ot', tIco, h('span.sk-ot-txt', tName, tKey));
+    tip(title, () => [TOOL[u().tool].label + keyName(TOOL[u().tool].key), TOOL[u().tool].hint]);
+    const row = h('div.sk-orow');
+    const bar = h('div.sk-opts', { role: 'group', 'aria-label': 'Tool options' }, title, row);
     let shown = '';
     bar.paint = () => {
-      const t = u().tool, key = t + (t === 'pencil' && u().size > 1 ? '+h' : '');
-      if (shown !== key) {
-        shown = key;
-        const list = ROWS[t].slice();
-        if (t === 'pencil' && u().size > 1) list.splice(2, 0, 'hard');
-        bar.replaceChildren(title, ...list.map((k) => W[k]));
+      const t = u().tool;
+      if (shown !== t) {
+        shown = t;
+        row.replaceChildren(...ROWS[t].map((k) => W[k]));
+        tIco.replaceChildren(ico(t, 18));
+        tName.textContent = TOOL[t].label;
+        tKey.textContent = TOOL[t].key;
       }
-      title.textContent = TOOL[t].label;
-      W.hard.style.display = (t === 'pencil' || t === 'eraser' || t === 'shade' || t === 'noise') && u().size === 1 ? 'none' : '';
+      // hardness only means something for brushes bigger than one pixel; tolerance only for the wand and colour selections
+      W.hard.hidden = u().size === 1;
+      W.tol.hidden = t === 'select' && (u().selMode === 'rect' || u().selMode === 'lasso');
       Object.values(W).forEach((w) => w.paint && w.paint());
-      W.sym.querySelectorAll('.sk-tg').forEach((b) => b.paint());
-      W.selInfo.textContent = ED.float ? 'Moving ' + ED.float.piece.w + ' × ' + ED.float.piece.h : selActive() ? E.selCount(ED.sel) + ' pixels selected' : t === 'move' ? 'No selection: moves the whole layer' : '';
+      W.selInfo.textContent = ED.float ? 'Moving ' + ED.float.piece.w + ' × ' + ED.float.piece.h : selActive() ? E.selCount(ED.sel) + ' px selected' : t === 'move' ? 'No selection: moves the whole layer' : '';
+      fit();
     };
-    W.size.paint();
+    /** close the strip up (title icon only, tighter keys) only when this tool's options would not fit; the height never changes */
+    let fitW = 0, fitFor = '';
+    function fit() {
+      if (!bar.isConnected || !bar.clientWidth) return;
+      const sig = shown + (W.hard.hidden ? '' : 'h') + (W.tol.hidden ? '' : 't');
+      if (sig === fitFor && bar.clientWidth === fitW) return;
+      fitFor = sig; fitW = bar.clientWidth;
+      bar.classList.remove('tight');
+      if (bar.scrollWidth > bar.clientWidth + 1) bar.classList.add('tight');
+    }
+    new ResizeObserver(() => fit()).observe(bar);
     return bar;
   }
 
@@ -1131,8 +1186,8 @@
     if (b.tex) stage.style.setProperty('--sk-tex', 'url("' + TH.icon.src(b.tex) + '")'); else stage.style.removeProperty('--sk-tex');
   }
   /** a popover panel anchored inside the stage (not a dropdown list: a small grid of keys) */
-  function popover(btn, build, label) {
-    const pop = h('div.sk-pop', { role: 'dialog', 'aria-label': label, hidden: true });
+  function popover(btn, build, label, cls) {
+    const pop = h('div.sk-pop' + (cls ? '.' + cls : ''), { role: 'dialog', 'aria-label': label, hidden: true });
     const close = () => { pop.hidden = true; btn.setAttribute('aria-expanded', 'false'); document.removeEventListener('pointerdown', outside, true); };
     const outside = (e) => { if (!pop.contains(e.target) && !btn.contains(e.target)) close(); };
     btn.setAttribute('aria-expanded', 'false');
@@ -1144,12 +1199,15 @@
       const f = pop.querySelector('.on, button'); if (f) f.focus({ preventScroll: true });
     });
     pop.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.stopPropagation(); close(); btn.focus(); } });
+    pop.close = close;
     return pop;
   }
   /**
    * The stage: ONE well holding both views. The main view fills it (3D model by default); the other one is docked in the
    * bottom-right corner as a compact card at its real size (the flat sheet = exactly 64 × 64 × zoom). Every view control
-   * is a small overlay inside its own view. Swap (⇄) trades places, the dock folds to a small key.
+   * is a small overlay inside its own view, in labelled groups: SIDE (top left), ZOOM + View (top right; View opens the
+   * panel with background, overlay, shading, game look, cape, elytra and picture), play + animation (bottom left), the
+   * sheet card (bottom right: size, grid, parts, swap, fold). Swap (⇄) trades places, the dock folds to a small key.
    */
   function buildStage() {
     const stage = h('div.sk-stage', { 'data-bg': 'studio' });
@@ -1160,73 +1218,81 @@
       if (ui().tool !== 'orbit') { setTool('orbit'); V.setPaused(false); return; }
       V.setPaused(!V.paused);
     }, { key: 'K', tip: () => [V.lock ? 'Play the animation (K)' : V.paused ? 'Play (K)' : 'Pause (K)', V.lock ? 'Switches to the Turn tool: paint tools always hold the still pose' : ''] });
-    const animBtn = h('button.btn.small.sk-vb.sk-animbtn', { type: 'button', 'aria-label': 'Animation' }, h('span.sk-animname'), h('span.sk-chev', { 'aria-hidden': 'true' }));
-    tip(animBtn, () => ['Animation', 'Plays with the Turn tool (C). Painting always uses the still pose']);
-    const animPop = popover(animBtn, (close) => [h('div.sk-pop-title', 'Animation'), h('div.sk-pop-grid', ANIMS.map(([id, l]) => {
-      const b = h('button.btn.small', { type: 'button', onclick: () => { save((s) => { s.ui.anim = id; if (id === 'fly') s.ui.elytra = true; }); if (id === 'fly') applyCape(); if (ui().tool !== 'orbit') setTool('orbit'); V.setAnim(id); close(); patchViewBar(); } }, l);
-      press(b, ui().anim === id);
+    const animBtn = h('button.btn.small.sk-vb.sk-animbtn', { type: 'button', 'aria-label': 'Animation' }, h('span.sk-animname'));
+    tip(animBtn, () => ['Animation: ' + ((ANIMS.find((x) => x[0] === ui().anim) || ANIMS[0])[1]), 'Choose what the model does. It plays with the Turn tool (C); painting always uses the still pose']);
+    const animKeys = ANIMS.map(([id, l]) => {
+      const b = h('button.btn.small', { type: 'button', 'data-anim': id, onclick: () => { save((s) => { s.ui.anim = id; if (id === 'fly') s.ui.elytra = true; }); if (id === 'fly') applyCape(); if (ui().tool !== 'orbit') setTool('orbit'); V.setAnim(id); animPop.close(); patchViewBar(); } }, l);
       return b;
-    })), slider('Speed', 0.25, 2.5, 0.25, () => ui().speed, (v) => { save((s) => { s.ui.speed = v; }); V.setSpeed(v); }, (v) => v + '×')], 'Animation');
-    const bgBtn = h('button.btn.small.sk-vb.sk-ib', { type: 'button', 'aria-label': 'Background' }, h('span.sk-bgsw'));
-    tip(bgBtn, () => ['Background', (BGS.find((b) => b.id === ui().bg) || BGS[0]).name]);
-    const bgPop = popover(bgBtn, () => {
-      const groups = ['Plain', 'Gradient', 'Scenery'].map((g) => [h('div.sk-pop-title', g), h('div.sk-pop-grid.sk-bggrid', BGS.filter((b) => b.group === g).map((b) => {
-        const k = h('button.btn.sk-bgkey', { type: 'button', 'data-bg': b.id, 'aria-label': b.name, onclick: () => { save((s) => { s.ui.bg = b.id; }); applyBg(stage); patchViewBar(); grid.querySelectorAll('.sk-bgkey').forEach((x) => press(x, x.dataset.bg === b.id)); } },
-          vars(h('span.sk-bgprev', { 'data-bg': b.id }), b.tex ? { '--sk-tex': 'url("' + TH.icon.src(b.tex) + '")' } : { '--sk-bgc': ui().bgColor }), h('span', b.name));
-        press(k, ui().bg === b.id);
-        return k;
-      }))]);
-      const col = h('input.sk-colin', { type: 'color', value: ui().bgColor, 'aria-label': 'Your background colour', oninput: (e) => { save((s) => { s.ui.bgColor = e.target.value; s.ui.bg = 'custom'; }); applyBg(stage); patchViewBar(); } });
-      const grid = h('div.sk-bgwrap', groups, h('label.sk-colrow', h('span', 'Your colour'), col));
-      return grid;
-    }, 'Background');
-    const T = (icon, label, k, sub, get, set) => { const b = vb(icon, label, () => { set(!get()); b.paint(); }, { key: k, sub }); b.paint = () => press(b, get()); b.paint(); return b; };
-    const lightBtn = T('light', 'Shading', 'Shift+L', 'Off = flat colours, exactly as painted', () => ui().lit, (v) => { save((s) => { s.ui.lit = v; }); V.setLighting(v); });
-    const gridBtn = vb('grid', 'Overlay on the model', () => { const n = { none: 'grid', grid: 'parts', parts: 'none' }[ui().overlay]; save((s) => { s.ui.overlay = n; }); V.setOverlay(n); patchViewBar(); },
-      { tip: () => ['Overlay on the model (Shift+G)', { none: 'Off. Click: pixel grid', grid: 'Pixel grid. Click: body parts', parts: 'Body parts. Click: off' }[ui().overlay]] });
-    const gameBtn = T('eye', 'Game look', null, 'On: the base layer is solid like in the game (see-through base pixels show their colour, often black). Off: gaps show', () => ui().gameLook, (v) => { save((s) => { s.ui.gameLook = v; }); touched(null, { quiet: true, full: true }); });
-    const capeBtn = T('cape', 'Cape', null, 'Show the cape on the back', () => ui().capeOn, (v) => { save((s) => { s.ui.capeOn = v; }); if (v && !ED.cape) { openCape(); } applyCape(); patchCape(); });
-    const elyBtn = T('wing', 'Elytra', null, 'Wear an elytra (uses the cape’s elytra look when it has one)', () => ui().elytra, (v) => { save((s) => { s.ui.elytra = v; }); applyCape(); });
-    const shotBtn = vb('cam', 'Save a picture of the model', downloadShot);
-    const sides = h('div.sk-sides', { role: 'group', 'aria-label': 'Look from' }, [['front', 'Front'], ['back', 'Back'], ['right', 'Right'], ['left', 'Left'], ['top', 'Top']].map(([id, l]) => {
-      const b = h('button.btn.small.sk-side', { type: 'button', onclick: () => V.view(id) }, l); tip(b, 'Look at the ' + (id === 'right' || id === 'left' ? id + ' side' : id)); return b;
-    }));
-    const zoomGrp = h('div.sk-ovg', { role: 'group', 'aria-label': 'Zoom' }, vb('zoomout', 'Zoom out', () => V.zoomBy(1 / 1.2), { key: '-' }), vb('zoomin', 'Zoom in', () => V.zoomBy(1.2), { key: '+' }),
+    });
+    const animPop = popover(animBtn, () => { animKeys.forEach((b) => press(b, ui().anim === b.dataset.anim)); return [h('div.sk-pop-title', 'Animation'), h('div.sk-pop-grid', animKeys),
+      slider('Speed', 0.25, 2.5, 0.25, () => ui().speed, (v) => { save((s) => { s.ui.speed = v; }); V.setSpeed(v); }, (v) => v + '×')]; }, 'Animation', 'sk-animpop');
+    /* ---- the View panel (opens inside the stage, top right): background, what the model shows, picture ---- */
+    const TK = (icon, label, sub, get, set) => {   // icon + name toggle key for the View panel
+      const b = h('button.btn.small.sk-vt', { type: 'button', onclick: () => { set(!get()); b.paint(); } }, ico(icon, 16), h('span', label));
+      tip(b, [label, sub]);
+      b.paint = () => press(b, get());
+      b.paint();
+      return b;
+    };
+    const lightBtn = TK('light', 'Shading', 'Off = flat colours, exactly as painted (Shift+L)', () => ui().lit, (v) => { save((s) => { s.ui.lit = v; }); V.setLighting(v); });
+    const gameBtn = TK('eye', 'Game look', 'On: the base layer is solid like in the game (see-through base pixels show their colour, often black). Off: gaps show', () => ui().gameLook, (v) => { save((s) => { s.ui.gameLook = v; }); touched(null, { quiet: true, full: true }); });
+    const capeBtn = TK('cape', 'Cape', 'Show the cape on the back', () => ui().capeOn, (v) => { save((s) => { s.ui.capeOn = v; }); if (v && !ED.cape) { openCape(); } applyCape(); patchCape(); });
+    const elyBtn = TK('wing', 'Elytra', 'Wear an elytra (uses the cape’s elytra look when it has one)', () => ui().elytra, (v) => { save((s) => { s.ui.elytra = v; }); applyCape(); });
+    const overlaySeg = seg('Overlay on the model', [['none', 'Off', 'Nothing drawn on the model'], ['grid', 'Pixel grid', 'Lines between the pixels (Shift+G)'], ['parts', 'Parts', 'Colour every body part']], () => ui().overlay,
+      (v) => { save((s) => { s.ui.overlay = v; }); V.setOverlay(v); });
+    const bgKeys = BGS.map((b) => {
+      const k = h('button.btn.sk-bgkey', { type: 'button', 'data-bg': b.id, 'aria-label': b.name, onclick: () => { save((s) => { s.ui.bg = b.id; }); applyBg(stage); patchViewBar(); } },
+        vars(h('span.sk-bgprev', { 'data-bg': b.id }), b.tex ? { '--sk-tex': 'url("' + TH.icon.src(b.tex) + '")' } : {}));
+      tip(k, [b.name, b.group]);
+      return k;
+    });
+    const bgCol = h('input.sk-colin', { type: 'color', value: ui().bgColor, 'aria-label': 'Your background colour', oninput: (e) => { save((s) => { s.ui.bgColor = e.target.value; s.ui.bg = 'custom'; }); applyBg(stage); patchViewBar(); } });
+    const shotKey = h('button.btn.small.sk-vt', { type: 'button', onclick: downloadShot }, ico('cam', 16), h('span', 'Save picture'));
+    tip(shotKey, ['Save a picture of the model', 'A PNG of the model as you see it, with this background']);
+    const viewBtn = h('button.btn.small.sk-vb.sk-viewkey', { type: 'button', 'aria-label': 'View settings' }, ico('view', 16), h('span', 'View'));
+    tip(viewBtn, ['View settings', 'Background, shading, overlay, cape, elytra, picture']);
+    const viewPop = popover(viewBtn, () => [
+      h('div.sk-pop-title', 'Background'), h('div.sk-bggrid', bgKeys), h('label.sk-colrow', h('span', 'Your colour'), bgCol),
+      h('div.sk-pop-title', 'Overlay'), overlaySeg,
+      h('div.sk-pop-title', 'Show'), h('div.sk-vtgrid', lightBtn, gameBtn, capeBtn, elyBtn),
+      h('div.sk-pop-title', 'Picture'), shotKey], 'View settings', 'sk-viewpop');
+    /* ---- the always-there model controls: sides, zoom, View; play + animation ---- */
+    const sides = h('div.sk-ovg', { role: 'group', 'aria-label': 'Look from' }, h('span.sk-ovl', { 'aria-hidden': 'true' }, 'Side'),
+      [['front', 'Front'], ['back', 'Back'], ['right', 'Right'], ['left', 'Left'], ['top', 'Top']].map(([id, l]) => {
+        const b = h('button.btn.small.sk-vb.sk-side', { type: 'button', onclick: () => V.view(id) }, l); tip(b, 'Look at the ' + (id === 'right' || id === 'left' ? id + ' side' : id)); return b;
+      }));
+    const zoomGrp = h('div.sk-ovg', { role: 'group', 'aria-label': 'Zoom' }, h('span.sk-ovl', { 'aria-hidden': 'true' }, 'Zoom'),
+      vb('zoomout', 'Zoom out', () => V.zoomBy(1 / 1.2), { key: '-' }), vb('zoomin', 'Zoom in', () => V.zoomBy(1.2), { key: '+' }),
       vb('reset', 'Reset the view', () => V.reset(), { key: 'Home', sub: 'or double-click with the Turn tool' }));
-    const toggles = h('div.sk-ovg.sk-toggles', { role: 'group', 'aria-label': 'Show' }, bgBtn, gridBtn, lightBtn, gameBtn, capeBtn, elyBtn, shotBtn);
-    // phones: the toggles fold into one key (same keys, in a small grid)
-    const moreBtn = vb('adjust', 'View options', () => {}, { cls: 'sk-vb.sk-more', sub: 'Background, overlay, shading, game look, cape, elytra' });
-    const morePop = popover(moreBtn, () => h('div.sk-pop-grid.sk-moregrid', [bgBtn, gridBtn, lightBtn, gameBtn, capeBtn, elyBtn, shotBtn].map((b) => {
-      const c = h('button.btn.small', { type: 'button', onclick: () => { b.click(); c.classList.toggle('on', b.classList.contains('on')); } }, ico(b === bgBtn ? 'ref' : iconOf(b), 16), h('span', b.getAttribute('aria-label').split(',')[0]));
-      c.classList.toggle('on', b.classList.contains('on'));
-      return c;
-    })), 'View options');
+    const playGrp = h('div.sk-ovg', { role: 'group', 'aria-label': 'Animation' }, playBtn, animBtn);
     const info = h('div.sk-info', { 'aria-live': 'off' });
-    const swapM = vb('side', 'Make the model big', () => setMain('model'), { cls: 'sk-vb.sk-swapkey', sub: 'Swap the model and the flat sheet (Shift+1)' });
+    const swapM = vb('swap', 'Make the model big', () => setMain('model'), { sub: 'Swap the model and the flat sheet (Shift+1)' });
     const modelPane = h('div.sk-pane.sk-pane-model', V.el,
       h('div.sk-ov.sk-ov-tl', sides),
-      h('div.sk-ov.sk-ov-tr', toggles, moreBtn, zoomGrp),
-      h('div.sk-ov.sk-ov-bl', playBtn, animBtn, info),
-      h('div.sk-ov.sk-ov-dock', swapM));
+      h('div.sk-ov.sk-ov-tr', zoomGrp, viewBtn),
+      h('div.sk-ov.sk-ov-bl', playGrp, info),
+      h('div.sk-ov.sk-ov-dock', h('span.sk-ovl', 'Model'), swapM));
     if (!V.ready) modelPane.append(h('div.sk-loading', 'Loading the 3D viewer…'));
-    /* ---- sheet pane + its overlays ---- */
+    /* ---- the flat sheet card: its own controls in its head ---- */
     const sheetZoom = h('span.sk-zoomv');
-    const sheetCtl = h('div.sk-ov.sk-ov-sheet', { role: 'group', 'aria-label': 'Flat sheet' },
-      vb('zoomout', 'Smaller sheet', () => Sheet.setZoom(Sheet.zoom() - 1), { sub: 'Ctrl + scroll on the sheet' }), sheetZoom, vb('zoomin', 'Bigger sheet', () => Sheet.setZoom(Sheet.zoom() + 1), { sub: 'Ctrl + scroll on the sheet' }),
-      toggle('Pixel grid', () => ui().sheetGrid, (v) => { save((s) => { s.ui.sheetGrid = v; }); Sheet.invalidate(); }, { icon: 'grid', text: false, tip: ['Pixel grid', 'Lines between the pixels'] }),
-      toggle('Body parts', () => ui().sheetLabels, (v) => { save((s) => { s.ui.sheetLabels = v; }); Sheet.invalidate(); }, { icon: 'parts', text: false, tip: ['Body parts', 'Colour every part and name it'] }),
-      vb('swap', 'Swap views', () => setMain(ui().main === 'sheet' ? 'model' : 'sheet'), { sub: 'Make the flat sheet big, the model small (Shift+2)' }),
-      vb('x', 'Fold the sheet away', () => setDock(false), { cls: 'sk-vb.sk-foldkey', sub: 'Shift+3 brings it back' }));
+    const sheetCtl = h('div.sk-sheet-head', { role: 'group', 'aria-label': 'Flat sheet' },
+      h('span.sk-ovl', 'Sheet'),
+      h('div.sk-ovg', vb('zoomout', 'Smaller sheet', () => Sheet.setZoom(Sheet.zoom() - 1), { sub: 'Ctrl + scroll on the sheet' }), sheetZoom, vb('zoomin', 'Bigger sheet', () => Sheet.setZoom(Sheet.zoom() + 1), { sub: 'Ctrl + scroll on the sheet' })),
+      h('div.sk-ovg',
+        toggle('Pixel grid', () => ui().sheetGrid, (v) => { save((s) => { s.ui.sheetGrid = v; }); Sheet.invalidate(); }, { icon: 'grid', text: false, tip: ['Pixel grid', 'Lines between the pixels (from 5× up)'] }),
+        toggle('Body parts', () => ui().sheetLabels, (v) => { save((s) => { s.ui.sheetLabels = v; }); Sheet.invalidate(); }, { icon: 'parts', text: false, tip: ['Body parts', 'Colour every part and name it'] })),
+      h('div.sk-ovg',
+        vb('swap', 'Swap views', () => setMain(ui().main === 'sheet' ? 'model' : 'sheet'), { tip: () => [ui().main === 'sheet' ? 'Make the model big (Shift+1)' : 'Make the flat sheet big (Shift+2)', 'Swaps the model and the flat sheet'] }),
+        vb('x', 'Fold the sheet away', () => setDock(false), { cls: 'sk-vb.sk-foldkey', sub: 'Shift+3 brings it back' })));
     sheetCtl.querySelectorAll('.sk-tg').forEach((b) => b.classList.add('sk-vb'));
-    const sheetPane = h('div.sk-pane.sk-pane-sheet', Sheet.el, sheetCtl);
-    const unfold = h('button.btn.small.sk-unfold', { type: 'button', onclick: () => setDock(true) }, ico('side', 16), h('span', 'Flat sheet'));
+    const sheetPane = h('div.sk-pane.sk-pane-sheet', sheetCtl, Sheet.el);
+    const unfold = h('button.btn.small.sk-vb.sk-unfold', { type: 'button', onclick: () => setDock(true) }, ico('side', 16), h('span', 'Flat sheet'));
     tip(unfold, ['Show the flat sheet (Shift+3)', 'The 64 × 64 texture, docked in the corner']);
     const drop = h('div.sk-drop', { 'aria-hidden': 'true' }, 'Drop a skin PNG to open it');
-    stage.append(modelPane, sheetPane, unfold, animPop, bgPop, morePop, drop);
+    stage.append(modelPane, sheetPane, unfold, animPop, viewPop, drop);
     V.init().then(() => { const s = stage.querySelector('.sk-loading'); if (s) s.remove(); V.setLighting(ui().lit); V.setOverlay(ui().overlay); V.setHidden(ui().hidden); V.setSpeed(ui().speed); V.want = ui().anim; V.setLock(ui().tool !== 'orbit'); V.setMode(ui().tool === 'orbit' ? 'orbit' : 'paint'); if (ED.loaded) touched(null, { quiet: true, full: true }); applyCape(); V.wake(); })
       .catch(() => { const s = stage.querySelector('.sk-loading'); if (s) s.remove(); modelPane.append(h('div.sk-error', V.error || 'The 3D viewer could not start.', h('br'), h('span', 'The flat sheet still works.'))); setMain('sheet'); });
-    const box = h('section.panel.sk-viewer', { 'aria-label': 'Model and flat sheet' }, stage);
-    box.paint = () => {
+    stage.paint = () => {
       const a = ANIMS.find((x) => x[0] === ui().anim);
       animBtn.querySelector('.sk-animname').textContent = a ? a[1] : 'Idle';
       const playing = !V.lock && !V.paused;
@@ -1234,28 +1300,29 @@
       playBtn.setAttribute('aria-label', playing ? 'Pause' : 'Play');
       press(playBtn, playing);
       [lightBtn, gameBtn, capeBtn, elyBtn].forEach((b) => b.paint());
-      press(gridBtn, ui().overlay !== 'none');
-      bgBtn.querySelector('.sk-bgsw').dataset.bg = ui().bg;
-      vars(bgBtn.querySelector('.sk-bgsw'), { '--sk-bgc': ui().bgColor });
+      overlaySeg.paint();
+      bgKeys.forEach((k) => press(k, k.dataset.bg === ui().bg));
+      if (bgCol.value !== ui().bgColor) bgCol.value = ui().bgColor;
+      bgKeys.forEach((k) => { if (k.dataset.bg === 'custom') vars(k.firstChild, { '--sk-bgc': ui().bgColor }); });
       sheetCtl.querySelectorAll('.sk-tg').forEach((b) => b.paint());
     };
     UI_STAGE.info = info; UI_STAGE.sheetZoom = sheetZoom; UI_STAGE.sheetPane = sheetPane;
-    return { stage, box };
+    return stage;
   }
   const UI_STAGE = {};
-  /** the icon name a view key was built with (for the phone "View options" grid) */
-  const iconOf = (b) => { const d = b.querySelector('path') && b.querySelector('path').getAttribute('d'); return Object.keys(ICON).find((k) => ICON[k] === d) || 'grid'; };
   /** which view fills the stage: 'model' | 'sheet' */
   function setMain(m) {
     save((s) => { s.ui.main = m === 'sheet' ? 'sheet' : 'model'; s.ui.dock = true; });
     applyView();
   }
   function setDock(on) { save((s) => { s.ui.dock = !!on; }); applyView(); }
-  /* ====================================================================== colour panel */
+  /* ====================================================================== colour block (top of the right panel, always visible)
+     two colour keys + code, then the picker (saturation / brightness field with an upright hue and opacity bar beside it),
+     then one row of swatch sources (Recent, This skin, Minecraft, Saved) over two fixed rows of swatches. */
   function buildColor() {
     const sv = h('canvas.sk-sv', { width: 200, height: 120, 'aria-label': 'Saturation and brightness', role: 'slider', tabindex: 0 });
-    const hue = h('canvas.sk-hue', { width: 200, height: 14, 'aria-label': 'Hue', role: 'slider', tabindex: 0 });
-    const alpha = h('canvas.sk-alpha', { width: 200, height: 14, 'aria-label': 'Opacity of the colour', role: 'slider', tabindex: 0 });
+    const hue = h('canvas.sk-hue', { width: 14, height: 120, 'aria-label': 'Hue', role: 'slider', tabindex: 0 });
+    const alpha = h('canvas.sk-alpha', { width: 14, height: 120, 'aria-label': 'Opacity of the colour', role: 'slider', tabindex: 0 });
     const hex = h('input.field.sk-hex', { type: 'text', maxlength: 9, spellcheck: false, autocomplete: 'off', 'aria-label': 'Colour code', 'data-focus': 'sk-hex',
       onkeydown: (e) => { if (e.key === 'Enter') { e.preventDefault(); hex.blur(); } }, onchange: () => { const c = E.hex2rgba(hex.value); if (c) setColor(E.rgba2hex(c, true), slot); else paint(); } });
     let slot = 0, hsv = [0, 0, 0], a = 255;
@@ -1274,19 +1341,24 @@
       g = x.createLinearGradient(0, 0, 0, hh); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, '#000'); x.fillStyle = g; x.fillRect(0, 0, w, hh);
       const mx = hsv[1] * (w - 1), my = (1 - hsv[2]) * (hh - 1);
       x.strokeStyle = hsv[2] > 0.5 ? '#000' : '#fff'; x.lineWidth = 2; x.strokeRect(mx - 4, my - 4, 8, 8);
-      const hx = hue.getContext('2d'); const hg = hx.createLinearGradient(0, 0, hue.width, 0);
+      // upright bars: hue runs top (0°) to bottom (360°), opacity top (solid) to bottom (clear); the marker is a 3px bar
+      const HW = hue.width, HH = hue.height;
+      const hx = hue.getContext('2d'); const hg = hx.createLinearGradient(0, 0, 0, HH);
       for (let i = 0; i <= 6; i++) hg.addColorStop(i / 6, 'rgb(' + E.hsv2rgb(i * 60, 1, 1) + ')');
-      hx.fillStyle = hg; hx.fillRect(0, 0, hue.width, hue.height);
-      hx.fillStyle = '#fff'; hx.fillRect(hsv[0] / 360 * (hue.width - 3), 0, 3, hue.height); hx.strokeStyle = '#000'; hx.strokeRect(hsv[0] / 360 * (hue.width - 3) - 0.5, 0.5, 4, hue.height - 1);
-      const ax = alpha.getContext('2d');
-      for (let i = 0; i < alpha.width; i += 7) for (let j = 0; j < 2; j++) { ax.fillStyle = ((i / 7 + j) & 1) ? '#999' : '#ddd'; ax.fillRect(i, j * 7, 7, 7); }
-      const rgb = E.hsv2rgb(hsv[0], hsv[1], hsv[2]), ag = ax.createLinearGradient(0, 0, alpha.width, 0);
-      ag.addColorStop(0, 'rgba(' + rgb + ',0)'); ag.addColorStop(1, 'rgba(' + rgb + ',1)'); ax.fillStyle = ag; ax.fillRect(0, 0, alpha.width, alpha.height);
-      ax.fillStyle = '#fff'; ax.fillRect(a / 255 * (alpha.width - 3), 0, 3, alpha.height); ax.strokeStyle = '#000'; ax.strokeRect(a / 255 * (alpha.width - 3) - 0.5, 0.5, 4, alpha.height - 1);
+      hx.fillStyle = hg; hx.fillRect(0, 0, HW, HH);
+      const hy = Math.round(hsv[0] / 360 * (HH - 3));
+      hx.fillStyle = '#fff'; hx.fillRect(0, hy, HW, 3); hx.strokeStyle = '#000'; hx.strokeRect(0.5, hy - 0.5, HW - 1, 4);
+      const ax = alpha.getContext('2d'), AW = alpha.width, AH = alpha.height, q = Math.max(4, Math.round(AW / 2));
+      for (let j = 0; j < AH; j += q) for (let i = 0; i < AW; i += q) { ax.fillStyle = ((i / q + j / q) & 1) ? '#999' : '#ddd'; ax.fillRect(i, j, q, q); }
+      const rgb = E.hsv2rgb(hsv[0], hsv[1], hsv[2]), ag = ax.createLinearGradient(0, 0, 0, AH);
+      ag.addColorStop(0, 'rgba(' + rgb + ',1)'); ag.addColorStop(1, 'rgba(' + rgb + ',0)'); ax.fillStyle = ag; ax.fillRect(0, 0, AW, AH);
+      const ay = Math.round((1 - a / 255) * (AH - 3));
+      ax.fillStyle = '#fff'; ax.fillRect(0, ay, AW, 3); ax.strokeStyle = '#000'; ax.strokeRect(0.5, ay - 0.5, AW - 1, 4);
       const c1 = E.hex2rgba(ui().color), c2 = E.hex2rgba(ui().color2);
       sw1.style.setProperty('--c', 'rgba(' + c1.slice(0, 3) + ',' + c1[3] / 255 + ')'); sw2.style.setProperty('--c', 'rgba(' + c2.slice(0, 3) + ',' + c2[3] / 255 + ')');
       sw1.classList.toggle('on', slot === 0); sw2.classList.toggle('on', slot === 1);
       if (document.activeElement !== hex) hex.value = E.rgba2hex(E.hex2rgba(cur()), true).toUpperCase();
+      if (panel && panel.onColor) panel.onColor();
     }
     const paint = () => drawAll(true);
     const drag = (cv, fn) => {
@@ -1294,38 +1366,49 @@
       cv.addEventListener('pointerdown', (e) => { cv.setPointerCapture(e.pointerId); go(e); const mv = (ev) => go(ev); const end = () => { cv.removeEventListener('pointermove', mv); cv.removeEventListener('pointerup', end); pushRecent(cur()); }; cv.addEventListener('pointermove', mv); cv.addEventListener('pointerup', end); });
     };
     drag(sv, (fx, fy) => { hsv[1] = fx; hsv[2] = 1 - fy; });
-    drag(hue, (fx) => { hsv[0] = fx * 359.9; });
-    drag(alpha, (fx) => { a = Math.round(fx * 255); });
+    drag(hue, (fx, fy) => { hsv[0] = fy * 359.9; });
+    drag(alpha, (fx, fy) => { a = Math.round((1 - fy) * 255); });
     const keys = (cv, fn) => cv.addEventListener('keydown', (e) => { const d = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: 1, ArrowDown: -1 }[e.key]; if (!d) return; e.preventDefault(); e.stopPropagation(); fn(d * (e.shiftKey ? 10 : 1), e.key); commit(); });
     keys(sv, (d, k) => { if (k === 'ArrowLeft' || k === 'ArrowRight') hsv[1] = clamp(hsv[1] + d / 100, 0, 1); else hsv[2] = clamp(hsv[2] + d / 100, 0, 1); });
-    keys(hue, (d) => { hsv[0] = (hsv[0] + d + 360) % 360; });
+    keys(hue, (d) => { hsv[0] = (hsv[0] - d + 360) % 360; });
     keys(alpha, (d) => { a = clamp(a + d * 2, 0, 255); });
+    // the canvases draw at their real size (the picker grows and shrinks with the panel)
+    new ResizeObserver(() => {
+      let ch = false;
+      [sv, hue, alpha].forEach((c) => { const w = Math.round(c.clientWidth), hh = Math.round(c.clientHeight); if (w > 0 && hh > 0 && (c.width !== w || c.height !== hh)) { c.width = w; c.height = hh; ch = true; } });
+      if (ch) drawAll(false);
+    }).observe(sv);
     const swatch = (hexv, title, onpick, extra) => { const b = vars(h('button.sk-swatch', { type: 'button', 'aria-label': title || hexv, onclick: (e) => onpick(hexv, e), oncontextmenu: (e) => { e.preventDefault(); setColor(hexv, 1); } }, extra), { '--c': hexv }); tip(b, [hexv.toUpperCase().slice(0, 7), 'Click: first colour · right-click: second']); return b; };
     const pick = (v, e) => setColor(v, e && e.shiftKey ? 1 : slot);
     const recentRow = h('div.sk-swatches');
     const skinRow = h('div.sk-swatches');
     const mcRow = h('div.sk-swatches', MC_PALETTE.map((v) => swatch(v, v, pick)));
     const palsBox = h('div.sk-pals');
-    const savePal = h('button.btn.small', { type: 'button', onclick: async () => {
+    const savePal = ibtn('plus', 'Save as palette', async () => {
       const name = await TH.util.ask({ text: 'Name for this palette (the colours of your skin)', input: 'Palette ' + (ui().palettes.length + 1), ok: 'Save palette' });
       if (!name) return;
-      save((s) => { s.ui.palettes.unshift({ id: uid('pal'), name, colors: E.palette(ED.comp, 24, 10, model()) }); });
-      paintPals(); toast('Palette saved');
-    } }, 'Save as palette');
-    tip(savePal, ['Save as palette', 'Keeps the colours of this skin to use on other skins']);
-    function paintRecent() { recentRow.replaceChildren(...(ui().recent.length ? ui().recent.map((v) => swatch(v, v, pick)) : [h('span.sk-empty', 'Colours you use show up here')])); }
+      save((s) => { s.ui.palettes.unshift({ id: uid('pal'), name, colors: E.palette(ED.comp, 24, 10, model()) }); s.ui.swatches = 'saved'; });
+      paintPals(); showSrc(); toast('Palette saved');
+    }, { size: 14, cls: 'sk-mini', sub: 'Keeps the colours of this skin as a palette, to use on other skins' });
+    function paintRecent() { recentRow.replaceChildren(...(ui().recent.length ? ui().recent.map((v) => swatch(v, v, pick)) : [h('span.sk-empty', 'Colours you paint with show up here.')])); }
     function paintSkinPal() { skinRow.replaceChildren(...E.palette(ED.comp, 24, 10, model()).map((v) => swatch(v, v, pick))); }
     function paintPals() {
-      palsBox.replaceChildren(...ui().palettes.map((p) => h('div.sk-pal', h('div.sk-pal-head', h('span.sk-pal-name', p.name),
-        ibtn('x', 'Delete the palette ' + p.name, () => { save((s) => { s.ui.palettes = s.ui.palettes.filter((x) => x.id !== p.id); }); paintPals(); }, { size: 14, cls: 'sk-mini' })),
-      h('div.sk-swatches', p.colors.map((v) => swatch(v, v, pick))))));
+      palsBox.replaceChildren(...(ui().palettes.length ? ui().palettes.map((p) => h('div.sk-pal', h('div.sk-pal-head', h('span.sk-pal-name', p.name),
+        ibtn('x', 'Delete the palette ' + p.name, () => { save((s) => { s.ui.palettes = s.ui.palettes.filter((x) => x.id !== p.id); }); paintPals(); }, { size: 12, cls: 'sk-mini' })),
+      h('div.sk-swatches', p.colors.map((v) => swatch(v, v, pick))))) : [h('span.sk-empty', 'No saved palettes. + keeps the colours of this skin.')]));
     }
-    const panel = h('section.panel.sk-panel.sk-color', { 'aria-label': 'Colour' },
-      h('div.sk-ph', h('h3', 'Colour'), h('div.sk-swpair', sw1, sw2, swapB)),
-      sv, hue, alpha, h('div.sk-hexrow', h('span.sk-slbl', 'Code'), hex),
-      h('div.sk-sub', 'Recent'), recentRow, h('div.sk-sub', 'This skin'), skinRow, savePal, h('div.sk-sub', 'Minecraft'), mcRow, palsBox);
+    const rows = { recent: recentRow, skin: skinRow, mc: mcRow, saved: palsBox };
+    const srcSeg = seg('Swatches', [['recent', 'Recent', 'Colours you used last'], ['skin', 'Skin', 'The colours of this skin'], ['mc', 'Minecraft', 'The 16 dye colours and skin tones'], ['saved', 'Saved', 'Your saved palettes']],
+      () => ui().swatches, (v) => { save((s) => { s.ui.swatches = v; }); showSrc(); }, 'sk-srcseg');
+    const swBox = h('div.sk-swbox', recentRow, skinRow, mcRow, palsBox);
+    palsBox.classList.add('th-scroll');
+    function showSrc() { srcSeg.paint(); Object.keys(rows).forEach((k) => { rows[k].hidden = ui().swatches !== k; }); }
+    const panel = h('div.sk-color', { role: 'group', 'aria-label': 'Colour' },
+      h('div.sk-crow', h('div.sk-swpair', sw1, sw2, swapB), hex),
+      h('div.sk-pick', sv, hue, alpha),
+      h('div.sk-srcrow', srcSeg, savePal), swBox);
     panel.paint = paint; panel.paintRecent = paintRecent; panel.paintSkinPal = paintSkinPal; panel.paintPals = paintPals;
-    paint(); paintRecent(); paintPals();
+    paint(); paintRecent(); paintPals(); showSrc();
     return panel;
   }
 
@@ -1337,7 +1420,7 @@
       const lock = (pid, name) => { const b = ibtn('lock', 'Lock ' + name, () => { save((s) => { s.ui.locks[pid] = !s.ui.locks[pid]; }); paintParts(); }, { size: 16, cls: 'sk-mini.sk-lock', sub: 'A locked part cannot be painted' }); b.dataset.pid = pid; return b; };
       const name = h('button.sk-pname', { type: 'button', onclick: (e) => { const ids = e.shiftKey ? [outer] : e.altKey ? [id] : [id, outer]; setSel(E.partsMask(model(), ids)); toast('Selected the ' + label.toLowerCase() + (e.shiftKey ? ' (outer layer)' : e.altKey ? ' (base)' : '')); } }, label);
       tip(name, [label, 'Click: select it · Alt: base only · Shift: outer layer only']);
-      return h('div.sk-prow', name, h('span.sk-pl', 'Base'), eye(id, label), lock(id, label), h('span.sk-pl', 'Outer'), eye(outer, E.PART[outer].label), lock(outer, E.PART[outer].label));
+      return h('div.sk-prow', name, h('div.sk-pcell', eye(id, label), lock(id, label)), h('div.sk-pcell', eye(outer, E.PART[outer].label), lock(outer, E.PART[outer].label)));
     });
     const outerAll = toggle('Outer layer', () => !['hat', 'jacket', 'rsleeve', 'lsleeve', 'rpants', 'lpants'].every((p) => ui().hidden[p]), (v) => setOuter(v), { tip: ['Outer layer (H)', 'Show or hide the hat, jacket, sleeves and pants'] });
     const model2 = seg('Arm width', [['classic', 'Classic', 'Classic (wide): 4 px arms'], ['slim', 'Slim', 'Slim: 3 px arms']], () => model(), (v) => { if (v !== model()) convertModel(v, 'middle'); });
@@ -1376,6 +1459,7 @@
         tip(row, [L.name, 'Double-click to rename']);
         return row;
       }));
+      if (d.layers.length === 1) list.append(h('p.sk-empty.sk-lhint', 'Tip: + adds a layer on top for details; merge it down when done.'));
       opac.paint(); blend.paint();
     }
     /* cape */
@@ -1394,13 +1478,22 @@
       capeInfo.textContent = ED.capeCv ? 'Cape 64 × 32 (with its elytra look)' : 'No cape. Make one or upload a cape PNG';
       capeActs.querySelector('.btn').disabled = !ED.capeCv;
     }
-    const panel = h('section.panel.sk-panel.sk-lpanel', { 'aria-label': 'Parts and layers' },
-      h('div.sk-ph', h('h3', 'Body'), model2), h('div.sk-parts', partRows), outerAll,
-      h('div.sk-ph', h('h3', 'Layers')), list, acts, opac, blend,
-      h('div.sk-ph', h('h3', 'Cape')), h('div.sk-caperow', capeTh, capeInfo), capeActs);
-    panel.paint = () => { paintParts(); paintList(); paintCape(); };
-    panel.paintList = paintList; panel.paintParts = paintParts; panel.paintCape = paintCape;
-    return panel;
+    const capeShow = toggle('Show on the model', () => ui().capeOn, (v) => { save((s) => { s.ui.capeOn = v; }); applyCape(); patchViewBar(); }, { tip: ['Show on the model', 'The cape hangs on the back; with the elytra on, the wings use its elytra look'] });
+    /* three tab panes: Layers, Body, Cape (the Versions pane comes from buildSide) */
+    list.classList.add('th-scroll');
+    const panes = {
+      layers: h('div.sk-tab', { role: 'tabpanel', 'aria-label': 'Layers' }, list, h('div.sk-lfoot', acts, opac, h('div.sk-trow', h('span.sk-ol', 'Blend'), blend))),
+      body: h('div.sk-tab', { role: 'tabpanel', 'aria-label': 'Body' },
+        h('div.sk-trow', h('span.sk-ol', 'Arms'), model2, outerAll),
+        h('div.sk-parts', h('div.sk-prow.sk-phead', { 'aria-hidden': 'true' }, h('span.sk-ol', 'Part'), h('span.sk-ol', 'Base'), h('span.sk-ol', 'Outer')), partRows)),
+      cape: h('div.sk-tab', { role: 'tabpanel', 'aria-label': 'Cape' }, h('div.sk-caperow', capeTh, capeInfo), capeActs, h('div.sk-trow', capeShow),
+        h('p.sk-hint.sk-thint', 'A cape is 64 × 32: the cape on the left, its elytra look on the right. Edit it with your current colours.')),
+    };
+    const api = { panes };
+    api.paint = () => { paintParts(); paintList(); paintCape(); };
+    api.paintList = paintList; api.paintParts = paintParts;
+    api.paintCape = () => { paintCape(); capeShow.paint(); };
+    return api;
   }
   function setOuter(on) {
     save((s) => { ['hat', 'jacket', 'rsleeve', 'lsleeve', 'rpants', 'lpants'].forEach((p) => { s.ui.hidden[p] = !on; }); });
@@ -1423,16 +1516,22 @@
     const tabs = seg('Show', [['versions', 'Versions', 'Saved looks of this skin'], ['history', 'History', 'Every step, click one to go back']], () => ui().side, (v) => { save((s) => { s.ui.side = v; }); show(); });
     const vList = h('div.sk-vers.th-scroll');
     const hList = h('div.sk-hist.th-scroll', { role: 'list' });
-    const presetBtn = h('button.btn.primary.sk-preset', { type: 'button', onclick: async () => { const n = await TH.util.ask({ text: 'Name this version', input: 'Version ' + ((st().work.versions || []).length + 1), ok: 'Save version' }); if (n) saveVersion(n.slice(0, 40)); } }, 'Undecided? Save as preset');
-    tip(presetBtn, ['Save as preset', 'Keep this look as a version of the skin, then try something else. Restore or compare it any time']);
-    const undoRow = h('div.sk-lacts', ibtn('undo', 'Undo', undo, { key: 'Ctrl+Z', size: 16, cls: 'sk-mini' }), ibtn('redo', 'Redo', redo, { key: 'Ctrl+Y', size: 16, cls: 'sk-mini' }), h('span.sk-hcount'));
-    const body = h('div.sk-sidebody');
-    function show() { tabs.paint(); body.replaceChildren(...(ui().side === 'history' ? [undoRow, hList] : [presetBtn, vList])); if (ui().side === 'history') Side.paintHistory(); else Side.paintVersions(); }
+    const presetBtn = h('button.btn.small.primary.sk-preset', { type: 'button', onclick: async () => { const n = await TH.util.ask({ text: 'Name this version', input: 'Version ' + ((st().work.versions || []).length + 1), ok: 'Save version' }); if (n) saveVersion(n.slice(0, 40)); } }, ico('plus', 14), h('span', 'Save version'));
+    tip(presetBtn, ['Save this look as a version (a preset)', 'Undecided? Keep this look, then try something else. Restore or compare it any time']);
+    const undoRow = h('div.sk-hacts', ibtn('undo', 'Undo', undo, { key: 'Ctrl+Z', size: 14, cls: 'sk-mini' }), ibtn('redo', 'Redo', redo, { key: 'Ctrl+Y', size: 14, cls: 'sk-mini' }), h('span.sk-hcount'));
+    const acts = h('div.sk-vhead-acts');
+    function show() {
+      tabs.paint();
+      const hist = ui().side === 'history';
+      acts.replaceChildren(hist ? undoRow : presetBtn);
+      vList.hidden = hist; hList.hidden = !hist;
+      if (hist) Side.paintHistory(); else Side.paintVersions();
+    }
     Side.paintVersions = () => {
       const vs = (st().work && st().work.versions) || [];
-      if (!vs.length) { vList.replaceChildren(h('p.sk-empty', 'No versions yet. Save one before you try something new: you can always come back to it.')); return; }
+      if (!vs.length) { vList.replaceChildren(h('p.sk-empty', 'No versions yet. Undecided? Save this look as a version before you try something new: you can always come back to it.')); return; }
       vList.replaceChildren(...vs.map((v) => {
-        const cv = thumbFor(v.png, v.model === 'slim', 72);
+        const cv = thumbFor(v.png, v.model === 'slim', 56);
         cv.className = 'sk-vthumb';
         const peekBtn = ibtn('eye', 'Hold to compare', () => {}, { size: 16, cls: 'sk-mini', sub: 'Shows this version on the model while you hold it' });
         const on = async () => { const b = await urlToBuf(v.png); peek({ w: 64, h: 64, data: new Uint8ClampedArray(b.data) }, v.model === 'slim'); };
@@ -1455,7 +1554,7 @@
         ...L.map((s, i) => h('button.sk-hstep' + (s.done ? '' : '.undone') + (i === ED.hist.at - 1 ? '.on' : ''), { type: 'button', role: 'listitem', onclick: () => { commitFloat(); ED.hist.goTo(ED.doc, i); afterHist({ all: true }); } }, h('span', s.name), h('time', fmtDate(s.t).split(' ').pop()))));
       const on = hList.querySelector('.on'); if (on) on.scrollIntoView({ block: 'nearest' });
     };
-    const panel = h('section.panel.sk-panel.sk-side', { 'aria-label': 'Versions and history' }, h('div.sk-ph', tabs), body);
+    const panel = h('div.sk-tab', { role: 'tabpanel', 'aria-label': 'Versions and history' }, h('div.sk-trow.sk-vhead', tabs, acts), vList, hList);
     panel.paint = show;
     show();
     return panel;
@@ -1466,17 +1565,20 @@
     const name = h('input.field.sk-name', { type: 'text', maxlength: 40, 'aria-label': 'Skin name', spellcheck: false, 'data-focus': 'sk-name',
       oninput: () => save((s) => { if (s.work) s.work.name = name.value; }), onchange: () => { if (!name.value.trim()) { name.value = 'My skin'; save((s) => { s.work.name = 'My skin'; }); } markEdited(); } });
     const status = h('span.sk-status', { 'aria-live': 'polite' });
-    const big = (icon, label, fn, sub, key) => { const b = h('button.btn.sk-topbtn', { type: 'button', onclick: fn }, ico(icon, 18), h('span', label)); tip(b, [label + keyName(key), sub]); return b; };
-    const saveBtn = h('button.btn.primary.sk-save', { type: 'button', onclick: () => saveToLibrary() }, 'Save to My skins');
+    const big = (icon, label, fn, sub, key) => { const b = h('button.btn.small.sk-topbtn', { type: 'button', onclick: fn }, ico(icon, 16), h('span', label)); tip(b, [label + keyName(key), sub]); return b; };
+    const saveBtn = h('button.btn.small.primary.sk-save', { type: 'button', onclick: () => saveToLibrary() }, h('span.sk-save-l', 'Save to My skins'), h('span.sk-save-s', 'Save'));
     tip(saveBtn, () => ['Save to My skins (Ctrl+S)', st().work && st().work.libId ? 'Updates the saved copy' : 'Adds it to your library']);
-    const bar = h('div.sk-top', { role: 'toolbar', 'aria-label': 'Skin' },
-      h('div.sk-topg', big('plus', 'New', () => openNew(), 'Blank or from a default skin', 'Ctrl+Alt+N'), big('dl', 'Open', () => openOpen(), 'Upload, paste or load a player'), big('parts', 'Browse', () => openBrowse(), 'My skins, default skins and players'), big('cam', 'Export', () => openExport(), 'Download the PNG and how to use it')),
+    const sq = (icon, label, fn, key) => ibtn(icon, label, fn, { key, size: 16, cls: 'sk-topkey' });
+    // ONE row: page title | file keys | the skin's name + status | undo, redo, shortcuts, save
+    const bar = h('div.page-head.sk-head', { role: 'toolbar', 'aria-label': 'Skin' },
+      h('h2.sk-title', 'Skin editor'),
+      h('div.sk-topg.sk-files', big('plus', 'New', () => openNew(), 'Blank or from a default skin', 'Ctrl+Alt+N'), big('dl', 'Open', () => openOpen(), 'Upload, paste or load a player'), big('parts', 'Browse', () => openBrowse(), 'My skins, default skins and players'), big('cam', 'Export', () => openExport(), 'Download the PNG and how to use it')),
       h('div.sk-topg.sk-namebox', name, status),
-      h('div.sk-topg.sk-topend', ibtn('undo', 'Undo', undo, { key: 'Ctrl+Z' }), ibtn('redo', 'Redo', redo, { key: 'Ctrl+Y' }), ibtn('help', 'Keyboard shortcuts', () => openKeys(), { key: '?' }), saveBtn));
+      h('div.sk-topg.sk-topend', sq('undo', 'Undo', undo, 'Ctrl+Z'), sq('redo', 'Redo', redo, 'Ctrl+Y'), sq('help', 'Keyboard shortcuts', () => openKeys(), '?'), saveBtn));
     bar.paint = () => {
       const w = st().work;
       if (w && document.activeElement !== name) name.value = w.name || '';
-      status.textContent = !w ? '' : w.edited ? 'Edited' : w.libId ? 'Saved' : 'Not in My skins yet';
+      status.textContent = !w ? '' : w.edited ? 'Edited' : w.libId ? 'Saved' : 'Not saved yet';
       status.dataset.state = !w ? '' : w.edited ? 'edited' : w.libId ? 'saved' : 'new';
     };
     return bar;
@@ -1819,7 +1921,7 @@
   const patchSheetZoom = () => { if (UI && UI.sheetZoom) UI.sheetZoom.textContent = Sheet.zoom() + '×'; };
   function patchAll() {
     if (!UI) return;
-    [UI.top, UI.rail, UI.opts, UI.viewer, UI.color, UI.layers].forEach((p) => p.paint());
+    [UI.top, UI.rail, UI.opts, UI.viewer, UI.color, UI.layers, UI.tabs].forEach((p) => p.paint());
     UI.color.paintSkinPal(); Side.paintVersions(); Side.paintHistory();
     UI.stage.dataset.tool = ui().tool;
   }
@@ -1834,30 +1936,43 @@
     Sheet.invalidate(); V.wake();
     setTimeout(() => { Sheet.invalidate(); patchSheetZoom(); V.wake(); }, 30);
   }
-  /** phones: the side panels open as bottom sheets */
+  /** the right panel's tabs: Layers | Body | Versions | Cape (every pane lives in one box of fixed size, only one shows) */
+  const TABS = [['layers', 'Layers', 'Paint layers: order, opacity, blend'], ['body', 'Body', 'Arm width, show / hide and lock each part'], ['versions', 'Versions', 'Saved looks of this skin and every step back'], ['cape', 'Cape', 'The cape on the back and its elytra look']];
+  function setTab(id) { save((s) => { s.ui.tab = id; }); if (UI) UI.tabs.paint(); }
+  /** phones: the right panel opens as a bottom sheet on the chosen tab */
   function openPanel(which) {
-    const panel = { color: UI.color, layers: UI.layers, side: UI.side }[which];
-    const home = panel.parentNode, next = panel.nextSibling;
-    openSheet({ color: 'Colour', layers: 'Body and layers', side: 'Versions and history' }[which], panel, { modeless: true, side: true, onClose: () => home.insertBefore(panel, next) });
+    const panel = UI.right, home = panel.parentNode, next = panel.nextSibling;
+    if (which !== 'color') setTab(which);
+    panel.dataset.only = which === 'color' ? 'color' : 'tabs';
+    const box = openSheet(which === 'color' ? 'Colour' : (TABS.find((t) => t[0] === which) || TABS[0])[1], panel, { modeless: true, side: true, onClose: () => { delete panel.dataset.only; home.insertBefore(panel, next); } });
+    const x = box.querySelector('.sk-dlg-head .btn');   // not the colour code field: no phone keyboard popping up
+    if (x) x.focus({ preventScroll: true });
   }
 
   function mount() {
     const wrap = h('div.sk-page');
-    const top = buildTop(), rail = buildRail(), opts = buildOptions();
-    const { stage, box: viewer } = buildStage();
+    const top = buildTop(), rail = buildPalette(), opts = buildOptions();
+    const stage = buildStage();
     const color = buildColor(), layers = buildLayers(), side = buildSide();
-    const panelKeys = h('div.sk-pkeys', [['color', 'Colour', 'adjust'], ['layers', 'Layers', 'parts'], ['side', 'Versions', 'copy']].map(([id, l, ic]) => {
-      const b = h('button.btn.sk-pkey', { type: 'button', onclick: () => openPanel(id) }, ico(ic, 18), h('span', l)); return b;
-    }));
-    const centre = h('div.sk-centre', h('div.sk-centre-top', opts), viewer);
-    wrap.append(
-      h('div.page-head.sk-head', h('h2', 'Skin editor')),
-      top,
-      h('div.sk-work', rail, centre, h('div.sk-right.th-scroll', color, layers, side)),
+    const panes = Object.assign({}, layers.panes, { versions: side });
+    const tabSeg = seg('Panel', TABS.map(([id, l, t]) => [id, l, t]), () => ui().tab, (v) => setTab(v), 'sk-tabs');
+    tabSeg.setAttribute('role', 'tablist');
+    const tabBody = h('div.sk-tabbody', Object.values(panes));
+    const tabs = { paint() { tabSeg.paint(); Object.keys(panes).forEach((k) => { panes[k].hidden = ui().tab !== k; }); if (ui().tab === 'versions') side.paint(); } };
+    const right = h('aside.panel.sk-right', { 'aria-label': 'Colour, layers, body, versions and cape' }, color, h('div.sk-tabwrap', tabSeg, tabBody));
+    const centre = h('section.panel.sk-centre', { 'aria-label': 'Tool options, model and flat sheet' }, opts, stage);
+    // phones: the right panel opens as a bottom sheet from these keys (the colour key shows the colour)
+    const colKey = h('span.sk-pk-col');
+    const panelKeys = h('div.sk-pkeys', [['color', 'Colour', null], ['layers', 'Layers', 'layers'], ['body', 'Body', 'parts'], ['versions', 'Versions', 'copy'], ['cape', 'Cape', 'cape']].map(([id, l, ic]) =>
+      h('button.btn.small.sk-pkey', { type: 'button', onclick: () => openPanel(id) }, ic ? ico(ic, 16) : colKey, h('span', l))));
+    wrap.append(top,
+      h('div.sk-work', rail, centre, right),
       panelKeys,
       h('div.sk-dropall', { 'aria-hidden': 'true' }, 'Drop a skin PNG to open it'));
-    UI = { wrap, top, rail, opts, viewer, stage, color, layers, side, sheetZoom: UI_STAGE.sheetZoom, info: UI_STAGE.info };
-    phoneMQ.addEventListener('change', () => { if (sheetEl && sheetEl.querySelector('.sk-panel')) closeSheet(); applyView(); });
+    color.onColor = () => { const c = E.hex2rgba(ui().color); colKey.style.setProperty('--c', 'rgba(' + c.slice(0, 3) + ',' + c[3] / 255 + ')'); };
+    color.onColor();
+    UI = { wrap, top, rail, opts, viewer: stage, stage, color, layers, side, tabs, right, sheetZoom: UI_STAGE.sheetZoom, info: UI_STAGE.info };
+    phoneMQ.addEventListener('change', () => { if (sheetEl && sheetEl.querySelector('.sk-right')) closeSheet(); applyView(); });
     new MutationObserver(() => Sheet.themeChanged()).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'data-tool', 'data-style'] });
     return UI;
   }

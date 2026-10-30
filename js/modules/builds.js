@@ -2,7 +2,10 @@
  * Builds (orange accent): one tab, two sections around one 3D stage.
  *   Library   = our farms + schematic files you open (.schem, .litematic, .nbt, .schematic, .json); farm info,
  *               build steps, tips, and "Customise blocks" (swap decorative blocks, functional ones stay).
- *   Create    = shape generators (sphere, ellipsoid, circle, dome, cylinder, cone, pyramid, torus, tree), live preview.
+ *   Create    = Generate: 30 generators in four groups (crystals, monoliths, nature, shapes; builds-gen.js) plus the nine
+ *               classic shapes, settings in tabs, angle on X / Y / Z, light shading (builds-create.js);
+ *               Make it myself: the quick editor on the stage (builds-editor.js, model builds-edit.js).
+ *   Library builds get a non-destructive angle and light too (state.xf, applied in effective()).
  * The material list is its own tool, Materials (js/modules/materials.js + builds-mats.js): its "Material list" keys
  * here set state.builds.matSrc and go to #/materials; TH.builds.api (end of this file) is its window onto Builds.
  *
@@ -30,7 +33,8 @@
   const { h, toast, clamp } = TH.util;
   const SRC = (document.currentScript && document.currentScript.src) || location.href;
   const rel = (p) => new URL(p, SRC).href;
-  const LAZY = ['builds-io.js', 'builds-shapes.js', 'builds-farms.js', 'builds-view.js', '../data/recipes.js', 'builds-mats.js'];
+  const LAZY = ['builds-io.js', 'builds-shapes.js', 'builds-farms.js', 'builds-view.js', '../data/recipes.js', 'builds-mats.js',
+    '../data/block-colours.js', 'builds-detail.js', 'builds-rotate.js', 'builds-shade.js', 'builds-gen.js', 'builds-edit.js', 'builds-create.js', 'builds-editor.js'];
   const FILE_CAP = 400000;    // characters of run-length data we keep in the saved state per file
   const MAX_FILES = 4;
   const reduced = () => !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
@@ -41,7 +45,8 @@
     v: 4, browse: true, meta: {}, section: 'library', cur: 'farm:cow_crusher', stage: 'farm:cow_crusher',
     lib: { q: '', type: 'all', use: 'all', tech: 'all', topic: 'all', sort: 'name', more: false },
     mode: 'once', speed: 1, grid: true, outline: false, auto: true,
-    shape: { kind: 'sphere', p: {}, block: {}, block2: {} },
+    shape: { kind: 'crystal', p: {}, block: {}, block2: {}, group: 'crystals', tab: 'shape', lock: false },
+    make: {}, xf: {}, createMode: 'gen',
     swaps: {}, fopt: {}, ticks: {}, have: {}, units: 'items', sort: 'count', files: [], paste: null, matSrc: 'stage', lists: [], viewHelp: false,
     mats: { raw: false, cont: 'box', pack: 'tight', hide: false, sc: true, pick: {}, inside: false },
   };
@@ -147,7 +152,7 @@
     tree: ['...#####...', '..#######..', '.#########.', '.#########.', '..##+#++#..', '...+#+++...', '.....#.....', '.....#.....', '.....#.....', '....###....', '...........'],
   };
   function shapeArt(kind) {
-    const rows = SHAPE_ART[kind];
+    const rows = SHAPE_ART[kind] || (B().createUI && B().createUI.GEN_ART[kind]) || SHAPE_ART.sphere;
     let a = '', b = '';
     rows.forEach((r, y) => { for (let x = 0; x < r.length; x++) { if (r[x] === '#') a += 'M' + x + ' ' + y + 'h1v1h-1z'; else if (r[x] === '+') b += 'M' + x + ' ' + y + 'h1v1h-1z'; } });
     const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -179,21 +184,25 @@
         return s;
       } catch (e) { return null; }
     }
-    if (key === 'shape') return shapeSchem();
+    if (key === 'shape') { try { return B().createUI.schem(ctx()); } catch (e) { if (e.user) toast(e.message); else console.error(e); return mem.lastShape || null; } }
+    if (key === 'edit') return B().editorUI ? B().editorUI.out() : null;
     return null;
   }
-  /** The schematic as shown: the original with the user's block swaps applied. */
-  function effective(key) {
+  /** The schematic as shown: the original with the user's block swaps, then its angle and light (Library). fast: a quick preview while a slider moves. */
+  function effective(key, fast) {
     const s = original(key);
-    if (!s || key === 'shape') return s;
+    if (key === 'shape' && s) mem.lastShape = s;
+    if (!s || key === 'shape' || key === 'edit') return s;
     const sw = S().swaps[key];
-    return sw && Object.keys(sw).length ? core().applySwaps(s, sw) : s;
+    const out = sw && Object.keys(sw).length ? core().applySwaps(s, sw) : s;
+    return B().createUI ? B().createUI.applyXf(ctx(), key, out, fast) : out;
   }
   function keyName(key) {
     if (!key) return '';
     if (key.startsWith('farm:')) { const f = B().farms.FARMS.find((x) => x.id === key.slice(5)); return f ? f.name + optSuffix(f) : 'Farm'; }
     if (key.startsWith('file:')) { const r = fileRec(key.slice(5)); const m = mem.files.get(key.slice(5)); const meta = S().meta && S().meta[key]; return (meta && meta.name) || (m && m.name) || (r && r.name) || 'File'; }
-    if (key === 'shape') { const s = shapeSchem(); return s ? s.name : 'Shape'; }
+    if (key === 'shape') { const s = original('shape'); return s ? s.name : 'Shape'; }
+    if (key === 'edit') return (S().make && S().make.name) || 'My build';
     if (key === 'paste') return 'Pasted material list';
     return '';
   }
@@ -217,6 +226,7 @@
     }
     return p;
   }
+  /** A classic shape (builds-shapes.js) without its angle; the Create stage turns it (builds-create.js schem). */
   function shapeSchem() {
     const kind = S().shape.kind, p = shapeParams(kind), sig = kind + JSON.stringify(p);
     if (sig !== mem.shapeSig) { mem.shape = B().shapes.make(kind, p); mem.shapeSig = sig; }
@@ -409,7 +419,7 @@
     V.accent = accent();
     V.mode = reduced() ? 'still' : st.mode; V.speed = st.speed; V.gridOn = st.grid; V.outlineOn = st.outline; V.auto = st.auto && !reduced(); V.autoOk = V.auto;
     UI.loading.hidden = false; UI.loading.textContent = 'Loading the 3D view…'; UI.loading.classList.remove('err');
-    return V.init().then(() => { UI.loading.hidden = true; show(st.stage || st.cur, { animate: true, layer: 'top' }); }).catch(() => {
+    return V.init().then(() => { UI.loading.hidden = true; if (inMake()) B().editorUI.enter(ctx()); else show(st.section === 'create' ? 'shape' : (st.stage || st.cur), { animate: true, layer: 'top' }); }).catch(() => {
       if (!UI.wrap.isConnected) return;   // left the tab while it was loading: it starts again on return
       UI.loading.hidden = false;
       UI.loading.textContent = (V && V.error) || 'The 3D view could not start.';
@@ -426,7 +436,9 @@
   /** Put a schematic on the stage. opts: animate, keepView, layer: 'top'. */
   function show(key, opts) {
     opts = opts || {};
-    let s = effective(key);
+    if (inMake()) return;   // the editor owns the stage
+    let s = effective(key, opts.fast);
+    if (!s && key === 'shape') return;
     if (!s && key !== 'farm:cow_crusher') { key = 'farm:cow_crusher'; s = effective(key); save((b) => { b.cur = key; }); }
     if (!s) return;
     UI.shown = s; UI.shownKey = key;
@@ -545,7 +557,7 @@
     P.flipBtn.disabled = !active || !sym.preview;
     P.sum.textContent = !active ? 'Turn on a plane to check the build.' : sym.preview ? 'One half mirrored onto the other. Your build is not changed.'
       : r.diff ? fmtN(r.diff) + (r.diff === 1 ? ' block has no mirrored twin. It is marked red.' : ' blocks have no mirrored twin. They are marked red.') : 'Every block has its mirrored twin.';
-    if (V && V.ready) V.setSymmetry(active ? { schem: sym.preview ? V.schem : sym.src, planes: symPlanes(), flags: sym.preview ? null : r.flags } : null);
+    if (V && V.ready && !inMake()) V.setSymmetry(active ? { schem: sym.preview ? V.schem : sym.src, planes: symPlanes(), flags: sym.preview ? null : r.flags } : null);
   }
 
   function setMode(m) {
@@ -591,13 +603,17 @@
   }
 
   /* ---- sections ---- */
-  function go(sec) {
-    const st = S();
-    if (st.section === sec) return;
-    save((b) => { b.section = sec; });
-    // the stage follows the section: Library shows the chosen farm / file, Create the shape
-    if (sec === 'library' && UI.shownKey !== st.cur) show(st.cur, { animate: true, layer: 'top' });
-    if (sec === 'create' && UI.shownKey !== 'shape') show('shape', { animate: true, layer: 'top' });
+  /** Create > Make it myself: the quick editor has the stage. */
+  const inMake = () => S().section === 'create' && S().createMode === 'make' && !!(B().editorUI);
+  function go(sec, mode) {
+    const st = S(), wasMake = inMake();
+    if (st.section === sec && (!mode || st.createMode === mode)) return;
+    save((b) => { b.section = sec; if (mode) b.createMode = mode; });
+    if (wasMake && !inMake()) { B().editorUI.leave(); UI.shownKey = null; }
+    // the stage follows the section: Library shows the chosen farm / file, Create the shape (or the editor)
+    if (inMake()) { if (V && V.ready) B().editorUI.enter(ctx()); }
+    else if (sec === 'library' && UI.shownKey !== st.cur) show(st.cur, { animate: true, layer: 'top' });
+    else if (sec === 'create' && UI.shownKey !== 'shape') show('shape', { animate: true, layer: 'top' });
     patch();
   }
 
@@ -605,6 +621,11 @@
     const st = S();
     UI.secBtns.forEach((b) => { const on = b.dataset.sec === st.section; b.classList.toggle('on', on); b.setAttribute('aria-checked', String(on)); });
     UI.wrap.dataset.sec = st.section;
+    const make = inMake();
+    UI.viewer.classList.toggle('is-make', make);
+    const oldBar = UI.viewer.querySelector('.bd-mbar');
+    if (make) { const nb = B().editorUI.bar(ctx()); if (oldBar) oldBar.replaceWith(nb); else UI.stage.after(nb); } else if (oldBar) oldBar.remove();
+    if (make && sym.open) { sym.open = false; syncSym(); }
     const browsing = st.section === 'library' && st.browse;
     UI.layout.classList.toggle('is-browse', browsing);
     if (UI.wasBrowse && !browsing && !reduced()) {   // the build comes in, the library folds up beside it
@@ -615,6 +636,7 @@
     const body = st.section === 'create' ? createSide() : librarySide();
     UI.side.replaceChildren(...body);
     syncBar(); syncLayer();
+    if (make) B().editorUI.refresh();
   }
 
   /* ======================================================================
@@ -856,6 +878,7 @@
     if (cur.startsWith('farm:')) out.push(farmInfo(farms.FARMS.find((f) => 'farm:' + f.id === cur)));
     if (cur.startsWith('file:')) { const fi = fileInfo(cur); if (fi) out.push(fi); }
     if (original(cur)) out.push(customisePanel(cur));
+    if (original(cur) && B().createUI) out.push(B().createUI.xfPanel(ctx(), cur));
     out.push(plannedPanel());
     return out;
   }
@@ -1147,100 +1170,43 @@
   /* ======================================================================
    * Create
    * ====================================================================== */
-  let regenT = 0;
+  /**
+   * Re-build the shape on the stage after a setting changed. While a slider moves (live) it waits a little (big builds
+   * take a moment to generate and mesh); on release it builds right away. The camera stays where it is.
+   */
+  let regenT = 0, regenR = 0;
   function regen(live) {
-    cancelAnimationFrame(regenT);
-    regenT = requestAnimationFrame(() => {
+    clearTimeout(regenT); cancelAnimationFrame(regenR);
+    const run = () => {
+      if (inMake()) return;
+      const t0 = performance.now();
       if (UI.shownKey === 'shape' || S().section === 'create') show('shape', { keepView: true, layer: 'top' });
-      const sch = shapeSchem();
-      const sz = UI.side.querySelector('.bd-shape-size');
-      if (sz) sz.textContent = sch.size.join(' × ') + ' · ' + fmtN(core().volume(sch)) + ' blocks';
-      if (!live) syncCreateHeads();
-    });
+      const sch = original('shape'), sz = UI.createSize;
+      if (sz && sch) sz.textContent = sch.size.join(' × ') + ' · ' + fmtN(core().volume(sch)) + ' blocks' + (performance.now() - t0 > 600 ? ' · ' + Math.round(performance.now() - t0) + ' ms' : '');
+    };
+    if (live) regenT = setTimeout(() => { regenR = requestAnimationFrame(run); }, 140); else regenR = requestAnimationFrame(run);
   }
-  function syncCreateHeads() {
-    const blk = UI.side.querySelector('.bd-blocks-panel');
-    if (blk) blk.replaceWith(blocksPanel());
-  }
-  function setParam(k, v, live) {
-    const kind = S().shape.kind;
-    save((b) => { const p = b.shape.p[kind] || (b.shape.p[kind] = {}); p[k] = v; });
-    regen(live);
+  /** What builds-create.js and builds-editor.js get to work with. */
+  let CTX = null;
+  function ctx() {
+    if (CTX) return CTX;
+    CTX = {
+      S, save, show, regen, glyph, GLYPH, tip, press, blockPicker, exportAs, toMats, fmtN, toast, effective, original,
+      patch: () => patch(), UI: () => UI, V: () => V, keep: keepSchem, genArt: shapeArt, basicSchem: () => shapeSchem(), basicBlocks: () => blocksPanel(),
+      closePickers: () => closePickers(),
+      replay: () => { if (V) { if (S().mode === 'still') setMode('once'); V.replay(); } },
+      edit: (s) => { if (!s) return; save((b) => { b.section = 'create'; b.createMode = 'make'; }); B().editorUI.drop(ctx(), s); if (V && V.ready) B().editorUI.enter(ctx()); patch(); toast('Opened ' + s.name + ' in Make it myself'); },
+    };
+    return CTX;
   }
   function createSide() {
-    const st = S(), kind = st.shape.kind, SH = B().shapes.SHAPES;
-    const tiles = Object.keys(SH).map((k) => {
-      const on = k === kind;
-      return tip(h('button.btn.bd-shape' + (on ? '.on' : ''), { type: 'button', 'aria-pressed': String(on), onclick: () => {
-        if (S().shape.kind === k) return;
-        save((b) => { b.shape.kind = k; });
-        show('shape', { animate: true, layer: 'top' }); patch();
-      } }, shapeArt(k), h('span.bd-shape-name', SH[k].name)), SH[k].name);
-    });
-    const shapes = h('section.panel.bd-pan.has-sel', { 'aria-label': 'Shape' }, h('div.bd-pan-head', h('h3', 'Shape'), h('span.bd-count', '9 generators')), h('div.bd-shapes', tiles));
-    return [shapes, paramsPanel(), blocksPanel(), createActions()];
+    const mode = S().createMode === 'make' ? 'make' : 'gen';
+    const btns = [['gen', 'Generate', 'Shapes made from settings: crystals, monoliths, nature and more'], ['make', 'Make it myself', 'Build by hand with tools: boxes, spheres, lines, fill, copy, mirror, undo']].map(([id, label, t]) => tip(h('button', { type: 'button', role: 'radio', 'aria-checked': String(mode === id), class: mode === id ? 'on' : null, onclick: () => go('create', id) }, label), t));
+    const seg = h('div.seg.bd-cmode', { role: 'radiogroup', 'aria-label': 'Create mode' }, btns);
+    const body = mode === 'make' ? B().editorUI.side(ctx()) : B().createUI.side(ctx());
+    return [h('div.bd-cmodebar', seg)].concat(body);
   }
-  function paramsPanel() {
-    const kind = S().shape.kind, sh = B().shapes.SHAPES[kind], p = shapeParams(kind);
-    const rows = [];
-    const numRow = (id, label, lo, hi) => {
-      const val = clamp(Math.round(+p[id] || lo), lo, hi);
-      const sl = h('input.slider.bd-num-slider', { type: 'range', min: lo, max: hi, step: 1, value: val, 'aria-label': label });
-      const inp = h('input.stepper-input', { type: 'number', min: lo, max: hi, value: val, 'aria-label': label });
-      const fillV = () => sl.style.setProperty('--fill', ((+sl.value - lo) / Math.max(1, hi - lo) * 100).toFixed(1) + '%');
-      const set = (v, live) => { v = clamp(Math.round(+v || lo), lo, hi); sl.value = v; inp.value = v; fillV(); setParam(id, v, live); };
-      sl.addEventListener('input', () => set(sl.value, true));
-      inp.addEventListener('change', () => set(inp.value));
-      fillV();
-      const step = h('div.stepper.bd-stepper',
-        h('button.step', { type: 'button', 'aria-label': 'Decrease ' + label, onclick: () => set(+inp.value - 1) }, '−'), inp,
-        h('button.step', { type: 'button', 'aria-label': 'Increase ' + label, onclick: () => set(+inp.value + 1) }, '+'));
-      return h('div.bd-prow2', { 'data-param': id }, h('span.bd-plabel', label), sl, step);
-    };
-    const switchRow = (id, label, hint) => {
-      const cb = h('input', { type: 'checkbox', checked: !!p[id], onchange: () => { setParam(id, cb.checked); syncDisabled(); } });
-      const row = h('label.bd-prow2.bd-switchrow', { 'data-param': id }, h('span.bd-plabel', label), h('span.bd-switch-hint', hint || ''), h('span.switch', cb, h('span')));
-      return row;
-    };
-    const segRow = (id, label, opts, live) => {
-      const btns = opts.map(([v, t, tt]) => {
-        const b = h('button', { type: 'button', role: 'radio', 'aria-checked': String(p[id] === v), class: p[id] === v ? 'on' : null, onclick: () => {
-          btns.forEach((x) => { const on = x === b; x.classList.toggle('on', on); x.setAttribute('aria-checked', String(on)); });
-          if (id === 'preset') save((bb) => { delete bb.shape.block.tree; delete bb.shape.block2.tree; });
-          setParam(id, v);
-        } }, t);
-        if (tt) tip(b, tt);
-        return b;
-      });
-      return h('div.bd-prow2.bd-segrow', { 'data-param': id }, h('span.bd-plabel', label), h('div.seg.bd-pseg', { role: 'radiogroup', 'aria-label': label + ' (' + kind + ')' }, btns));
-    };
-    sh.params.forEach(([id, label, lo, hi]) => {
-      if (id === 'centre') rows.push(segRow('centre', 'Centre', [['block', 'On a block', 'Odd width: the middle is one block'], ['edge', 'Between', 'Even width: the middle falls between blocks']]));
-      else if (id === 'hollow') rows.push(switchRow('hollow', 'Hollow', 'only the shell'));
-      else if (id === 'ring') rows.push(switchRow('ring', 'Ring', 'only the edge'));
-      else if (id === 'floor') rows.push(switchRow('floor', 'Floor', 'second block'));
-      else if (id === 'caps') rows.push(switchRow('caps', kind === 'cone' ? 'Base' : 'Caps', kind === 'cone' ? 'closed bottom' : 'top and bottom'));
-      else if (id === 'axis') rows.push(segRow('axis', 'Axis', [['y', 'Lying', 'Flat on the ground'], ['x', 'East–west', 'Standing, open to the east and west'], ['z', 'North–south', 'Standing, open to the north and south']]));
-      else if (id === 'preset') rows.push(segRow('preset', 'Kind', Object.entries(B().shapes.TREE_PRESETS).map(([k, v]) => [k, v.name])));
-      else if (id === 'seed') {
-        const lbl = h('span.bd-seed', '#' + (p.seed || 1));
-        rows.push(h('div.bd-prow2', { 'data-param': 'seed' }, h('span.bd-plabel', 'Seed'), lbl,
-          h('button.btn.small', { type: 'button', onclick: () => { const v = 1 + Math.floor(Math.random() * 99999); lbl.textContent = '#' + v; setParam('seed', v); } }, glyph('dice'), 'New seed')));
-      } else rows.push(numRow(id, label, lo, hi));
-    });
-    const size = h('span.bd-count.bd-shape-size');
-    const s = shapeSchem();
-    size.textContent = s.size.join(' × ') + ' · ' + fmtN(core().volume(s)) + ' blocks';
-    const panel = h('section.panel.bd-pan.bd-params', { 'aria-label': sh.name + ' settings' }, h('div.bd-pan-head', h('h3', sh.name), size), h('div.bd-prows', rows));
-    function syncDisabled() {
-      const pp = shapeParams(kind);
-      panel.querySelectorAll('[data-param="thick"]').forEach((r) => r.classList.toggle('off', !(pp.hollow || pp.ring)));
-      const blk = UI.side.querySelector('.bd-blocks-panel');
-      if (blk) blk.replaceWith(blocksPanel());
-    }
-    setTimeout(syncDisabled, 0);
-    return panel;
-  }
+  /** The block keys of a classic shape (main block, and leaves / floor / caps when it has a second one), for its Blocks tab. */
   function blocksPanel() {
     const kind = S().shape.kind, p = shapeParams(kind);
     const second = kind === 'tree' || (kind === 'dome' && p.floor) || (kind === 'cylinder' && p.hollow && p.caps);
@@ -1257,26 +1223,16 @@
         const ids = kind === 'tree' ? all.filter((n) => core().BLOCKS[n].fam === (which === 2 ? 'leaves' : 'log') || (which === 2 && core().BLOCKS[n].fam !== 'log')) : all;
         btn.after(blockPicker({ ids, current: cur, label: 'Pick the ' + label.toLowerCase(), onPick: (id) => {
           save((b) => { (which === 2 ? b.shape.block2 : b.shape.block)[kind] = id; });
-          regen(); syncCreateHeads();
+          regen(); patch();
         } }));
       } }, core().blockIcon(cur, { size: 24 }), h('span.bd-swap-txt', h('span.bd-swap-name', core().nameOf(cur)), h('span.bd-swap-was', label)), glyph('swap', 'bd-swap-ico'));
       return btn;
     };
-    return h('section.panel.bd-pan.bd-blocks-panel', { 'aria-label': 'Blocks' },
-      h('div.bd-pan-head', h('h3', 'Blocks')),
-      h('div.bd-swaps', row(1, kind === 'tree' ? 'Logs' : 'Main block'), second ? row(2, lbl2) : null));
+    return h('div.bd-swaps.bd-blocks-panel', row(1, kind === 'tree' ? 'Logs' : 'Main block'), second ? row(2, lbl2) : null);
   }
-  function createActions() {
-    return h('section.panel.bd-pan.bd-create-acts', { 'aria-label': 'Use this shape' },
-      h('div.bd-actions',
-        h('button.btn.small', { type: 'button', onclick: () => { if (V) { if (S().mode === 'still') setMode('once'); V.replay(); } } }, glyph('replay'), 'Build it'),
-        h('button.btn.small.primary', { type: 'button', onclick: () => exportAs(shapeSchem(), 'schem') }, glyph('down'), 'Download .schem'),
-        h('button.btn.small', { type: 'button', onclick: () => exportAs(shapeSchem(), 'json') }, 'JSON'),
-        tip(h('button.btn.small', { type: 'button', onclick: keepShape }, glyph('file'), 'Keep in Library'), 'Add this shape to your builds in the Library, so you can customise it and find it again'),
-        tip(h('button.btn.small', { type: 'button', onclick: () => toMats('shape') }, 'Material list'), 'The blocks this shape needs, with ticks, recipes and packing')));
-  }
-  function keepShape() {
-    const s = core().clone(shapeSchem());
+  /** Keep a build (the shape, your hand-made build) in the Library as one of your files. */
+  function keepSchem(src) {
+    const s = core().clone(src);
     const id = TH.util.uid('f'), data = core().rle(s.blocks);
     mem.files.set(id, s);
     save((b) => {
@@ -1301,9 +1257,10 @@
     const farms = B().farms.FARMS.map((f) => ({ key: 'farm:' + f.id, name: f.name, icon: f.icon, kind: f.cat || 'farm' }));
     const recs = (mem.sessionOnly || []).filter((r) => mem.files.has(r.id)).concat(st.files || []);
     const yours = recs.map((r) => ({ key: 'file:' + r.id, name: (st.meta['file:' + r.id] || {}).name || r.name, icon: null, kind: 'yours' }));
-    let shape = null;
-    try { shape = { key: 'shape', name: shapeSchem().name, icon: null, kind: 'shape' }; } catch (e) { /* no shape yet */ }
-    return yours.concat(shape ? [shape] : [], farms);
+    let shape = null, made = null;
+    try { shape = { key: 'shape', name: original('shape').name, icon: null, kind: 'shape' }; } catch (e) { /* no shape yet */ }
+    try { const e = B().editorUI && B().editorUI.out(); if (e && core().volume(e)) made = { key: 'edit', name: e.name || 'My build', icon: null, kind: 'shape' }; } catch (e) { /* nothing built by hand yet */ }
+    return yours.concat(shape ? [shape] : [], made ? [made] : [], farms);
   }
   TH.builds.api = {
     load: () => loadAll(), isReady: () => ready, loadError: () => loadErr,
@@ -1319,7 +1276,8 @@
     /** Show this build on the Builds stage (the shape opens in Create). */
     view3d(key) {
       save((b) => {
-        if (key === 'shape') { b.section = 'create'; b.stage = 'shape'; }
+        if (key === 'shape') { b.section = 'create'; b.createMode = 'gen'; b.stage = 'shape'; }
+        else if (key === 'edit') { b.section = 'create'; b.createMode = 'make'; }
         else if (/^(farm|file):/.test(key)) { b.cur = key; b.stage = key; b.section = 'library'; b.browse = false; }
       });
       location.hash = '#/builds';
@@ -1357,6 +1315,10 @@
       if (!b.fopt || typeof b.fopt !== 'object' || Array.isArray(b.fopt)) b.fopt = {};
       ['swaps', 'ticks', 'shape'].forEach((k) => { if (!b[k] || typeof b[k] !== 'object') b[k] = structuredClone(DEFAULTS[k]); });
       ['p', 'block', 'block2'].forEach((k) => { if (!b.shape[k] || typeof b.shape[k] !== 'object') b.shape[k] = {}; });
+      // Create (Oct 30 2026): generator groups, Make it myself, per-build angle and light
+      if (typeof b.shape.kind !== 'string') b.shape.kind = 'crystal';
+      ['make', 'xf'].forEach((k) => { if (!b[k] || typeof b[k] !== 'object' || Array.isArray(b[k])) b[k] = {}; });
+      if (!['gen', 'make'].includes(b.createMode)) b.createMode = 'gen';
       if (!Array.isArray(b.files)) b.files = [];
       if (!['library', 'create'].includes(b.section)) b.section = 'library';   // 'materials' moved out into its own tool
       if (typeof b.cur !== 'string' || !/^(farm|file):/.test(b.cur)) b.cur = 'farm:cow_crusher';

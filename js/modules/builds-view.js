@@ -116,21 +116,37 @@ TH.builds = TH.builds || {};
     const P = s.palette.map((id, i) => {
       if (i === 0 || core.isAir(id)) return null;
       const d = core.def(id), p = core.parse(id);
-      const shape = d.shape === 'slab' && p.props.type === 'double' ? 'cube' : d.shape;
+      let shape = d.shape === 'slab' && p.props.type === 'double' ? 'cube' : d.shape;
+      // thin detail blocks drawn at their real size (the block table only knows them as carpet / cross / fence)
+      const nm = p.name;
+      if (/_trapdoor$/.test(nm)) shape = 'trapdoor';
+      else if (nm === 'snow') shape = 'snow';
+      else if (nm === 'end_rod' || /lightning_rod$/.test(nm) || /chain$/.test(nm) && nm !== 'chain_command_block') shape = 'rod';
+      else if (/candle$/.test(nm)) shape = 'candle';
+      else if (/lantern$/.test(nm) && nm !== 'sea_lantern' && nm !== 'jack_o_lantern') shape = 'lantern';
+      else if (/(_pane|_bars)$/.test(nm)) shape = 'pane';
       const occl = shape === 'cube' && !d.cut;
       return { id, d, props: p.props, name: p.name, shape, occl, cut: d.cut || (shape === 'liquid' ? (d.alpha ? 'translucent' : null) : null), glow: !!d.glow };
     });
-    // build order: bottom to top, then a diagonal sweep across the layer
+    // build order: bottom to top, then a diagonal sweep across the layer. opts.still (the quick editor): no animation,
+    // every block landed at time 0; opts.box = [x0, y0, z0, x1, y1, z1) meshes only that part (a chunk), its
+    // neighbours still read from the whole schematic so faces and shading join up across chunks.
+    const still = !!opts.still, bx = opts.box;
     const cells = [];
-    for (let i = 0; i < N; i++) if (B[i] && P[B[i]]) cells.push(i);
+    if (bx) { for (let y = bx[1]; y < bx[4]; y++) for (let z = bx[2]; z < bx[5]; z++) for (let x = bx[0]; x < bx[3]; x++) { const i = (y * sz + z) * sx + x; if (B[i] && P[B[i]]) cells.push(i); } }
+    else for (let i = 0; i < N; i++) if (B[i] && P[B[i]]) cells.push(i);
     const n = cells.length;
-    const key = (i) => { const x = i % sx, z = Math.floor(i / sx) % sz, y = Math.floor(i / (sx * sz)); return y * 1e6 + (x + z) * 1e3 + x; };
-    const keys = new Float64Array(N);
-    cells.forEach((i) => { keys[i] = key(i); });
-    cells.sort((a, b) => keys[a] - keys[b]);
-    const span = Math.min(10, Math.max(2.2, 1.4 + Math.sqrt(n) * 0.09)), drop = 0.55;
-    const times = new Float32Array(N).fill(-1);
-    cells.forEach((i, r) => { times[i] = n > 1 ? (r / (n - 1)) * span : 0; });
+    const span = still ? 0 : Math.min(10, Math.max(2.2, 1.4 + Math.sqrt(n) * 0.09)), drop = 0.55;
+    let times = null;
+    if (!still) {
+      const key = (i) => { const x = i % sx, z = Math.floor(i / sx) % sz, y = Math.floor(i / (sx * sz)); return y * 1e6 + (x + z) * 1e3 + x; };
+      const keys = new Float64Array(N);
+      cells.forEach((i) => { keys[i] = key(i); });
+      cells.sort((a, b) => keys[a] - keys[b]);
+      times = new Float32Array(N).fill(-1);
+      cells.forEach((i, r) => { times[i] = n > 1 ? (r / (n - 1)) * span : 0; });
+    }
+    const tOf = still ? (i) => (B[i] && P[B[i]] ? 0 : -1) : (i) => times[i];
     const tiles = opts.tiles || [], tileIndex = opts.tileIndex || new Map();   // phases of one machine share the registry (one atlas)
     const tileOf = (spec) => { let t = tileIndex.get(spec); if (t == null) { t = tiles.length; tiles.push(spec); tileIndex.set(spec, t); } return t; };
     const opaque = new Geo(), trans = new Geo();
@@ -222,8 +238,8 @@ TH.builds = TH.builds || {};
       if (info.shape === 'liquid' && nb.shape !== 'liquid' && !nb.occl) return [-1, 0];
       if (big) return null;
       const j = (Y * sz + Z) * sx + X;
-      if (F.n[1] === 0 && times[i] > times[j]) return null;   // horizontal: only the earlier block keeps the face
-      return [times[j], Y];
+      if (F.n[1] === 0 && tOf(i) > tOf(j)) return null;   // horizontal: only the earlier block keeps the face
+      return [tOf(j), Y];
     }
 
     /** Box spanning a..b px along the facing axis (0 = the back of the cell) and c0..c1 across it. */
@@ -250,7 +266,7 @@ TH.builds = TH.builds || {};
         const r = opt.role ? opt.role(f) : roleOf(info, f);
         const spec = opt.spec ? opt.spec(f, r) : tileSpec(info.d, r.role);
         const full = e === FULL && info.occl;
-        quad(g, x, y, z, e, f, spec, r.rot, nb[0], nb[1], full ? aoOf(x, y, z, f) : null, times[i], info.glow, opt.uv && opt.uv(f));
+        quad(g, x, y, z, e, f, spec, r.rot, nb[0], nb[1], full ? aoOf(x, y, z, f) : null, tOf(i), info.glow, opt.uv && opt.uv(f));
       }
     }
 
@@ -333,8 +349,8 @@ TH.builds = TH.builds || {};
         case 'cross': case 'rail': case 'dust': {
           const flat = (spec, rot, yy) => {
             const e = [0, yy, 0, 16, yy, 16];
-            quad(g, x, y, z, e, 2, spec, rot, -1, 0, null, times[i], info.glow);
-            quad(g, x, y, z, e, 3, spec, rot, -1, 0, null, times[i], info.glow);
+            quad(g, x, y, z, e, 2, spec, rot, -1, 0, null, tOf(i), info.glow);
+            quad(g, x, y, z, e, 3, spec, rot, -1, 0, null, tOf(i), info.glow);
           };
           if (info.shape === 'rail') {
             const sh = pr.shape || 'north_south';
@@ -358,11 +374,45 @@ TH.builds = TH.builds || {};
               const ti = tileOf(spec);
               corners.forEach(([pt, vy, u]) => {
                 g.pos.push(x - ox + pt[0], y + vy, z - oz + pt[1]); g.nrm.push(nn[0] * 0.7, 0.7, nn[2] * 0.7);
-                g.uv.push(u, vy); g.tile.push(ti); g.col.push(1, 1, 1); g.c.push(cx, cy, cz); g.t.push(times[i]); g.nb.push(-1, 0);
+                g.uv.push(u, vy); g.tile.push(ti); g.col.push(1, 1, 1); g.c.push(cx, cy, cz); g.t.push(tOf(i)); g.nb.push(-1, 0);
               });
               g.idx.push(v0, v0 + 1, v0 + 2, v0, v0 + 2, v0 + 3); g.verts += 4; faces++;
             }
           }
+          break;
+        }
+        case 'trapdoor': {
+          const open = pr.open === 'true', fac = facingOf(pr, 'north');
+          const box = !open ? (pr.half === 'top' ? [0, 13, 0, 16, 16, 16] : [0, 0, 0, 16, 3, 16])
+            : { north: [0, 0, 13, 16, 16, 16], south: [0, 0, 0, 16, 16, 3], east: [0, 0, 0, 3, 16, 16], west: [13, 0, 0, 16, 16, 16] }[fac];
+          cubeFaces(g, info, x, y, z, i, box, { cull: false, role: () => ({ role: 't', rot: 0 }) });
+          break;
+        }
+        case 'snow': { const L = Math.max(1, Math.min(8, +pr.layers || 1)); cubeFaces(g, info, x, y, z, i, L >= 8 ? FULL : [0, 0, 0, 16, L * 2, 16]); break; }
+        case 'rod': {
+          const t = /lightning/.test(info.name) ? 2 : /chain/.test(info.name) ? 1.5 : 1, c0 = 8 - t, c1 = 8 + t;
+          const ax = pr.axis || (pr.facing === 'east' || pr.facing === 'west' ? 'x' : pr.facing === 'north' || pr.facing === 'south' ? 'z' : 'y');
+          const box = ax === 'x' ? [0, c0, c0, 16, c1, c1] : ax === 'z' ? [c0, c0, 0, c1, c1, 16] : [c0, 0, c0, c1, 16, c1];
+          cubeFaces(g, info, x, y, z, i, box, { cull: false, role: () => ({ role: 's', rot: 0 }) });
+          break;
+        }
+        case 'candle': {
+          const k = Math.max(1, Math.min(4, +pr.candles || 1)), spots = [[7, 7], [5, 9], [9, 6], [9, 10]];
+          for (let c = 0; c < k; c++) { const [a, b] = spots[c]; cubeFaces(g, info, x, y, z, i, [a, 0, b, a + 2, 6, b + 2], { cull: false, role: () => ({ role: 's', rot: 0 }) }); }
+          break;
+        }
+        case 'lantern': {
+          const up = pr.hanging === 'true' ? 1 : 0;
+          cubeFaces(g, info, x, y, z, i, [5, up, 5, 11, 7 + up, 11], { cull: false, role: () => ({ role: 's', rot: 0 }) });
+          cubeFaces(g, info, x, y, z, i, [6, 7 + up, 6, 10, 9 + up, 10], { cull: false, role: () => ({ role: 's', rot: 0 }) });
+          break;
+        }
+        case 'pane': {
+          cubeFaces(g, info, x, y, z, i, [7, 0, 7, 9, 16, 9], { cull: false, role: () => ({ role: 's', rot: 0 }) });
+          [['east', 1, 0, [9, 0, 7, 16, 16, 9]], ['west', -1, 0, [0, 0, 7, 7, 16, 9]], ['south', 0, 1, [7, 0, 9, 9, 16, 16]], ['north', 0, -1, [7, 0, 0, 9, 16, 7]]].forEach(([nm2, dx, dz, box]) => {
+            const v = at(x + dx, y, z + dz), nb = v && P[v];
+            if (pr[nm2] === 'true' || (pr[nm2] == null && nb && (nb.occl || nb.shape === 'pane'))) cubeFaces(g, info, x, y, z, i, box, { cull: false, role: () => ({ role: 's', rot: 0 }) });
+          });
           break;
         }
         default: cubeFaces(g, info, x, y, z, i, FULL);
@@ -713,7 +763,7 @@ TH.builds = TH.builds || {};
     /* ---- the animation clock ---- */
     const Tend = () => (S.M ? S.M.span + S.M.drop : 0);
     function stepClock(dt) {
-      if (!S.M) return false;
+      if (!S.M || ed) return false;   // the editor never animates
       const end = Tend();
       if (S.mode === 'still' || reduced()) { if (S.t !== end) { S.t = end; S.phase = 'done'; return true; } return false; }
       if (!S.playing) return false;
@@ -848,19 +898,32 @@ TH.builds = TH.builds || {};
       return true;
     }
     el.addEventListener('contextmenu', (e) => e.preventDefault());
+    // the quick editor: the left button (one finger) belongs to the active tool; right-drag turns, middle /
+    // Shift+right / Space+drag moves; a second finger cancels the stroke and pinches as usual
+    let editPtr = null, editLast = null, spaceHeld = false;
     el.addEventListener('pointerdown', (e) => {
       if (e.pointerType === 'mouse' && e.button > 2) return;
+      if (S.editInput && editPtr != null && e.pointerId !== editPtr) {
+        S.editInput.cancel();
+        ptrs.set(editPtr, editLast || { x: e.clientX, y: e.clientY });
+        editPtr = null;
+      } else if (S.editInput && !ptrs.size && (e.pointerType !== 'mouse' || e.button === 0) && !spaceHeld && S.editInput.down(e)) {
+        try { el.setPointerCapture(e.pointerId); } catch (x) { /* ignore */ }
+        editPtr = e.pointerId; editLast = { x: e.clientX, y: e.clientY }; touched();
+        return;
+      }
       try { el.setPointerCapture(e.pointerId); } catch (x) { /* ignore */ }
       ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
       touched(); S.goal = null; S.vel = 0; dragging = true; moved = 0; lastT = e.timeStamp;
-      dragMode = e.pointerType === 'mouse' && (e.button === 1 || e.button === 2 || e.shiftKey) ? 'pan' : 'orbit';
+      dragMode = e.pointerType === 'mouse' && (e.button === 1 || (e.button === 2 && !S.editInput) || e.shiftKey || (S.editInput && spaceHeld)) ? 'pan' : 'orbit';
       if (e.button === 1) e.preventDefault();   // no auto-scroll
       if (ptrs.size === 2) { pinch0 = pdist(); zoom0 = S.zgoal != null ? S.zgoal : S.zoom; mid0 = pmid(); S.zgoal = null; }
       el.classList.add('grab'); el.classList.toggle('pan', dragMode === 'pan'); hover(null);
     });
     el.addEventListener('pointermove', (e) => {
+      if (editPtr != null && e.pointerId === editPtr) { editLast = { x: e.clientX, y: e.clientY }; S.editInput.move(e); return; }
       const p = ptrs.get(e.pointerId);
-      if (!p) { if (e.pointerType !== 'touch') hoverAt(e); return; }
+      if (!p) { if (S.editInput) { if (e.pointerType !== 'touch') S.editInput.hover(e); return; } if (e.pointerType !== 'touch') hoverAt(e); return; }
       const dx = e.clientX - p.x, dy = e.clientY - p.y;
       p.x = e.clientX; p.y = e.clientY; moved += Math.abs(dx) + Math.abs(dy);
       if (ptrs.size === 2) {
@@ -878,6 +941,7 @@ TH.builds = TH.builds || {};
       S.dirty = true; wake();
     });
     const up = (e) => {
+      if (editPtr != null && e.pointerId === editPtr) { editPtr = null; if (e.type === 'pointercancel') S.editInput.cancel(); else S.editInput.up(e); return; }
       if (!ptrs.delete(e.pointerId)) return;
       if (ptrs.size < 2) mid0 = null;
       if (ptrs.size === 1) { dragMode = "orbit"; S.vel = 0; }   // pinch over: the last finger turns again
@@ -885,19 +949,22 @@ TH.builds = TH.builds || {};
     };
     el.addEventListener('pointerup', up);
     el.addEventListener('pointercancel', up);
-    el.addEventListener('pointerleave', () => hover(null));
+    el.addEventListener('pointerleave', () => { hover(null); if (S.editInput && editPtr == null) S.editInput.leave(); });
     el.addEventListener('wheel', (e) => {
       e.preventDefault(); touched();
       zoomAt(Math.exp(-e.deltaY * (e.deltaMode ? 0.05 : 0.0013)), e.clientX, e.clientY);
       S.dirty = true; wake();
     }, { passive: false });
     el.addEventListener('dblclick', (e) => {
+      if (S.editInput) return;   // in the editor a double click is two clicks of the tool
       const hit = pick(e);
       if (!hit) { S.reset(); return; }
       S.focusBlock(hit);
     });
     const keyOf = (e) => (e.key === ' ' ? ' ' : e.key.toLowerCase());
     el.addEventListener('keydown', (e) => {
+      if (S.keyFilter && S.keyFilter(e)) return;   // the editor's own keys (tools, undo, hold to erase ...)
+      if (S.editInput && e.key === ' ') { spaceHeld = true; e.preventDefault(); return; }
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       const k = keyOf(e);
       if (FLY[k]) { e.preventDefault(); if (!held.has(k)) { held.add(k); touched(); S.goal = null; S.vel = 0; S.dirty = true; wake(); } return; }
@@ -906,7 +973,7 @@ TH.builds = TH.builds || {};
       if (map[k]) { e.preventDefault(); touched(); S.goal = null; map[k](); S.dirty = true; wake(); }
       else if (k === '0' || k === 'home' || k === 'r') { e.preventDefault(); S.reset(); }
     });
-    el.addEventListener('keyup', (e) => { held.delete(keyOf(e)); if (e.key === 'Shift') held.delete('shift'); });
+    el.addEventListener('keyup', (e) => { held.delete(keyOf(e)); if (e.key === 'Shift') held.delete('shift'); if (e.key === ' ') spaceHeld = false; if (S.keyUp) S.keyUp(e); });
     const drop = () => { held.clear(); };
     el.addEventListener('blur', drop);
     window.addEventListener('blur', drop);
@@ -955,7 +1022,7 @@ TH.builds = TH.builds || {};
       if (S.onHover) S.onHover(hit);
     }
     function pick(e) {
-      if (!S.ready || !S.schem || !S.M) return null;
+      if (!S.ready || !S.schem || !S.M || !S.M.times) return null;
       const r = el.getBoundingClientRect();
       const nx = ((e.clientX - r.left) / r.width) * 2 - 1, ny = -(((e.clientY - r.top) / r.height) * 2 - 1);
       const a = new THREE.Vector3(nx, ny, -1).unproject(S.camera), b = new THREE.Vector3(nx, ny, 1).unproject(S.camera);
@@ -991,6 +1058,7 @@ TH.builds = TH.builds || {};
 
     /* ---- scene content ---- */
     function clearContent() {
+      edClear(); ed = null;
       S.meshes.forEach((m) => { S.root.remove(m); m.geometry.dispose(); });
       S.meshes = [];
       if (S.atlas) { S.atlas.dispose(); S.atlas = null; }
@@ -1110,6 +1178,7 @@ TH.builds = TH.builds || {};
     }
     /** Inflated cubes on every flagged block. They land with the build and follow the layer range (same shader). */
     function symMarks(flags, grp) {
+      if (!S.M.times) return;   // the editor has no landing times
       const s = S.schem, [sx, sy, sz] = s.size, T = S.M.times, ox = sx / 2, oz = sz / 2, e = 0.52;
       const on = (x, y, z) => x >= 0 && y >= 0 && z >= 0 && x < sx && y < sy && z < sz && flags[(y * sz + z) * sx + x] && T[(y * sz + z) * sx + x] >= 0;
       let n = 0;
@@ -1235,6 +1304,188 @@ TH.builds = TH.builds || {};
       return M;
     };
     S.stats = () => (S.M ? { blocks: S.M.blocks, faces: S.M.faces, tiles: S.M.tiles.length, verts: S.M.opaque.verts + S.M.trans.verts, big: S.M.big } : null);
+
+    /* ======================================================================
+     * The quick editor: the canvas meshed in 16-block chunks (an edit re-meshes only the chunks it touched), a
+     * texture atlas that grows tile by tile, a ghost of the pending shape, a work plane and face picking.
+     * ====================================================================== */
+    const CH = 16, ACOLS = 32;
+    let ed = null, ghost = null, plane = null;
+    function edClear() {
+      if (!ed) return;
+      ed.chunks.forEach((list) => list.forEach((m) => { if (S.root) S.root.remove(m); m.geometry.dispose(); }));
+      ed.chunks.clear();
+      [ghost, plane].forEach((m) => { if (m && S.root) { S.root.remove(m); m.geometry.dispose(); m.material.dispose(); } });
+      ghost = plane = null;
+    }
+    function edTile(spec, k) {
+      tileCanvas(spec).then((c) => {
+        if (!ed || !ed.ctx || k >= ACOLS * ACOLS) return;
+        ed.ctx.clearRect((k % ACOLS) * 16, Math.floor(k / ACOLS) * 16, 16, 16);
+        ed.ctx.drawImage(c, (k % ACOLS) * 16, Math.floor(k / ACOLS) * 16);
+        ed.tex.needsUpdate = true; S.dirty = true; wake();
+      });
+    }
+    function edChunk(cx, cy, cz) {
+      const key = cx + ',' + cy + ',' + cz, old = ed.chunks.get(key);
+      if (old) old.forEach((m) => { S.root.remove(m); m.geometry.dispose(); });
+      const s = ed.schem, [sx, sy, sz] = s.size;
+      const box = [cx * CH, cy * CH, cz * CH, Math.min(sx, (cx + 1) * CH), Math.min(sy, (cy + 1) * CH), Math.min(sz, (cz + 1) * CH)];
+      const n0 = ed.reg.tiles.length;
+      const M = mesh(s, { still: true, box, tiles: ed.reg.tiles, tileIndex: ed.reg.tileIndex });
+      for (let k = n0; k < ed.reg.tiles.length; k++) edTile(ed.reg.tiles[k], k);
+      const list = [];
+      [[M.opaque, S.mats[0]], [M.trans, S.mats[1]]].forEach(([g, m], k) => {
+        if (!g.verts) return;
+        const mm = new THREE.Mesh(geometry(g, ACOLS, ACOLS), m);
+        mm.renderOrder = k; mm.frustumCulled = false;
+        S.root.add(mm); list.push(mm);
+      });
+      if (list.length) ed.chunks.set(key, list); else ed.chunks.delete(key);
+      return M.blocks;
+    }
+    /** Enter the editor with this canvas. opts.keepView keeps the camera. */
+    S.setEdit = (schem, opts) => {
+      opts = opts || {};
+      ++S.buildId;
+      S.schem = schem;
+      if (!S.ready) return;
+      clearContent();
+      const c = mkCanvas(ACOLS * 16, ACOLS * 16), tex = new THREE.CanvasTexture(c);
+      tex.magFilter = THREE.NearestFilter; tex.minFilter = THREE.NearestFilter; tex.generateMipmaps = false; tex.colorSpace = THREE.SRGBColorSpace;
+      S.atlas = tex;
+      S.mats.forEach((m) => { m.map = tex; m.needsUpdate = true; });
+      ed = { schem, reg: { tiles: [], tileIndex: new Map() }, chunks: new Map(), ctx: c.getContext('2d'), tex };
+      const [sx, sy, sz] = schem.size;
+      for (let cy = 0; cy * CH < sy; cy++) for (let cz = 0; cz * CH < sz; cz++) for (let cx = 0; cx * CH < sx; cx++) edChunk(cx, cy, cz);
+      S.M = { times: null, span: 0, drop: 0.55, blocks: 0, faces: 0, opaque: { verts: 0 }, trans: { verts: 0 }, tiles: ed.reg.tiles };
+      S.Mfor = schem; S.phaseSets = null; S.phaseInfo = null; S.run = false;
+      S.t = Tend(); S.phase = 'done'; uni.uT.value = 1; uni.uD.value = 0.55;
+      S.grid = makeGrid(); S.root.add(S.grid);
+      S.hl = makeHighlight(); S.root.add(S.hl);
+      S.maxY = Math.min(S.maxY, sy - 1); if (opts.layer === 'top' || S.maxY < 0) S.maxY = sy - 1;
+      S.minY = S.slice ? S.maxY : 0; uni.uMaxY.value = S.maxY; uni.uMinY.value = S.minY;
+      S.sizeKey = schem.size.join('x');
+      S.home = [0, Math.min(sy * 0.3, 10), 0];
+      if (!opts.keepView) { S.target = S.home.slice(); S.tgoal = null; S.w = 0; resize(); S.dist = fitDist() * 0.75; S.zoom = 1; S.goal = null; S.zgoal = null; }
+      S.setPlane(S.planeY || 0);
+      refreshOutline();
+      S.dirty = true; wake();
+    };
+    S.inEdit = () => !!ed;
+    S.leaveEdit = () => { edClear(); ed = null; S.editInput = null; S.keyFilter = null; S.keyUp = null; };
+    /** Re-mesh the chunks an edit touched (box inclusive, one block around it for the faces and shading). */
+    S.editDirty = (box) => {
+      if (!ed || !box) return;
+      const [sx, sy, sz] = ed.schem.size;
+      const a = [Math.max(0, box[0] - 1), Math.max(0, box[1] - 1), Math.max(0, box[2] - 1)], b = [Math.min(sx - 1, box[3] + 1), Math.min(sy - 1, box[4] + 1), Math.min(sz - 1, box[5] + 1)];
+      for (let cy = Math.floor(a[1] / CH); cy <= Math.floor(b[1] / CH); cy++) for (let cz = Math.floor(a[2] / CH); cz <= Math.floor(b[2] / CH); cz++) for (let cx = Math.floor(a[0] / CH); cx <= Math.floor(b[0] / CH); cx++) edChunk(cx, cy, cz);
+      if (S.outlineOn || S.slice) refreshOutline();
+      S.dirty = true; wake();
+    };
+    /** The pending shape as a see-through ghost: cells = cell indices of the canvas; o.erase draws it red. */
+    S.setGhost = (cells, o) => {
+      o = o || {};
+      if (ghost) { S.root.remove(ghost); ghost.geometry.dispose(); ghost.material.dispose(); ghost = null; }
+      if (!ed || !cells || !cells.length) { S.dirty = true; wake(); return; }
+      const s = ed.schem, [sx, , sz] = s.size, set = new Set(cells), q = [], e = 0.505;
+      const many = cells.length > 40000;
+      let bb = null;
+      if (many) {
+        bb = [Infinity, Infinity, Infinity, -Infinity, -Infinity, -Infinity];
+        for (const i of cells) { const x = i % sx, z = Math.floor(i / sx) % sz, y = Math.floor(i / (sx * sz)); bb[0] = Math.min(bb[0], x); bb[1] = Math.min(bb[1], y); bb[2] = Math.min(bb[2], z); bb[3] = Math.max(bb[3], x); bb[4] = Math.max(bb[4], y); bb[5] = Math.max(bb[5], z); }
+        const c = [(bb[0] + bb[3] + 1) / 2 - sx / 2, (bb[1] + bb[4] + 1) / 2, (bb[2] + bb[5] + 1) / 2 - sz / 2], hx = (bb[3] - bb[0] + 1) / 2, hy = (bb[4] - bb[1] + 1) / 2, hz = (bb[5] - bb[2] + 1) / 2;
+        FACES.forEach((F) => q.push(F.c.map((p) => [c[0] + (p[0] - 0.5) * 2 * hx, c[1] + (p[1] - 0.5) * 2 * hy, c[2] + (p[2] - 0.5) * 2 * hz])));
+      } else for (const i of cells) {
+        const x = i % sx, z = Math.floor(i / sx) % sz, y = Math.floor(i / (sx * sz)), cx = x - sx / 2 + 0.5, cy = y + 0.5, cz = z - sz / 2 + 0.5;
+        FACES.forEach((F) => {
+          const X = x + F.n[0], Y = y + F.n[1], Z = z + F.n[2];
+          if (X >= 0 && Z >= 0 && X < sx && Z < sz && Y >= 0 && set.has((Y * sz + Z) * sx + X)) return;
+          q.push(F.c.map((p) => [cx + (p[0] - 0.5) * 2 * e, cy + (p[1] - 0.5) * 2 * e, cz + (p[2] - 0.5) * 2 * e]));
+        });
+      }
+      ghost = new THREE.Mesh(quadsGeo(q), new THREE.MeshBasicMaterial({ color: new THREE.Color(o.erase ? '#ff4664' : S.accent), transparent: true, opacity: many ? 0.16 : o.erase ? 0.4 : 0.34, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
+      ghost.renderOrder = 11;
+      S.root.add(ghost);
+      S.dirty = true; wake();
+    };
+    /** The work plane: a faint grid on the bottom of layer y across the canvas, and the canvas outline. */
+    S.setPlane = (y, show) => {
+      S.planeY = y || 0;
+      if (plane) { S.root.remove(plane); plane.geometry.dispose(); plane.material.dispose(); plane = null; }
+      if (!ed || show === false) { S.dirty = true; wake(); return; }
+      const [sx, sy, sz] = ed.schem.size, w = 0.025, yy = S.planeY + 0.01, q = [];
+      for (let x = 0; x <= sx; x++) { const X = x - sx / 2; q.push([[X - w, yy, sz / 2], [X + w, yy, sz / 2], [X + w, yy, -sz / 2], [X - w, yy, -sz / 2]]); }
+      for (let z = 0; z <= sz; z++) { const Z = z - sz / 2; q.push([[-sx / 2, yy, Z + w], [sx / 2, yy, Z + w], [sx / 2, yy, Z - w], [-sx / 2, yy, Z - w]]); }
+      // the canvas box: its four upright edges
+      for (const [X, Z] of [[-sx / 2, -sz / 2], [sx / 2, -sz / 2], [-sx / 2, sz / 2], [sx / 2, sz / 2]]) q.push([[X - w, 0, Z], [X + w, 0, Z], [X + w, sy, Z], [X - w, sy, Z]]);
+      plane = new THREE.Mesh(quadsGeo(q), new THREE.MeshBasicMaterial({ color: new THREE.Color(S.accent), transparent: true, opacity: 0.22, depthWrite: false, side: THREE.DoubleSide }));
+      plane.renderOrder = 4;
+      S.root.add(plane);
+      S.dirty = true; wake();
+    };
+    /** The pointer ray in canvas cells: { o, d } (d normalised). */
+    function rayOf(e) {
+      const r = el.getBoundingClientRect(), nx = ((e.clientX - r.left) / r.width) * 2 - 1, ny = -(((e.clientY - r.top) / r.height) * 2 - 1);
+      const a = new THREE.Vector3(nx, ny, -1).unproject(S.camera), b = new THREE.Vector3(nx, ny, 1).unproject(S.camera);
+      const [sx, , sz] = S.schem.size, d0 = [b.x - a.x, b.y - a.y, b.z - a.z], L = Math.hypot(...d0);
+      return { o: [a.x + sx / 2, a.y, a.z + sz / 2], d: d0.map((v) => v / L), L };
+    }
+    /** Where the pointer hits the horizontal plane at height y: [x, z] in cells (floats), or null. */
+    S.rayPlane = (e, y) => {
+      if (!S.ready || !S.schem || !S.camera) return null;
+      const { o, d } = rayOf(e);
+      if (Math.abs(d[1]) < 1e-6) return null;
+      const t = (y - o[1]) / d[1];
+      return t > 0 ? [o[0] + d[0] * t, o[2] + d[2] * t] : null;
+    };
+    /**
+     * The block under the pointer and the face it was hit on: { hit: [x, y, z], n: [dx, dy, dz], place: [x, y, z] }
+     * (place = the cell in front of that face); on empty space the work plane: { hit: null, n: [0, 1, 0], place }.
+     */
+    S.pickFace = (e) => {
+      if (!S.ready || !ed || !S.camera) return null;
+      const s = ed.schem, [sx, sy, sz] = s.size, { o, d, L } = rayOf(e);
+      let t0 = 0, t1 = L, ax0 = -1;
+      for (let k = 0; k < 3; k++) {
+        const lo = 0, hi = [sx, sy, sz][k];
+        if (Math.abs(d[k]) < 1e-9) { if (o[k] < lo || o[k] > hi) { t0 = 1; t1 = 0; } continue; }
+        let ta = (lo - o[k]) / d[k], tb = (hi - o[k]) / d[k];
+        if (ta > tb) [ta, tb] = [tb, ta];
+        if (ta > t0) { t0 = ta; ax0 = k; }
+        t1 = Math.min(t1, tb);
+      }
+      const planeHit = () => {
+        const pt = S.rayPlane(e, S.planeY || 0);
+        if (!pt) return null;
+        const x = Math.floor(pt[0]), z = Math.floor(pt[1]);
+        if (x < 0 || z < 0 || x >= sx || z >= sz) return null;
+        return { hit: null, n: [0, 1, 0], place: [x, S.planeY || 0, z] };
+      };
+      if (t0 > t1) return planeHit();
+      const p = o.map((v, k) => v + d[k] * (t0 + 1e-4));
+      let x = clamp(Math.floor(p[0]), 0, sx - 1), y = clamp(Math.floor(p[1]), 0, sy - 1), z = clamp(Math.floor(p[2]), 0, sz - 1);
+      const st = d.map((v) => (v > 0 ? 1 : -1));
+      const tMax = d.map((v, k) => { const c = [x, y, z][k] + (v > 0 ? 1 : 0); return Math.abs(v) < 1e-9 ? Infinity : t0 + (c - p[k]) / v; });
+      const tD = d.map((v) => (Math.abs(v) < 1e-9 ? Infinity : Math.abs(1 / v)));
+      let lastAx = ax0, tCur = t0;
+      const lo2 = S.minY, hi2 = S.maxY;
+      for (let n = 0; n < 4000; n++) {
+        if (x < 0 || y < 0 || z < 0 || x >= sx || y >= sy || z >= sz) break;
+        // the work plane catches the ray before it passes below the layer
+        if (d[1] < 0 && y < (S.planeY || 0)) return planeHit();
+        if (s.blocks[(y * sz + z) * sx + x] && y >= lo2 && y <= hi2) {
+          const nrm = [0, 0, 0];
+          if (lastAx >= 0) nrm[lastAx] = -st[lastAx]; else nrm[1] = 1;
+          return { hit: [x, y, z], n: nrm, place: [x + nrm[0], y + nrm[1], z + nrm[2]], t: tCur };
+        }
+        const k = tMax[0] < tMax[1] ? (tMax[0] < tMax[2] ? 0 : 2) : (tMax[1] < tMax[2] ? 1 : 2);
+        tCur = tMax[k];
+        if (k === 0) { x += st[0]; tMax[0] += tD[0]; } else if (k === 1) { y += st[1]; tMax[1] += tD[1]; } else { z += st[2]; tMax[2] += tD[2]; }
+        lastAx = k;
+      }
+      return planeHit();
+    };
 
     /* ---- playback controls ---- */
     S.play = () => { if (S.phase === 'done' && S.mode !== 'still') { S.t = S.t >= Tend() ? 0 : S.t; S.phase = 'in'; } S.playing = true; S.last = 0; if (S.onState) S.onState(state()); S.wake(); };

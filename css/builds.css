@@ -523,3 +523,104 @@
   .bd-sym-foot .btn { flex: 1 1 0; justify-content: center; }
   .bd-sym-sum { flex-basis: 100%; }
 }
+
+/* =====================================================================
+   Create (Oct 30 2026): Generate | Make it myself. Builds-create.js, builds-editor.js.
+   Flat inside each panel (no boxes in boxes, no divider lines): groups are spacing + eyebrow labels.
+   ===================================================================== */
+.bd-cmodebar { display: flex; justify-content: center; }
+.bd-cmode { width: 100%; }
+.bd-cmode button { flex: 1 1 0; padding: 8px 10px; font-size: 13px; }
+.bd-cmode button.on { color: var(--accent); }
+/* generator browser */
+.bd-gengrp { width: 100%; }
+.bd-gengrp button { flex: 1 1 0; min-width: 0; padding: 6px 4px; font-size: 12px; }
+.bd-gens { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 8px; }
+.bd-gen { flex-direction: column; gap: 5px; padding: 9px 4px 7px; color: var(--muted); min-width: 0; }
+.bd-gen .bd-shape-art { width: 33px; height: 33px; }
+.bd-gen-name { font: 400 10.5px/1.2 var(--display); letter-spacing: .2px; text-align: center; white-space: normal; overflow-wrap: anywhere; }
+.bd-gen:hover { color: var(--text); }
+.bd-gen.on { color: var(--accent); }
+.bd-gen.on .bd-shape-art { filter: drop-shadow(0 0 4px color-mix(in srgb, var(--accent) 55%, transparent)); }
+/* settings: variants, tabs, panes */
+.bd-csub { margin: 2px 0 -4px; }
+.bd-variants { display: flex; flex-wrap: wrap; gap: 6px; }
+.bd-variants .btn { padding-inline: 10px; }
+.bd-ptabs { display: flex; flex-wrap: wrap; gap: 6px; }
+.bd-ptabs button { flex: 1 1 auto; min-width: 0; padding-inline: 8px; font-size: 12px; }
+.bd-ptabs button.on { color: var(--accent); }
+.bd-ppane { display: flex; flex-direction: column; gap: 12px; }
+.bd-ppane[hidden], .bd-lightbody[hidden], .bd-shbody[hidden], .bd-selpanel[hidden] { display: none; }
+.bd-pseg-many { flex-wrap: wrap; }
+.bd-pseg-many button { flex: 1 1 auto; }
+.bd-segrow-wide { align-items: start; }
+.bd-segrow-wide .bd-plabel, .bd-colrow .bd-plabel { padding-top: 7px; }
+.bd-colrow { grid-template-columns: 96px minmax(0, 1fr) auto; align-items: start; }
+.bd-seedrow { grid-template-columns: 96px minmax(0, 1fr) auto; }
+.bd-seedin { height: 32px; width: 100%; }
+.bd-kinds { display: flex; flex-wrap: wrap; gap: 6px; }
+.bd-kind { padding-inline: 9px; font-size: 11.5px; }
+.bd-kind[disabled] { opacity: .45; }
+.bd-palgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; }
+.bd-paltile { justify-content: flex-start; gap: 8px; padding: 6px 8px; font: 400 11px/1.2 var(--display); text-align: left; min-width: 0; }
+.bd-paltile span { overflow: hidden; text-overflow: ellipsis; }
+.bd-partrow { display: flex; align-items: center; gap: 8px; }
+.bd-partrow .bd-swap { flex: 1 1 auto; min-width: 0; }
+.bd-palchip { width: 24px; height: 24px; flex: none; border-radius: 4px; background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--accent) 35%, transparent) 0 4px, transparent 4px 8px); }
+/* angle */
+.bd-angle, .bd-light, .bd-lightbody, .bd-shbody { display: flex; flex-direction: column; gap: 12px; }
+.bd-angrow .bd-plabel { font: 400 13px var(--display); color: var(--text); }
+.bd-angrow .stepper-input { width: 52px; }
+.bd-angfoot { align-items: center; }
+.bd-angsize { font: 500 12px var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+/* light: compass, quick keys, colours */
+.bd-lpick { display: grid; grid-template-columns: 132px minmax(0, 1fr); gap: 12px; align-items: start; }
+.bd-compass { width: 132px; height: 132px; border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--slot-shadow); background: var(--slot, var(--bg-2)); cursor: crosshair; touch-action: none; outline-offset: 2px; }
+.bd-compass-svg { width: 100%; height: 100%; display: block; }
+.bd-compass-svg .ring, .bd-compass-svg .mid { fill: none; stroke: color-mix(in srgb, var(--muted) 45%, transparent); stroke-width: 1; }
+.bd-compass-svg .mid { stroke-dasharray: 2 3; }
+.bd-compass-svg .cross { stroke: color-mix(in srgb, var(--muted) 25%, transparent); stroke-width: 1; }
+.bd-compass-svg text { fill: var(--muted); font: 400 9px var(--display); text-anchor: middle; }
+.bd-compass-svg .ray { stroke: var(--accent); stroke-width: 1.5; }
+.bd-compass-svg .sun { fill: var(--accent); }
+.bd-compass-svg .sun.below { fill: none; stroke: var(--accent); stroke-width: 1.5; }
+.bd-lkeys { display: flex; flex-wrap: wrap; gap: 6px; align-content: flex-start; }
+.bd-lkeys .btn { padding-inline: 8px; font-size: 11.5px; }
+.bd-ckeys { display: flex; flex-wrap: wrap; gap: 6px; }
+.bd-ckey { width: 32px; padding: 0; justify-content: center; }
+.bd-swatch { display: inline-block; width: 16px; height: 16px; border-radius: 3px; box-shadow: inset 0 0 0 1px rgb(0 0 0 / .25); }
+.bd-colrow > .bd-swatch { width: 26px; height: 26px; margin-top: 3px; }
+/* Make it myself: tools, status, block bar */
+.bd-tgroups { display: flex; flex-direction: column; gap: 12px; }
+.bd-tgrp { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 10px; align-items: start; }
+.bd-tlbl { padding-top: 8px; font: 400 10.5px var(--display); text-transform: uppercase; letter-spacing: 1px; color: var(--muted); }
+.bd-tkeys { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.bd-tool { justify-content: flex-start; gap: 7px; padding-inline: 8px; font-size: 12px; min-width: 0; }
+.bd-tool span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bd-tool.on { color: var(--accent); }
+.bd-mstatus { min-height: 1.4em; font: 500 11.5px var(--mono); color: var(--faint); font-variant-numeric: tabular-nums; }
+.bd-mbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-height: 34px; }
+.bd-mbar .bd-bar-lbl { margin-left: 6px; }
+.bd-mbar .bd-bar-lbl:first-child { margin-left: 0; }
+.bd-bkey { width: 34px; height: 34px; padding: 0; justify-content: center; }
+.bd-viewer.is-make .bd-abar .bd-bar-grp:not(.bd-bar-layer), .bd-viewer.is-make .bd-symkey, .bd-viewer.is-make .bd-runbox, .bd-viewer.is-make .bd-sym { display: none; }
+.bd-viewer.is-make .bd-canvas { cursor: crosshair; }
+.bd-viewer.is-make .bd-canvas.grab { cursor: grabbing; }
+:root[data-neu] .bd-compass { border: 0; border-radius: var(--neu-r-ctl, 8px); box-shadow: var(--neu-inset-sm); background: var(--neu-well); }
+@media (max-width: 640px) {
+  .bd-lpick { grid-template-columns: 1fr; justify-items: center; }
+  .bd-lkeys { justify-content: center; }
+  .bd-colrow, .bd-seedrow { grid-template-columns: 76px minmax(0, 1fr) auto; }
+  .bd-gens { grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); }
+  /* the tool palette rides above the tab bar while you build: one swipeable row */
+  .bd-tools { position: sticky; bottom: calc(var(--bottom-bar, 0px) + 8px); z-index: 8; gap: 8px; padding-block: 10px; }
+  .bd-tools .bd-tgroups { flex-direction: row; overflow-x: auto; gap: 14px; scrollbar-width: none; }
+  .bd-tools .bd-tgroups::-webkit-scrollbar { display: none; }
+  .bd-tools .bd-tgrp { display: flex; flex-direction: column; gap: 4px; }
+  .bd-tools .bd-tlbl { padding: 0; }
+  .bd-tools .bd-tkeys { display: flex; gap: 6px; }
+  .bd-tools .bd-tool { flex-direction: column; gap: 3px; height: 50px; min-width: 52px; padding: 4px 6px; font-size: 10.5px; }
+  .bd-tools .bd-mstatus, .bd-tools .bd-pan-head .bd-count { display: none; }
+  .bd-bkey { width: 40px; height: 40px; }
+}
+@media (prefers-reduced-motion: reduce) { .bd-gen .bd-shape-art { filter: none; } }

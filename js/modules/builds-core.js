@@ -1125,6 +1125,13 @@ TH.builds = TH.builds || {};
     const p = parse(id), d = p.ns === 'minecraft' ? BLOCKS[p.name] || dbDef(p.name) : null;
     let item = (d && d.item) || p.name, n = 1;
     if (d && d.shape === 'slab' && p.props.type === 'double') n = 2;
+    // blocks that hold several items: candles 1-4, sea pickles 1-4, snow layers 1-8 (one snow item per layer), turtle eggs
+    if (p.props.candles && /candle$/.test(p.name)) n = Math.max(1, +p.props.candles || 1);
+    if (p.props.pickles && p.name === 'sea_pickle') n = Math.max(1, +p.props.pickles || 1);
+    if (p.props.layers && p.name === 'snow') n = Math.max(1, +p.props.layers || 1);
+    if (p.props.eggs && p.name === 'turtle_egg') n = Math.max(1, +p.props.eggs || 1);
+    // two-block things count once: the upper door half, the bed's head, the top of tall plants
+    if ((p.props.half === 'upper' && (/_door$/.test(p.name) || (d && d.shape === 'cross'))) || (/_bed$/.test(p.name) && p.props.part === 'head')) return null;
     if (p.name === 'piston_head' || p.name === 'moving_piston' || p.name === 'bubble_column') return null;
     if ((p.name === 'water' || p.name === 'lava') && p.props.level && p.props.level !== '0') return null;   // flowing liquid: no bucket
     return { item: p.ns + ':' + item, n, block: p.ns + ':' + p.name };

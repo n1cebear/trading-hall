@@ -565,8 +565,9 @@ TH.builds.mats = (function () {
     M.packBody = h('div.mt-packbody');
     M.packPanel = h('section.panel.mt-pan.mt-pack', { 'aria-label': 'Source and packing' }, M.card, M.packBody);
     M.rawPanel = h('section.panel.mt-pan.mt-raw', { 'aria-label': 'Raw materials' });
+    M.insidePanel = h('section.panel.mt-pan.mt-inside', { 'aria-label': 'Items in containers', hidden: true });
     M.fileIn = h('input', { type: 'file', hidden: true, accept: '.txt,.csv,.tsv,.md,.schem,.schematic,.litematic,.nbt,.json', onchange: () => { const f = M.fileIn.files[0]; M.fileIn.value = ''; if (f) importFile(f, M.fileFor); M.fileFor = null; } });
-    M.root = h('div.mt-page', M.head, h('div.mt-grid', M.list, h('div.mt-side', M.packPanel, M.rawPanel)), M.fileIn);
+    M.root = h('div.mt-page', M.head, h('div.mt-grid', M.list, h('div.mt-side', M.packPanel, M.rawPanel, M.insidePanel)), M.fileIn);
     // drop a file anywhere on the page
     M.root.addEventListener('dragover', (e) => { if (e.dataTransfer && [...e.dataTransfer.types].includes('Files')) { e.preventDefault(); M.root.classList.add('dropping'); } });
     M.root.addEventListener('dragleave', (e) => { if (!M.root.contains(e.relatedTarget)) M.root.classList.remove('dropping'); });
@@ -603,8 +604,35 @@ TH.builds.mats = (function () {
     buildCard();
     buildPack();
     buildRaw();
+    buildInside();
     syncProgress();
     if (Math.abs(window.scrollY - y) > 1) window.scrollTo(0, y);
+  }
+
+  /*
+   * ---- items in containers (side, optional): what the build's chests, shulker boxes, item frames, minecarts ... hold.
+   * Kept apart from the list on purpose: these are not blocks you need to build it. Only shown for builds that have some.
+   */
+  function buildInside() {
+    const d = M.d, P = M.insidePanel;
+    const s = d.key.startsWith('list:') ? null : A.effective(d.key);
+    const m = s && core().hasExtras(s) ? core().extrasSummary(s) : null;
+    P.hidden = !m || (!m.items.length && !m.kinds.length && !m.ents.length);
+    if (P.hidden) { P.replaceChildren(); return; }
+    const on = !!MS().inside, u = U();
+    const cb = h('input', { type: 'checkbox', checked: on, onchange: () => { save((b) => { b.mats.inside = cb.checked; }); buildInside(); } });
+    const sw = tip(h('label.mt-sw', h('span.switch', cb, h('span')), h('span', 'Show what is inside')), 'List the items the build holds: chest and shulker box contents (nested ones too), framed items, minecart loads. Not part of what you need to build it');
+    const sum = [m.containers ? m.containers + (m.containers === 1 ? ' container' : ' containers') + ' (' + m.filled + ' with items)' : '', m.kinds.length ? m.kinds.slice(0, 4).map((k) => k.label + ' ' + fmt(k.n)).join(' · ') : '', m.ents.length ? m.ents.slice(0, 4).map((k) => k.label + ' ' + fmt(k.n)).join(' · ') : ''].filter(Boolean);
+    const total = m.items.reduce((a, x) => a + x.n, 0);
+    const line = (x) => tip(h('div.mt-rawrow', { tabindex: 0 }, h('span.mt-rawrow-ico', iconFor(x.id, 24)), h('span.mt-rawrow-name', RC().nameOf(x.id) + (x.ench ? ' ✦' : '')), h('span.mt-rawrow-n', bits(x.n, stackOf(x.id), u))),
+      () => [h('div.th-tooltip-title', RC().nameOf(x.id)), h('div.th-tooltip-sub', fmt(x.n) + ' in ' + x.stacks + (x.stacks === 1 ? ' stack' : ' stacks')),
+        x.nested ? h('div.th-tooltip-sub', fmt(x.nested) + ' of them inside shulker boxes or bundles') : null, x.ench ? h('div.th-tooltip-tag', 'Enchanted') : null,
+        x.names.length ? h('div.th-tooltip-sub', 'Named: ' + x.names.join(', ')) : null].filter(Boolean));
+    P.replaceChildren(...[
+      h('div.mt-pan-head', h('h3', 'Items in containers'), h('span.mt-count', m.items.length ? fmt(total) + ' items · ' + m.stacks + ' stacks' : 'none')),
+      ...sum.map((t) => h('p.mt-note', t)),
+      m.items.length ? sw : null,
+      on && m.items.length ? h('div.mt-rawlist', m.items.map(line)) : null].filter(Boolean));
   }
   function setRaw(on) {
     M.rawCb.checked = on;
@@ -1378,5 +1406,5 @@ TH.builds.mats = (function () {
   }
 
   function init(api) { A = api; }
-  return { parse, resolve, stackOf, amount, split, amountText, amountWords, parseAmount, unitSize, pack, init, render, importFile, isText, listRows };
+  return { parse, resolve, stackOf, amount, split, amountText, amountWords, parseAmount, unitSize, pack, init, render, importFile, isText, listRows, iconFor };
 })();

@@ -467,6 +467,10 @@ TH.builds = TH.builds || {};
     heavy_weighted_pressure_plate: 'Weighted plates give a signal by how many items are on them; no other plate does that.',
     pale_moss_carpet: 'Pale moss carpet grows sides on walls, unlike any other carpet, so it stays.',
     soul_lantern: 'A soul lantern gives less light than a lantern, which changes where mobs can spawn.',
+    // blocks that hold a block entity of their own: a swap into a plain cube would throw away what they hold
+    chiseled_bookshelf: 'A chiseled bookshelf holds books and gives a comparator signal, so it stays.',
+    test_block: 'Test blocks keep their own settings, so they stay.',
+    test_instance_block: 'Test blocks keep their own settings, so they stay.',
   };
   function ruleFam(name) {
     if (/^petrified_oak/.test(name)) return null;
@@ -485,10 +489,10 @@ TH.builds = TH.builds || {};
     button_stone: 'Stone buttons: a short press, arrows do not trigger them.',
     plate_wood: 'Wooden plates sense every entity and item, so only wooden ones are offered.',
     plate_stone: 'Stone plates only sense players and mobs, so only stone ones are offered.',
-    sign: 'Standing signs. The text on signs is not kept in downloads.', wall_sign: 'Wall signs. The text on signs is not kept in downloads.',
-    hanging_sign: 'Hanging signs. The text on signs is not kept in downloads.', wall_hanging_sign: 'Wall hanging signs. The text on signs is not kept in downloads.',
-    banner: 'Banners. Their patterns are not kept in downloads.', wall_banner: 'Wall banners. Their patterns are not kept in downloads.',
-    shulker: 'Shulker boxes. What is inside is not kept in downloads.',
+    sign: 'Standing signs. The text stays on the sign.', wall_sign: 'Wall signs. The text stays on the sign.',
+    hanging_sign: 'Hanging signs. The text stays on the sign.', wall_hanging_sign: 'Wall hanging signs. The text stays on the sign.',
+    banner: 'Banners. Their patterns stay.', wall_banner: 'Wall banners. Their patterns stay.',
+    shulker: 'Shulker boxes. What is inside stays inside.',
   };
   // the hand-made table: buttons and plates were 'functional'; in their own behaviour class they may swap now
   Object.keys(BLOCKS).forEach((n) => {
@@ -713,6 +717,7 @@ TH.builds = TH.builds || {};
     const o = create(w, hh, d, s.name);
     o.palette = s.palette.slice();
     for (let y = 0; y < hh; y++) for (let z = 0; z < d; z++) for (let x = 0; x < w; x++) o.blocks[(y * d + z) * w + x] = s.blocks[idx(s, x + x0, y + y0, z + z0)];
+    carry(s, o, -x0, -y0, -z0);   // block entities, entities and ticks move with the blocks; origin remembers the crop
     return compact(o);
   }
   /** Drop unused palette entries and merge duplicates. */
@@ -737,6 +742,82 @@ TH.builds = TH.builds || {};
     for (let y = 0; y < sy; y++) { let n = 0; for (let i = y * per, e = i + per; i < e; i++) if (b[i]) n++; out[y] = n; }
     return out;
   }
+  /* ======================================================================
+   * What a file carries besides the blocks (kept as it came, written back by builds-io.js)
+   *   s.be     = [{ x, y, z, id, nbt }]   block entities: chest items, sign text, banner patterns, heads, spawners ...
+   *              nbt = the block entity's own data as a JSON-safe typed compound ({ key: [type, value] }, see
+   *              builds-io.js), without its position and id
+   *   s.ents   = [{ pos: [x, y, z], id, nbt }]   entities (item frames, paintings, armor stands, minecarts ...): pos in
+   *              blocks from our 0 0 0 corner (doubles); the block positions inside nbt (TileX/Y/Z, block_pos, leash,
+   *              beam target) are kept in that same frame
+   *   s.ticks  = { block: [{ x, y, z, nbt }], fluid: [...] }   scheduled ticks (Litematica only)
+   *   s.dv     = the file's data version (its item format: id / Count / tag before 1.20.5, id / count / components after)
+   *   s.src    = what the file format had around the blocks: metadata, region name / position / size, Sponge offset
+   *   s.origin = where our 0 0 0 lies in the file's own frame (non-zero after empty space was cropped away)
+   *   s.beLost = [{ x, y, z, id, from, to }]   block entities a swap had to drop (the new block cannot hold them)
+   * Every helper that makes a new schematic from an old one carries these along (carry()).
+   * ====================================================================== */
+  const HANG = ['TileX', 'TileY', 'TileZ'];
+  /** Entity data with its block positions moved by d (hanging entities, leash knots, end crystal beams). */
+  function entShift(nbt, d) {
+    if (!nbt || (!d[0] && !d[1] && !d[2])) return nbt;
+    const o = Object.assign({}, nbt);
+    HANG.forEach((k, a) => { if (o[k] && o[k][0] === 3) o[k] = [3, o[k][1] + d[a]]; });
+    ['block_pos', 'leash', 'beam_target'].forEach((k) => { if (o[k] && o[k][0] === 11 && o[k][1].length === 3) o[k] = [11, o[k][1].map((v, a) => v + d[a])]; });
+    ['Leash', 'BeamTarget'].forEach((k) => {
+      const c = o[k] && o[k][0] === 10 ? o[k][1] : null;
+      if (c && c.X && c.Y && c.Z) o[k] = [10, Object.assign({}, c, { X: [c.X[0], c.X[1] + d[0]], Y: [c.Y[0], c.Y[1] + d[1]], Z: [c.Z[0], c.Z[1] + d[2]] })];
+    });
+    return o;
+  }
+  /** Copy the extras of `a` onto `o`, everything moved by (dx, dy, dz); block entities and ticks outside `o` are dropped. */
+  function carry(a, o, dx, dy, dz) {
+    if (!a || a === o) return o;
+    dx = dx || 0; dy = dy || 0; dz = dz || 0;
+    ['dv', 'src', 'declared'].forEach((k) => { if (a[k] != null) o[k] = a[k]; });
+    if (a.origin || dx || dy || dz) { const r = a.origin || [0, 0, 0]; o.origin = [r[0] - dx, r[1] - dy, r[2] - dz]; }
+    const at = (p) => Object.assign({}, p, { x: p.x + dx, y: p.y + dy, z: p.z + dz });
+    const keep = (p) => inside(o, p.x, p.y, p.z);
+    if (a.be) o.be = a.be.map(at).filter(keep);
+    if (a.ents) o.ents = a.ents.map((e) => ({ pos: [e.pos[0] + dx, e.pos[1] + dy, e.pos[2] + dz], id: e.id, nbt: entShift(e.nbt, [dx, dy, dz]) }));
+    if (a.ticks) o.ticks = { block: (a.ticks.block || []).map(at).filter(keep), fluid: (a.ticks.fluid || []).map(at).filter(keep) };
+    if (a.beLost) o.beLost = a.beLost.map(at);
+    return o;
+  }
+  const hasExtras = (s) => !!(s && ((s.be && s.be.length) || (s.ents && s.ents.length) || (s.ticks && ((s.ticks.block || []).length || (s.ticks.fluid || []).length))));
+  /** The extras as one plain object (for the saved state and our JSON); setExtras puts them back. */
+  function extrasOf(s) {
+    const o = {};
+    ['be', 'ents', 'ticks', 'dv', 'src', 'origin', 'beLost'].forEach((k) => { if (s[k] != null && !(Array.isArray(s[k]) && !s[k].length)) o[k] = s[k]; });
+    return o;
+  }
+  function setExtras(s, x) {
+    if (!x || typeof x !== 'object') return s;
+    if (Array.isArray(x.be)) s.be = x.be.filter((b) => b && typeof b.id === 'string' && inside(s, b.x, b.y, b.z) && b.nbt && typeof b.nbt === 'object');
+    if (Array.isArray(x.ents)) s.ents = x.ents.filter((e) => e && typeof e.id === 'string' && Array.isArray(e.pos) && e.pos.length === 3);
+    if (x.ticks && typeof x.ticks === 'object') s.ticks = { block: Array.isArray(x.ticks.block) ? x.ticks.block : [], fluid: Array.isArray(x.ticks.fluid) ? x.ticks.fluid : [] };
+    if (Number.isFinite(x.dv)) s.dv = x.dv;
+    if (x.src && typeof x.src === 'object') s.src = x.src;
+    if (Array.isArray(x.origin) && x.origin.length === 3) s.origin = x.origin.map(Number);
+    if (Array.isArray(x.beLost)) s.beLost = x.beLost;
+    return s;
+  }
+  /** Which block entity a block holds (blocks of one kind share it: every sign 'sign', every shulker box 'shulker_box'). */
+  function beKind(id) {
+    const n = parse(id).name;
+    if (/hanging_sign$/.test(n)) return 'hanging_sign';
+    if (/_sign$/.test(n)) return 'sign';
+    if (/_banner$/.test(n)) return 'banner';
+    if (/_bed$/.test(n)) return 'bed';
+    if (/shulker_box$/.test(n)) return 'shulker_box';
+    if (/_(head|skull)$/.test(n)) return 'skull';
+    if (/copper_chest$/.test(n)) return 'copper_chest';
+    if (/copper_golem_statue$/.test(n)) return 'copper_golem_statue';
+    if (/_shelf$/.test(n)) return 'shelf';
+    if (/^(soul_)?campfire$/.test(n)) return 'campfire';
+    return n;
+  }
+
   /** Copy b into a at offset (dx, dy, dz), growing a as needed; air in b never overwrites. Returns a new schematic. */
   function merge(a, b, dx, dy, dz) {
     const x0 = Math.min(0, dx), y0 = Math.min(0, dy), z0 = Math.min(0, dz);
@@ -750,11 +831,20 @@ TH.builds = TH.builds || {};
       }
     };
     copy(a, -x0, -y0, -z0); copy(b, dx - x0, dy - y0, dz - z0);
+    // extras: a's first (minus the cells b built over), then b's on top
+    const ob = carry(b, {}, dx - x0, dy - y0, dz - z0);
+    carry(a, o, -x0, -y0, -z0);
+    const over = (p) => { const bx = p.x - (dx - x0), by = p.y - (dy - y0), bz = p.z - (dz - z0); return inside(b, bx, by, bz) && b.blocks[idx(b, bx, by, bz)]; };
+    if (o.be) o.be = o.be.filter((p) => !over(p));
+    if (ob.be) o.be = (o.be || []).concat(ob.be.filter((p) => inside(o, p.x, p.y, p.z)));
+    if (ob.ents) o.ents = (o.ents || []).concat(ob.ents);
+    if (ob.ticks) o.ticks = { block: ((o.ticks && o.ticks.block) || []).concat(ob.ticks.block), fluid: ((o.ticks && o.ticks.fluid) || []).concat(ob.ticks.fluid) };
+    ['dv', 'src'].forEach((k) => { if (o[k] == null && b[k] != null) o[k] = b[k]; });
     return o;
   }
   /** Shift all blocks by (dx, dy, dz) inside a grown box. */
   const translate = (s, dx, dy, dz) => merge(create(1, 1, 1, s.name), s, dx, dy, dz);
-  function clone(s) { return { name: s.name, size: s.size.slice(), palette: s.palette.slice(), blocks: new Uint16Array(s.blocks) }; }
+  function clone(s) { return carry(s, { name: s.name, size: s.size.slice(), palette: s.palette.slice(), blocks: new Uint16Array(s.blocks) }, 0, 0, 0); }
   /**
    * Apply block swaps { 'minecraft:stone_bricks': 'minecraft:deepslate_bricks' } (keys and values are base ids).
    * Only the palette changes: properties are kept, functional blocks are never touched. Returns a new schematic.
@@ -765,7 +855,19 @@ TH.builds = TH.builds || {};
       const p = parse(id), to = swaps[p.base];
       return to && to !== p.base && canSwap(id, to) ? swapState(id, to) : id;
     }), blocks: new Uint16Array(s.blocks) };
-    if (s.declared) o.declared = s.declared;
+    carry(s, o, 0, 0, 0);
+    // a block entity stays when its block still holds the same kind (oak sign -> spruce sign, red -> lime shulker box);
+    // anything else is dropped and listed, so the downloads can warn about it
+    if (o.be && o.be.length) {
+      const keep = [], lost = (o.beLost || []).slice();
+      o.be.forEach((b) => {
+        const i = idx(s, b.x, b.y, b.z), was = s.palette[s.blocks[i]], now = o.palette[o.blocks[i]];
+        if (was === now || beKind(was) === beKind(now)) keep.push(b);
+        else lost.push({ x: b.x, y: b.y, z: b.z, id: b.id, from: parse(was).base, to: parse(now).base });
+      });
+      o.be = keep;
+      if (lost.length) o.beLost = lost;
+    }
     return compact(o);
   }
 
@@ -870,6 +972,150 @@ TH.builds = TH.builds || {};
   }
 
   /* ======================================================================
+   * Reading the extras: what is inside the containers, sign text, what else carries data
+   * ====================================================================== */
+  const bare = (id) => String(id || '').replace(/^minecraft:/, '');
+  const tv = (c, k) => (c && c[k] ? c[k][1] : undefined);   // value of a typed compound field
+  const tlist = (c, k) => (c && c[k] && c[k][0] === 9 && c[k][1][0] === 10 ? c[k][1][1] : []);   // list of compounds
+  const tcomp = (c, k) => (c && c[k] && c[k][0] === 10 ? c[k][1] : null);
+  /** Text of a sign line / custom name: plain text, JSON text ('{"text":"Hi"}') or an NBT text component. */
+  function flatText(o) {
+    if (o == null) return '';
+    if (typeof o === 'string') return o;
+    if (Array.isArray(o)) return o.map(flatText).join('');
+    if (typeof o === 'object') return (o.text != null ? String(o.text) : o.translate ? String(o.fallback || o.translate) : '') + (o.extra ? flatText(o.extra) : '');
+    return String(o);
+  }
+  function textOf(tag) {
+    if (!tag) return '';
+    const [t, v] = tag;
+    if (t === 8) {
+      const s = v.trim();
+      if (/^[{["]/.test(s)) { try { return flatText(JSON.parse(s)); } catch (e) { /* not JSON: plain text */ } }
+      return v;
+    }
+    if (t === 10) { const plain = (x) => (x[0] === 10 ? Object.fromEntries(Object.entries(x[1]).map(([k, y]) => [k, plain(y)])) : x[0] === 9 ? x[1][1].map((y) => plain([x[1][0], y])) : x[1]); return flatText(plain(tag)); }
+    if (t === 9) return v[1].map((x) => textOf([v[0], x])).join('');
+    return String(v);
+  }
+  /** One item stack (typed compound) -> { id, n, name, ench, nested: [stacks inside it] } (shulker boxes, bundles; both item formats). */
+  function stackInfo(c, depth) {
+    if (!c || depth > 8) return null;
+    const id = tv(c, 'id');
+    if (typeof id !== 'string') return null;
+    const comp = tcomp(c, 'components'), tag = tcomp(c, 'tag');
+    const n = Number(tv(c, 'count') != null ? tv(c, 'count') : tv(c, 'Count') != null ? tv(c, 'Count') : 1) || 1;
+    const nested = [];
+    if (comp) {
+      tlist(comp, 'minecraft:container').forEach((e) => { const s = stackInfo(tcomp(e, 'item'), depth + 1); if (s) nested.push(s); });
+      tlist(comp, 'minecraft:bundle_contents').forEach((e) => { const s = stackInfo(e, depth + 1); if (s) nested.push(s); });
+      tlist(comp, 'minecraft:charged_projectiles').forEach((e) => { const s = stackInfo(e, depth + 1); if (s) nested.push(s); });
+    }
+    if (tag) {
+      tlist(tcomp(tag, 'BlockEntityTag'), 'Items').forEach((e) => { const s = stackInfo(e, depth + 1); if (s) nested.push(s); });
+      tlist(tag, 'Items').forEach((e) => { const s = stackInfo(e, depth + 1); if (s) nested.push(s); });
+    }
+    const nameTag = comp && comp['minecraft:custom_name'] ? comp['minecraft:custom_name'] : tag && tcomp(tag, 'display') && tcomp(tag, 'display').Name;
+    const ench = !!(comp && (comp['minecraft:enchantments'] || comp['minecraft:stored_enchantments'])) || !!(tag && (tag.Enchantments || tag.StoredEnchantments));
+    return { id: id.includes(':') ? id : 'minecraft:' + id, n, name: nameTag ? textOf(nameTag) : null, ench, nested };
+  }
+  /** The item stacks a block entity or entity holds, as stackInfo records. */
+  function stacksIn(nbt) {
+    if (!nbt) return [];
+    const out = [];
+    const add = (c) => { const s = stackInfo(c, 0); if (s && s.id !== 'minecraft:air') out.push(s); };
+    tlist(nbt, 'Items').forEach(add);
+    ['item', 'Item', 'RecordItem', 'Book'].forEach((k) => { const c = tcomp(nbt, k); if (c) add(c); });
+    ['HandItems', 'ArmorItems'].forEach((k) => tlist(nbt, k).forEach((c) => { if (tv(c, 'id')) add(c); }));
+    const eq = tcomp(nbt, 'equipment');
+    if (eq) Object.keys(eq).forEach((k) => { if (eq[k][0] === 10) add(eq[k][1]); });
+    return out;
+  }
+  const CONTAINER = /^(chest|trapped_chest|copper_chest|barrel|hopper|dispenser|dropper|furnace|smoker|blast_furnace|brewing_stand|shulker_box|chiseled_bookshelf|crafter|campfire|soul_campfire|shelf|decorated_pot|jukebox|lectern)$/;
+  const BE_LABEL = { sign: 'Signs', hanging_sign: 'Hanging signs', banner: 'Banners', skull: 'Heads', mob_spawner: 'Spawners', trial_spawner: 'Trial spawners', command_block: 'Command blocks',
+    beacon: 'Beacons', beehive: 'Bee nests and hives', end_gateway: 'End gateways', bed: 'Beds', comparator: 'Comparators', enchanting_table: 'Enchanting tables', bell: 'Bells',
+    conduit: 'Conduits', daylight_detector: 'Daylight sensors', structure_block: 'Structure blocks', jigsaw: 'Jigsaw blocks', sculk_sensor: 'Sculk sensors', calibrated_sculk_sensor: 'Calibrated sculk sensors',
+    sculk_shrieker: 'Sculk shriekers', sculk_catalyst: 'Sculk catalysts', vault: 'Vaults', end_portal: 'End portals', ender_chest: 'Ender chests', piston: 'Moving pistons', creaking_heart: 'Creaking hearts',
+    brushable_block: 'Suspicious sand and gravel', copper_golem_statue: 'Copper golem statues', test_block: 'Test blocks', test_instance_block: 'Test instance blocks' };
+  const CONT_LABEL = { chest: 'Chests', trapped_chest: 'Trapped chests', copper_chest: 'Copper chests', barrel: 'Barrels', hopper: 'Hoppers', dispenser: 'Dispensers', dropper: 'Droppers',
+    furnace: 'Furnaces', smoker: 'Smokers', blast_furnace: 'Blast furnaces', brewing_stand: 'Brewing stands', shulker_box: 'Shulker boxes', chiseled_bookshelf: 'Chiseled bookshelves',
+    crafter: 'Crafters', campfire: 'Campfires', soul_campfire: 'Soul campfires', shelf: 'Shelves', decorated_pot: 'Decorated pots', jukebox: 'Jukeboxes', lectern: 'Lecterns' };
+  function entLabel(id) {
+    const n = bare(id);
+    const L = { item_frame: 'Item frames', glow_item_frame: 'Glow item frames', painting: 'Paintings', armor_stand: 'Armor stands', minecart: 'Minecarts', chest_minecart: 'Minecarts with chests',
+      hopper_minecart: 'Minecarts with hoppers', furnace_minecart: 'Minecarts with furnaces', tnt_minecart: 'Minecarts with TNT', spawner_minecart: 'Minecarts with spawners',
+      command_block_minecart: 'Minecarts with command blocks', item_display: 'Item displays', block_display: 'Block displays', text_display: 'Text displays', interaction: 'Interactions',
+      end_crystal: 'End crystals', leash_knot: 'Leash knots', item: 'Dropped items', villager: 'Villagers', experience_orb: 'Experience orbs', marker: 'Markers' };
+    if (L[n]) return L[n];
+    if (/_chest_(boat|raft)$/.test(n)) return 'Boats with chests';
+    if (/_(boat|raft)$/.test(n) || n === 'boat') return 'Boats';
+    return titleCase(n) + 's';
+  }
+  /** Lines of a sign block entity (front and back; old signs Text1..Text4). */
+  function signLines(nbt) {
+    const side = (k) => { const c = tcomp(nbt, k); if (!c) return null; const m = c.messages; return m && m[0] === 9 ? m[1][1].map((x) => textOf([m[1][0], x])) : []; };
+    let front = side('front_text');
+    if (!front && nbt.Text1) front = ['Text1', 'Text2', 'Text3', 'Text4'].map((k) => textOf(nbt[k]));
+    return { front: front || [], back: side('back_text') || [], glow: !!(tv(tcomp(nbt, 'front_text'), 'has_glowing_text') || tv(nbt, 'GlowingText')), waxed: !!tv(nbt, 'is_waxed') };
+  }
+  /**
+   * Everything a build holds besides its blocks, for the note in Builds and the Material List:
+   * { containers, filled, stacks, items: [{ id, n, stacks, nested, ench, names }], kinds: [{ label, n }] (blocks with data
+   *   that are not containers), ents: [{ label, n }], signs: [{ x, y, z, front, back, glow, waxed, hanging }], lost, ticks }
+   */
+  function extrasSummary(s) {
+    const items = new Map(), kinds = new Map(), ents = new Map(), signs = [];
+    let containers = 0, filled = 0, stacks = 0;
+    const addStack = (st, nested) => {
+      const e = items.get(st.id) || { id: st.id, n: 0, stacks: 0, nested: 0, ench: false, names: [] };
+      e.n += st.n; e.stacks++; if (nested) e.nested += st.n; if (st.ench) e.ench = true;
+      if (st.name && e.names.length < 4 && !e.names.includes(st.name)) e.names.push(st.name);
+      items.set(st.id, e);
+      st.nested.forEach((x) => addStack(x, true));
+    };
+    const bump = (m, k) => m.set(k, (m.get(k) || 0) + 1);
+    (s.be || []).forEach((b) => {
+      const k = bare(b.id), held = stacksIn(b.nbt);
+      if (CONTAINER.test(k) || b.nbt.Items) { containers++; if (held.length) filled++; }
+      else bump(kinds, BE_LABEL[k] || titleCase(k) + 's');
+      if (k === 'sign' || k === 'hanging_sign') signs.push(Object.assign({ x: b.x, y: b.y, z: b.z, hanging: k === 'hanging_sign' }, signLines(b.nbt)));
+      held.forEach((st) => { stacks++; addStack(st, false); });
+    });
+    (s.ents || []).forEach((e) => {
+      bump(ents, entLabel(e.id));
+      stacksIn(e.nbt).forEach((st) => { stacks++; addStack(st, false); });
+    });
+    const sortM = (m) => [...m].map(([label, n]) => ({ label, n })).sort((a, b) => b.n - a.n || a.label.localeCompare(b.label));
+    const contKinds = new Map();
+    (s.be || []).forEach((b) => { const k = bare(b.id); if (CONTAINER.test(k) || b.nbt.Items) bump(contKinds, CONT_LABEL[k] || titleCase(k)); });
+    return {
+      containers, filled, stacks, contKinds: sortM(contKinds),
+      items: [...items.values()].sort((a, b) => b.n - a.n || a.id.localeCompare(b.id)),
+      kinds: sortM(kinds), ents: sortM(ents), signs: signs.filter((x) => x.front.concat(x.back).some((l) => l.trim())),
+      lost: (s.beLost || []).length, ticks: s.ticks ? (s.ticks.block || []).length + (s.ticks.fluid || []).length : 0,
+      be: (s.be || []).length, entities: (s.ents || []).length,
+    };
+  }
+  /**
+   * Which way the build faces, when it has a clear front: the facing most of its doors (lower halves) share, else its wall
+   * signs / wall banners. { facing: 'north'|..., by: 'door'|'sign', n } or null.
+   */
+  function frontOf(s) {
+    const votes = { door: new Map(), sign: new Map() };
+    counts(s).forEach(({ id, n }) => {
+      const p = parse(id), f = p.props.facing;
+      if (!f || f === 'up' || f === 'down') return;
+      if (/_door$/.test(p.name) && p.props.half === 'lower') votes.door.set(f, (votes.door.get(f) || 0) + n);
+      else if (/_wall_(sign|banner|hanging_sign)$/.test(p.name)) votes.sign.set(f, (votes.sign.get(f) || 0) + n);
+    });
+    for (const by of ['door', 'sign']) {
+      const v = [...votes[by]].sort((a, b) => b[1] - a[1]);
+      if (v.length && (v.length === 1 || v[0][1] > v[1][1])) return { facing: v[0][0], by, n: v[0][1] };
+    }
+    return null;
+  }
+
+  /* ======================================================================
    * Materials: what you need in your inventory
    * ====================================================================== */
   const STACK16 = new Set(['ender_pearl', 'snowball', 'egg', 'sign', 'oak_sign', 'bucket', 'honey_bottle', 'armor_stand']);
@@ -902,6 +1148,8 @@ TH.builds = TH.builds || {};
     AIR, parse, isAir, stateOf, withBase, BLOCKS, GROUPS: G, GROUP_ORDER, COLORS, def, known, replaceable, familyOf, buildingBlocks, nameOf, iconOf, blockIcon, titleCase,
     create, idx, inside, pal, get, set, fromFunction, volume, counts, bbox, trim, compact, layers, merge, translate, clone, applySwaps, rle, unrle,
     itemOf, stackOf, materials,
+    // what files carry besides blocks
+    carry, entShift, hasExtras, extrasOf, setExtras, beKind, extrasSummary, signLines, stacksIn, textOf, frontOf, entLabel,
     // swaps: families, sets, plans
     canSwap, swapState, famNote: (fam) => FAM_NOTE[fam] || null, burns, setOf, setName, setTokens, setLabel, setIcon, KIND_LABEL,
     currentCounts, setsIn, setPlan, withChanges, relate,

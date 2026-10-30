@@ -19,7 +19,8 @@
  *   ticks: { [key]: { [itemId]: 1 } }, have: { [key]: { [itemId]: n } }, units: 'items'|'stacks'|'boxes'|'dc',
  *   sort: 'count'|'name'|'group', matSrc: 'stage'|<key>, lists: [{ id, name, text, at }],
  *   mats: { raw, cont: 'box'|'dc', pack: 'tight'|'sorted', hide, sc, pick: { [itemId]: recipe index } },
- *   files: [{ id, name, size, palette, data (run-length text), added }]   (only files small enough; see FILE_CAP)
+ *   files: [{ id, name, size, palette, data (run-length text), added, declared, xz }]   (only files small enough; see FILE_CAP)
+ *          xz = the file's block entities, entities, ticks and metadata (core().extrasOf), gzip + base64; see XZ_CAP
  *   paste: null (before v4 the one pasted list; migrated into lists)
  * }
  * Keys: 'farm:<id>', 'file:<id>', 'shape', 'list:<id>' (+ '#raw' for the raw-material ticks). Every change is saved silently and the page is patched in place.
@@ -42,7 +43,7 @@
     mode: 'once', speed: 1, grid: true, outline: false, auto: true,
     shape: { kind: 'sphere', p: {}, block: {}, block2: {} },
     swaps: {}, fopt: {}, ticks: {}, have: {}, units: 'items', sort: 'count', files: [], paste: null, matSrc: 'stage', lists: [], viewHelp: false,
-    mats: { raw: false, cont: 'box', pack: 'tight', hide: false, sc: true, pick: {} },
+    mats: { raw: false, cont: 'box', pack: 'tight', hide: false, sc: true, pick: {}, inside: false },
   };
   const SHAPE_BLOCK = { sphere: 'minecraft:stone_bricks', ellipsoid: 'minecraft:white_concrete', circle: 'minecraft:polished_andesite', dome: 'minecraft:glass', cylinder: 'minecraft:bricks', cone: 'minecraft:spruce_planks', pyramid: 'minecraft:sandstone', torus: 'minecraft:prismarine', tree: 'minecraft:oak_log' };
   const SHAPE_BLOCK2 = { dome: 'minecraft:polished_andesite', cylinder: 'minecraft:stone_bricks', tree: 'minecraft:oak_leaves' };
@@ -63,8 +64,32 @@
     });
   }
   function loadAll() {
-    if (!loadP) loadP = LAZY.reduce((p, f) => p.then(() => loadScript(rel(f))), Promise.resolve()).then(() => { ready = true; }, (e) => { loadErr = e; loadP = null; throw e; });
+    if (!loadP) loadP = LAZY.reduce((p, f) => p.then(() => loadScript(rel(f))), Promise.resolve()).then(restoreExtras).then(() => { ready = true; }, (e) => { loadErr = e; loadP = null; throw e; });
     return loadP;
+  }
+
+  /*
+   * What a kept file carries besides blocks (container contents, sign text, entities, metadata: core().extrasOf) is
+   * saved with it as gzip + base64 text (`rec.xz`; JSON of typed NBT packs about 10:1), and unpacked once when the
+   * build tools load, before anything reads a file.
+   */
+  const XZ_CAP = 1500000;   // characters of packed extras we keep per file
+  async function packX(x) {
+    const z = await TH.builds.io.gzip(new TextEncoder().encode(JSON.stringify(x)));
+    let s = '';
+    for (let i = 0; i < z.length; i += 0x8000) s += String.fromCharCode.apply(null, z.subarray(i, i + 0x8000));
+    return btoa(s);
+  }
+  async function unpackX(b64) {
+    const bin = atob(b64), u = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
+    return JSON.parse(new TextDecoder().decode(await TH.builds.io.gunzip(u)));
+  }
+  async function restoreExtras() {
+    const recs = (TH.store.get().builds.files || []).filter((r) => r.xz && !mem.extras.has(r.id));
+    for (const r of recs) {
+      try { mem.extras.set(r.id, await unpackX(r.xz)); } catch (e) { console.warn('Builds: could not unpack the contents of ' + r.name, e); }
+    }
   }
 
   /* ======================================================================
@@ -134,7 +159,7 @@
   /* ======================================================================
    * Schematics by key
    * ====================================================================== */
-  const mem = { files: new Map(), shape: null, shapeSig: '', paste: null };
+  const mem = { files: new Map(), extras: new Map(), shape: null, shapeSig: '', paste: null };
   function fileRec(id) { return (S().files || []).find((f) => f.id === id); }
   function original(key) {
     if (!key) return null;
@@ -147,6 +172,9 @@
       try {
         const s = core().create(r.size[0], r.size[1], r.size[2], r.name);
         s.palette = r.palette.slice(); s.blocks = core().unrle(r.data, r.size[0] * r.size[1] * r.size[2]);
+        if (r.declared) s.declared = r.declared;
+        if (mem.extras.has(id)) core().setExtras(s, mem.extras.get(id));
+        else if (r.xz) Object.defineProperty(s, 'xzLost', { value: true });   // saved contents that could not be unpacked: the note says so
         mem.files.set(id, s);
         return s;
       } catch (e) { return null; }
@@ -207,8 +235,24 @@
       if (fmt === 'json') downloadBlob(name + ext, B().io.toJSON(s), 'application/json');
       else if (fmt === 'litematic') downloadBlob(name + ext, await B().io.toLitematic(s), 'application/octet-stream');
       else downloadBlob(name + ext, await B().io.toSchem(s), 'application/octet-stream');
-      toast('Downloaded ' + name + ext);
+      toast('Downloaded ' + name + ext + keptText(s, fmt));
     } catch (e) { toast(e.message || 'Could not write that file'); }
+  }
+  /** ' · with what is in 6 containers, 5 signs, 4 entities · facing and position as imported' (+ warnings), for the toast. */
+  function keptText(s, fmt) {
+    if (!s || !core().hasExtras(s)) return s && s.src ? ' · facing and position as imported' : '';
+    const m = core().extrasSummary(s), bits = [];
+    if (m.filled) bits.push('what is in ' + m.filled + (m.filled === 1 ? ' container' : ' containers'));
+    const signs = (s.be || []).filter((b) => /sign$/.test(b.id)).length;
+    if (signs) bits.push(signs + (signs === 1 ? ' sign' : ' signs'));
+    const other = m.be - m.containers - signs;
+    if (other > 0) bits.push(other + ' other ' + (other === 1 ? 'block' : 'blocks') + ' with data');
+    if (m.entities) bits.push(m.entities + (m.entities === 1 ? ' entity' : ' entities'));
+    let t = bits.length ? ' · with ' + bits.join(', ') : '';
+    t += ' · facing and position as imported';
+    if (m.lost) t += ' · ' + m.lost + (m.lost === 1 ? ' block lost its contents' : ' blocks lost their contents') + ' in a swap';
+    if (fmt === 'schem' && m.ticks) t += ' · .schem has no scheduled ticks (' + m.ticks + ' left out)';
+    return t;
   }
 
   /* ======================================================================
@@ -635,7 +679,7 @@
   function removeFile(rec) {
     const key = 'file:' + rec.id;
     save((b) => { b.files = (b.files || []).filter((x) => x.id !== rec.id); delete b.swaps[key]; delete b.ticks[key]; delete b.ticks[key + '#raw']; if (b.have) { delete b.have[key]; delete b.have[key + '#raw']; } delete b.meta[key]; if (b.matSrc === key) b.matSrc = 'stage'; if (b.cur === key) b.cur = 'farm:cow_crusher'; if (b.stage === key) b.stage = b.cur; });
-    mem.files.delete(rec.id);
+    mem.files.delete(rec.id); mem.extras.delete(rec.id);
     if (mem.sessionOnly) mem.sessionOnly = mem.sessionOnly.filter((x) => x.id !== rec.id);
     if (UI.shownKey === key) show(S().cur, { animate: true, layer: 'top' });
     patch();
@@ -729,7 +773,79 @@
       h('div.bd-pan-head', h('h3', 'Your build'), h('span.bd-count', rec.size.join(' × '))),
       h('p.bd-note', 'Name it and tag it so you can find it in the Library: AFK, redstone, whatever you like.'),
       h('div.bd-sub', 'Name'), name, h('div.bd-sub', 'How you use it'), useSeg, h('div.bd-sub', 'Tags'), chips, add,
+      insideNote(effective(key)),
       h('button.bd-link', { type: 'button', onclick: () => toMats(key) }, 'Material list, recipes and packing →'));
+  }
+
+  /* ---- what the file carries besides blocks: contents, sign text, other data, entities, orientation ---- */
+  const insideOpen = { items: false, signs: false };   // the two fold-outs stay open across re-renders of the side
+  const plural = (n, one, many) => fmtN(n) + ' ' + (n === 1 ? one : many);
+  /** "29 × 43 × 56 · region at 28 0 55, size -29 43 -56 · front faces east (by its door) · kept as imported". */
+  function orientText(s) {
+    const src = s.src || {}, parts = [s.size.join(' × ') + ' (X × Y × Z)'];
+    if (src.fmt === 'litematic' && src.region && src.region.size) parts.push('region at ' + src.region.pos.join(' ') + ', size ' + src.region.size.join(' '));
+    else if (src.fmt === 'litematic' && src.parts) parts.push(src.parts.length + ' regions, joined into one');
+    if (src.fmt === 'sponge') {
+      const o = src.offset || [0, 0, 0], m = src.meta || {};
+      if (o.some(Boolean)) parts.push('offset ' + o.join(' '));
+      if (m.WEOffsetX && m.WEOffsetY && m.WEOffsetZ) parts.push('paste origin ' + [m.WEOffsetX[1], m.WEOffsetY[1], m.WEOffsetZ[1]].map((v) => -v).join(' ') + ' from the corner');
+    }
+    if (s.origin && s.origin.some(Boolean)) parts.push('empty edge cropped (' + s.origin.join(' ') + ')');
+    const f = core().frontOf(s);
+    parts.push((f ? 'front faces ' + f.facing + ' (by its ' + (f.by === 'door' ? 'door' : 'wall signs') + ')' : 'no clear front') + ' · orientation kept as imported');
+    return parts.join(' · ');
+  }
+  /** Item icon (inventory look for blocks, the item sprite otherwise, via the Material List's icon finder). */
+  const itemIco = (id, size) => (B().mats && B().mats.iconFor ? B().mats.iconFor(id, size) : core().blockIcon(id, { size }));
+  function itemList(m) {
+    return h('ul.bd-needs.bd-inside-items', m.items.map((x) => tip(h('li', { tabindex: 0 }, itemIco(x.id, 18), h('span.bd-needs-n', fmtN(x.n)), h('span', core().nameOf(x.id) + (x.ench ? ' ✦' : ''))),
+      () => [h('div.th-tooltip-title', core().nameOf(x.id)), h('div.th-tooltip-sub', fmtN(x.n) + ' in ' + plural(x.stacks, 'stack', 'stacks')),
+        x.nested ? h('div.th-tooltip-sub', fmtN(x.nested) + ' of them inside shulker boxes or bundles') : null, x.ench ? h('div.th-tooltip-tag', 'Enchanted') : null,
+        x.names.length ? h('div.th-tooltip-sub', 'Named: ' + x.names.join(', ')) : null].filter(Boolean))));
+  }
+  function signList(m) {
+    return h('div.bd-signs', m.signs.map((sg) => h('div.bd-sign',
+      h('span.bd-sign-at', (sg.hanging ? 'Hanging sign' : 'Sign') + ' at ' + sg.x + ' ' + sg.y + ' ' + sg.z + (sg.glow ? ' · glowing' : '') + (sg.waxed ? ' · waxed' : '')),
+      h('span.bd-sign-text', sg.front.filter((l) => l.trim()).join(' / ') || '(front empty)'),
+      sg.back.some((l) => l.trim()) ? h('span.bd-sign-text.bd-sign-back', 'Back: ' + sg.back.filter((l) => l.trim()).join(' / ')) : null)));
+  }
+  /** A fold-out key: the list sits under it, toggled with `hidden` (no re-render, no motion). */
+  function fold(which, label, body) {
+    body.hidden = !insideOpen[which];
+    const b = h('button.bd-link.bd-fold', { type: 'button', 'aria-expanded': String(insideOpen[which]), onclick: () => {
+      insideOpen[which] = !insideOpen[which]; body.hidden = !insideOpen[which]; b.setAttribute('aria-expanded', String(insideOpen[which]));
+      b.textContent = (insideOpen[which] ? 'Hide ' : 'Show ') + label;
+    } }, (insideOpen[which] ? 'Hide ' : 'Show ') + label);
+    return [b, body];
+  }
+  const countLine = (list, max) => {
+    const shown = list.slice(0, max || 6).map((k) => k.label + ' ' + fmtN(k.n)).join(' · ');
+    return list.length > (max || 6) ? shown + ' · +' + (list.length - (max || 6)) + ' more' : shown;
+  };
+  /** The "Inside the build" part of the info panel: containers (+ item list), other data blocks (+ sign text), entities, orientation, warnings. */
+  function insideNote(s) {
+    if (!s) return null;
+    const C = core(), m = C.hasExtras(s) ? C.extrasSummary(s) : null;
+    const out = [h('div.bd-sub', 'Inside the build')];
+    if (s.xzLost) out.push(h('p.bd-note.bd-warn', 'The saved contents of this file could not be read back. Open the file again to bring them back.'));
+    if (!m) out.push(h('p.bd-note', s.src ? 'This file has no container contents, sign text or entities.' : 'No container contents, sign text or entities came with this file.'));
+    else {
+      if (m.containers) {
+        const row = tip(h('p.bd-inside', { tabindex: 0 }, h('b', 'Containers'), ' ' + fmtN(m.containers) + ' · ' + fmtN(m.filled) + ' with items · ' + plural(m.stacks, 'stack', 'stacks')),
+          () => [h('div.th-tooltip-title', 'Containers'), ...m.contKinds.map((k) => h('div.th-tooltip-sub', k.label + ' ' + fmtN(k.n)))]);
+        out.push(row);
+        if (m.items.length) out.push(...fold('items', m.items.length === 1 ? 'the item' : 'all ' + m.items.length + ' items', itemList(m)));
+      } else if (m.items.length) out.push(...fold('items', 'the ' + plural(m.items.length, 'item', 'items') + ' in frames and on entities', itemList(m)));
+      if (m.kinds.length) {
+        out.push(tip(h('p.bd-inside', { tabindex: 0 }, h('b', 'With data'), ' ' + countLine(m.kinds)), () => [h('div.th-tooltip-title', 'Blocks that carry data'), ...m.kinds.map((k) => h('div.th-tooltip-sub', k.label + ' ' + fmtN(k.n)))]));
+        if (m.signs.length) out.push(...fold('signs', 'the sign text', signList(m)));
+      }
+      if (m.ents.length) out.push(tip(h('p.bd-inside', { tabindex: 0 }, h('b', 'Entities'), ' ' + countLine(m.ents)), () => [h('div.th-tooltip-title', 'Entities'), ...m.ents.map((k) => h('div.th-tooltip-sub', k.label + ' ' + fmtN(k.n)))]));
+      if (m.lost) out.push(h('p.bd-note.bd-warn', plural(m.lost, 'block', 'blocks') + ' lost what they held in a swap (the new block cannot hold it). Reset that swap to keep it.'));
+      out.push(h('p.bd-note', 'All of it goes into every download, exactly as it came.'));
+    }
+    out.push(h('p.bd-note.bd-orient', orientText(s)));
+    return out;
   }
 
   function librarySide() {
@@ -795,7 +911,7 @@
       })))));
   }
 
-  /** Blocks whose extra data (text, contents, patterns) lives outside the block state, so no schematic download here carries it. */
+  /** Blocks whose extra data (text, contents, patterns) lives in a block entity: a file without block entities has none of it. */
   const ENTITY_DATA = /(_sign|_banner|chest|shulker_box|barrel|hopper|dispenser|dropper|furnace|smoker|lectern|jukebox|decorated_pot|spawner|beehive|bee_nest|command_block|_skull|_head|crafter|brewing_stand|campfire|chiseled_bookshelf|_shelf|vault|trial_spawner)$/;
   /** Close every open picker in the side column (one is open at a time). */
   function closePickers() {
@@ -845,7 +961,12 @@
       return tip(btn, () => [h('div.th-tooltip-title', 'Change every ' + set.label + ' block at once'), h('div.th-tooltip-sub', set.blocks.slice(0, 6).map((b) => core().nameOf(b.id)).join(', ') + (set.blocks.length > 6 ? ' …' : ''))]);
     };
     const name = keyName(key), cur = effective(key);
-    const extra = cur && cur.palette.some((p) => ENTITY_DATA.test(core().parse(p).name));
+    // what the downloads carry besides blocks (or why a file has none of it)
+    const xm = cur && core().hasExtras(cur) ? core().extrasSummary(cur) : null;
+    const extra = !xm && key.startsWith('file:') && cur && cur.palette.some((p) => ENTITY_DATA.test(core().parse(p).name))
+      ? h('p.bd-note.bd-faint', 'This file came without container contents or sign text, so the downloads have none either.')
+      : xm ? h('p.bd-note.bd-faint', 'Container contents, sign text' + (xm.entities ? ', entities' : '') + ' and the build’s facing and position are in every file.'
+        + (xm.lost ? ' ' + plural(xm.lost, 'block', 'blocks') + ' lost what they held in a swap.' : '') + (xm.ticks ? ' .schem leaves out the ' + plural(xm.ticks, 'scheduled tick', 'scheduled ticks') + '.' : '')) : null;
     const dl = (fmt) => () => exportAs(effective(key), fmt, name + (n ? '-custom' : ''));
     const panel = h('section.panel.bd-pan.bd-custom-panel' + (n ? '.has-sel' : ''), { 'aria-label': 'Customise blocks' },
       h('div.bd-pan-head', h('h3', 'Customise blocks'), n ? h('span.bd-count', n + ' swapped') : h('span.bd-count', 'your version')),
@@ -858,7 +979,7 @@
       locked.length ? h('div.bd-locks', locked.map(lockRow)) : null,
       h('div.bd-sub', 'Download'),
       h('p.bd-note', n ? 'The file is your version: every swap applied, every block keeps its facing, half, open and waterlogged state.' : 'The file is the build as you see it.'),
-      extra ? h('p.bd-note.bd-faint', 'Sign text, chest contents and banner patterns are not in the file.') : null,
+      extra,
       h('div.bd-actions',
         tip(h('button.btn.small.primary', { type: 'button', onclick: dl('schem') }, glyph('down'), n ? 'Download with your changes' : 'Download .schem'), '.schem (Sponge 2): WorldEdit, FAWE, Axiom, Litematica'),
         tip(h('button.btn.small', { type: 'button', onclick: dl('litematic') }, '.litematic'), 'Litematica schematic' + (n ? ', with your changes' : '')),
@@ -966,11 +1087,17 @@
       mem.files.set(id, s);
       let kept = true;
       const data = core().rle(s.blocks);
+      // container contents, sign text, entities and the file's metadata go into the saved state too (packed)
+      const x = core().extrasOf(s);
+      let xz = null;
+      if (Object.keys(x).length) { try { xz = await packX(x); mem.extras.set(id, x); } catch (e) { xz = ''; } }
       save((b) => {
         b.files = b.files || [];
-        if (data.length <= FILE_CAP) {
-          b.files.unshift({ id, name: s.name, size: s.size.slice(), palette: s.palette.slice(), data, added: Date.now(), declared: s.declared || 0 });
-          while (b.files.length > MAX_FILES) { const old = b.files.pop(); delete b.swaps['file:' + old.id]; delete b.ticks['file:' + old.id]; }
+        if (data.length <= FILE_CAP && (xz == null || (xz && xz.length <= XZ_CAP))) {
+          const rec = { id, name: s.name, size: s.size.slice(), palette: s.palette.slice(), data, added: Date.now(), declared: s.declared || 0 };
+          if (xz) rec.xz = xz;
+          b.files.unshift(rec);
+          while (b.files.length > MAX_FILES) { const old = b.files.pop(); mem.extras.delete(old.id); delete b.swaps['file:' + old.id]; delete b.ticks['file:' + old.id]; }
         } else kept = false;
       });
       if (!kept) {
@@ -984,7 +1111,9 @@
         if (opts.done) opts.done();
       } else pickKey('file:' + id);
       const unknown = s.palette.filter((p, i) => i && !core().known(p)).length;
-      toast('Opened ' + s.name + ' · ' + fmtN(core().volume(s)) + ' blocks' + (unknown ? ' · ' + unknown + ' unknown block type' + (unknown > 1 ? 's' : '') : '') + (kept ? '' : ' · too big to keep after a reload'));
+      const m = core().hasExtras(s) ? core().extrasSummary(s) : null;
+      const inside = m ? [m.filled ? m.filled + (m.filled === 1 ? ' container' : ' containers') + ' with items' : '', m.signs.length ? m.signs.length + (m.signs.length === 1 ? ' sign' : ' signs') : '', m.entities ? m.entities + (m.entities === 1 ? ' entity' : ' entities') : ''].filter(Boolean).join(', ') : '';
+      toast('Opened ' + s.name + ' · ' + fmtN(core().volume(s)) + ' blocks' + (inside ? ' · ' + inside : '') + (unknown ? ' · ' + unknown + ' unknown block type' + (unknown > 1 ? 's' : '') : '') + (kept ? '' : ' · too big to keep after a reload'));
     } catch (e) {
       toast(e && e.user ? e.message : 'This file isn’t a schematic I can read.');
       if (e && !e.user) console.error(e);

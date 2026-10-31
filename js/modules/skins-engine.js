@@ -649,10 +649,61 @@ TH.skinsEngine = (function () {
     const hit = floodSet(buf, x, y, opts);
     return hit || selNew(buf.w, buf.h);
   }
+  /** the four Photoshop modes: 'new' (b), 'add' (a or b), 'sub' (a without b), 'int' / 'and' (a and b) */
   function selCombine(a, b, op) {
     const s = new Uint8Array(a.length);
-    for (let i = 0; i < s.length; i++) s[i] = op === 'add' ? a[i] | b[i] : op === 'sub' ? a[i] & (b[i] ^ 1) : op === 'and' ? a[i] & b[i] : b[i];
+    for (let i = 0; i < s.length; i++) s[i] = op === 'add' ? a[i] | b[i] : op === 'sub' ? a[i] & (b[i] ^ 1) : op === 'and' || op === 'int' ? a[i] & b[i] : b[i];
     return s;
+  }
+  /** elliptical marquee: the pixel centres inside the ellipse that fills the cells (x0, y0) .. (x1, y1) (inclusive) */
+  function selEllipse(w, h, x0, y0, x1, y1) {
+    const s = selNew(w, h), ax = Math.min(x0, x1), bx = Math.max(x0, x1), ay = Math.min(y0, y1), by = Math.max(y0, y1);
+    const cx = (ax + bx + 1) / 2, cy = (ay + by + 1) / 2, rx = (bx - ax + 1) / 2, ry = (by - ay + 1) / 2;
+    for (let y = Math.max(0, ay); y <= Math.min(h - 1, by); y++) for (let x = Math.max(0, ax); x <= Math.min(w - 1, bx); x++) {
+      const dx = (x + 0.5 - cx) / rx, dy = (y + 0.5 - cy) / ry;
+      if (dx * dx + dy * dy <= 1.0001) s[y * w + x] = 1;
+    }
+    return s;
+  }
+  /** polygonal lasso: the same fill as the freehand lasso (pixel centres inside + the pixels under the edges) */
+  const selPolygon = (w, h, pts) => selLasso(w, h, pts);
+  /** grow (expand) by n pixels: a square neighbourhood, clipped to mask (e.g. the used pixels) when given */
+  function selGrow(s, n, mask, w, h) {
+    w = w || W; h = h || H;
+    let cur = s;
+    for (let k = 0; k < (n || 1); k++) {
+      const out = new Uint8Array(cur);
+      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+        if (!cur[y * w + x]) continue;
+        for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) { const X = x + i, Y = y + j; if (X >= 0 && Y >= 0 && X < w && Y < h) out[Y * w + X] = 1; }
+      }
+      cur = out;
+    }
+    if (mask) for (let i = 0; i < cur.length; i++) cur[i] &= mask[i];
+    return cur;
+  }
+  /** shrink (contract) by n pixels: a pixel stays when its whole square neighbourhood is selected (the border counts as outside) */
+  function selShrink(s, n, w, h) {
+    w = w || W; h = h || H;
+    let cur = s;
+    for (let k = 0; k < (n || 1); k++) {
+      const out = new Uint8Array(cur.length);
+      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+        if (!cur[y * w + x]) continue;
+        let keep = 1;
+        for (let j = -1; j <= 1 && keep; j++) for (let i = -1; i <= 1; i++) { const X = x + i, Y = y + j; if (X < 0 || Y < 0 || X >= w || Y >= h || !cur[Y * w + X]) { keep = 0; break; } }
+        out[y * w + x] = keep;
+      }
+      cur = out;
+    }
+    return cur;
+  }
+  /** move a selection outline by (dx, dy) pixels (the pixels themselves stay) */
+  function selShift(s, dx, dy, w, h) {
+    w = w || W; h = h || H;
+    const out = new Uint8Array(s.length);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { if (!s[y * w + x]) continue; const X = x + dx, Y = y + dy; if (X >= 0 && Y >= 0 && X < w && Y < h) out[Y * w + X] = 1; }
+    return out;
   }
   const selInvert = (s) => s.map((v) => v ^ 1);
   const selCount = (s) => { let n = 0; for (let i = 0; i < s.length; i++) n += s[i]; return n; };
@@ -1102,7 +1153,7 @@ TH.skinsEngine = (function () {
     rayBox, partBox, hitPixel, pick, mirrorPixel, symPixels,
     BLENDS, newLayer, newDoc, addLayer, removeLayer, moveLayer, duplicateLayer, blendOnto, composite, mergeDown, flattenDoc, snapshot, restore,
     footprint, beginStroke, strokeTo, endStroke, linePts, drawLine, rectPts, drawRect, ellipsePts, drawEllipse, gradient, partCoord, partGradient, copyFace, unionRect, bayer,
-    floodSet, fill, replaceColor, pickColor, selNew, selRect, selLasso, selWand, selCombine, selInvert, selCount, selBounds, selEdges, lift, flTransform, drop,
+    floodSet, fill, replaceColor, pickColor, selNew, selRect, selLasso, selWand, selCombine, selEllipse, selPolygon, selGrow, selShrink, selShift, selInvert, selCount, selBounds, selEdges, lift, flTransform, drop,
     adjust, palette, History,
     fromLegacy, noAlpha, inNoAlpha, flattenBase, check, clearUnused, detectSlim, refitArms, clearPart, copyPart, puff, project, validate, downscale, importImage,
     encodePNG, crc32, bytesToB64, b64ToBytes, pngDataURL, bufToB64, b64ToBuf,

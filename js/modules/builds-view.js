@@ -88,8 +88,17 @@ TH.builds = TH.builds || {};
     const tr = role === 'f' || role === 'k' || role === 'fv' ? null : role;
     const tint = typeof d.tint === 'string' ? d.tint : d.tint && tr ? d.tint[tr] : null;
     const ov = d.ov && tr && d.ov[tr] && d.shape !== 'dust' ? d.ov[tr] : null;
-    return base + (tint ? tint : '') + (ov ? '+' + ov + d.ov.tint : '') + (d.alpha ? '@' + d.alpha : '') + (d.leafy ? '~' : '');
+    const glass = GLASS !== 'clear' && d.cut === 'translucent' && /glass/.test(base) ? '%' + GLASS : '';
+    return base + (tint ? tint : '') + (ov ? '+' + ov + d.ov.tint : '') + (d.alpha ? '@' + d.alpha : '') + (d.leafy ? '~' : '') + glass;
   }
+  /**
+   * How glass is drawn: 'tint' (default: the clear middle of glass gets a faint tint of its own colour, so panes and
+   * windows can be seen), 'solid' (nearly opaque, to read the shape) or 'clear' (as in the game). Set per mesh (opts.glass).
+   */
+  let GLASS = 'tint';
+
+  /** A game model uv [u0, v0, u1, v1] in texture pixels (v down) as our uv box (0..1, v up). */
+  const mcuv = (a, b, c, e) => [a / 16, 1 - e / 16, c / 16, 1 - b / 16];
 
   /** Growable typed buffer. */
   function Buf(T, n) { this.a = new T(n || 1024); this.n = 0; this.T = T; }
@@ -110,6 +119,7 @@ TH.builds = TH.builds || {};
    */
   function mesh(s, opts) {
     opts = opts || {};
+    GLASS = opts.glass || 'tint';
     const core = C(), [sx, sy, sz] = s.size, B = s.blocks, N = B.length;
     const ox = sx / 2, oz = sz / 2;
     // palette info
@@ -164,7 +174,12 @@ TH.builds = TH.builds || {};
       const ex = [e[0] / 16, e[1] / 16, e[2] / 16, e[3] / 16, e[4] / 16, e[5] / 16];
       const pts = F.c.map((q) => [ex[0] + (ex[3] - ex[0]) * q[0], ex[1] + (ex[4] - ex[1]) * q[1], ex[2] + (ex[5] - ex[2]) * q[2]]);
       let uv = pts.map((q) => { const d = sub(q, bl); return [dot(d, rt), dot(d, up)]; });
-      if (uvBox) uv = uv.map(([u, v]) => [uvBox[0] + (uvBox[2] - uvBox[0]) * u, uvBox[1] + (uvBox[3] - uvBox[1]) * v]);
+      // uvBox = [u0, v0, u1, v1] of the texture (0..1, v up) stretched over this face of the box (the game model's
+      // own uv: end rods, chains, candles and lanterns keep their part of the sheet in one corner of the texture)
+      if (uvBox) {
+        const us = uv.map((p) => p[0]), vs = uv.map((p) => p[1]), u0 = Math.min(...us), u1 = Math.max(...us), v0 = Math.min(...vs), v1 = Math.max(...vs);
+        uv = uv.map(([u, v]) => [uvBox[0] + (uvBox[2] - uvBox[0]) * ((u - u0) / Math.max(1e-6, u1 - u0)), uvBox[1] + (uvBox[3] - uvBox[1]) * ((v - v0) / Math.max(1e-6, v1 - v0))]);
+      }
       uv = rotUV(uv, rot || 0);
       const ti = tileOf(spec), v0 = g.verts;
       const cx = X - ox + 0.5, cy = Y + 0.5, cz = Z - oz + 0.5;
@@ -364,8 +379,8 @@ TH.builds = TH.builds || {};
             if (ns) flat('block/redstone_dust_line0' + red, 0, 0.3);
             if (ew) flat('block/redstone_dust_line0' + red, 1, 0.35);
           } else {
-            // cross plant: two diagonal planes, both sides
-            const spec = tileSpec(d, 's');
+            // cross plant: two diagonal planes, both sides (pointed dripstone picks its texture by direction and thickness)
+            const spec = info.name === 'pointed_dripstone' ? ['block', 'pointed_dripstone_' + (pr.vertical_direction === 'up' ? 'up' : 'down') + '_' + (pr.thickness || 'tip')].join('/') : tileSpec(d, 's');
             const P0 = [[0.08, 0.08], [0.92, 0.92]], P1 = [[0.92, 0.08], [0.08, 0.92]];
             for (const [a, b] of [P0, P1]) for (const back of [false, true]) {
               const v0 = g.verts, cx = x - ox + 0.5, cy = y + 0.5, cz = z - oz + 0.5;
@@ -390,29 +405,55 @@ TH.builds = TH.builds || {};
         }
         case 'snow': { const L = Math.max(1, Math.min(8, +pr.layers || 1)); cubeFaces(g, info, x, y, z, i, L >= 8 ? FULL : [0, 0, 0, 16, L * 2, 16]); break; }
         case 'rod': {
-          const t = /lightning/.test(info.name) ? 2 : /chain/.test(info.name) ? 1.5 : 1, c0 = 8 - t, c1 = 8 + t;
-          const ax = pr.axis || (pr.facing === 'east' || pr.facing === 'west' ? 'x' : pr.facing === 'north' || pr.facing === 'south' ? 'z' : 'y');
-          const box = ax === 'x' ? [0, c0, c0, 16, c1, c1] : ax === 'z' ? [c0, c0, 0, c1, c1, 16] : [c0, 0, c0, c1, 16, c1];
-          cubeFaces(g, info, x, y, z, i, box, { cull: false, role: () => ({ role: 's', rot: 0 }) });
+          // the game's models: end rod = 2 px rod on a 4 px base, lightning rod = 2 px rod under a 4 px head, chain = two
+          // crossed 3 px planes. Their texture sheets keep these parts in a corner, so each face gets the model's uv.
+          const tex = 'block/' + (info.name === 'chain' ? 'iron_chain' : info.name.replace(/^waxed_/, ''));   // 'chain' before 1.21.9
+          const fac = DIRV[pr.facing] ? pr.facing : 'up';
+          const ax = pr.axis || (fac === 'east' || fac === 'west' ? 'x' : fac === 'north' || fac === 'south' ? 'z' : 'y');
+          // a box given for an upright part (y along the rod) turned onto the rod's axis; `flip` = the rod points down / west / north
+          const flip = fac === 'down' || fac === 'west' || fac === 'north';
+          const turn = (b) => {
+            let [x0, y0, z0, x1, y1, z1] = b;
+            if (flip) { const a = 16 - y1, c = 16 - y0; y0 = a; y1 = c; }
+            return ax === 'x' ? [y0, x0, z0, y1, x1, z1] : ax === 'z' ? [x0, z0, y0, x1, z1, y1] : [x0, y0, z0, x1, y1, z1];
+          };
+          const along = (f) => (ax === 'x' ? f === 0 || f === 1 : ax === 'z' ? f === 4 || f === 5 : f === 2 || f === 3);
+          const part = (b, side, end) => cubeFaces(g, info, x, y, z, i, turn(b), { cull: false, spec: () => tex, role: () => ({ role: 's', rot: ax === 'y' ? 0 : 1 }), uv: (f) => (along(f) ? end : side) });
+          if (/chain$/.test(info.name)) {
+            // two crossed planes, both sides drawn
+            const planes = [[[6.5, 0, 8, 9.5, 16, 8], [4, 5], mcuv(0, 0, 3, 16)], [[8, 0, 6.5, 8, 16, 9.5], [0, 1], mcuv(3, 0, 6, 16)]];
+            planes.forEach(([b, fs, uvb]) => {
+              const bb = turn(b), keep = ax === 'y' ? fs : ax === 'x' ? (fs[0] === 4 ? [4, 5] : [2, 3]) : (fs[0] === 4 ? [2, 3] : [0, 1]);
+              cubeFaces(g, info, x, y, z, i, bb, { cull: false, skip: [0, 1, 2, 3, 4, 5].map((f) => !keep.includes(f)), spec: () => tex, role: () => ({ role: 's', rot: ax === 'y' ? 0 : 1 }), uv: () => uvb });
+            });
+          } else if (/lightning_rod$/.test(info.name)) {
+            part([7, 0, 7, 9, 12, 9], mcuv(0, 4, 2, 16), mcuv(0, 4, 2, 6));
+            part([6, 12, 6, 10, 16, 10], mcuv(0, 0, 4, 4), mcuv(0, 0, 4, 4));
+          } else {
+            part([6, 0, 6, 10, 1, 10], mcuv(2, 6, 6, 7), mcuv(2, 2, 6, 6));
+            part([7, 1, 7, 9, 16, 9], mcuv(0, 0, 2, 15), mcuv(2, 0, 4, 2));
+          }
           break;
         }
         case 'candle': {
-          const k = Math.max(1, Math.min(4, +pr.candles || 1)), spots = [[7, 7], [5, 9], [9, 6], [9, 10]];
-          for (let c = 0; c < k; c++) { const [a, b] = spots[c]; cubeFaces(g, info, x, y, z, i, [a, 0, b, a + 2, 6, b + 2], { cull: false, role: () => ({ role: 's', rot: 0 }) }); }
+          const k = Math.max(1, Math.min(4, +pr.candles || 1)), spots = [[7, 7], [5, 9], [9, 6], [9, 10]], hgt = [6, 5, 4, 3];
+          for (let c = 0; c < k; c++) { const [a, b] = spots[c]; cubeFaces(g, info, x, y, z, i, [a, 0, b, a + 2, hgt[c], b + 2], { cull: false, role: () => ({ role: 's', rot: 0 }), uv: (f) => (f === 2 || f === 3 ? mcuv(0, 6, 2, 8) : mcuv(0, 8, 2, 8 + hgt[c])) }); }
           break;
         }
         case 'lantern': {
           const up = pr.hanging === 'true' ? 1 : 0;
-          cubeFaces(g, info, x, y, z, i, [5, up, 5, 11, 7 + up, 11], { cull: false, role: () => ({ role: 's', rot: 0 }) });
-          cubeFaces(g, info, x, y, z, i, [6, 7 + up, 6, 10, 9 + up, 10], { cull: false, role: () => ({ role: 's', rot: 0 }) });
+          cubeFaces(g, info, x, y, z, i, [5, up, 5, 11, 7 + up, 11], { cull: false, role: () => ({ role: 's', rot: 0 }), uv: (f) => (f === 2 || f === 3 ? mcuv(0, 9, 6, 15) : mcuv(0, 2, 6, 9)) });
+          cubeFaces(g, info, x, y, z, i, [6, 7 + up, 6, 10, 9 + up, 10], { cull: false, role: () => ({ role: 's', rot: 0 }), uv: (f) => (f === 2 || f === 3 ? mcuv(1, 10, 5, 14) : mcuv(1, 0, 5, 2)) });
           break;
         }
         case 'pane': {
-          cubeFaces(g, info, x, y, z, i, [7, 0, 7, 9, 16, 9], { cull: false, role: () => ({ role: 's', rot: 0 }) });
-          [['east', 1, 0, [9, 0, 7, 16, 16, 9]], ['west', -1, 0, [0, 0, 7, 7, 16, 9]], ['south', 0, 1, [7, 0, 9, 9, 16, 16]], ['north', 0, -1, [7, 0, 0, 9, 16, 7]]].forEach(([nm2, dx, dz, box]) => {
-            const v = at(x + dx, y, z + dz), nb = v && P[v];
-            if (pr[nm2] === 'true' || (pr[nm2] == null && nb && (nb.occl || nb.shape === 'pane'))) cubeFaces(g, info, x, y, z, i, box, { cull: false, role: () => ({ role: 's', rot: 0 }) });
-          });
+          // the game's pane: a 2 px thick sheet along each connected side (the glass texture on its two faces, the
+          // "pane top" strip on its edges); a pane with no neighbour shows as a cross so it never vanishes
+          const edge = /_bars$/.test(info.name) ? tileSpec(d, 's') : 'block/' + info.name.replace(/_pane$/, '_pane_top');
+          const arms = [['east', 1, 0, [8, 0, 7, 16, 16, 9]], ['west', -1, 0, [0, 0, 7, 8, 16, 9]], ['south', 0, 1, [7, 0, 8, 9, 16, 16]], ['north', 0, -1, [7, 0, 0, 9, 16, 8]]];
+          const on = arms.filter(([nm2, dx, dz]) => { const v = at(x + dx, y, z + dz), nb = v && P[v]; return pr[nm2] === 'true' || (pr[nm2] == null && nb && (nb.occl || nb.shape === 'pane')); });
+          const list = on.length ? on : arms;
+          list.forEach(([, dx, , box]) => cubeFaces(g, info, x, y, z, i, box, { cull: false, spec: (f, r) => ((dx ? f === 4 || f === 5 : f === 0 || f === 1) ? tileSpec(d, r.role) : edge), role: () => ({ role: 's', rot: 0 }) }));
           break;
         }
         default: cubeFaces(g, info, x, y, z, i, FULL);
@@ -588,6 +629,18 @@ TH.builds = TH.builds || {};
   }
   /** Draw a tile spec into a 16x16 context: layers 'path#rrggbb' joined by '+', '@0.7' alpha suffix, '#name' procedural. */
   async function drawTile(spec, x) {
+    const gm = spec.match(/%(tint|solid)$/);
+    if (gm) {
+      // glass made visible: every see-through pixel gets at least this much of the glass's own colour
+      await drawTile(spec.slice(0, gm.index), x);
+      const im = x.getImageData(0, 0, 16, 16), d = im.data, floor = gm[1] === 'solid' ? 190 : 62;
+      let r = 0, g = 0, b = 0, w = 0;
+      for (let i = 0; i < d.length; i += 4) { const a = d[i + 3] / 255; r += d[i] * a; g += d[i + 1] * a; b += d[i + 2] * a; w += a; }
+      const avg = w > 0.5 ? [r / w, g / w, b / w] : [200, 220, 225];
+      for (let i = 0; i < d.length; i += 4) if (d[i + 3] < floor) { const t = d[i + 3] / 255; for (let c = 0; c < 3; c++) d[i + c] = d[i + c] * t + avg[c] * (1 - t); d[i + 3] = floor; }
+      x.putImageData(im, 0, 0);
+      return;
+    }
     if (spec.endsWith('~')) {
       // solid leaves (the game's "fast" look): the holes are filled with a darker shade of the leaf colour
       await drawTile(spec.slice(0, -1), x);
@@ -1244,7 +1297,7 @@ TH.builds = TH.builds || {};
       const id = ++S.buildId;
       S.schem = schem;
       if (!S.ready) return;
-      const reg = { tiles: [], tileIndex: new Map() }, ph = opts.phases && opts.phases.length > 1 ? opts.phases : null;
+      const reg = { tiles: [], tileIndex: new Map(), glass: S.glassMode }, ph = opts.phases && opts.phases.length > 1 ? opts.phases : null;
       const M = mesh(schem, reg);
       const Ms = ph ? ph.map((p) => (p.schem === schem ? M : mesh(p.schem, reg))) : [M];
       // texture atlas (tiles load in parallel; a failed one becomes the unknown tile)
@@ -1290,7 +1343,8 @@ TH.builds = TH.builds || {};
         if (!opts.keepZoom) { S.zoom = 1; S.goal = null; S.zgoal = null; }
       } else {
         // the same build again (block swaps, the mirrored preview): the camera stays exactly where the user moved it
-        if (!sameBox) { S.target = S.home.slice(); S.tgoal = null; }
+        // a new size (a slider in Create): the camera stays where it is, the orbit centre only moves back into the build
+        if (!sameBox) { S.target = bound(S.target); S.tgoal = null; }
         S.dist = fitDist();
       }
       if (opts.animate && S.mode !== 'still' && !reduced()) { S.t = 0; S.phase = 'in'; S.playing = true; }
@@ -1332,7 +1386,7 @@ TH.builds = TH.builds || {};
       const s = ed.schem, [sx, sy, sz] = s.size;
       const box = [cx * CH, cy * CH, cz * CH, Math.min(sx, (cx + 1) * CH), Math.min(sy, (cy + 1) * CH), Math.min(sz, (cz + 1) * CH)];
       const n0 = ed.reg.tiles.length;
-      const M = mesh(s, { still: true, box, tiles: ed.reg.tiles, tileIndex: ed.reg.tileIndex });
+      const M = mesh(s, { still: true, box, tiles: ed.reg.tiles, tileIndex: ed.reg.tileIndex, glass: S.glassMode });
       for (let k = n0; k < ed.reg.tiles.length; k++) edTile(ed.reg.tiles[k], k);
       const list = [];
       [[M.opaque, S.mats[0]], [M.trans, S.mats[1]]].forEach(([g, m], k) => {
@@ -1373,6 +1427,14 @@ TH.builds = TH.builds || {};
       S.dirty = true; wake();
     };
     S.inEdit = () => !!ed;
+    /** Glass: 'tint' (see-through with a faint tint, default), 'solid' (to read the shape), 'clear' (as in the game). */
+    S.glassMode = 'tint';
+    S.setGlass = (m) => {
+      S.glassMode = ['tint', 'solid', 'clear'].includes(m) ? m : 'tint';
+      if (!S.ready || !S.schem) return;
+      if (ed) S.setEdit(ed.schem, { keepView: true });
+      else S.setSchematic(S.schem, { keepView: true, keepZoom: true, phases: null });
+    };
     S.leaveEdit = () => { edClear(); ed = null; S.editInput = null; S.keyFilter = null; S.keyUp = null; };
     /** Re-mesh the chunks an edit touched (box inclusive, one block around it for the faces and shading). */
     S.editDirty = (box) => {

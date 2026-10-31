@@ -373,6 +373,17 @@ TH.builds = TH.builds || {};
       for (let y = 0; y < H2; y++) for (let z = 0; z < D2; z++) for (let x = 0; x < W2; x++) o.blocks[(y * D2 + z) * W2 + x] = clip.blocks[(Math.min(h - 1, Math.floor(y / f)) * d + Math.min(d - 1, Math.floor(z / f))) * w + Math.min(w - 1, Math.floor(x / f))];
       return run('Scale', () => { clearBox(b); stamp(o, [b[0], b[1], b[2]], false); });
     };
+    /** Smart resize of the selection (builds-resize.js: walls stay thin); it keeps its min corner. Returns { box, r }. */
+    W.resize = (box, size, mode) => {
+      const clip = W.copy(box), b = clipBox(box), r = TH.builds.resize.resize(clip, { size, mode });
+      if (r.s === clip) return { box: null, r };
+      const done = run('Resize', () => {
+        clearBox(b);
+        if (W.s.be) W.s.be = W.s.be.filter((e) => !(e.x >= b[0] && e.y >= b[1] && e.z >= b[2] && e.x <= b[3] && e.y <= b[4] && e.z <= b[5]));
+        stamp(r.s, [b[0], b[1], b[2]], false);
+      });
+      return { box: done, r, sel: [b[0], b[1], b[2], Math.min(sz()[0], b[0] + r.s.size[0]) - 1, Math.min(sz()[1], b[1] + r.s.size[1]) - 1, Math.min(sz()[2], b[2] + r.s.size[2]) - 1] };
+    };
     W.shade = (box, o) => {
       const b = box ? clipBox(box) : null, sh = TH.builds.shade.shade(W.s, Object.assign({}, o, { region: b }));
       if (sh === W.s) return null;

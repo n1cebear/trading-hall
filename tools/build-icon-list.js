@@ -69,6 +69,10 @@ for (const dir of ['js/modules', 'js/data']) {
       else Object.values(icon[2] || {}).forEach(add);
     }
   });
+  // textures the 3D viewer picks by state (builds-view.js): the edge strip of every glass pane, every pointed
+  // dripstone direction and thickness
+  Object.keys(D.b).forEach((n) => { if (/_pane$/.test(n)) keys.add('block/' + n + '_top'); });
+  ['up', 'down'].forEach((dir) => ['tip', 'tip_merge', 'frustum', 'middle', 'base'].forEach((th) => keys.add('block/pointed_dripstone_' + dir + '_' + th)));
   console.log((keys.size - before) + ' textures added from the block database');
 }
 

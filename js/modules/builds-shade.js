@@ -196,11 +196,16 @@ TH.builds = TH.builds || {};
       const v = D.variant(full, inf.kind);
       return v ? D.complete(core.stateOf(v, inf.props)) : null;
     };
+    // per-block ramps (a generator's body, base and trim each shade along their own ramp): base id -> ramp
+    const rampMap = o.ramps || null;
+    const rampsK = rampMap ? new Map([...new Set(rampMap.values())].map((r) => { const rr = steps(r, o.steps || r.length); return [r, rr]; })) : null;
+    const nrmIn = o.normals || null, boost = o.boost || null;
     for (let y = 0, i = 0; y < sy; y++) for (let z = 0; z < sz; z++) for (let x = 0; x < sx; x++, i++) {
       const inf = info[B[i]];
       if (!inf.change || !inReg(x, y, z)) continue;
       let nx = 0, ny = 0, nz = 0, open = 0;
-      for (const [dx, dy, dz, wx, wy, wz] of N26) if (!solidAt(x + dx, y + dy, z + dz)) { nx += wx; ny += wy; nz += wz; open++; }
+      if (nrmIn && (nrmIn[i * 3] || nrmIn[i * 3 + 1] || nrmIn[i * 3 + 2])) { nx = nrmIn[i * 3]; ny = nrmIn[i * 3 + 1]; nz = nrmIn[i * 3 + 2]; open = 1; }   // the shape's own surface normal: a flat facet shades as one plane
+      else for (const [dx, dy, dz, wx, wy, wz] of N26) if (!solidAt(x + dx, y + dy, z + dz)) { nx += wx; ny += wy; nz += wz; open++; }
       let t;
       const exposed = !solidAt(x + 1, y, z) || !solidAt(x - 1, y, z) || !solidAt(x, y + 1, z) || !solidAt(x, y - 1, z) || !solidAt(x, y, z + 1) || !solidAt(x, y, z - 1);
       const nl = Math.hypot(nx, ny, nz);
@@ -227,9 +232,12 @@ TH.builds = TH.builds || {};
         }
         t = clamp(0.5 + (v - 0.5) * contrast, 0, 1);
       }
+      // ridge highlights (+1) and a darker core / base (-1): a step up or down the ramp
+      if (boost && boost[i]) t = clamp(t + boost[i] * 0.22, 0, 1);
       const th = BAYER[((y & 3) * 4 + (z & 3)) * 4 + (x & 3)] - 0.5;
-      const k = clamp(Math.round(t * (K - 1) + th * dither), 0, K - 1);
-      const full = col ? colourBlock(k, t) : ramp[k];
+      const R = rampMap ? rampsK.get(rampMap.get(core.parse(s.palette[B[i]]).base)) || ramp : ramp, KK = R.length;
+      const k = clamp(Math.round(t * (KK - 1) + th * dither), 0, KK - 1);
+      const full = col ? colourBlock(Math.round(k * (K - 1) / Math.max(1, KK - 1)), t) : R[k];
       const id = variantOf(full, inf);
       if (id) OB[i] = core.pal(out, id);
     }

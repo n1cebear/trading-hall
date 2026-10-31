@@ -41,26 +41,29 @@
     ['eraser', 'Eraser', 'E', 'draw', 'Erase pixels', 'Eraser'],
     ['shade', 'Shade', 'S', 'draw', 'Lighten, darken, smudge or blur what is there', 'Shade'],
     ['noise', 'Noise and dither', 'N', 'draw', 'Add texture: random noise or a dither of both colours', 'Noise'],
-    ['line', 'Line', 'L', 'shape', 'Drag a straight line', 'Line'],
+    ['line', 'Line', 'U', 'shape', 'Drag a straight line', 'Line'],
     ['rect', 'Rectangle', 'R', 'shape', 'Drag a rectangle (filled or outline)', 'Box'],
     ['ellipse', 'Ellipse', 'O', 'shape', 'Drag an ellipse (filled or outline)', 'Ellipse'],
     ['gradient', 'Gradient', 'Q', 'shape', 'Drag from the first colour to the second', 'Gradient'],
     ['fill', 'Fill', 'G', 'fill', 'Fill an area of one colour', 'Fill'],
     ['replace', 'Replace colour', 'F', 'fill', 'Click a colour: every pixel of it becomes the current colour', 'Replace'],
     ['picker', 'Colour picker', 'I', 'fill', 'Click to take a colour', 'Picker'],
-    ['select', 'Select', 'M', 'select', 'Select pixels: box, lasso, magic wand or one colour', 'Select'],
-    ['move', 'Move', 'V', 'select', 'Drag the selection (or the whole layer) to move it', 'Move'],
+    ['marquee', 'Marquee', 'M', 'select', 'Drag a rectangle or an ellipse to select (Shift+M switches). Shift adds, Alt subtracts, both intersect. Double-click selects the face', 'Marquee'],
+    ['lasso', 'Lasso', 'L', 'select', 'Draw around pixels, or click corners for a polygon (Shift+L switches; double-click or Enter closes)', 'Lasso'],
+    ['wand', 'Magic wand', 'W', 'select', 'Click a colour: the touching pixels of it, or every pixel of it (Shift+W switches)', 'Wand'],
+    ['move', 'Move', 'V', 'select', 'Drag the selected pixels (Alt+drag moves a copy); without a selection the whole layer', 'Move'],
   ];
   const TOOL = Object.fromEntries(TOOLS.map((t) => [t[0], { id: t[0], label: t[1], key: t[2], group: t[3], hint: t[4], short: t[5] }]));
   const PAINT_TOOLS = new Set(['pencil', 'eraser', 'shade', 'noise']);
   const SHAPE_TOOLS = new Set(['line', 'rect', 'ellipse', 'gradient']);
+  const SEL_TOOLS = new Set(['marquee', 'lasso', 'wand']);
   const BASE_PARTS = [['head', 'Head'], ['body', 'Body'], ['rarm', 'Right arm'], ['larm', 'Left arm'], ['rleg', 'Right leg'], ['lleg', 'Left leg']];
   const MC_PALETTE = ['#f9fffe', '#9d9d97', '#474f52', '#1d1d21', '#835432', '#b02e26', '#f9801d', '#fed83d', '#80c71f', '#5e7c16', '#169c9c', '#3ab3da', '#3c44aa', '#8932b8', '#c74ebd', '#f38baa',
     '#f9d4b4', '#e0ac7c', '#c68642', '#8d5524', '#5c3a21', '#3b2416', '#2b1d0e', '#1f2a44'];
 
   const UI_DEFAULTS = {
     tool: 'pencil', size: 1, shape: 'square', hardness: 1, opacity: 1, amount: 0.25, shadeMode: 'darken', noiseMode: 'noise', tolerance: 0, contiguous: true, limit: 'none',
-    sample: 'layer', filled: false, gradType: 'linear', gradAxis: 'height', gradLayers: 'this', gradEnds: 'picked', gradSteps: 0, dither: false, selMode: 'rect', selOp: 'new', sym: { body: false, faceX: false, faceY: false },
+    sample: 'layer', filled: false, gradType: 'linear', gradAxis: 'height', gradLayers: 'this', gradEnds: 'picked', gradSteps: 0, dither: false, selMode: 'rect', selOp: 'new', marquee: 'rect', lassoMode: 'free', wandMode: 'wand', wandContig: true, sym: { body: false, faceX: false, faceY: false },
     color: '#3c44aaff', color2: '#f9fffeff', recent: [], palettes: [], anim: 'idle', speed: 1, bg: 'studio', bgColor: '#20212b', lit: false, litV: 2, overlay: 'none', gameLook: true,
     main: 'model', dock: true, dockZoom: 4, sheetZoom: 0, sheetGrid: true, sheetLabels: false, hidden: {}, locks: {}, capeOn: true, elytra: false, side: 'versions', view: 'model', defModel: 'auto',
     tab: 'layers', swatches: 'skin',
@@ -75,7 +78,15 @@
     s.ui = Object.assign(JSON.parse(JSON.stringify(UI_DEFAULTS)), s.ui && typeof s.ui === 'object' ? s.ui : {});
     const u = s.ui;
     u.sym = Object.assign({ body: false, faceX: false, faceY: false }, u.sym);
+    if (u.tool === 'select') u.tool = { lasso: 'lasso', wand: 'wand', colour: 'wand' }[u.selMode] || 'marquee';   // the old Select tool (before Oct 2026)
+    if (u.selMode === 'colour' && u.wandMode !== 'colour' && !u.selV) u.wandMode = 'colour';
+    u.selV = 2;
     if (!TOOL[u.tool]) u.tool = 'pencil';
+    if (!['new', 'add', 'sub', 'int'].includes(u.selOp)) u.selOp = 'new';
+    if (!['rect', 'ellipse'].includes(u.marquee)) u.marquee = 'rect';
+    if (!['free', 'poly'].includes(u.lassoMode)) u.lassoMode = 'free';
+    if (!['wand', 'colour'].includes(u.wandMode)) u.wandMode = 'wand';
+    u.wandContig = u.wandContig !== false;
     u.size = clamp(Math.round(+u.size || 1), 1, 8);
     ['opacity', 'hardness', 'amount'].forEach((k) => { u[k] = clamp(+u[k], 0, 1); if (!Number.isFinite(u[k])) u[k] = UI_DEFAULTS[k]; });
     if (!E.hex2rgba(u.color)) u.color = UI_DEFAULTS.color;
@@ -141,6 +152,10 @@
     swap: 'M5 7h10l-3-3M15 13H5l3 3', help: 'M7 7a3 3 0 1 1 4 2.8c-.7.3-1 .8-1 1.7M10 15h.01', zoomin: 'M8 3a5 5 0 1 0 0 10A5 5 0 0 0 8 3zM12 12l5 5M6 8h4M8 6v4', zoomout: 'M8 3a5 5 0 1 0 0 10A5 5 0 0 0 8 3zM12 12l5 5M6 8h4',
     flipH: 'M10 2v16M7 5L3 10l4 5zM13 5l4 5-4 5', flipV: 'M2 10h16M5 7l5-4 5 4zM5 13l5 4 5-4', rotL: 'M4 10a6 6 0 1 0 2-4.5M4 3v4h4', rotR: 'M16 10a6 6 0 1 1-2-4.5M16 3v4h-4',
     check: 'M4 10l4 4 8-8', side: 'M3 3h14v14H3zM12 3v14',
+    marquee: 'M3 3h3M8 3h4M14 3h3v3M17 8v4M17 14v3h-3M12 17H8M6 17H3v-3M3 12V8M3 6V3', emarq: 'M8 3h4M14 4l2 2M17 8v4M16 14l-2 2M12 17H8M6 16l-2-2M3 12V8M4 6l2-2', poly: 'M4 4l12 3-4 5 5 5H3z',
+    stayAny: 'M7 2h6v5H7zM6 8h8v6H6zM3 8h2v6H3zM15 8h2v6h-2zM7 15h2v4H7zM11 15h2v4h-2z', stayFace: 'M3 3h14v14H3zM7 7h6v6H7z', stayPart: 'M7 2h6v16H7zM3 2h2v16H3zM15 2h2v16h-2z',
+    smNew: 'M4 4h12v12H4z', smAdd: 'M3 3h9v5h5v9H8v-5H3z', smSub: 'M3 3h9v5H8v4H3zM11 11h6v6h-6z', smInt: 'M8 8h4v4H8zM3 3h9v2M3 3v9h2M17 17H8v-2M17 17V8h-2',
+    grow: 'M7 7h6v6H7zM3 3h3M14 3h3v3M17 14v3h-3M3 14v3h3M3 6V3', shrink: 'M3 3h14v14H3zM8 8h4v4H8z', inplace: 'M7 3h6v3H7zM5 5H4v13h12V5h-1M8 11h4v4H8z', reselect: 'M4 10a6 6 0 1 0 2-4.5M4 3v4h4M8 8h4v4H8z', bucket: 'M5 9l5-5 6 6-5 5zM5 9h11',
     cut: 'M6 3l8 10M14 3L6 13M3 13h5v5H3zM12 13h5v5h-5z', lasso: 'M5 4h10v2h2v6h-2v2H8v2H6v2M5 4H3v8h2M8 14H5v-2', wand: 'M3 17L13 7M12 3v2M16 6h-2M16 2l-1 1M9 4l1 1M15 9l-1-1', drop: 'M10 3l5 7v3l-2 3H7l-2-3v-3z', paste: 'M7 3h6v3H7zM5 5H4v13h12V5h-1M7 10h6M7 13h4', dup: 'M3 3h10v10H3zM7 7h10v10H7z',
     bsq: 'M5 5h10v10H5z', bround: 'M8 4h4v1h2v1h1v2h1v4h-1v2h-1v1h-2v1H8v-1H6v-1H5v-2H4V8h1V6h1V5h2z', bdia: 'M10 3l7 7-7 7-7-7z',
     view: 'M2 10s3-5 8-5 8 5 8 5-3 5-8 5-8-5-8-5zM8 10a2 2 0 1 0 4 0 2 2 0 1 0-4 0', layers: 'M10 3l7 4-7 4-7-4zM3 11l7 4 7-4',
@@ -498,9 +513,9 @@
       if (r) { pushRecent(secondary ? u.color2 : u.color); toast('Replaced ' + E.rgba2hex(from)); }
       return r;
     }
-    if (t === 'select' && (u.selMode === 'wand' || u.selMode === 'colour')) {
-      const s = E.selWand(u.sample === 'all' ? ED.comp : layer().buf, px, py, { tolerance: u.tolerance, contiguous: u.selMode === 'wand', limit: u.limit, model: model() });
-      setSel(combineSel(s, ev));
+    if (t === 'wand') {
+      const s = E.selWand(u.sample === 'all' ? ED.comp : layer().buf, px, py, { tolerance: u.tolerance, contiguous: u.wandMode === 'wand', limit: 'none', model: model() });
+      applySel(s, selOpOf(ev));
     }
     return null;
   }
@@ -511,15 +526,153 @@
     setColor(E.rgba2hex(c, true), secondary ? 1 : 0);
     toast('Picked ' + E.rgba2hex(c));
   }
-  const combineSel = (s, ev) => {
-    const o = ev && ev.shiftKey ? 'add' : ev && ev.altKey ? 'sub' : ui().selOp;
-    if (o === 'new' || !ED.sel) return o === 'sub' ? null : s;
-    return E.selCombine(ED.sel, s, o);
-  };
-  function setSel(s) { commitFloat(); ED.sel = s && E.selCount(s) ? s : null; Sheet.invalidate(); patchOptions(); selShown(); }
-  /** the model tints the selected pixels (not while a piece floats: the piece shows itself) */
-  let selOnModel = null;
-  function selShown() { const m = UI && ui().tool === 'select' && !ED.float && !ED.peek && selActive() ? ED.sel : null; if (m !== selOnModel) { selOnModel = m; V.setSelection(m); } }
+  /*
+   * ====================================================================== SELECTION (Photoshop model, Oct 2026)
+   * ONE selection (ED.sel, a 64x64 mask in texture space) shared by the model and the sheet, shown on both with marching
+   * ants whatever tool is active. Made with Marquee (rectangle / ellipse), Lasso (freehand / polygon), Magic wand (touching /
+   * every pixel of a colour) on either view, or a part name in the Body tab. Mode: New, Add (Shift), Subtract (Alt),
+   * Intersect (Shift+Alt); the keys in the strip set the default, the modifier keys win while held. While it exists every
+   * tool only changes the selected pixels (Part tools excepted). Ctrl+D deselects (kept for Reselect, Ctrl+Shift+D),
+   * Ctrl+A all, Ctrl+Shift+I inverts, Esc deselects when nothing else is going on.
+   */
+  /** the mode for an event: Shift+Alt = intersect, Shift = add, Alt = subtract, else the chosen mode */
+  const selOpOf = (ev) => (ev && ev.shiftKey && ev.altKey ? 'int' : ev && ev.shiftKey ? 'add' : ev && ev.altKey ? 'sub' : ui().selOp);
+  /** combine a new shape with the selection by mode (only used pixels can be selected) */
+  function applySel(shape, op) {
+    const used = usedMask(model()), m = new Uint8Array(4096);
+    for (let i = 0; i < 4096; i++) m[i] = shape[i] & used[i];
+    setSel(op === 'new' || !ED.sel ? (op === 'sub' || op === 'int' ? null : m) : E.selCombine(ED.sel, m, op));
+  }
+  /** keep: the selection may stay null; a cleared selection is remembered for Reselect */
+  function setSel(s) {
+    commitFloat();
+    const next = s && E.selCount(s) ? s : null;
+    if (ED.sel && !next) ED.lastSel = ED.sel;
+    ED.sel = next;
+    Sheet.invalidate(); patchOptions(); selShown();
+  }
+  function deselect() { if (!ED.sel) return false; setSel(null); return true; }
+  function reselect() { if (!ED.lastSel) { toast('There is no earlier selection'); return; } const s = ED.lastSel; setSel(s); }
+  function selectAll() { setSel(usedMask(model()).slice()); }
+  function invertSel() { const u = usedMask(model()); setSel(ED.sel ? E.selInvert(ED.sel).map((v, i) => v & u[i]) : u.slice()); }
+  function growSel(n) { if (!ED.sel) return; setSel(n > 0 ? E.selGrow(ED.sel, n, usedMask(model())) : E.selShrink(ED.sel, -n)); }
+  /** double-click with a marquee: the face under the pointer (Ctrl / Cmd: the whole part, both layers) */
+  function selectFaceAt(x, y, ev) {
+    const r = E.regionAt(model(), x, y);
+    if (!r) return;
+    const whole = ev && (ev.ctrlKey || ev.metaKey), P = E.PART[r.part];
+    const m = whole ? E.partsMask(model(), [r.part, P.outer || P.base]) : E.selRect(64, 64, r.rect.x, r.rect.y, r.rect.x + r.rect.w - 1, r.rect.y + r.rect.h - 1);
+    applySel(m, selOpOf(ev));
+    toast('Selected ' + (whole ? 'the ' + P.label.toLowerCase() + ' (both layers)' : P.label.toLowerCase() + ', ' + r.face));
+  }
+  /** move the selection OUTLINE (marquee tools: drag inside it, or the arrow keys); the pixels stay */
+  function shiftSel(dx, dy) { if (!ED.sel) return; ED.sel = E.selShift(ED.sel, dx, dy); Sheet.invalidate(); patchOptions(); selShown(); }
+  /** Alt+Backspace: fill the selection with the first colour (one undo step, also restricted to unlocked parts) */
+  function fillSel() {
+    if (!selActive()) { toast('Select something first'); return; }
+    const c = E.hex2rgba(ui().color), m = maskFor(null);
+    if (op('Fill selection', (buf) => { const dr = []; for (let i = 0; i < 4096; i++) if (m[i]) { buf.data.set(c, i * 4); dr.push(i); } return dr.length ? { x0: 0, y0: 0, x1: 63, y1: 63 } : null; })) pushRecent(ui().color);
+  }
+  /*
+   * ---- selection gestures, the same on both views ----
+   * ED.selDrag = { view: 'sheet' | 'model', kind: 'rect' | 'ellipse' | 'lasso' | 'poly' | 'outline', op, a, b, pts, rubber,
+   * shift0 / alt0 (modifiers held at the start pick the mode; pressed later they constrain / draw from the centre, as in
+   * Photoshop), moved }. Sheet points are texture pixels (floats), model points are client pixels; a model shape becomes
+   * texels with V.texelsIn (every texel you can see inside it, across faces).
+   */
+  function startSelDrag(view, p, ev, hitPx) {
+    const t = ui().tool, op = selOpOf(ev);
+    if (t === 'marquee' && op === 'new' && ED.sel && hitPx && ED.sel[hitPx[1] * 64 + hitPx[0]]) {   // drag inside the selection: move its outline
+      ED.selDrag = { view, kind: 'outline', last: hitPx, moved: false }; return;
+    }
+    const kind = t === 'marquee' ? ui().marquee : ui().lassoMode === 'poly' ? 'poly' : 'lasso';
+    ED.selDrag = { view, kind, op, a: p, b: p, pts: [p], shift0: !!(ev && ev.shiftKey), alt0: !!(ev && ev.altKey), moved: false };
+    drawSelDrag();
+  }
+  function moveSelDrag(p, ev, hitPx) {
+    const D = ED.selDrag; if (!D) return;
+    if (D.kind === 'outline') { if (hitPx && (hitPx[0] !== D.last[0] || hitPx[1] !== D.last[1])) { shiftSel(hitPx[0] - D.last[0], hitPx[1] - D.last[1]); D.last = hitPx; D.moved = true; } return; }
+    if (D.kind === 'poly') { D.rubber = p; drawSelDrag(); return; }
+    if (D.kind === 'lasso') { D.pts.push(p); D.moved = true; drawSelDrag(); return; }
+    D.b = p; D.shift = !!(ev && ev.shiftKey) && !D.shift0; D.alt = !!(ev && ev.altKey) && !D.alt0;
+    const far = D.view === 'sheet' ? Math.floor(p[0]) !== Math.floor(D.a[0]) || Math.floor(p[1]) !== Math.floor(D.a[1]) : Math.hypot(p[0] - D.a[0], p[1] - D.a[1]) > 3;
+    if (far) D.moved = true;
+    drawSelDrag();
+  }
+  /** the marquee box from the drag (Shift: square, Alt: from the centre); sheet: in cells, model: in client px */
+  function marqBox(D) {
+    const cell = D.view === 'sheet', f = cell ? Math.floor : (v) => v;
+    let ax = f(D.a[0]), ay = f(D.a[1]), bx = f(D.b[0]), by = f(D.b[1]);
+    if (D.shift) { const d = Math.max(Math.abs(bx - ax), Math.abs(by - ay)); bx = ax + (bx < ax ? -d : d); by = ay + (by < ay ? -d : d); }
+    if (D.alt) { ax -= bx - ax; ay -= by - ay; }
+    return [Math.min(ax, bx), Math.min(ay, by), Math.max(ax, bx), Math.max(ay, by)];
+  }
+  /** the texels inside the shape being drawn */
+  function selDragMask(D) {
+    if (D.view === 'sheet') {
+      if (D.kind === 'rect' || D.kind === 'ellipse') { const [x0, y0, x1, y1] = marqBox(D); return D.kind === 'rect' ? E.selRect(64, 64, x0, y0, x1, y1) : E.selEllipse(64, 64, x0, y0, x1, y1); }
+      return D.pts.length > 2 ? E.selPolygon(64, 64, D.pts) : null;
+    }
+    if (D.kind === 'rect' || D.kind === 'ellipse') {
+      const [x0, y0, x1, y1] = marqBox(D), cx = (x0 + x1) / 2, cy = (y0 + y1) / 2, rx = Math.max(0.5, (x1 - x0) / 2), ry = Math.max(0.5, (y1 - y0) / 2);
+      const test = D.kind === 'rect' ? () => true : (x, y) => ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2 <= 1;
+      return V.texelsIn(test, { x0, y0, x1, y1 });
+    }
+    const P = D.pts; if (P.length < 3) return null;
+    const xs = P.map((q) => q[0]), ys = P.map((q) => q[1]);
+    const inside = (x, y) => { let c = false; for (let i = 0, j = P.length - 1; i < P.length; j = i++) { const [xi, yi] = P[i], [xj, yj] = P[j]; if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) c = !c; } return c; };
+    return V.texelsIn(inside, { x0: Math.min(...xs), y0: Math.min(...ys), x1: Math.max(...xs), y1: Math.max(...ys) });
+  }
+  function endSelDrag() {
+    const D = ED.selDrag; if (!D || D.kind === 'poly') return;
+    ED.selDrag = null; ED.selPrev = null; drawSelDrag();
+    if (D.kind === 'outline') { if (!D.moved) deselect(); return; }   // a plain click inside the selection deselects (Photoshop)
+    if (!D.moved || (D.kind === 'lasso' && D.pts.length < 3)) { if (D.op === 'new') deselect(); return; }   // a click without a drag deselects
+    const m = selDragMask(D);
+    if (m) applySel(m, D.op);
+  }
+  /** polygonal lasso: a click adds a corner; a click on the first corner, a double-click or Enter closes it */
+  function polyClick(p, near) {
+    const D = ED.selDrag;
+    if (D.pts.length >= 3 && near(D.pts[0], p)) { finishPoly(); return; }
+    D.pts.push(p); D.rubber = null; drawSelDrag();
+  }
+  function finishPoly() { const D = ED.selDrag; if (!D || D.kind !== 'poly') return; ED.selDrag = null; ED.selPrev = null; drawSelDrag(); if (D.pts.length > 2) { const m = selDragMask(D); if (m) applySel(m, D.op); } }
+  function cancelSelDrag() { ED.selDrag = null; ED.selPrev = null; drawSelDrag(); }
+  /** show the shape being drawn: on the sheet as accent ants (marquee) or a line (lasso), on the model as a screen outline */
+  function drawSelDrag() {
+    const D = ED.selDrag;
+    ED.selPrev = D && D.view === 'sheet' && (D.kind === 'rect' || D.kind === 'ellipse') && D.moved ? selDragMask(D) : null;
+    Sheet.invalidate(); selShown();
+    const svg = UI && UI.marq;
+    if (!svg) return;
+    if (!D || D.view !== 'model' || D.kind === 'outline') { svg.hidden = true; return; }
+    const r = svg.getBoundingClientRect(), P = (q) => (q[0] - r.left).toFixed(1) + ',' + (q[1] - r.top).toFixed(1);
+    svg.setAttribute('viewBox', '0 0 ' + Math.max(1, r.width) + ' ' + Math.max(1, r.height));
+    let d = '';
+    if (D.kind === 'rect' || D.kind === 'ellipse') {
+      if (!D.moved) { svg.hidden = true; return; }
+      const [x0, y0, x1, y1] = marqBox(D), L = x0 - r.left, T = y0 - r.top, Wd = x1 - x0, Hd = y1 - y0;
+      d = D.kind === 'rect' ? 'M' + L + ',' + T + 'h' + Wd + 'v' + Hd + 'h' + -Wd + 'z'
+        : 'M' + (L + Wd / 2) + ',' + T + 'a' + Wd / 2 + ',' + Hd / 2 + ' 0 1 0 0.01,0z';
+    } else d = 'M' + D.pts.map(P).join('L') + (D.rubber ? 'L' + P(D.rubber) : '') + (D.kind === 'lasso' ? 'z' : '');
+    svg.querySelectorAll('path').forEach((pa) => pa.setAttribute('d', d));
+    svg.hidden = false;
+  }
+  /** the selection on the model (marching ants; the preview = a shape being drawn); phase moves the ants */
+  let selPhase = 0;
+  let shownSig = [];
+  function selShown() {
+    const m = !ED.peek && selActive() ? ED.sel : null, sig = [m, selPhase, ED.selPrev, V.ready];
+    if (sig.every((v, i) => v === shownSig[i])) return;   // only when something changed (touched() calls this on every stroke)
+    shownSig = sig; V.accent = getAccentCss(); V.setSelection(m, selPhase, ED.selPrev);
+  }
+  const getAccentCss = () => getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#8c96ff';
+  // the ants march (every 160 ms, only while a selection shows; still under reduced motion and in Lite mode)
+  setInterval(() => {
+    if (!UI || !UI.wrap.isConnected || document.hidden || !(ED.sel || ED.selPrev) || reduced() || document.documentElement.dataset.perf === 'lite') return;
+    selPhase = (selPhase + 1) % 6; Sheet.ants = selPhase; Sheet.invalidate(); selShown();
+  }, 160);
 
   /* ---- floating selection (move tool, paste, duplicate) ----
      ED.float = { piece: { x, y, w, h, data }, before (layer copy), layer, name, paste }. While it floats it is drawn over the
@@ -563,14 +716,15 @@
     }
     return r;
   }
-  function liftSel() {
+  /** lift the selection (no selection: the whole layer) into a floating piece; copy = Alt+drag: the original stays */
+  function liftSel(copy) {
     if (ED.float) return true;
     const L = layer();
     if (L.locked) { toast('This layer is locked'); return false; }
     const s = selActive() ? ED.sel : usedMask(model());
-    const before = E.cloneBuf(L.buf), piece = E.lift(L.buf, s, true);
+    const before = E.cloneBuf(L.buf), piece = E.lift(L.buf, s, !copy);
     if (!piece) { L.buf.data.set(before.data); toast('Nothing to move here'); return false; }
-    ED.float = { piece, before, layer: L, name: 'Move' };
+    ED.float = { piece, before, layer: L, name: copy ? 'Move a copy' : 'Move' };
     return true;
   }
   function moveFloat(dx, dy) { if (!ED.float && !liftSel()) return; ED.float.piece.x += dx; ED.float.piece.y += dy; touched(null); patchOptions(); }
@@ -657,6 +811,8 @@
     touched(null); patchOptions();
     return true;
   }
+  /** Ctrl+Shift+V: the clipboard floats exactly where it was copied from */
+  function pasteInPlace() { if (!ED.clip) { toast('Copy a selection first (Ctrl+C)'); return false; } return floatPaste(clonePiece(ED.clip), null, 'Paste in place'); }
   function pasteSel() {
     if (!ED.clip) { toast('Copy a selection first (Ctrl+C)'); return false; }
     return floatPaste(clonePiece(ED.clip), ED.hover, 'Paste');
@@ -986,16 +1142,18 @@
         x.font = '500 ' + Math.max(8, Math.round(k * 0.9)) + 'px ' + getComputedStyle(document.body).fontFamily;
         R.forEach((r) => { if (r.face === 'front' || r.w * k < 30) return; x.fillStyle = 'rgba(255,255,255,.7)'; x.fillText(r.face, (r.x + r.w / 2) * k, (r.y + r.h / 2) * k); });
       }
-      // selection: two-tone dashed outline
-      if (ED.sel && !ED.peek) {
-        const segs = E.selEdges(ED.sel);
+      // selection: marching ants (two-tone dashes; S.ants moves them), and the shape being drawn in the accent colour
+      const ants = (m, cols) => {
+        const segs = E.selEdges(m);
         x.lineWidth = Math.max(1, dpr * 1.2);
-        [['#000', 0], ['#fff', 4 * dpr]].forEach(([c, off]) => {
-          x.strokeStyle = c; x.setLineDash([4 * dpr, 4 * dpr]); x.lineDashOffset = off;
+        cols.forEach(([c, off]) => {
+          x.strokeStyle = c; x.setLineDash([4 * dpr, 4 * dpr]); x.lineDashOffset = off - (S.ants || 0) * dpr * 1.4;
           x.beginPath(); segs.forEach(([a, b, c2, d]) => { x.moveTo(a * k, b * k); x.lineTo(c2 * k, d * k); }); x.stroke();
         });
         x.setLineDash([]);
-      }
+      };
+      if (ED.sel && !ED.peek) ants(ED.sel, [['#000', 0], ['#fff', 4 * dpr]]);
+      if (ED.selPrev && !ED.peek) ants(ED.selPrev, [['rgba(0,0,0,.7)', 0], [getAccent(), 4 * dpr]]);
       if (ED.float && !ED.peek) {
         const p = ED.float.piece;
         x.strokeStyle = getAccent(); x.lineWidth = 2 * dpr; x.setLineDash([3 * dpr, 3 * dpr]);
@@ -1007,9 +1165,13 @@
         x.fillStyle = 'rgba(255,255,255,.28)'; x.strokeStyle = getAccent(); x.lineWidth = Math.max(1, dpr);
         pts.forEach(([px, py]) => { x.fillRect(px * k, py * k, k, k); x.strokeRect(px * k + 0.5, py * k + 0.5, k - 1, k - 1); });
       }
-      if (ED.lasso && ED.lasso.length > 1) {
+      const L = ED.selDrag && ED.selDrag.view === 'sheet' && ED.selDrag.pts;   // a lasso / polygon being drawn on the sheet
+      if (L && L.length) {
         x.strokeStyle = getAccent(); x.lineWidth = 1.5 * dpr; x.beginPath();
-        ED.lasso.forEach(([a, b], i) => (i ? x.lineTo(a * k, b * k) : x.moveTo(a * k, b * k))); x.stroke();
+        L.forEach(([a, b], i) => (i ? x.lineTo(a * k, b * k) : x.moveTo(a * k, b * k)));
+        if (ED.selDrag.rubber) x.lineTo(ED.selDrag.rubber[0] * k, ED.selDrag.rubber[1] * k);
+        x.stroke();
+        if (ED.selDrag.kind === 'poly') { x.fillStyle = getAccent(); L.forEach(([a, b]) => x.fillRect(a * k - 2 * dpr, b * k - 2 * dpr, 4 * dpr, 4 * dpr)); }
       }
     }
     let accent = null;
@@ -1017,7 +1179,10 @@
     S.themeChanged = () => { accent = null; S.invalidate(); };
     /* ---- input ---- */
     const at = (e) => { const r = cv.getBoundingClientRect(); return [Math.floor(((e.clientX - r.left) / r.width) * 64), Math.floor(((e.clientY - r.top) / r.height) * 64), ((e.clientX - r.left) / r.width) * 64, ((e.clientY - r.top) / r.height) * 64]; };
-    let drag = null, spaceDown = false, ptrs = new Map(), pinch = null;
+    let drag = null, spaceDown = false, ptrs = new Map(), pinch = null, lastDown = null;
+    const inside64 = (x, y) => x >= 0 && y >= 0 && x < 64 && y < 64;
+    /** a second left press on the same spot within 350 ms */
+    const isDbl = (e) => { const p = lastDown; lastDown = { t: e.timeStamp, x: e.clientX, y: e.clientY }; const d = p && e.timeStamp - p.t < 350 && Math.hypot(e.clientX - p.x, e.clientY - p.y) < 6; if (d) lastDown = null; return !!d; };
     window.addEventListener('keydown', (e) => { if (e.code === 'Space' && wrap.matches(':hover') && !/input|textarea/i.test(e.target.tagName)) { spaceDown = true; e.preventDefault(); } });
     window.addEventListener('keyup', (e) => { if (e.code === 'Space') spaceDown = false; });
     cv.addEventListener('contextmenu', (e) => e.preventDefault());
@@ -1026,23 +1191,29 @@
       ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
       if (ptrs.size === 2) { if (drag && drag.kind === 'paint') strokeCancel(); if (drag && drag.kind === 'grad') gradCancel(); drag = null; const a = [...ptrs.values()]; pinch = { d: Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y), z: z, sx: wrap.scrollLeft, sy: wrap.scrollTop, mx: (a[0].x + a[1].x) / 2, my: (a[0].y + a[1].y) / 2 }; return; }
       if (ED.peek) return;
-      const [px, py, fx, fy] = at(e), t = ui().tool, sec = e.button === 2;
-      if (e.button === 1 || spaceDown || t === 'orbit') { drag = { kind: 'pan', x: e.clientX, y: e.clientY, sx: wrap.scrollLeft, sy: wrap.scrollTop }; cv.classList.add('grab'); return; }
-      if (e.altKey && t !== 'select' && t !== 'move') { pickAt(px, py, sec); return; }
+      const [px, py, fx, fy] = at(e), t = ui().tool, sec = t === 'picker' && e.shiftKey;   // right-drag pans now: Shift-click picks the second colour
+      // right-drag or middle-drag moves the sheet's view (as in every viewport of the toolbox); Space+drag too
+      if (e.button === 2 || e.button === 1 || spaceDown || t === 'orbit') { drag = { kind: 'pan', x: e.clientX, y: e.clientY, sx: wrap.scrollLeft, sy: wrap.scrollTop }; cv.classList.add('grab'); return; }
+      if (e.button !== 0) return;
+      if (e.altKey && !SEL_TOOLS.has(t) && t !== 'move') { pickAt(px, py, sec); return; }
       if (PAINT_TOOLS.has(t)) { if (strokeStart(px, py, sec)) drag = { kind: 'paint' }; return; }
       if (t === 'gradient') { if (gradStart([px, py], sec)) drag = { kind: 'grad' }; return; }
       if (SHAPE_TOOLS.has(t)) { ED.shape = { a: [px, py], b: [px, py], sec }; drag = { kind: 'shape' }; S.invalidate(); return; }
-      if (t === 'select') {
-        const mode = ui().selMode;
-        if (mode === 'rect') { drag = { kind: 'box', a: [px, py], ev: e }; ED.boxSel = [px, py, px, py]; }
-        else if (mode === 'lasso') { drag = { kind: 'lasso', ev: e }; ED.lasso = [[fx, fy]]; }
-        else clickTool(px, py, sec, e);
-        S.invalidate(); return;
+      if (SEL_TOOLS.has(t)) {
+        const dbl = isDbl(e);
+        if (t === 'wand') { clickTool(px, py, sec, e); return; }
+        const fp = [clamp(fx, 0, 64), clamp(fy, 0, 64)];
+        if (ED.selDrag && ED.selDrag.kind === 'poly' && ED.selDrag.view === 'sheet') { if (dbl) finishPoly(); else polyClick(fp, (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]) < 0.9); return; }
+        if (t === 'marquee' && dbl) { cancelSelDrag(); selectFaceAt(px, py, e); return; }   // double-click: the face (Ctrl: the whole part)
+        startSelDrag('sheet', t === 'marquee' ? [px, py] : fp, e, inside64(px, py) ? [px, py] : null);
+        if (ED.selDrag && ED.selDrag.kind !== 'poly') drag = { kind: 'sel' };
+        return;
       }
       if (t === 'move') {
-        // a floating piece: grab it, or a click outside drops it; else lift the selection (or the layer) and drag it
+        // a floating piece: grab it, or a click outside drops it; else lift the selection (or the whole layer) and drag
+        // it; Alt+drag moves a copy and leaves the original in place (Photoshop)
         if (ED.float && !inPiece(ED.float.piece, px, py)) { commitFloat(); return; }
-        if (!liftSel()) return;
+        if (!liftSel(e.altKey)) return;
         drag = { kind: 'move', off: [px - ED.float.piece.x, py - ED.float.piece.y] }; touched(null); return;
       }
       clickTool(px, py, sec, e);
@@ -1061,7 +1232,9 @@
       const inside = px >= 0 && py >= 0 && px < 64 && py < 64;
       const prev = ED.hover;
       ED.hover = inside ? [px, py] : null;
+      if (ED.selDrag && ED.selDrag.kind === 'poly' && ED.selDrag.view === 'sheet') moveSelDrag([clamp(fx, 0, 64), clamp(fy, 0, 64)], e);   // the polygon's rubber band
       if (!drag) { if (!prev || !ED.hover || prev[0] !== px || prev[1] !== py) { S.invalidate(); hoverInfo(ED.hover); syncCursor3D(); } return; }
+      if (lastDown && Math.hypot(e.clientX - lastDown.x, e.clientY - lastDown.y) > 4) lastDown = null;
       if (drag.kind === 'pan') { wrap.scrollLeft = drag.sx - (e.clientX - drag.x); wrap.scrollTop = drag.sy - (e.clientY - drag.y); return; }
       if (drag.kind === 'paint') {
         const evs = e.getCoalescedEvents ? e.getCoalescedEvents() : [];
@@ -1071,8 +1244,7 @@
       }
       if (drag.kind === 'grad') { gradMove([clamp(px, 0, 63), clamp(py, 0, 63)]); return; }
       if (drag.kind === 'shape') { ED.shape.b = [clamp(px, 0, 63), clamp(py, 0, 63)]; S.invalidate(); syncCursor3D(); return; }
-      if (drag.kind === 'box') { ED.boxSel = [drag.a[0], drag.a[1], clamp(px, 0, 63), clamp(py, 0, 63)]; S.invalidate(); return; }
-      if (drag.kind === 'lasso') { ED.lasso.push([clamp(fx, 0, 64), clamp(fy, 0, 64)]); S.invalidate(); return; }
+      if (drag.kind === 'sel') { const D = ED.selDrag; if (D) moveSelDrag(D.kind === 'lasso' ? [clamp(fx, 0, 64), clamp(fy, 0, 64)] : [clamp(px, 0, 63), clamp(py, 0, 63)], e, inside ? [px, py] : null); return; }
       if (drag.kind === 'move' && ED.float) { placeFloat(px, py, drag.off); S.invalidate(); }
     });
     const up = (e) => {
@@ -1083,8 +1255,7 @@
       if (d.kind === 'paint') strokeEnd();
       else if (d.kind === 'grad') gradEnd();
       else if (d.kind === 'shape') { const s = ED.shape; ED.shape = null; shapeApply(s.a, s.b, s.sec); S.invalidate(); syncCursor3D(); }
-      else if (d.kind === 'box') { const b = ED.boxSel; ED.boxSel = null; setSel(combineSel(E.selRect(64, 64, b[0], b[1], b[2], b[3]), d.ev)); }
-      else if (d.kind === 'lasso') { const L = ED.lasso; ED.lasso = null; setSel(L.length > 2 ? combineSel(E.selLasso(64, 64, L), d.ev) : null); }
+      else if (d.kind === 'sel') endSelDrag();
     };
     cv.addEventListener('pointerup', up);
     cv.addEventListener('pointercancel', up);
@@ -1103,7 +1274,6 @@
       if (ui().tool === 'gradient') return E.linePts(ED.shape.a[0], ED.shape.a[1], ED.shape.b[0], ED.shape.b[1]);
       return shapePts(ui().tool, ED.shape.a, ED.shape.b);
     }
-    if (ED.boxSel) return E.rectPts(ED.boxSel[0], ED.boxSel[1], ED.boxSel[2], ED.boxSel[3], false);
     if (!ED.hover) return [];
     const t = ui().tool;
     if (!PAINT_TOOLS.has(t) && !SHAPE_TOOLS.has(t) && !['fill', 'replace', 'picker'].includes(t)) return [];
@@ -1121,9 +1291,19 @@
   /* ====================================================================== 3D view hookup */
   let last3D = null;   // last painted pixel on the model: connect only within the same face
   V.onPaint = (phase, hit, ev) => {
-    const t = ui().tool, sec = false;
+    const t = ui().tool, sec = t === 'picker' && !!(ev && ev.shiftKey);
     if (ED.peek) return;
-    if (phase === 'cancel') { strokeCancel(); gradCancel(); ED.shape = null; ED.box3 = null; ED.boxSel = null; ED.move3 = null; last3D = null; syncCursor3D(); return; }
+    if (phase === 'cancel') { strokeCancel(); gradCancel(); if (ED.selDrag && ED.selDrag.view === 'model' && ED.selDrag.kind !== 'poly') cancelSelDrag(); ED.shape = null; ED.move3 = null; last3D = null; syncCursor3D(); return; }
+    const cp = ev ? [ev.clientX, ev.clientY] : null;
+    if (SEL_TOOLS.has(t) && t !== 'wand') {   // marquee + lasso on the model: shapes on the screen (also beside the model)
+      const hp = hit ? [hit.x, hit.y] : null;
+      if (phase === 'start') {
+        if (ED.selDrag && ED.selDrag.kind === 'poly' && ED.selDrag.view === 'model') polyClick(cp, (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]) < 9);
+        else startSelDrag('model', cp, ev, hp);
+      } else if (phase === 'move') moveSelDrag(cp, ev, hp);
+      else if (phase === 'end') endSelDrag();
+      return;
+    }
     if (phase === 'start') {
       last3D = null;
       if (!hit) { if (ED.float && t === 'move') commitFloat(); return; }   // a click beside the model drops a floating piece
@@ -1131,13 +1311,9 @@
       if (PAINT_TOOLS.has(t)) { if (strokeStart(hit.x, hit.y, sec)) last3D = hit; return; }
       if (t === 'gradient') { gradStart([hit.x, hit.y], sec, hit.part + hit.face); return; }
       if (SHAPE_TOOLS.has(t)) { ED.shape = { a: [hit.x, hit.y], b: [hit.x, hit.y], sec, face: hit.part + hit.face }; syncCursor3D(); return; }
-      if (t === 'select' && ui().selMode === 'lasso') { toast('Draw lasso selections on the flat sheet (box, wand and colour work on the model)'); return; }
-      if (t === 'select' && ui().selMode === 'rect') {   // a box on one face of the model
-        ED.box3 = { a: [hit.x, hit.y], face: hit.part + hit.face, ev }; ED.boxSel = [hit.x, hit.y, hit.x, hit.y]; syncCursor3D(); Sheet.invalidate(); return;
-      }
       if (t === 'move') {   // grab the floating piece on the model (it follows the pixel under the pointer), a click outside drops it
         if (ED.float && !inPiece(ED.float.piece, hit.x, hit.y)) { commitFloat(); return; }
-        if (!liftSel()) return;
+        if (!liftSel(ev && ev.altKey)) return;
         ED.move3 = [hit.x - ED.float.piece.x, hit.y - ED.float.piece.y]; touched(null); return;
       }
       clickTool(hit.x, hit.y, sec, ev);
@@ -1155,7 +1331,6 @@
         const ok = ui().gradType === 'part' ? P && (hit.part === ra.part || hit.part === P.outer || hit.part === P.base) : hit.part + hit.face === G.face;
         if (ok) gradMove([hit.x, hit.y]);
       } else if (ED.shape && hit && hit.part + hit.face === ED.shape.face) { ED.shape.b = [hit.x, hit.y]; syncCursor3D(); Sheet.invalidate(); }
-      else if (ED.box3 && hit && hit.part + hit.face === ED.box3.face) { ED.boxSel = [ED.box3.a[0], ED.box3.a[1], hit.x, hit.y]; syncCursor3D(); Sheet.invalidate(); }
       else if (ED.move3 && hit && ED.float) placeFloat(hit.x, hit.y, ED.move3);
       return;
     }
@@ -1163,12 +1338,12 @@
       if (ED.stroke) strokeEnd();
       if (ED.grad) gradEnd();
       if (ED.shape) { const s = ED.shape; ED.shape = null; shapeApply(s.a, s.b, s.sec); syncCursor3D(); }
-      if (ED.box3) { const b = ED.boxSel, ev2 = ED.box3.ev; ED.box3 = null; ED.boxSel = null; setSel(combineSel(E.selRect(64, 64, b[0], b[1], b[2], b[3]), ev2)); syncCursor3D(); }
       ED.move3 = null;
       last3D = null;
     }
   };
-  V.onHover = (hit) => {
+  V.onHover = (hit, e) => {
+    if (e && ED.selDrag && ED.selDrag.kind === 'poly' && ED.selDrag.view === 'model') moveSelDrag([e.clientX, e.clientY], e);
     const nh = hit ? [hit.x, hit.y] : null, ph = ED.hover;
     if (ED.shape) return;
     if ((nh && ph && nh[0] === ph[0] && nh[1] === ph[1]) || (!nh && !ph)) return;
@@ -1176,6 +1351,11 @@
     hoverInfo(nh); syncCursor3D(); Sheet.invalidate();
   };
   V.onPickColor = (hit) => pickAt(hit.x, hit.y, false);
+  V.onDbl = (hit, e) => {
+    if (ED.selDrag && ED.selDrag.kind === 'poly' && ED.selDrag.view === 'model') { finishPoly(); return true; }
+    if (ui().tool === 'marquee') { cancelSelDrag(); if (hit) selectFaceAt(hit.x, hit.y, e); else deselect(); return true; }
+    return false;
+  };
   V.onAnim = () => patchViewBar();
   V.onRestore = () => { touched(null, { quiet: true, full: true }); applyCape(); };
 
@@ -1193,7 +1373,9 @@
     if (id !== 'move') commitFloat();
     if (ED.stroke) strokeEnd();
     if (ED.grad) gradEnd();
+    if (ED.selDrag) cancelSelDrag();   // a lasso / polygon in progress; the selection itself always stays (and stays visible)
     ED.shape = null;
+    V.altTool = SEL_TOOLS.has(id) || id === 'move';
     save((s) => { s.ui.tool = id; });
     // pose lock: painting always happens in the still pose; the Turn tool plays the chosen animation
     V.setLock(id !== 'orbit');
@@ -1209,7 +1391,7 @@
     ['Draw', ['pencil', 'eraser', 'shade', 'noise']],
     ['Shapes', ['line', 'rect', 'ellipse', 'gradient']],
     ['Colour', ['fill', 'replace', 'picker', '@adjust']],
-    ['Select', ['select', 'move']],
+    ['Select', ['marquee', 'lasso', 'wand', 'move']],
     ['View', ['orbit', '@ref']],
     ['Mirror and parts', ['@mirror', '@mirrorX', '@mirrorY', '@parts']],
   ];
@@ -1241,14 +1423,16 @@
     // tall windows: what the active tool does and what the mouse buttons do, at the foot of the palette
     const hName = h('b.sk-thelp-name'), hText = h('p.sk-thelp-text'), hMouse = h('p.sk-thelp-mouse');
     pal.append(h('div.sk-thelp', { 'aria-live': 'polite' }, hName, hText, hMouse));
-    const MOUSE = { orbit: 'Drag: turn · Shift-drag or middle-drag: move · wheel: zoom · double-click a part: go there', picker: 'Left: first colour · right: second colour',
-      select: 'Shift: add · Alt: take away · Ctrl+C / X / V, Ctrl+D duplicate', move: 'Drag or arrow keys · Enter or a click outside drops it · Esc cancels' };
+    const MOUSE = { orbit: 'Drag: turn · right-drag: move · wheel: zoom · double-click a part: go there', picker: 'Click: first colour · Shift-click: second colour',
+      marquee: 'Shift: add · Alt: subtract · both: intersect · after the start Shift = square, Alt = from the centre · drag inside: move the outline · click: deselect',
+      lasso: 'Shift: add · Alt: subtract · polygon: click corners, double-click or Enter closes', wand: 'Shift: add · Alt: subtract · Ctrl+D deselects',
+      move: 'Drag: move the selected pixels · Alt+drag: a copy · arrows nudge · Enter or a click outside drops it · Esc cancels' };
     const SYM = { '@mirror': 'body', '@mirrorX': 'faceX', '@mirrorY': 'faceY' };
     pal.paint = () => {
       btns.forEach((b, id) => { if (SYM[id]) press(b, ui().sym[SYM[id]]); else if (id[0] !== '@') press(b, ui().tool === id); });
       const t = TOOL[ui().tool];
       hName.textContent = t.label; hText.textContent = t.hint + '.';
-      hMouse.textContent = MOUSE[t.id] || 'Left: paint · Alt-click: pick · right-drag or Alt-drag: turn · middle or Space-drag: move · wheel: zoom · double-click a part: go there';
+      hMouse.textContent = MOUSE[t.id] || 'Left: paint (only inside a selection) · Alt-click: pick · right-drag: move the frame · middle or Alt-drag: turn · wheel: zoom';
     };
     return pal;
   }
@@ -1279,57 +1463,76 @@
     W.hard = slider('Hardness', 0, 1, 0.05, () => u().hardness, set('hardness'), pct);
     W.opacity = slider('Opacity', 0.05, 1, 0.05, () => u().opacity, set('opacity'), pct);
     W.amount = slider('Strength', 0.02, 1, 0.02, () => u().amount, set('amount'), pct);
-    W.limit = opt('Stay in', seg('Stay inside', [['none', 'Any', 'Paint anywhere'], ['face', 'Face', 'Stay inside the face you start on'], ['part', 'Part', 'Stay inside the body part you start on']], () => u().limit, set('limit')));
+    W.limit = opt('Stay in', seg('Stay inside', [['none', 'Anywhere', 'Paint anywhere (a selection still limits every tool)', 'stayAny'], ['face', 'This face', 'Stay inside the face you start on', 'stayFace'], ['part', 'This part', 'Stay inside the body part you start on (all its faces)', 'stayPart']], () => u().limit, set('limit'), 'sk-iseg'));
     W.shade = opt('Mode', seg('Shade mode', [['darken', 'Darken'], ['lighten', 'Lighten'], ['smudge', 'Smudge'], ['blur', 'Blur']], () => u().shadeMode, set('shadeMode')));
     W.noise = opt('Mode', seg('Noise mode', [['noise', 'Noise', 'Random light and dark pixels'], ['dither', 'Dither', 'A checker of the two colours']], () => u().noiseMode, set('noiseMode')));
     W.filled = opt('Style', seg('Fill', [[false, 'Outline'], [true, 'Filled']], () => u().filled, set('filled')));
     W.grad = opt('Type', seg('Gradient type', [['linear', 'Linear', 'Along the line you drag, on one face'], ['radial', 'Radial', 'Rings around the start, on one face'],
-      ['part', 'Whole part', 'Around the whole body part in 3D: front, back and sides get the same colour at the same height (drag along the part)']], () => u().gradType, (v) => { set('gradType')(v); bar.paint(); }));
+      ['part', 'Part', 'Whole part: around the body part in 3D: front, back and sides get the same colour at the same height (drag along the part)']], () => u().gradType, (v) => { set('gradType')(v); bar.paint(); }));
     W.gends = opt('Colours', seg('Gradient colours', [['picked', 'Picked', 'From the first colour to the second, exactly'], ['skin', 'Skin', 'From the colour under the start to the colour under the end']], () => u().gradEnds, set('gradEnds')));
     W.gaxis = opt('Runs', seg('Gradient direction', [['height', 'Down', 'Along the height of the part'], ['width', 'Across', 'Across the part, from its right side to its left']], () => u().gradAxis, set('gradAxis')));
     W.glayers = opt('Layers', seg('Gradient layers', [['this', 'This', 'Only the layer you start on (base or outer)'], ['both', 'Both', 'The base and the outer layer of the part']], () => u().gradLayers, set('gradLayers')));
     W.steps = stepper('Steps', 'Fewer steps', 'More steps', () => save((s) => { s.ui.gradSteps = s.ui.gradSteps <= 2 ? 0 : s.ui.gradSteps - 1; }),
       () => save((s) => { s.ui.gradSteps = s.ui.gradSteps < 2 ? 2 : Math.min(12, s.ui.gradSteps + 1); }), () => (u().gradSteps ? String(u().gradSteps) : 'Smooth'));
-    W.dither = opt('Pattern', toggle('Dither', () => u().dither, (v) => set('dither')(v), { tip: ['Dither', 'Mix neighbouring steps in a pixel pattern'] }));
+    W.dither = opt('Dither', toggle('Dither', () => u().dither, (v) => set('dither')(v), { icon: 'noise', text: false, tip: ['Dither', 'Mix neighbouring steps in a pixel pattern'] }));
     W.tol = slider('Tolerance', 0, 128, 1, () => u().tolerance, set('tolerance'), (v) => String(v));
     W.contig = opt('Area', seg('Fill area', [[true, 'Touching', 'Only the touching pixels of that colour'], [false, 'All', 'Every pixel of that colour']], () => u().contiguous, set('contiguous')));
     W.sample = opt('Look at', seg('Look at', [['layer', 'Layer', 'Compare colours on the active layer'], ['all', 'All', 'Compare what you see (all layers)']], () => u().sample, set('sample')));
-    W.selMode = opt('Select by', seg('Selection', [['rect', 'Box', 'Drag a box (on the sheet, or on one face of the model)', 'select'], ['lasso', 'Lasso', 'Draw around pixels on the flat sheet', 'lasso'],
-      ['wand', 'Magic wand', 'The touching pixels of one colour', 'wand'], ['colour', 'Same colour', 'Every pixel of one colour', 'drop']], () => u().selMode, (v) => { set('selMode')(v); bar.paint(); }, 'sk-iseg'));
-    W.selOp = opt('Combine', seg('Selection mode', [['new', 'New'], ['add', 'Add', 'Add (or hold Shift)'], ['sub', 'Minus', 'Take away (or hold Alt)']], () => u().selOp, set('selOp')));
-    const act = (icon, label, fn, key) => ibtn(icon, label, fn, { key, size: 14, cls: 'sk-mini' });
-    W.selActs = opt('Selection', h('div.sk-acts', act('select', 'Select all', () => setSel(usedMask(model()).slice()), 'Ctrl+A'), act('x', 'Select nothing', () => setSel(null), 'Ctrl+Shift+A'),
-      act('swap', 'Invert selection', () => setSel(ED.sel ? E.selInvert(ED.sel).map((v, i) => v & usedMask(model())[i]) : usedMask(model()).slice()), 'Ctrl+I'),
-      act('eraser', 'Delete the selected pixels', deleteSel, 'Del')));
-    // the clipboard: visible keys (icon + name); the paste floats at the pointer, ready to drag
-    const ck = (icon, label, full, key, sub, fn) => { const b = h('button.btn.small.sk-ck', { type: 'button', onclick: fn, 'aria-label': full + ', ' + key }, ico(icon, 14), h('span', label)); tip(b, [full + ' (' + key + ')', sub]); return b; };
-    const cCopy = ck('copy', 'Copy', 'Copy', 'Ctrl+C', 'The selected pixels of the active layer', () => copySel(false));
-    const cCut = ck('cut', 'Cut', 'Cut', 'Ctrl+X', 'Copy and clear the selected pixels', () => copySel(true));
-    const cPaste = ck('paste', 'Paste', 'Paste', 'Ctrl+V', 'Floats at the pointer (or where it came from): drag it, arrows nudge, Enter or a click outside drops it, Esc cancels', () => pasteSel());
-    const cDup = ck('dup', 'Duplicate', 'Duplicate', 'Ctrl+D', 'A floating copy of the selection, right next to it', () => duplicateSel());
-    W.clip = opt('Clipboard', h('div.sk-acts.sk-clip', cCopy, cCut, cPaste, cDup));
-    W.clip.paint = () => { const has = selActive() || !!ED.float; cCopy.disabled = !has; cCut.disabled = !selActive() || !!ED.float; cDup.disabled = !has; cPaste.disabled = !ED.clip; };
+    /* ---- selection tools (Photoshop model): the variant, the mode, the wand options, then the Edit keys ---- */
+    W.marqVar = opt('Shape', seg('Marquee shape', [['rect', 'Rectangle', 'Rectangular marquee (Shift+M switches)', 'marquee'], ['ellipse', 'Ellipse', 'Elliptical marquee (Shift+M switches)', 'emarq']], () => u().marquee, set('marquee'), 'sk-iseg'));
+    W.lassoVar = opt('Shape', seg('Lasso shape', [['free', 'Freehand', 'Lasso: draw around (Shift+L switches)', 'lasso'], ['poly', 'Polygon', 'Polygonal lasso: click the corners, double-click or Enter closes, Backspace takes the last corner back (Shift+L switches)', 'poly']], () => u().lassoMode, (v) => { cancelSelDrag(); set('lassoMode')(v); }, 'sk-iseg'));
+    W.wandVar = opt('Picks', seg('Magic wand', [['wand', 'Touching', 'Contiguous: the pixels of that colour that touch the one you click (Shift+W switches)'], ['colour', 'All', 'Select colour: every pixel of that colour in the whole skin (Shift+W switches)']], () => u().wandMode, (v) => { set('wandMode')(v); bar.paint(); }));
+    W.selOp = opt('Mode', seg('Selection mode', [['new', 'New selection', 'A drag replaces the selection', 'smNew'], ['add', 'Add', 'Add to the selection (hold Shift)', 'smAdd'],
+      ['sub', 'Subtract', 'Take away from the selection (hold Alt)', 'smSub'], ['int', 'Intersect', 'Keep only where both overlap (hold Shift+Alt)', 'smInt']], () => u().selOp, set('selOp'), 'sk-iseg'));
+    const act = (icon, label, fn, key, sub) => ibtn(icon, label, fn, { key, size: 14, cls: 'sk-mini', sub });
+    const eCopy = act('copy', 'Copy', () => copySel(false), 'Ctrl+C', 'The selected pixels of the active layer');
+    const eCut = act('cut', 'Cut', () => copySel(true), 'Ctrl+X', 'Copy and clear the selected pixels');
+    const ePaste = act('paste', 'Paste', () => pasteSel(), 'Ctrl+V', 'Floats at the pointer (or where it came from): drag it, arrows nudge, Enter or a click outside drops it, Esc cancels');
+    const eInPlace = act('inplace', 'Paste in place', () => pasteInPlace(), 'Ctrl+Shift+V', 'Floats exactly where it was copied from');
+    const eDup = act('dup', 'Duplicate', () => duplicateSel(), 'Ctrl+J', 'A floating copy of the selection (at the pointer, else right next to it)');
+    const eFill = act('bucket', 'Fill the selection', () => fillSel(), 'Alt+Backspace', 'With the first colour');
+    const eDel = act('eraser', 'Delete the selected pixels', () => deleteSel(), 'Delete', 'Clears them to transparent');
+    const eFlipH = act('flipH', 'Flip left-right', () => transformFloat('flipH'), 'Shift+H', 'Lifts the selection (no selection: the layer) and flips it; Enter drops it');
+    const eFlipV = act('flipV', 'Flip upside down', () => transformFloat('flipV'), 'Shift+V', 'Lifts the selection (no selection: the layer) and flips it; Enter drops it');
+    W.edit = opt('Edit', h('div.sk-acts', eCopy, eCut, ePaste, eInPlace, eDup, eFill, eDel));
+    W.edit.paint = () => { const has = selActive(); eCopy.disabled = !has && !ED.float; eCut.disabled = !has || !!ED.float; eDup.disabled = !has && !ED.float; ePaste.disabled = eInPlace.disabled = !ED.clip; eFill.disabled = eDel.disabled = !has && !ED.float; };
     W.snap = opt('Faces', toggle('Snap', () => ui().snapFace !== false, (v) => { save((s) => { s.ui.snapFace = v; }); }, { icon: 'side', tip: ['Snap to faces', 'A piece copied from one face lands at the same place on a face of the same size (front and back, the sides, an arm and its sleeve), pixel for pixel'] }));
-    W.moveActs = opt('Transform', h('div.sk-acts', act('flipH', 'Flip left-right', () => transformFloat('flipH'), 'Shift+H'), act('flipV', 'Flip upside down', () => transformFloat('flipV'), 'Shift+V'),
-      act('rotL', 'Turn left', () => transformFloat('rotCCW'), 'Shift+,'), act('rotR', 'Turn right', () => transformFloat('rotCW'), 'Shift+.'),
+    W.moveActs = opt('Transform', h('div.sk-acts', eFlipH, eFlipV, act('rotL', 'Turn left', () => transformFloat('rotCCW'), 'Shift+,'), act('rotR', 'Turn right', () => transformFloat('rotCW'), 'Shift+.'),
       act('check', 'Drop it here', () => commitFloat(), 'Enter'), act('x', 'Cancel the move', () => cancelFloat(), 'Esc')));
     const hint = (text) => h('p.sk-ohint', text);
-    W.orbit = hint('Drag to turn, Shift- or middle-drag to move, scroll to zoom toward the pointer, double-click a part to go there. The animation plays with this tool.');
-    W.picker = hint('Click a pixel to take its colour. Right-click sets the second colour. Alt-click picks with every tool.');
+    W.orbit = hint('Drag to turn, right-drag to move, scroll to zoom toward the pointer, double-click a part to go there. The animation plays with this tool.');
+    W.picker = hint('Click a pixel to take its colour (Shift-click: the second colour). Alt-click picks with every tool.');
     W.replace = hint('Click a colour: every pixel of it becomes the current colour.');
-    W.selInfo = h('span.sk-selinfo');
     const ROWS = {
       orbit: ['orbit'], pencil: ['size', 'shape', 'hard', 'opacity', 'limit'], eraser: ['size', 'shape', 'hard', 'opacity', 'limit'],
       shade: ['shade', 'size', 'shape', 'amount', 'limit'], noise: ['noise', 'size', 'shape', 'amount', 'limit'],
       line: ['size', 'opacity'], rect: ['filled', 'size', 'opacity'], ellipse: ['filled', 'size', 'opacity'],
       gradient: ['grad', 'gends', 'gaxis', 'glayers', 'steps', 'dither', 'opacity', 'limit'], fill: ['tol', 'contig', 'limit', 'sample', 'opacity'], replace: ['replace', 'tol', 'sample'],
-      picker: ['picker', 'sample'], select: ['selMode', 'selOp', 'tol', 'clip', 'selActs', 'selInfo'], move: ['clip', 'snap', 'moveActs', 'selInfo'],
+      picker: ['picker', 'sample'], marquee: ['marqVar', 'selOp', 'edit'], lasso: ['lassoVar', 'selOp', 'edit'], wand: ['wandVar', 'selOp', 'tol', 'edit'], move: ['edit', 'moveActs', 'snap'],
     };
     const tIco = h('span.sk-ot-ico'), tName = h('b.sk-ot-name'), tKey = h('kbd.sk-ot-key');
     const title = h('div.sk-ot', tIco, h('span.sk-ot-txt', tName, tKey));
     tip(title, () => [TOOL[u().tool].label + keyName(TOOL[u().tool].key), TOOL[u().tool].hint]);
     const row = h('div.sk-orow');
-    const bar = h('div.sk-opts', { role: 'group', 'aria-label': 'Tool options' }, title, row);
+    const cSize = h('b.sk-chip-size'), cAll = act('marquee', 'Select all', () => selectAll(), 'Ctrl+A'), cRe = act('reselect', 'Reselect', () => reselect(), 'Ctrl+Shift+D', 'The selection you had before');
+    const cGrow = act('grow', 'Grow by 1 px', () => growSel(1), null, 'Expand the selection by one pixel'), cShrink = act('shrink', 'Shrink by 1 px', () => growSel(-1), null, 'Contract the selection by one pixel');
+    const cInv = act('swap', 'Invert', () => invertSel(), 'Ctrl+Shift+I', 'Select everything else');
+    const cDes = h('button.btn.small.sk-deselect', { type: 'button', onclick: () => { commitFloat(); deselect(); } }, ico('x', 14), h('span', 'Deselect'));
+    tip(cDes, ['Deselect (Ctrl+D)', 'Esc works too; Ctrl+Shift+D brings it back']);
+    const chip = h('div.sk-chip', { role: 'group', 'aria-label': 'Selection' }, h('span.sk-chip-l', h('span.sk-ol', 'Selection'), cSize), h('div.sk-acts', cAll, cRe, cGrow, cShrink, cInv, cDes));
+    tip(cSize, () => (selActive() ? [E.selCount(ED.sel) + ' pixels selected', 'Every tool now only changes these pixels (Part tools excepted). Ctrl+D or Esc deselects'] : ['No selection', 'Draw one with the Marquee (M), Lasso (L) or Magic wand (W)']));
+    chip.paint = () => {
+      const t = u().tool, has = selActive();
+      chip.hidden = !(has || ED.float || SEL_TOOLS.has(t));
+      if (ED.float) cSize.textContent = 'Floating ' + ED.float.piece.w + ' × ' + ED.float.piece.h;
+      else if (has) { const b = E.selBounds(ED.sel); cSize.textContent = (b.x1 - b.x0 + 1) + ' × ' + (b.y1 - b.y0 + 1) + ' px'; }
+      else cSize.textContent = 'None';
+      chip.classList.toggle('has', has);
+      cAll.hidden = cRe.hidden = has || !!ED.float; cRe.disabled = !ED.lastSel;
+      cInv.hidden = cDes.hidden = !has || !!ED.float;
+      cGrow.hidden = cShrink.hidden = !has || !!ED.float || !SEL_TOOLS.has(t);   // grow / shrink with the selection tools; size, Invert and Deselect always
+    };
+    const bar = h('div.sk-opts', { role: 'group', 'aria-label': 'Tool options' }, title, row, chip);
     let shown = '';
     bar.paint = () => {
       const t = u().tool;
@@ -1342,21 +1545,20 @@
       }
       // hardness only means something for brushes bigger than one pixel; tolerance only for the wand and colour selections
       W.hard.hidden = u().size === 1;
-      W.tol.hidden = t === 'select' && (u().selMode === 'rect' || u().selMode === 'lasso');
       const whole = u().gradType === 'part';
       W.gaxis.hidden = W.glayers.hidden = !whole;
       // whole part: always smooth (room for its own options); Stay in does not apply
       if (t === 'gradient') { W.steps.hidden = W.dither.hidden = whole; } else { W.steps.hidden = W.dither.hidden = false; }
       if (t === 'gradient') W.limit.hidden = whole; else W.limit.hidden = false;
       Object.values(W).forEach((w) => w.paint && w.paint());
-      W.selInfo.textContent = ED.float ? 'Moving ' + ED.float.piece.w + ' × ' + ED.float.piece.h : selActive() ? E.selCount(ED.sel) + ' px selected' : t === 'move' ? 'No selection: moves the whole layer' : '';
+      chip.paint();
       fit();
     };
     /** close the strip up (title icon only, tighter keys) only when this tool's options would not fit; the height never changes */
     let fitW = 0, fitFor = '';
     function fit() {
       if (!bar.isConnected || !bar.clientWidth) return;
-      const sig = shown + (W.hard.hidden ? '' : 'h') + (W.tol.hidden ? '' : 't') + u().gradType;
+      const sig = shown + (W.hard.hidden ? '' : 'h') + u().wandMode + u().gradType + (chip.hidden ? '' : chip.className + (ED.float ? 'f' : ''));
       if (sig === fitFor && bar.clientWidth === fitW) return;
       fitFor = sig; fitW = bar.clientWidth;
       bar.classList.add('fitting');   // no transitions while measuring (seg keys animate their padding)
@@ -1402,6 +1604,7 @@
    */
   function buildStage() {
     const stage = h('div.sk-stage', { 'data-bg': 'studio' });
+    stage.addEventListener('contextmenu', (e) => e.preventDefault());   // right-drag moves the frame: never the browser menu
     applyBg(stage);
     const vb = (icon, label, fn, o) => ibtn(icon, label, fn, Object.assign({ cls: 'sk-vb', size: 16 }, o));
     /* ---- model overlays ---- */
@@ -1459,7 +1662,7 @@
       return b;
     });
     const focusGrp = h('div.sk-ovg', { role: 'group', 'aria-label': 'Go to a part' }, h('span.sk-ovl', { 'aria-hidden': 'true' }, 'Go to'), focusKeys);
-    const camHelp = vb('help', 'Camera', () => openKeys(), { tip: ['Camera', 'Right-drag or Alt+drag: turn', 'Middle-drag, Space+drag or Shift+right-drag: move', 'Wheel: zoom toward the pointer', 'Double-click a part: fly to it · Home: reset', 'Touch: two fingers move and pinch; one finger turns with the Turn tool'] });
+    const camHelp = vb('help', 'Camera', () => openKeys(), { tip: ['Camera', 'Right-drag or Space+drag: move the frame', 'Middle-drag or Alt+drag: turn (Alt+drag selects / copies with the selection and Move tools)', 'Wheel: zoom toward the pointer', 'Double-click a part: fly to it (a marquee selects the face) · Home: reset', 'Touch: two fingers move and pinch; one finger turns with the Turn tool'] });
     const zoomGrp = h('div.sk-ovg', { role: 'group', 'aria-label': 'Zoom' }, h('span.sk-ovl', { 'aria-hidden': 'true' }, 'Zoom'),
       vb('zoomout', 'Zoom out', () => V.zoomBy(1 / 1.2), { key: '-' }), vb('zoomin', 'Zoom in', () => V.zoomBy(1.2), { key: '+' }),
       vb('reset', 'Reset view', () => V.reset(), { key: 'Home', sub: 'The whole model from the front again' }), camHelp);
@@ -1471,6 +1674,11 @@
       h('div.sk-ov.sk-ov-tr', zoomGrp, viewBtn),
       h('div.sk-ov.sk-ov-bl', playGrp, info),
       h('div.sk-ov.sk-ov-dock', h('span.sk-ovl', 'Model'), swapM));
+    const NS = 'http://www.w3.org/2000/svg', marq = document.createElementNS(NS, 'svg');
+    marq.setAttribute('class', 'sk-marq'); marq.setAttribute('aria-hidden', 'true'); marq.hidden = true;
+    ['sk-marq-a', 'sk-marq-b'].forEach((c) => { const p = document.createElementNS(NS, 'path'); p.setAttribute('class', c); marq.append(p); });
+    modelPane.append(marq);
+    UI_STAGE.marq = marq;
     if (!V.ready) modelPane.append(h('div.sk-loading', 'Loading the 3D viewer…'));
     /* ---- the flat sheet card: its own controls in its head ---- */
     const sheetZoom = h('span.sk-zoomv');
@@ -1976,6 +2184,7 @@
     const puffRow = [['All', null], ['Hat', ['head']], ['Jacket', ['body']], ['Sleeves', ['rarm', 'larm']], ['Pants', ['rleg', 'lleg']]].map(([l, parts]) =>
       pt(l === 'All' ? 'Whole outer layer' : l, () => op('Make ' + l.toLowerCase(), (buf) => E.puff(buf, model(), puffMode, parts, false)), 'Builds it from the base layer; outer pixels you already painted stay'));
     openSheet('Part tools', [
+      h('p.sk-hint', 'Part tools work on whole parts and faces and ignore the selection (locked parts stay untouched). Every other tool only changes the selected pixels while there is a selection.'),
       h('h4', 'Copy a limb'), h('div.sk-row', seg('Copy as', [[true, 'Mirrored', 'Like a mirror image: the outer side stays outside'], [false, 'Same', 'Face by face, unchanged']], () => mirror, (v) => { mirror = v; })), h('div.sk-btnrow', copyRow),
       h('h4', 'Outer layer from the base'), h('div.sk-row', seg('Puff', [['copy', 'Copy', 'The whole base, one layer out'], ['outline', 'Outline', 'Only the rim of every face, a shade darker'], ['details', 'Details', 'Only what differs from the main colour of each face']], () => puffMode, (v) => { puffMode = v; })), h('div.sk-btnrow', puffRow),
       h('h4', 'Arm width'), h('p.sk-hint', 'Converting re-fits the arm pixels: slim drops one column of each arm face, classic doubles one.'),
@@ -2055,10 +2264,14 @@
     const rows = TOOLS.map((t) => [t[2], t[1]]).concat([
       ['[ / ]', 'Brush smaller / bigger'], ['X', 'Swap the two colours'], ['Alt + click', 'Pick a colour'], ['Y', 'Mirror painting on / off'], ['H', 'Show / hide the outer layer'],
       ['1 … 9, 0', 'Opacity 10 … 90 %, 100 %'], ['Shift + 1 / 2 / 3', 'Model big / flat sheet big / fold the docked view'], ['Ctrl + Z', 'Undo'], ['Ctrl + Y, Ctrl + Shift + Z', 'Redo'],
-      ['Ctrl + C / X / V', 'Copy / cut / paste the selection (paste floats at the pointer)'], ['Ctrl + D', 'Duplicate the selection (floats next to it)'], ['Ctrl + A', 'Select all'], ['Ctrl + Shift + A', 'Select nothing'],
-      ['Delete', 'Clear the selected pixels'], ['Arrows', 'Nudge a floating paste or the selection (Move tool), turn the model'],
-      ['Enter / Esc', 'Drop / cancel a floating paste or move (a click outside it drops it too)'],
-      ['Right-drag, Alt + drag', 'Turn the camera around the model'], ['Middle-drag, Space + drag, Shift + right-drag', 'Move the camera'], ['Wheel', 'Zoom toward the pointer'],
+      ['Shift + M / L / W', 'Rectangle ⇄ ellipse marquee · freehand ⇄ polygon lasso · magic wand ⇄ select colour'],
+      ['Shift / Alt / Shift + Alt + drag', 'Add to / subtract from / intersect with the selection'], ['Shift / Alt after the start', 'Square or circle / draw from the centre (marquee)'],
+      ['Ctrl + A', 'Select all'], ['Ctrl + D', 'Deselect'], ['Ctrl + Shift + D', 'Reselect'], ['Ctrl + Shift + I', 'Invert the selection'], ['Esc', 'Cancel a polygon or a floating piece, else deselect'],
+      ['Double-click (marquee)', 'Select the face under the pointer (Ctrl: the whole part)'], ['Arrows', 'Nudge the selected pixels (Move tool, floating piece) or the outline (selection tools)'],
+      ['Ctrl + C / X / V', 'Copy / cut / paste (paste floats at the pointer)'], ['Ctrl + Shift + V', 'Paste in place'], ['Ctrl + J', 'Duplicate the selection'],
+      ['Alt + Backspace', 'Fill the selection with the first colour'], ['Delete', 'Clear the selected pixels'], ['Alt + drag (Move)', 'Move a copy'],
+      ['Enter / Esc', 'Drop / cancel a floating piece (a click outside it drops it too)'],
+      ['Right-drag, Space + drag', 'Move the frame (pan), on the model and the sheet'], ['Middle-drag, Alt + drag', 'Turn the camera around the model'], ['Wheel', 'Zoom toward the pointer'],
       ['Double-click a part', 'Fly the camera to it, turned to that face'], ['Two fingers', 'Move and pinch-zoom (touch)'], ['K', 'Play / pause the animation'], ['Home (on the model)', 'Reset the view'],
       ['A', 'Adjust colours'], ['P', 'Part tools'], ['J', 'Reference image'], ['Ctrl + S', 'Save to My skins'], ['?', 'This card']]);
     openSheet('Keyboard shortcuts', h('dl.sk-keys', rows.map(([k, d]) => [h('dt', h('kbd', k)), h('dd', d)])), { wide: true });
@@ -2075,24 +2288,29 @@
       if (lk === 'z' && !e.shiftKey) { done(); undo(); }
       else if (lk === 'y' || (lk === 'z' && e.shiftKey)) { done(); redo(); }
       else if (lk === 's') { done(); saveToLibrary(); }
+      // the Photoshop Select / Edit menu keys
       else if (lk === 'c' && (selActive() || ED.float)) { done(); copySel(false); }
       else if (lk === 'x' && selActive()) { done(); copySel(true); }
-      else if (lk === 'v' && ED.clip) { done(); pasteSel(); }
-      else if (lk === 'd') { done(); duplicateSel(); }
-      else if (lk === 'a' && e.shiftKey) { done(); commitFloat(); setSel(null); }
-      else if (lk === 'a') { done(); setSel(usedMask(model()).slice()); }
-      else if (lk === 'i') { done(); setSel(ED.sel ? E.selInvert(ED.sel).map((v, i) => v & usedMask(model())[i]) : null); }
+      else if (lk === 'v' && ED.clip) { done(); if (e.shiftKey) pasteInPlace(); else pasteSel(); }
+      else if (lk === 'j') { done(); duplicateSel(); }
+      else if (lk === 'd' && e.shiftKey) { done(); reselect(); }
+      else if (lk === 'd') { done(); if (ED.float) commitFloat(); if (!deselect()) toast('Nothing is selected'); }
+      else if (lk === 'a' && !e.shiftKey) { done(); selectAll(); }
+      else if (lk === 'i' && e.shiftKey) { done(); invertSel(); }
       else if (lk === 'n' && e.altKey) { done(); openNew(); }
       return;
     }
     if (sheetEl && !sheetEl.classList.contains('modeless')) return;
+    if (e.altKey && (k === 'Backspace' || k === 'Delete')) { done(); fillSel(); return; }
     if (e.altKey) return;
+    // Shift + the tool key switches the variant, as in Photoshop: M rectangle / ellipse, L freehand / polygon, W wand / colour
+    const VARIANT = { m: ['marquee', 'marquee', ['rect', 'ellipse']], l: ['lasso', 'lassoMode', ['free', 'poly']], w: ['wand', 'wandMode', ['wand', 'colour']] }[lk];
+    if (e.shiftKey && VARIANT) { done(); const [tl, key, vals] = VARIANT; if (ui().tool === tl) save((st) => { st.ui[key] = vals[(vals.indexOf(st.ui[key]) + 1) % vals.length]; }); setTool(tl); return; }
     if (e.shiftKey && /^Digit[123]$/.test(e.code)) { done(); setView({ Digit1: 'model', Digit2: 'sheet', Digit3: 'both' }[e.code]); return; }
     if (e.shiftKey && lk === 'h' && (ED.float || ui().tool === 'move')) { done(); transformFloat('flipH'); return; }
     if (e.shiftKey && lk === 'v' && (ED.float || ui().tool === 'move')) { done(); transformFloat('flipV'); return; }
     if (e.shiftKey && (k === '<' || k === ',')) { done(); transformFloat('rotCCW'); return; }
     if (e.shiftKey && (k === '>' || k === '.')) { done(); transformFloat('rotCW'); return; }
-    if (e.shiftKey && lk === 'l') { done(); save((s) => { s.ui.lit = !s.ui.lit; }); V.setLighting(ui().lit); patchViewBar(); return; }
     if (e.shiftKey && lk === 'g') { done(); const n = { none: 'grid', grid: 'parts', parts: 'none' }[ui().overlay]; save((s) => { s.ui.overlay = n; }); V.setOverlay(n); patchViewBar(); return; }
     const tool = TOOLS.find((t) => t[2].toLowerCase() === lk && !e.shiftKey);
     if (tool) { done(); setTool(tool[0]); return; }
@@ -2106,11 +2324,17 @@
     if (lk === 'p') { done(); openPartTools(); return; }
     if (lk === 'j') { done(); openReference(); return; }
     if (k === '?') { done(); openKeys(); return; }
+    if (k === 'Enter' && ED.selDrag && ED.selDrag.kind === 'poly') { done(); finishPoly(); return; }
     if (k === 'Enter' && ED.float) { done(); commitFloat(); toast('Dropped'); return; }
-    if (k === 'Escape') { if (ED.float) { done(); cancelFloat(); } else if (ED.sel) { done(); setSel(null); } return; }
+    if (k === 'Backspace' && ED.selDrag && ED.selDrag.kind === 'poly') { done(); ED.selDrag.pts.pop(); if (!ED.selDrag.pts.length) cancelSelDrag(); else drawSelDrag(); return; }
+    // Esc: cancels what is going on (a polygon, a floating piece), else deselects
+    if (k === 'Escape') { if (ED.selDrag) { done(); cancelSelDrag(); } else if (ED.float) { done(); cancelFloat(); } else if (ED.sel) { done(); deselect(); } return; }
     if ((k === 'Delete' || k === 'Backspace') && (selActive() || ED.float)) { done(); deleteSel(); return; }
     const arrow = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[k];
-    if (arrow && (ED.float || (ui().tool === 'move' && !(document.activeElement && document.activeElement.closest && document.activeElement.closest('.sk-canvas'))))) { done(); const n = e.shiftKey ? 4 : 1; moveFloat(arrow[0] * n, arrow[1] * n); return; }
+    const onCanvas = document.activeElement && document.activeElement.closest && document.activeElement.closest('.sk-canvas');
+    // arrows: a floating piece / the Move tool nudge pixels, a selection tool nudges the outline (Shift = 4 px)
+    if (arrow && (ED.float || (ui().tool === 'move' && !onCanvas))) { done(); const n = e.shiftKey ? 4 : 1; moveFloat(arrow[0] * n, arrow[1] * n); return; }
+    if (arrow && SEL_TOOLS.has(ui().tool) && ED.sel) { done(); const n = e.shiftKey ? 4 : 1; shiftSel(arrow[0] * n, arrow[1] * n); return; }
     if (k === '0' && !e.shiftKey) { done(); V.reset(); }
   }, true);
   window.addEventListener('paste', (e) => {
@@ -2192,7 +2416,7 @@
       h('div.sk-dropall', { 'aria-hidden': 'true' }, 'Drop a skin PNG to open it'));
     color.onColor = () => { const c = E.hex2rgba(ui().color); colKey.style.setProperty('--c', 'rgba(' + c.slice(0, 3) + ',' + c[3] / 255 + ')'); };
     color.onColor();
-    UI = { wrap, top, rail, opts, viewer: stage, stage, color, layers, side, tabs, right, sheetZoom: UI_STAGE.sheetZoom, info: UI_STAGE.info };
+    UI = { wrap, top, rail, opts, viewer: stage, stage, color, layers, side, tabs, right, sheetZoom: UI_STAGE.sheetZoom, info: UI_STAGE.info, marq: UI_STAGE.marq };
     phoneMQ.addEventListener('change', () => { if (sheetEl && sheetEl.querySelector('.sk-right')) closeSheet(); applyView(); });
     new MutationObserver(() => Sheet.themeChanged()).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'data-tool', 'data-style'] });
     return UI;

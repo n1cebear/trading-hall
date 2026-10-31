@@ -309,22 +309,22 @@ TH.builds = TH.builds || {};
   /* ======================================================================
    * Glow: blocks that light up, in their lit states
    * ====================================================================== */
+  // light = the game's light level of the block (15 = brightest); colour words as they look lit
   const GLOW = {
-    sea_lantern: { name: 'Sea lantern', id: 'minecraft:sea_lantern' },
-    shroomlight: { name: 'Shroomlight', id: 'minecraft:shroomlight' },
-    glowstone: { name: 'Glowstone', id: 'minecraft:glowstone' },
-    copper_bulb: { name: 'Copper bulb', id: 'minecraft:copper_bulb[lit=true,powered=false]' },
-    redstone_lamp: { name: 'Redstone lamp', id: 'minecraft:redstone_lamp[lit=true]' },
-    froglight: { name: 'Froglight', id: 'minecraft:pearlescent_froglight[axis=y]' },
-    ochre: { name: 'Ochre froglight', id: 'minecraft:ochre_froglight[axis=y]' },
-    verdant: { name: 'Verdant froglight', id: 'minecraft:verdant_froglight[axis=y]' },
-    crying: { name: 'Crying obsidian', id: 'minecraft:crying_obsidian' },
-    magma: { name: 'Magma behind glass', id: 'minecraft:magma_block', behind: 'minecraft:orange_stained_glass' },
-    lava: { name: 'Lava behind glass', id: 'minecraft:lava[level=0]', behind: 'minecraft:orange_stained_glass' },
-    amethyst: { name: 'Amethyst', id: 'minecraft:amethyst_block', decor: 'minecraft:amethyst_cluster' },
-    sculk: { name: 'Sculk', id: 'minecraft:sculk' },
-    end_rod: { name: 'End rods', id: 'minecraft:sea_lantern', decor: 'minecraft:end_rod' },
-    candles: { name: 'Candles', id: 'minecraft:shroomlight', decor: 'minecraft:candle' },
+    sea_lantern: { name: 'Sea lantern', id: 'minecraft:sea_lantern', light: 15, colour: 'cool white' },
+    froglight: { name: 'Pearl froglight', id: 'minecraft:pearlescent_froglight[axis=y]', light: 15, colour: 'soft pink' },
+    verdant: { name: 'Verdant froglight', id: 'minecraft:verdant_froglight[axis=y]', light: 15, colour: 'pale green' },
+    ochre: { name: 'Ochre froglight', id: 'minecraft:ochre_froglight[axis=y]', light: 15, colour: 'warm yellow' },
+    shroomlight: { name: 'Shroomlight', id: 'minecraft:shroomlight', light: 15, colour: 'orange' },
+    glowstone: { name: 'Glowstone', id: 'minecraft:glowstone', light: 15, colour: 'yellow' },
+    copper_bulb: { name: 'Copper bulb', id: 'minecraft:copper_bulb[lit=true,powered=false]', light: 15, colour: 'warm orange' },
+    redstone_lamp: { name: 'Redstone lamp', id: 'minecraft:redstone_lamp[lit=true]', light: 15, colour: 'warm yellow' },
+    lava: { name: 'Lava behind glass', id: 'minecraft:lava[level=0]', behind: 'minecraft:orange_stained_glass', light: 15, colour: 'orange' },
+    end_rod: { name: 'End rods', id: 'minecraft:pearlescent_froglight[axis=y]', decor: 'minecraft:end_rod', light: 14, colour: 'white' },
+    crying: { name: 'Crying obsidian', id: 'minecraft:crying_obsidian', light: 10, colour: 'purple' },
+    amethyst: { name: 'Amethyst', id: 'minecraft:pearlescent_froglight[axis=y]', decor: 'minecraft:amethyst_cluster', light: 15, colour: 'soft pink, clusters' },
+    magma: { name: 'Magma behind glass', id: 'minecraft:magma_block', behind: 'minecraft:orange_stained_glass', light: 3, colour: 'dim red' },
+    candles: { name: 'Candles', id: 'minecraft:shroomlight', decor: 'minecraft:candle', light: 15, colour: 'orange, candles' },
   };
   /** A decoration (amethyst cluster, end rod, candle) attached to a surface, pointing along `dir` ('up', 'north' ...). */
   function decorState(base, dir, k) {

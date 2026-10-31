@@ -491,4 +491,49 @@ t('copyFace: front to back keeps every pixel (same or mirrored); different width
   for (let y = 0; y < L.h; y++) assert.deepStrictEqual(px(b, L.x, L.y + y), px(b, F.x, F.y + y), 'row ' + y);
 });
 
+/* ---- Photoshop-like selections (Oct 2026): shapes, boolean modes, grow / shrink, moving the outline, Alt-copy ---- */
+const selOf = (cells) => { const s = E.selNew(); cells.forEach(([x, y]) => { s[y * 64 + x] = 1; }); return s; };
+const cellsOf = (s) => { const out = []; for (let i = 0; i < s.length; i++) if (s[i]) out.push((i % 64) + ',' + ((i / 64) | 0)); return out; };
+t('selEllipse: a 5x5 ellipse is a plus-ish disc, symmetric, inside its box', () => {
+  const s = E.selEllipse(64, 64, 10, 10, 14, 14);
+  assert.strictEqual(s[12 * 64 + 12], 1); assert.strictEqual(s[10 * 64 + 10], 0, 'corners stay out'); assert.strictEqual(s[10 * 64 + 12], 1); assert.strictEqual(s[12 * 64 + 10], 1);
+  assert.strictEqual(E.selCount(s), E.selCount(E.selEllipse(64, 64, 14, 14, 10, 10)), 'corner order does not matter');
+  for (let y = 0; y < 64; y++) for (let x = 0; x < 64; x++) if (s[y * 64 + x]) { assert(x >= 10 && x <= 14 && y >= 10 && y <= 14); assert.strictEqual(s[y * 64 + (24 - x)], 1, 'mirror symmetric'); }
+  assert.strictEqual(E.selCount(E.selEllipse(64, 64, 3, 3, 3, 3)), 1, 'a one-pixel ellipse is that pixel');
+});
+t('selPolygon: a triangle selects the pixel centres inside it', () => {
+  const s = E.selPolygon(64, 64, [[0, 0], [8, 0], [0, 8]]);
+  assert.strictEqual(s[0], 1); assert.strictEqual(s[1 * 64 + 1], 1); assert.strictEqual(s[7 * 64 + 7], 0);
+});
+t('selCombine: new, add, subtract, intersect (the four Photoshop modes)', () => {
+  const a = selOf([[1, 1], [2, 1]]), b = selOf([[2, 1], [3, 1]]);
+  assert.deepStrictEqual(cellsOf(E.selCombine(a, b, 'new')), ['2,1', '3,1']);
+  assert.deepStrictEqual(cellsOf(E.selCombine(a, b, 'add')), ['1,1', '2,1', '3,1']);
+  assert.deepStrictEqual(cellsOf(E.selCombine(a, b, 'sub')), ['1,1']);
+  assert.deepStrictEqual(cellsOf(E.selCombine(a, b, 'int')), ['2,1']);
+  assert.deepStrictEqual(cellsOf(E.selInvert(E.selInvert(a))), cellsOf(a));
+});
+t('selGrow / selShrink by n pixels (square neighbourhood), shrink of a 1px line is empty, mask clips grow', () => {
+  const one = selOf([[5, 5]]);
+  assert.strictEqual(E.selCount(E.selGrow(one, 1)), 9); assert.strictEqual(E.selCount(E.selGrow(one, 2)), 25);
+  const sq = E.selRect(64, 64, 2, 2, 6, 6);
+  assert.strictEqual(E.selCount(E.selShrink(sq, 1)), 9); assert.strictEqual(E.selCount(E.selShrink(sq, 2)), 1); assert.strictEqual(E.selCount(E.selShrink(E.selRect(64, 64, 0, 0, 9, 0), 1)), 0);
+  const edge = E.selRect(64, 64, 0, 0, 3, 3);
+  assert.strictEqual(E.selCount(E.selShrink(edge, 1)), 4, 'the texture border counts as outside');
+  const mask = E.selRect(64, 64, 5, 0, 5, 63);
+  assert.deepStrictEqual(cellsOf(E.selGrow(one, 1, mask)), ['5,4', '5,5', '5,6']);
+});
+t('selShift moves the outline (not pixels), clipped at the texture edge', () => {
+  assert.deepStrictEqual(cellsOf(E.selShift(selOf([[1, 1], [63, 2]]), 2, 1)), ['3,2']);
+});
+t('Move with Alt = copy: lift without cutting keeps the source, the dropped copy lands where it was moved', () => {
+  const b = E.newBuf(); b.data.set(RED, (4 * 64 + 4) * 4);
+  const fl = E.lift(b, selOf([[4, 4]]), false);
+  assert.deepStrictEqual(px(b, 4, 4), RED, 'the source stays');
+  fl.x += 3; E.drop(b, fl);
+  assert.deepStrictEqual(px(b, 7, 4), RED); assert.deepStrictEqual(px(b, 4, 4), RED);
+  const c = E.newBuf(); c.data.set(RED, (4 * 64 + 4) * 4); E.lift(c, selOf([[4, 4]]), true);
+  assert.deepStrictEqual(px(c, 4, 4), CLEAR, 'a plain move cuts');
+});
+
 console.log(n + ' skins tests passed' + (process.exitCode ? ' (with failures)' : ''));

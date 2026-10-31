@@ -3,8 +3,10 @@
  * ghost and face picking: builds-view.js).
  *
  *   TH.builds.editorUI.enter(c) / leave(c)   switch the stage into the editor and back
- *   TH.builds.editorUI.side(c)              the side panels: tools, tool options, selection, blocks, canvas, light, files
- *   TH.builds.editorUI.bar(c)               the block bar under the stage (current, recent, favourites, undo / redo)
+ *   TH.builds.editorUI.side(c)              the side panels: Tools (palette in labelled groups), Selection, Your build
+ *   TH.builds.editorUI.bar(c)               under the stage: the options strip of the active tool, then the block row
+ *                                           (current block + picker, favourites, recent); it also puts the stage keys
+ *                                           (undo / redo, work layer − / +, mirror X Y Z) on the stage
  *   TH.builds.editorUI.drop(c, schem)       start from a build (a generated shape, a Library build)
  *   TH.builds.editorUI.out()                the canvas as a cropped schematic (export, Material List)
  *
@@ -99,6 +101,9 @@ TH.builds = TH.builds || {};
     const v = V();
     if (v && v.inEdit && v.inEdit()) { v.setSymmetry(null); v.leaveEdit(); v.setAuto(!!S().auto); }
     M.drag = null; M.stamp = false;
+    const UI = M.c && M.c.UI(), el = UI && UI.stage && UI.stage.querySelector('.bd-mstage');
+    if (el) el.remove();
+    if (UI) { UI.undoB = UI.redoB = UI.planeL = null; }
   }
   function dirty(box) { if (!box) return; const v = V(); if (v) v.editDirty(box); persist(); refresh(); }
   function showMirror() {
@@ -278,7 +283,7 @@ TH.builds = TH.builds || {};
     if (ctrl && (e.key === 'y' || e.key === 'Y')) { e.preventDefault(); redo(); return true; }
     if (ctrl && e.key === 'c' && M.sel) { e.preventDefault(); M.clip = W.copy(M.sel); toast('Copied ' + dims(M.sel, M.sel.slice(3))); return true; }
     if (ctrl && e.key === 'x' && M.sel) { e.preventDefault(); M.clip = W.copy(M.sel); dirty(W.del(M.sel)); return true; }
-    if (ctrl && e.key === 'v' && M.clip) { e.preventDefault(); M.stamp = true; toast('Click to place the copy · Esc to stop'); return true; }
+    if (ctrl && e.key === 'v' && M.clip) { e.preventDefault(); M.stamp = true; refresh(); return true; }
     if (ctrl && e.key === 'd' && M.sel) { e.preventDefault(); repeat(1); return true; }
     if (ctrl || e.altKey) return false;
     if (e.code in KEY_TOOL && !e.shiftKey) { setTool(KEY_TOOL[e.code]); return true; }
@@ -286,14 +291,14 @@ TH.builds = TH.builds || {};
     if (e.key === 'v' || e.key === 'V') { setTool('view'); return true; }
     if (e.key === 'e' || e.key === 'E') { if (!M.tempErase) { M.tempErase = true; refresh(); } e.preventDefault(); return true; }
     if (e.key === '[' || e.key === ']') { setPlane((V().planeY || 0) + (e.key === ']' ? 1 : -1)); return true; }
-    if (e.key === 'Escape') { M.stamp = false; if (M.drag) input.cancel(); else { M.sel = null; idle(); refresh(); } return true; }
+    if (e.key === 'Escape') { const was = M.stamp; M.stamp = false; if (M.drag) input.cancel(); else if (!was) { M.sel = null; idle(); } refresh(); return true; }
     if ((e.key === 'Delete' || e.key === 'Backspace') && M.sel) { dirty(W.del(M.sel)); return true; }
     if ((e.key === 'r' || e.key === 'R') && M.sel) { turn({ y: 90 }); return true; }
     return false;
   }
   function keyUp(e) { if ((e.key === 'e' || e.key === 'E') && M.tempErase) { M.tempErase = false; refresh(); } }
   function setTool(t) { M.stamp = false; saveMk((m) => { m.tool = t; }); M.c.patch(); idle(); }
-  function setPlane(y) { const v = V(); y = clamp(y, 0, M.W.s.size[1] - 1); v.setPlane(y); saveMk((m) => { m.plane = y; }); const sl = M.c.UI().side.querySelector('[data-param="plane"]'); if (sl && sl.setValue) sl.setValue(y); }
+  function setPlane(y) { const v = V(); y = clamp(y, 0, M.W.s.size[1] - 1); v.setPlane(y); saveMk((m) => { m.plane = y; }); syncStage(); }
   function undo() { const b = M.W.undo(); if (b) dirty(b); else toast('Nothing to undo'); }
   function redo() { const b = M.W.redo(); if (b) dirty(b); else toast('Nothing to redo'); }
   function repeat(n) { const o = opt(), s = M.sel, w = [s[3] - s[0] + 1, s[4] - s[1] + 1, s[5] - s[2] + 1], ax = { x: 0, y: 1, z: 2 }[o.repDir] || 0, step = [0, 0, 0]; step[ax] = w[ax] + o.gap; dirty(M.W.stack(s, n || o.rep, step)); }
@@ -308,9 +313,14 @@ TH.builds = TH.builds || {};
     idle();
   }
 
-  /* ---- side panels ---- */
+  /* ======================================================================
+   * The workbench: the tool palette (side), the options strip of the active tool and the block row (under the
+   * stage), the stage keys (undo, redo, work layer, mirror: on the stage), Selection and Your build (side).
+   * ====================================================================== */
   let statusEl = null;
   function status(t) { if (statusEl) statusEl.textContent = t; }
+  const barSig = () => [tool(), cur(), (mk().fav || []).join(), (mk().recent || []).join(), M.stamp].join('|');
+  const selSig = () => (M.sel ? M.sel.join() : '');
   function refresh() {
     if (!M.c || !M.c.UI() || !M.W) return;
     const UI = M.c.UI();
@@ -318,12 +328,15 @@ TH.builds = TH.builds || {};
     if (UI.undoB) { UI.undoB.disabled = !M.W.canUndo(); UI.redoB.disabled = !M.W.canRedo(); }
     UI.side.querySelectorAll('.bd-tool').forEach((b) => { const on = b.dataset.tool === tool(); b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
     const bar = UI.viewer.querySelector('.bd-mbar');
-    if (bar) bar.replaceWith(blockBar(M.c));
+    if (bar && bar.dataset.sig !== barSig()) bar.replaceWith(blockBar(M.c));
     const selP = UI.side.querySelector('.bd-selpanel');
-    if (selP) { selP.hidden = !M.sel; const t2 = selP.querySelector('.bd-count'); if (t2 && M.sel) t2.textContent = dims(M.sel, M.sel.slice(3)); }
+    if (selP && selP.dataset.sel !== selSig()) selP.replaceWith(selPanel(M.c));
+    syncStage();
     if (UI.title && V() && V().inEdit && V().inEdit()) { UI.title.textContent = M.W.s.name || 'My build'; UI.meta.textContent = M.c.fmtN(M.W.count()) + ' blocks · canvas ' + M.W.s.size.join(' × '); }
   }
   function glyphOf(name) { M.c.GLYPH[name] = M.c.GLYPH[name] || ICON[name]; return M.c.glyph(name); }
+
+  /** Side: the tool palette in labelled groups, icon and name; the key and what it does in the tooltip. */
   function toolsPanel(c) {
     const groups = TOOLS.map(([label, list]) => h('div.bd-tgrp', h('div.bd-tlbl', label), h('div.bd-tkeys', list.map(([id, name, key, what]) => {
       const b = h('button.btn.small.bd-tool', { type: 'button', 'data-tool': id, 'aria-pressed': String(tool() === id), class: tool() === id ? 'on' : null, onclick: () => setTool(id) }, glyphOf(id), h('span', name));
@@ -331,64 +344,122 @@ TH.builds = TH.builds || {};
       return b;
     }))));
     statusEl = h('p.bd-note.bd-mstatus', { 'aria-live': 'polite' });
-    return h('section.panel.bd-pan.bd-tools.has-sel', { 'aria-label': 'Tools' }, h('div.bd-pan-head', h('h3', 'Make it myself'), c.UI().makeCount = h('span.bd-count')), h('div.bd-tgroups', groups), statusEl);
+    return h('section.panel.bd-pan.bd-tools.has-sel', { 'aria-label': 'Tools' }, h('div.bd-pan-head', h('h3', 'Tools'), c.UI().makeCount = h('span.bd-count')), h('div.bd-tgroups', groups), statusEl);
   }
-  function optionsPanel(c) {
+
+  /** Under the stage, line 1: the options of the active tool (only the ones it has), with a one-line hint. */
+  const HINT = { place: 'Click a face to put a block on it, or the grid to start on the work layer. Drag to paint.', erase: 'Click or drag over blocks to remove them.', paint: 'Click or drag over blocks to turn them into the current block.', pick: 'Click a block to build with it.', fill: 'Click a block to fill its connected run, or the floor inside a closed outline.', line: 'Drag from the start to the end.', box: 'Drag on the work layer.', sphere: 'Drag the footprint on the work layer.', cylinder: 'Drag the footprint on the work layer.', cone: 'Drag the footprint on the work layer.', pyramid: 'Drag the footprint on the work layer.', select: 'Drag a box, then use the Selection panel.', move: 'Drag the selection to its new place.', extrude: 'Click a flat face to push it out; Shift+click pulls it in.', replace: 'Click a block: every one like it becomes the current block.', view: 'Drag to turn, right-drag to move, wheel to zoom.' };
+  function optionsStrip(c) {
     const t = tool(), o = opt(), CUx = CU();
     const set = (k, v) => { saveMk((m) => { m.opt = Object.assign({}, m.opt || {}, { [k]: v }); }); };
     const rows = [];
     if (['place', 'erase', 'paint', 'line'].includes(t)) {
-      rows.push(CUx.numRow(c, 'Brush', 1, 9, 1, o.brush, (v) => set('brush', v), { tip: 'Size of the brush in blocks' }));
-      if (t !== 'line') rows.push(CUx.switchRow(c, 'Round', o.round, (v) => set('round', v), 'a ball, not a cube'));
+      rows.push(CUx.numRow(c, 'Brush', 1, 9, 1, o.brush, (v) => set('brush', v), { unit: 'blocks', tip: 'Size of the brush' }));
+      if (t !== 'line') rows.push(CUx.switchRow(c, 'Round', o.round, (v) => set('round', v), ''));
     }
     if (t === 'box') rows.push(CUx.segRow(c, 'Fill', [['solid', 'Solid'], ['hollow', 'Hollow'], ['walls', 'Walls'], ['frame', 'Frame']], o.boxMode, (v) => set('boxMode', v)));
-    if (['sphere', 'cylinder'].includes(t)) rows.push(CUx.switchRow(c, 'Hollow', o.hollow, (v) => set('hollow', v), 'only the shell'));
+    if (['sphere', 'cylinder'].includes(t)) rows.push(CUx.switchRow(c, 'Hollow', o.hollow, (v) => set('hollow', v), ''));
     if (['box', 'cylinder', 'sphere', 'cone', 'pyramid'].includes(t)) {
-      if (t !== 'box' && t !== 'cylinder') rows.push(CUx.switchRow(c, 'Auto height', o.auto, (v) => set('auto', v), t === 'sphere' ? 'as round as the footprint' : 'from the footprint'));
-      rows.push(CUx.numRow(c, 'Height', 1, 128, 1, o.shapeH, (v) => set('shapeH', v)));
-      rows.push(CUx.switchRow(c, 'Overwrite', o.overwrite, (v) => set('overwrite', v), 'replace blocks in the way'));
+      if (t !== 'box' && t !== 'cylinder') rows.push(CUx.switchRow(c, 'Auto height', o.auto, (v) => set('auto', v), ''));
+      rows.push(CUx.numRow(c, 'Height', 1, 128, 1, o.shapeH, (v) => set('shapeH', v), { unit: 'blocks' }));
+      rows.push(CUx.switchRow(c, 'Overwrite', o.overwrite, (v) => set('overwrite', v), ''));
     }
-    if (t === 'select') rows.push(CUx.numRow(c, 'Height', 0, 128, 1, o.selH, (v) => set('selH', v), { tip: '0 = up to the highest block in the box' }));
-    const hint = { place: 'Click a face to put a block on it, or the grid to start on the work layer. Drag to paint.', erase: 'Click or drag over blocks to remove them.', paint: 'Click or drag over blocks to turn them into the current block.', pick: 'Click a block to build with it.', fill: 'Click a block to fill its connected run, or the floor inside a closed outline.', line: 'Drag from the start to the end.', box: 'Drag on the work layer; the height is set here.', sphere: 'Drag the footprint on the work layer.', cylinder: 'Drag the footprint on the work layer.', cone: 'Drag the footprint on the work layer.', pyramid: 'Drag the footprint on the work layer.', select: 'Drag a box. Then use the selection panel or the keys.', move: 'Drag the selection to its new place.', extrude: 'Click a flat face to push it out; Shift+click pulls it in.', replace: 'Click a block: every one like it becomes the current block.', view: 'Drag to turn, right-drag to move, wheel to zoom.' }[t];
-    return h('section.panel.bd-pan.bd-topts', { 'aria-label': 'Tool options' }, h('div.bd-pan-head', h('h3', TOOL_BY[t][1]), h('span.bd-count', 'key ' + TOOL_BY[t][2])), h('p.bd-note', hint), rows);
+    if (t === 'select') rows.push(CUx.numRow(c, 'Height', 0, 128, 1, o.selH, (v) => set('selH', v), { unit: 'blocks', tip: '0 = up to the highest block in the box' }));
+    const name = h('span.bd-mopt-name', glyphOf(t), TOOL_BY[t][1], h('small', TOOL_BY[t][2]));
+    return h('div.bd-mopts', { role: 'group', 'aria-label': TOOL_BY[t][1] + ' options' }, name, rows, h('span.bd-mopt-hint', M.stamp ? 'Click to place the copy · Esc to stop' : HINT[t]));
   }
+  /** Under the stage, line 2: the current block (click to pick another), favourites and recent blocks. */
+  function blockBar(c) {
+    M.c = c;
+    const m = mk(), now = cur(), fav = (m.fav || []).includes(now);
+    const key = (id, kind) => c.tip(h('button.btn.small.bd-bkey' + (id === now ? '.on' : ''), { type: 'button', 'aria-pressed': String(id === now), 'aria-label': core().nameOf(id), onclick: () => { useBlock(id); } }, core().blockIcon(id, { size: 20 })), core().nameOf(id) + (kind ? ' · ' + kind : ''));
+    const favs = (m.fav || []).slice(0, 10), rec = (m.recent || []).filter((x) => !favs.includes(x) && x !== now).slice(0, 8);
+    const row = h('div.bd-mblocks', { role: 'group', 'aria-label': 'Blocks' });
+    const pickB = h('button.btn.small.bd-mcur', { type: 'button', 'aria-expanded': 'false', onclick: () => {
+      const open = pickB.getAttribute('aria-expanded') === 'true';
+      row.querySelectorAll('.bd-picker').forEach((p) => p.remove());
+      pickB.setAttribute('aria-expanded', String(!open));
+      if (open) return;
+      row.append(c.blockPicker({ ids: placeable(), current: now, label: 'Build with', onPick: (x) => { useBlock(x); } }));
+    } }, core().blockIcon(now, { size: 20 }), h('span', core().nameOf(now)), c.glyph('swap', 'bd-swap-ico'));
+    c.tip(pickB, 'The block you build with: click for all blocks · Alt+click in the build picks one');
+    const star = c.tip(h('button.btn.small.bd-vk.sq' + (fav ? '.on' : ''), { type: 'button', 'aria-pressed': String(fav), 'aria-label': 'Favourite', onclick: () => { saveMk((mm) => { const f = mm.fav || []; mm.fav = f.includes(now) ? f.filter((x) => x !== now) : [now].concat(f).slice(0, 16); }); refresh(); } }, glyphOf('star')), fav ? 'Remove from favourites' : 'Keep as a favourite');
+    row.append(...[pickB, star,
+      favs.length ? [h('span.bd-bar-lbl', 'Favourites'), favs.map((x) => key(x, 'favourite'))] : null,
+      rec.length ? [h('span.bd-bar-lbl', 'Recent'), rec.map((x) => key(x, 'recent'))] : null].flat(2).filter(Boolean));
+    const bar = h('div.bd-mbar', { 'data-sig': barSig() }, optionsStrip(c), row);
+    placeStage(c);
+    return bar;
+  }
+
+  /** On the stage, bottom left: undo and redo, the work layer, the mirror planes. */
+  function placeStage(c) {
+    const UI = c.UI(); if (!UI || !UI.stage) return;
+    let el = UI.stage.querySelector('.bd-mstage');
+    if (el) return;
+    const W = load();
+    UI.undoB = c.tip(h('button.btn.small.bd-vk.sq', { type: 'button', 'aria-label': 'Undo', onclick: undo }, glyphOf('undo')), 'Undo · Ctrl+Z');
+    UI.redoB = c.tip(h('button.btn.small.bd-vk.sq', { type: 'button', 'aria-label': 'Redo', onclick: redo }, glyphOf('redo')), 'Redo · Ctrl+Y');
+    UI.planeL = h('span.bd-mstage-val', { 'aria-live': 'polite' });
+    const down = c.tip(h('button.btn.small.bd-vk.sq', { type: 'button', 'aria-label': 'Work layer down', onclick: () => setPlane((V().planeY || 0) - 1) }, '−'), 'Work layer down · [');
+    const up = c.tip(h('button.btn.small.bd-vk.sq', { type: 'button', 'aria-label': 'Work layer up', onclick: () => setPlane((V().planeY || 0) + 1) }, '+'), 'Work layer up · ]');
+    const mir = (k, L, t) => { const b = c.tip(h('button.btn.small.bd-vk.bd-mir', { type: 'button', 'data-axis': k, 'aria-pressed': String(!!W.mirror[k]), onclick: () => { W.mirror[k] = !W.mirror[k]; syncStage(); showMirror(); persist(); } }, L), t); return b; };
+    el = h('div.bd-mstage', { role: 'group', 'aria-label': 'Edit keys' },
+      h('div.bd-mstage-grp', UI.undoB, UI.redoB),
+      c.tip(h('div.bd-mstage-grp', h('span.bd-mstage-lbl', 'Layer'), down, UI.planeL, up), 'The grid you build on when you click empty space'),
+      h('div.bd-mstage-grp', h('span.bd-mstage-lbl', 'Mirror'), mir('x', 'X', 'Every edit is mirrored east–west across the middle'), mir('y', 'Y', 'Mirrored top–bottom'), mir('z', 'Z', 'Mirrored north–south')));
+    UI.stage.append(el);
+    syncStage();
+  }
+  function syncStage() {
+    const UI = M.c && M.c.UI(); if (!UI || !UI.stage || !M.W) return;
+    const el = UI.stage.querySelector('.bd-mstage'); if (!el) return;
+    if (UI.undoB) { UI.undoB.disabled = !M.W.canUndo(); UI.redoB.disabled = !M.W.canRedo(); }
+    if (UI.planeL) UI.planeL.textContent = String((V() && V().planeY) || 0);
+    el.querySelectorAll('.bd-mir').forEach((b) => { const on = !!M.W.mirror[b.dataset.axis]; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
+  }
+
+  /** Side: what you can do with the selection (shown once something is selected). */
   function selPanel(c) {
     const o = opt(), CUx = CU();
     const set = (k, v) => saveMk((m) => { m.opt = Object.assign({}, m.opt || {}, { [k]: v }); });
     const key = (label, fn, t) => c.tip(h('button.btn.small', { type: 'button', onclick: fn }, label), t);
     const need = (fn) => () => { if (!M.sel) { toast('Select something first'); return; } fn(); };
-    let ang = { x: 0, y: 90, z: 0, order: 'YXZ', smooth: false };
-    const angEl = CUx.angle({ c, get: () => ang, set: (pt) => { Object.assign(ang, pt); angEl.setSize(M.sel ? 'Turns to ' + TH.builds.rotate.bounds([M.sel[3] - M.sel[0] + 1, M.sel[4] - M.sel[1] + 1, M.sel[5] - M.sel[2] + 1], ang).join(' × ') : ''); }, smooth: true, title: 'Turn the selection' });
-    const p = h('section.panel.bd-pan.bd-selpanel', { 'aria-label': 'Selection', hidden: !M.sel },
-      h('div.bd-pan-head', h('h3', 'Selection'), h('span.bd-count', M.sel ? dims(M.sel, M.sel.slice(3)) : '')),
+    const p = h('section.panel.bd-pan.bd-selpanel', { 'aria-label': 'Selection', hidden: !M.sel, 'data-sel': selSig() });
+    if (!M.sel) return p;
+    const dimsN = [M.sel[3] - M.sel[0] + 1, M.sel[4] - M.sel[1] + 1, M.sel[5] - M.sel[2] + 1];
+    const ang = { x: 0, y: 90, z: 0, order: 'YXZ', smooth: false };
+    const angEl = CUx.angle({ c, get: () => ang, set: (pt) => { Object.assign(ang, pt); angEl.setSize('Turns to ' + TH.builds.rotate.bounds(dimsN, ang).join(' × ')); }, smooth: true, title: 'Turn' });
+    const rs = { size: null, mode: 'auto' };
+    const frame = () => { if (!rs.size) { idle(); return; } ghost(M.W.box(M.sel.slice(0, 3), [0, 1, 2].map((a) => Math.min(M.W.s.size[a] - 1, M.sel[a] + rs.size[a] - 1)), 'frame')); };
+    const apply = c.tip(h('button.btn.small.primary', { type: 'button', onclick: need(() => {
+      if (!rs.size) { toast('Pick a new size first'); return; }
+      const res = M.W.resize(M.sel, rs.size, rs.mode);
+      if (!res.box) return;
+      M.sel = res.sel; dirty(res.box); idle();
+      if (res.r.notes.length) toast(res.r.notes[0]);
+    }) }, 'Resize'), 'One undo step. Walls, floors and panes stay one block thick (Keep walls thin).');
+    const rsEl = CUx.resizeUI({ c, size: dimsN, get: () => rs, set: (pt) => { Object.assign(rs, pt); frame(); rsEl.setInfo(null); if (rs.size) rsEl.querySelector('.bd-rsinfo').textContent = 'New size ' + rs.size.join(' × ') + ' (the frame on the stage)'; }, apply });
+    rsEl.setInfo(null);
+    p.append(
+      h('div.bd-pan-head', h('h3', 'Selection'), h('span.bd-count', dims(M.sel, M.sel.slice(3)))),
       h('div.bd-actions', key('Copy', need(() => { M.clip = M.W.copy(M.sel); toast('Copied'); }), 'Ctrl+C'), key('Cut', need(() => { M.clip = M.W.copy(M.sel); dirty(M.W.del(M.sel)); }), 'Ctrl+X'),
-        key('Paste', () => { if (!M.clip) { toast('Copy something first'); return; } M.stamp = true; toast('Click to place the copy · Esc to stop'); }, 'Ctrl+V: the copy follows the pointer, click to place it'),
+        key('Paste', () => { if (!M.clip) { toast('Copy something first'); return; } M.stamp = true; refresh(); }, 'Ctrl+V: the copy follows the pointer, click to place it'),
         key('Delete', need(() => dirty(M.W.del(M.sel))), 'Delete'), key('Fill', need(() => dirty(M.W.apply(M.W.box(M.sel.slice(0, 3), M.sel.slice(3), 'solid'), cur(), 'set', 'Fill'))), 'Fill the box with the current block'),
         key('Deselect', () => { M.sel = null; idle(); refresh(); }, 'Esc')),
-      h('div.bd-sub', 'Repeat'),
-      CUx.numRow(c, 'Copies', 1, 32, 1, o.rep, (v) => set('rep', v)),
-      CUx.segRow(c, 'Along', [['x', 'X'], ['y', 'Y'], ['z', 'Z']], o.repDir, (v) => set('repDir', v)),
-      CUx.numRow(c, 'Gap', 0, 16, 1, o.gap, (v) => set('gap', v)),
-      h('div.bd-actions', key('Repeat', need(() => repeat()), 'Ctrl+D repeats once')),
-      h('div.bd-sub', 'Flip and scale'),
       h('div.bd-actions', key('Flip X', need(() => dirty(M.W.flip(M.sel, 0))), 'Mirror east and west (stairs turn too)'), key('Flip Y', need(() => dirty(M.W.flip(M.sel, 1))), 'Upside down'), key('Flip Z', need(() => dirty(M.W.flip(M.sel, 2))), 'Mirror north and south'),
-        key('× 2', need(() => { dirty(M.W.scale(M.sel, 2)); }), 'Twice as big'), key('× ½', need(() => dirty(M.W.scale(M.sel, 0.5))), 'Half the size')),
-      angEl,
-      h('div.bd-actions', key('Turn', need(() => turn(Object.assign({}, ang, { level: 'medium' }))), 'Turn the selection by the angle above (R turns 90° about Y)')));
+        key('Turn 90°', need(() => turn({ y: 90 })), 'R: a quarter turn about the up line')),
+      ...CUx.more(c, 'msel', [
+        h('div.bd-sub.bd-csub', 'Repeat'),
+        CUx.numRow(c, 'Copies', 1, 32, 1, o.rep, (v) => set('rep', v)),
+        CUx.segRow(c, 'Along', [['x', 'X'], ['y', 'Y'], ['z', 'Z']], o.repDir, (v) => set('repDir', v)),
+        CUx.numRow(c, 'Gap', 0, 16, 1, o.gap, (v) => set('gap', v), { unit: 'blocks' }),
+        h('div.bd-actions', key('Repeat', need(() => repeat()), 'Ctrl+D repeats once')),
+        h('div.bd-sub.bd-csub', 'Size'), rsEl,
+        angEl,
+        h('div.bd-actions', key('Turn', need(() => turn(Object.assign({}, ang, { level: 'medium' }))), 'Turn the selection by this angle')),
+      ]));
     return p;
-  }
-  function blocksPanel(c) {
-    const id = cur(), fav = (mk().fav || []).includes(id);
-    const btn = h('button.btn.bd-swap', { type: 'button', 'aria-expanded': 'false', onclick: () => {
-      const open = btn.getAttribute('aria-expanded') === 'true';
-      c.closePickers();
-      if (open) return;
-      btn.setAttribute('aria-expanded', 'true');
-      btn.after(c.blockPicker({ ids: placeable(), current: id, label: 'Build with', onPick: (x) => { c.closePickers(); useBlock(x); c.patch(); } }));
-    } }, core().blockIcon(id, { size: 24 }), h('span.bd-swap-txt', h('span.bd-swap-name', core().nameOf(id)), h('span.bd-swap-was', 'Click to pick another block')), c.glyph('swap', 'bd-swap-ico'));
-    const star = c.tip(h('button.btn.small.bd-vk.sq' + (fav ? '.on' : ''), { type: 'button', 'aria-pressed': String(fav), 'aria-label': 'Favourite', onclick: () => { saveMk((m) => { const f = m.fav || []; m.fav = f.includes(id) ? f.filter((x) => x !== id) : [id].concat(f).slice(0, 16); }); c.patch(); } }, glyphOf('star')), fav ? 'Remove from favourites' : 'Add to favourites');
-    return h('section.panel.bd-pan', { 'aria-label': 'Block' }, h('div.bd-pan-head', h('h3', 'Block')), h('div.bd-partrow', btn, star),
-      h('p.bd-note', 'Stairs face the way you look, slabs and logs follow the face you click, Alt+click picks a block from the build.'));
   }
   let placeCache = null;
   function placeable() {
@@ -397,7 +468,8 @@ TH.builds = TH.builds || {};
     placeCache = [...new Set(Object.keys(C.BLOCKS).concat(Object.keys(DB)))].filter((n) => C.known('minecraft:' + n) && !/^(air|cave_air|void_air|structure_void|moving_piston|piston_head|bubble_column|end_gateway|end_portal|nether_portal|fire|soul_fire|light|barrier)$/.test(n) && !/_wall_(sign|banner|torch|fan|hanging_sign|head|skull)$/.test(n));
     return placeCache;
   }
-  function canvasPanel(c) {
+  /** Side: the build itself: name, canvas, start from the generator, downloads; shading by light under More. */
+  function buildPanel(c) {
     const W = M.W, CUx = CU(), [sx, sy, sz] = W.s.size;
     const sizes = [32, 48, 64, 96, 128, 192, 256];
     const grow = (n) => {
@@ -410,57 +482,39 @@ TH.builds = TH.builds || {};
       W.grow(size, off); M.sel = null; enter(c); persist(); c.patch();
       toast('The canvas is now ' + size.join(' × ') + ' (the undo history starts again)');
     };
-    const mir = (k, L, t) => { const b = c.tip(h('button.btn.small.bd-vk' + (W.mirror[k] ? '.on' : ''), { type: 'button', 'aria-pressed': String(!!W.mirror[k]), onclick: () => { W.mirror[k] = !W.mirror[k]; b.classList.toggle('on', W.mirror[k]); b.setAttribute('aria-pressed', String(W.mirror[k])); showMirror(); persist(); } }, c.glyph('mirror'), h('span', L)), t); return b; };
-    const plane = CUx.numRow(c, 'Work layer', 0, sy - 1, 1, clamp(mk().plane || 0, 0, sy - 1), (v) => setPlane(v), { tip: 'The grid you build on when you click empty space ([ and ] move it)', pid: 'plane' });
-    return h('section.panel.bd-pan', { 'aria-label': 'Canvas' }, h('div.bd-pan-head', h('h3', 'Canvas'), h('span.bd-count', sx + ' × ' + sy + ' × ' + sz)),
-      CUx.segRow(c, 'Size', sizes.map((n) => [n, String(n)]), sizes.includes(sx) && sx === sy && sy === sz ? sx : null, (v) => grow(v), { aria: 'Canvas size' }),
-      plane,
-      h('div.bd-prow2.bd-colrow', h('span.bd-plabel', 'Mirror'), h('div.bd-actions', mir('x', 'X', 'Every edit is mirrored east–west across the middle'), mir('y', 'Y', 'Mirrored top–bottom'), mir('z', 'Z', 'Mirrored north–south'))),
-      h('div.bd-actions',
-        c.tip(h('button.btn.small', { type: 'button', onclick: () => { const s = CU().schem(c); dirty(W.drop(s)); toast('Added ' + s.name); } }, c.glyph('plus'), 'Add the generator’s shape'), 'Put the shape from Generate into the middle of the canvas'),
-        c.tip(h('button.btn.small', { type: 'button', onclick: () => { if (!W.count()) return; dirty(W.clearAll()); M.sel = null; } }, c.glyph('x'), 'Clear'), 'Remove every block (Ctrl+Z brings it back)')));
-  }
-  function lightPanel(c) {
-    const L = Object.assign({}, CU().XF_LIGHT, mk().light || {}, { on: true });
-    const el = CU().light({ c, toggle: false, paletteRamp: false, get: () => L, set: (pt) => { Object.assign(L, pt); saveMk((m) => { m.light = Object.assign({}, L); }); } });
+    const out = () => W.out(W.s.name || 'My build');
+    const UI = c.UI();
+    const name = h('input.field', { type: 'text', value: W.s.name || 'My build', 'aria-label': 'Name', maxlength: 60, oninput: (e) => { W.s.name = e.target.value.trim() || 'My build'; UI.title.textContent = W.s.name; persist(); } });
+    // shading by light (baked into the blocks, one undo step)
+    const L = Object.assign({}, CUx.XF_LIGHT, mk().light || {}, { on: true });
+    const lightEl = CUx.light({ c, toggle: false, ramp: true, moreKey: 'mlight', get: () => L, set: (pt) => { Object.assign(L, pt); saveMk((m) => { m.light = Object.assign({}, L); }); } });
     const bake = () => {
       const ramp = TH.builds.shade.rampOf(L.ramp || 'stone');
-      dirty(M.W.shade(M.sel, { az: L.az, el: L.el, ramp, steps: L.steps, contrast: L.contrast / 100, dither: L.dither / 100, ao: L.ao / 100, rim: L.rim / 100, shadows: L.shadows, colour: (L.tint || L.hue) ? { light: L.colour, shadow: L.shadowC, tint: L.tint / 100, hue: L.hue / 100, pool: L.pool } : null }));
+      dirty(W.shade(M.sel, { az: L.az, el: L.el, ramp, steps: L.steps, contrast: L.contrast / 100, dither: L.dither / 100, ao: L.ao / 100, rim: L.rim / 100, shadows: L.shadows, colour: (L.tint || L.hue) ? { light: L.colour, shadow: L.shadowC, tint: L.tint / 100, hue: L.hue / 100, pool: L.pool } : null }));
     };
-    return h('section.panel.bd-pan.bd-mlight', { 'aria-label': 'Light' }, h('div.bd-pan-head', h('h3', 'Shade by light')),
-      h('p.bd-note', 'Repaints the building blocks along a ramp from shadow to highlight, lit from this direction. One undo step.'), el,
-      h('div.bd-actions', c.tip(h('button.btn.small.primary', { type: 'button', onclick: bake }, 'Bake shading'), 'Into the selection, or the whole build when nothing is selected')));
-  }
-  function filesPanel(c) {
-    const out = () => M.W.out(M.W.s.name || 'My build');
-    const UI = c.UI();
-    UI.undoB = c.tip(h('button.btn.small', { type: 'button', onclick: undo, disabled: !M.W.canUndo() }, glyphOf('undo'), 'Undo'), 'Ctrl+Z');
-    UI.redoB = c.tip(h('button.btn.small', { type: 'button', onclick: redo, disabled: !M.W.canRedo() }, glyphOf('redo'), 'Redo'), 'Ctrl+Y or Ctrl+Shift+Z');
-    const name = h('input.field', { type: 'text', value: M.W.s.name || 'My build', 'aria-label': 'Name', maxlength: 60, oninput: (e) => { M.W.s.name = e.target.value.trim() || 'My build'; UI.title.textContent = M.W.s.name; persist(); } });
     return h('section.panel.bd-pan.bd-create-acts', { 'aria-label': 'Your build' },
-      h('div.bd-pan-head', h('h3', 'Your build')), name,
-      h('div.bd-actions', UI.undoB, UI.redoB),
+      h('div.bd-pan-head', h('h3', 'Your build'), h('span.bd-count', sx + ' × ' + sy + ' × ' + sz)),
+      name,
+      CUx.segRow(c, 'Canvas', sizes.map((n) => [n, String(n), 'A ' + n + ' × ' + n + ' × ' + n + ' canvas; the build stays in the middle']), sizes.includes(sx) && sx === sy && sy === sz ? sx : null, (v) => grow(v), { aria: 'Canvas size' }),
+      h('div.bd-actions',
+        c.tip(h('button.btn.small', { type: 'button', onclick: () => { const s = CU().schem(c); dirty(W.drop(s)); toast('Added ' + s.name); } }, c.glyph('plus'), 'Add the generator’s shape'), 'Put the shape from Generate into the middle of the canvas'),
+        c.tip(h('button.btn.small', { type: 'button', onclick: () => { if (!W.count()) return; dirty(W.clearAll()); M.sel = null; } }, c.glyph('x'), 'Clear'), 'Remove every block (Ctrl+Z brings it back)')),
       h('div.bd-actions',
         c.tip(h('button.btn.small.primary', { type: 'button', onclick: () => c.exportAs(out(), 'schem') }, c.glyph('down'), '.schem'), '.schem (Sponge 2): WorldEdit, FAWE, Axiom, Litematica'),
         c.tip(h('button.btn.small', { type: 'button', onclick: () => c.exportAs(out(), 'litematic') }, '.litematic'), 'Litematica schematic'),
         c.tip(h('button.btn.small', { type: 'button', onclick: () => c.exportAs(out(), 'json') }, 'JSON'), 'This toolbox’s own format'),
         c.tip(h('button.btn.small', { type: 'button', onclick: () => c.keep(out()) }, c.glyph('file'), 'Keep in Library'), 'Add it to your builds'),
-        c.tip(h('button.btn.small', { type: 'button', onclick: () => c.toMats('edit') }, 'Material list'), 'The blocks it needs')));
+        c.tip(h('button.btn.small', { type: 'button', onclick: () => c.toMats('edit') }, 'Material list'), 'The blocks it needs')),
+      ...CUx.more(c, 'mbuild', [
+        h('div.bd-sub.bd-csub', 'Shade by light'),
+        h('p.bd-note', 'Repaints the building blocks along a ramp from shadow to highlight, lit from this direction. One undo step.'),
+        lightEl,
+        h('div.bd-actions', c.tip(h('button.btn.small.primary', { type: 'button', onclick: bake }, 'Bake shading'), 'Into the selection, or the whole build when nothing is selected')),
+      ]));
   }
   function side(c) {
     M.c = c; load();
-    return [toolsPanel(c), optionsPanel(c), selPanel(c), blocksPanel(c), canvasPanel(c), lightPanel(c), filesPanel(c)];
-  }
-  /** Under the stage: the current block, recent and favourite blocks as quick keys. */
-  function blockBar(c) {
-    M.c = c;
-    const m = mk(), now = cur();
-    const key = (id, kind) => c.tip(h('button.btn.small.bd-bkey' + (id === now ? '.on' : ''), { type: 'button', 'aria-pressed': String(id === now), 'aria-label': core().nameOf(id), onclick: () => { useBlock(id); } }, core().blockIcon(id, { size: 20 })), core().nameOf(id) + (kind ? ' · ' + kind : ''));
-    const fav = (m.fav || []).slice(0, 10), rec = (m.recent || []).filter((x) => !fav.includes(x)).slice(0, 8);
-    return h('div.bd-mbar', { role: 'group', 'aria-label': 'Blocks' },
-      h('span.bd-bar-lbl', 'Block'), key(now),
-      fav.length ? [h('span.bd-bar-lbl', 'Favourites'), fav.map((x) => key(x, 'favourite'))] : null,
-      rec.length ? [h('span.bd-bar-lbl', 'Recent'), rec.map((x) => key(x, 'recent'))] : null);
+    return [toolsPanel(c), selPanel(c), buildPanel(c)];
   }
   function drop(c, s) {
     M.c = c;

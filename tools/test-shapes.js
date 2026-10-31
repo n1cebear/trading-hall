@@ -13,7 +13,7 @@ const root = path.join(__dirname, '..');
 global.window = global;
 global.TH = { data: {}, langData: {}, icon: () => null };
 for (const f of ['js/data/block-db.js', 'js/data/block-colours.js', 'js/modules/builds-core.js', 'js/modules/builds-io.js', 'js/modules/builds-view.js', 'js/modules/builds-shapes.js',
-  'js/modules/builds-detail.js', 'js/modules/builds-rotate.js', 'js/modules/builds-shade.js', 'js/modules/builds-gen.js', 'js/modules/builds-edit.js']) vm.runInThisContext(fs.readFileSync(path.join(root, f), 'utf8'), { filename: f });
+  'js/modules/builds-detail.js', 'js/modules/builds-rotate.js', 'js/modules/builds-shade.js', 'js/modules/builds-inside.js', 'js/modules/builds-resize.js', 'js/modules/builds-gen.js', 'js/modules/builds-edit.js']) vm.runInThisContext(fs.readFileSync(path.join(root, f), 'utf8'), { filename: f });
 const TH = global.TH, C = TH.builds.core, IO = TH.builds.io, G = TH.builds.gen, D = TH.builds.detail, R = TH.builds.rotate, SH = TH.builds.shade, E = TH.builds.edit, DB = TH.data.blockDb.b;
 
 const tests = [];
@@ -83,7 +83,6 @@ const sameBlocks = (a, b) => a.size.join() === b.size.join() && a.blocks.every((
 /* ======================================================================
  * Generators
  * ====================================================================== */
-const FLOAT = new Set(['shard', 'floating', 'bipyramid', 'alignment', 'henge', 'dolmen', 'broken', 'cluster', 'spire', 'totem', 'rock', 'crater', 'waterfall', 'mushroom', 'ziggurat', 'helix', 'stepped', 'split', 'obelisk', 'geode', 'volcano', 'mountain']);
 const CRYSTAL_ONE_PIECE = ['crystal', 'quartz2', 'prism', 'spire', 'cluster', 'geode'];
 t('every generator has a group, palettes, parameters with unique ids, and its variants are valid', () => {
   assert.ok(G.FAMILIES.length >= 30, G.FAMILIES.length + ' generators');
@@ -97,22 +96,169 @@ t('every generator has a group, palettes, parameters with unique ids, and its va
     assert.strictEqual(new Set(ids).size, ids.length, f.id + ' has duplicate parameter ids: ' + ids.filter((x, i) => ids.indexOf(x) !== i));
     f.pals.forEach((k) => assert.ok(G.PALETTES[k], f.id + ' palette ' + k));
     (f.variants || []).forEach(([label, patch]) => Object.keys(patch).forEach((k) => assert.ok(ids.includes(k), f.id + ' variant ' + label + ' sets unknown ' + k)));
-    for (const q of G.params(f.id)) if (q.t === 'seg') assert.ok(q.ch.some((c) => c[0] === q.def) || q.def === 'palette', f.id + '.' + q.id + ' default');
+    for (const q of G.params(f.id)) if (q.t === 'seg') assert.ok(q.ch.some((c) => c[0] === q.def), f.id + '.' + q.id + ' default');
+    // the few parameters that define it are shown first: 3 to 6, all real parameters
+    assert.ok(f.key.length >= 3 && f.key.length <= 6, f.id + ' key parameters ' + f.key.length);
+    f.key.forEach((k) => assert.ok(ids.includes(k), f.id + ' key ' + k));
+    assert.ok(G.params(f.id).filter((q) => q.g === 'shape' && !q.more).length <= 9, f.id + ': shape step not crowded');
   }
   // every palette block is real
   Object.entries(G.PALETTES).forEach(([k, pal]) => ['body', 'base', 'trim', 'accent', 'worn'].forEach((part) => (pal[part] || []).forEach((n) => assert.ok(DB[n], k + '.' + part + ' ' + n))));
 });
+t('every palette ramp runs from shadow to highlight (texture lightness never goes down)', () => {
+  for (const [k, pal] of Object.entries(G.PALETTES)) for (const part of ['body', 'base']) {
+    const L = (pal[part] || []).map((n) => SH.labOf(n));
+    L.forEach((l, i) => assert.ok(l, k + '.' + part + ' ' + pal[part][i] + ' has a colour'));
+    for (let i = 1; i < L.length; i++) assert.ok(L[i][0] >= L[i - 1][0] - 0.5, k + '.' + part + ': ' + pal[part][i - 1] + ' (' + L[i - 1][0].toFixed(0) + ') then ' + pal[part][i] + ' (' + L[i][0].toFixed(0) + ')');
+    // one family of colour: neighbours not far apart in hue / chroma (a jump of more than 45 in a/b is an odd member)
+    for (let i = 1; i < L.length; i++) assert.ok(Math.hypot(L[i][1] - L[i - 1][1], L[i][2] - L[i - 1][2]) < 45, k + '.' + part + ': ' + pal[part][i - 1] + ' -> ' + pal[part][i] + ' changes colour too much');
+  }
+});
 for (const f of G.FAMILIES) {
-  t(f.id + ': defaults and variants build valid blocks within the size', () => {
+  t(f.id + ': defaults and variants build valid blocks of exactly the chosen size', () => {
     for (const [label, patch] of [['default', {}]].concat(f.variants || [])) {
       const p = G.clean(f.id, patch), s = G.gen(f.id, patch);
       assert.ok(C.volume(s) > 20, label + ': has blocks');
       validStates(s, f.id + ' ' + label);
-      assert.ok(s.size[1] <= Math.ceil(p.h * p.scale / 100) + 10, f.id + ' ' + label + ': height ' + s.size[1] + ' for ' + p.h);
+      // rough surfaces (rocks, standing stones) may land one block off: their noise is not proportional to the size
+      const want = [p.w, p.h, p.d], tol = f.id === 'broken' || p.rough > 0 ? 1 : 0;
+      // generators with orbiting or side parts size their main body across, so they may be wider; the height is exact
+      for (const a of [0, 1, 2]) {
+        if (f.fitMain && a !== 1) { assert.ok(s.size[a] >= want[a] - 1, f.id + ' ' + label + ' axis ' + a + ': ' + s.size[a] + ' / ' + want[a]); continue; }
+        assert.ok(Math.abs(s.size[a] - want[a]) <= tol, f.id + ' ' + label + ': size ' + s.size.join(' x ') + ' for ' + want.join(' x '));
+      }
       report.push([f.id, label, s.size.join(' x '), C.volume(s), C.counts(s, true).slice(0, 4).map((r) => nameOf(r.id) + ' ' + r.n).join(', ')]);
     }
   });
 }
+t('sliders respond smoothly: taller is taller, wider is wider, more taper is fewer blocks', () => {
+  const vol = (id, o) => C.volume(G.gen(id, Object.assign({ detail: 'low', light: false }, o)));
+  for (const id of ['crystal', 'obelisk', 'prism', 'cluster', 'rock', 'mountain']) {
+    const p = G.clean(id, {}), hs = [Math.round(p.h * 0.6), p.h, Math.round(p.h * 1.4)].map((h) => G.gen(id, { h, detail: 'low', light: false }));
+    for (let i = 1; i < hs.length; i++) { assert.ok(hs[i].size[1] > hs[i - 1].size[1], id + ' taller'); assert.ok(C.volume(hs[i]) > C.volume(hs[i - 1]), id + ' more blocks when taller'); }
+    const ws = [Math.round(p.w * 0.6), p.w, Math.round(p.w * 1.4)].map((w) => G.gen(id, { w, detail: 'low', light: false }));
+    for (let i = 1; i < ws.length; i++) assert.ok(ws[i].size[0] > ws[i - 1].size[0], id + ' wider');
+  }
+  const tap = [0, 30, 60].map((taper) => vol('crystal', { taper }));
+  assert.ok(tap[0] > tap[1] && tap[1] > tap[2], 'taper takes blocks away: ' + tap);
+  // more lean: the point moves further from the middle of the foot (the size stays as set)
+  const tipOff = (l) => {
+    const s = G.gen('crystal', { lean: l, leanDir: 90, w: 15, d: 15, h: 40, detail: 'low', light: false, tipStyle: 'none' }), [sx, sy, sz] = s.size;
+    let foot = 0, fn = 0; for (let z = 0; z < sz; z++) for (let x = 0; x < sx; x++) if (s.blocks[z * sx + x]) { foot += x; fn++; }
+    for (let y = sy - 1; y >= 0; y--) for (let z = 0; z < sz; z++) for (let x = 0; x < sx; x++) if (s.blocks[(y * sz + z) * sx + x]) return x - foot / fn;
+    return 0;
+  };
+  const lean = [0, 20, 40].map(tipOff);
+  assert.ok(lean[0] < lean[1] && lean[1] < lean[2], 'more lean leans further: ' + lean.map((v) => v.toFixed(1)));
+});
+t('the Variation is the only randomness: other sliders do not re-roll unrelated features', () => {
+  // cluster: adding crystals keeps the first ones where they were
+  const a = G.gen('cluster', { count: 6, base: 'none', detail: 'low', light: false }), b = G.gen('cluster', { count: 7, base: 'none', detail: 'low', light: false });
+  const cellsOf = (s) => { const out = new Set(), [sx, sy, sz] = s.size; for (let y = 0; y < sy; y++) for (let z = 0; z < sz; z++) for (let x = 0; x < sx; x++) if (s.blocks[(y * sz + z) * sx + x]) out.add(y + ',' + (z - (sz >> 1)) + ',' + (x - (sx >> 1))); return out; };
+  // the 7th crystal can change the fit a little, so compare with the same box: fixed size, centred
+  const A = cellsOf(a), B = cellsOf(b);
+  let kept = 0; A.forEach((k) => { if (B.has(k)) kept++; });
+  assert.ok(kept / A.size > 0.8, 'one more crystal keeps ' + Math.round(kept / A.size * 100) + '% of the others in place');
+  // a surface slider (moss) never moves the shape
+  const m0 = G.gen('henge', { light: false }), m1 = G.gen('henge', { moss: 40, light: false });
+  assert.deepStrictEqual(plain(m0.size), plain(m1.size));
+  for (const id of ['henge', 'rock', 'shard', 'alignment']) assert.ok(sameBlocks(G.gen(id, { seed: 3 }), G.gen(id, { seed: 3 })), id + ' repeats with the same Variation');
+});
+t('crystal facets are shaded by the light: the face toward the light is lighter than the face away', () => {
+  for (const facets of [4, 5, 6, 8]) {
+    for (const lAz of [90, 270]) {
+      const s = G.gen('prism', { facets, w: 21, d: 21, h: 16, pal: 'amethyst', light: true, lAz, lEl: 10, lDither: 0, lAo: 0, detail: 'low' });
+      const ramp = G.PALETTES.amethyst.body.map((n) => 'minecraft:' + n), L = (id) => ramp.indexOf(C.parse(id).base);
+      // the middle layer: the block farthest east and farthest west
+      const [sx, sy, sz] = s.size, y = sy >> 1, z = sz >> 1;
+      let east = null, west = null;
+      for (let x = sx - 1; x >= 0 && !east; x--) if (s.blocks[(y * sz + z) * sx + x]) east = C.get(s, x, y, z);
+      for (let x = 0; x < sx && !west; x++) if (s.blocks[(y * sz + z) * sx + x]) west = C.get(s, x, y, z);
+      const lit = lAz === 90 ? east : west, dark = lAz === 90 ? west : east;
+      assert.ok(L(lit) > L(dark), facets + ' faces, light from ' + lAz + ': lit ' + lit + ' vs dark ' + dark);
+    }
+  }
+  // a flat facet is one shade: every block of a big flat face picks the same ramp step (no dither)
+  const s = G.gen('slab', { w: 20, d: 4, h: 20, pal: 'stone', light: true, lAz: 180, lEl: 30, lDither: 0, lAo: 0, detail: 'low' });
+  const [sx, sy, sz] = s.size, face = new Set();
+  for (let y = 2; y < sy - 2; y++) for (let x = 2; x < sx - 2; x++) face.add(C.get(s, x, y, sz - 1));
+  assert.strictEqual(face.size, 1, 'the south face is one shade: ' + [...face].join(', '));
+});
+
+/* ---------------- Inside: hollow, open, cavity for every generator ---------------- */
+for (const f of G.FAMILIES) {
+  t(f.id + ': Inside (hollow / open / cavity) keeps the size, uses fewer blocks, closed walls of the asked thickness', () => {
+    const base = { detail: 'low', light: false, glow: 'none', tipStyle: 'none' };
+    const solid = G.gen(f.id, base), hol = G.gen(f.id, Object.assign({ inside: 'hollow', wall: 1 }, base));
+    assert.deepStrictEqual(plain(hol.size), plain(solid.size), 'the bounding size is unchanged');
+    assert.ok(C.volume(hol) <= C.volume(solid), 'hollow has no more blocks than solid');
+    if (C.volume(hol) === C.volume(solid)) return;   // too thin to hollow (a wall of 1 is all of it)
+    assert.ok(C.volume(hol) < C.volume(solid), 'fewer blocks');
+    if (!['waterfall', 'volcano', 'crater', 'mountain', 'geode', 'helix', 'arch'].includes(f.id)) assert.ok(enclosed(hol, true) > 0, 'a closed space inside');
+    const opn = G.gen(f.id, Object.assign({ inside: 'open', wall: 1 }, base));
+    assert.ok(C.volume(opn) <= C.volume(hol), 'open has no more blocks than hollow');
+    const w2 = G.gen(f.id, Object.assign({ inside: 'hollow', wall: 2 }, base));
+    assert.ok(C.volume(w2) >= C.volume(hol), 'a thicker wall has more blocks');
+  });
+}
+t('Inside: wall thickness is a true distance; open lets you in; cavity keeps a core; fill and supports go inside', () => {
+  const B = { detail: 'low', light: false, glow: 'none' };
+  // an axis-aligned wall is exactly the asked thickness
+  for (const wall of [1, 2, 3]) {
+    const s = G.gen('slab', Object.assign({ w: 15, d: 15, h: 15, inside: 'hollow', wall }, B)), [sx, sy, sz] = s.size, y = 7, z = 7;
+    let run = 0; for (let x = 0; x < sx && C.get(s, x, y, z) !== 'minecraft:air'; x++) run++;
+    assert.strictEqual(run, wall, 'wall ' + wall + ' along x');
+  }
+  const hollow = G.gen('slab', Object.assign({ w: 15, d: 15, h: 15, inside: 'hollow', wall: 1 }, B)), open = G.gen('slab', Object.assign({ w: 15, d: 15, h: 15, inside: 'open', wall: 1 }, B));
+  assert.ok(enclosed(hollow) > 0 && enclosed(open) === 0, 'hollow is closed, open is reachable from outside');
+  const cav = G.gen('crystal', Object.assign({ w: 25, d: 25, h: 40, inside: 'cavity', wall: 2, tipStyle: 'none' }, B));
+  const hol = G.gen('crystal', Object.assign({ w: 25, d: 25, h: 40, inside: 'hollow', wall: 2, tipStyle: 'none' }, B));
+  assert.ok(C.volume(cav) > C.volume(hol) && pieces(cav).length >= 2, 'cavity: a core stands inside the shell');
+  const glow = G.gen('crystal', Object.assign({ w: 21, d: 21, h: 36, inside: 'hollow', wall: 2, fill: 'glow', tipStyle: 'none' }, B));
+  assert.ok(glow.palette.some((id) => /froglight/.test(id)), 'glow core inside (amethyst glows pearl)');
+  const sup = G.gen('slab', Object.assign({ w: 25, d: 25, h: 15, inside: 'hollow', wall: 1, support: 'pillars' }, B));
+  assert.ok(C.volume(sup) > C.volume(G.gen('slab', Object.assign({ w: 25, d: 25, h: 15, inside: 'hollow', wall: 1 }, B))), 'pillars inside');
+  // a slanted facet keeps an even wall: no hole and no doubled step on a tilted crystal
+  const tilt = G.gen('crystal', Object.assign({ w: 21, d: 21, h: 36, inside: 'hollow', wall: 1, lean: 30, tipStyle: 'none' }, B));
+  assert.ok(enclosed(tilt, true) > 0, 'the tilted hollow crystal is still closed');
+  const d = TH.builds.inside.edt(new Uint8Array(27).fill(1), [3, 3, 3]);
+  assert.strictEqual(d[13], 2, 'distance transform: the middle of a 3 cube is 2 from the air');
+});
+
+/* ---------------- glow: amount, visibility ---------------- */
+t('glow amount: 0 = none, more never gives fewer, capped, always visible', () => {
+  const glowCount = (s, re) => C.counts(s, true).filter((r) => re.test(r.id)).reduce((a, r) => a + r.n, 0);
+  for (const g of ['edges', 'veins', 'rings', 'runes', 'speckles', 'core']) {
+    let prev = -1;
+    for (const amt of [0, 10, 30, 60, 100]) {
+      const s = G.gen('obelisk', { glow: g, glowAmt: amt, glowBlock: 'sea_lantern', h: 40, light: false });
+      const n = glowCount(s, /sea_lantern/);
+      if (amt === 0) assert.strictEqual(n, 0, g + ': 0 = none');
+      else assert.ok(n >= 1, g + ' ' + amt + '%: at least one');
+      assert.ok(n >= prev, g + ': ' + amt + '% gives ' + n + ' after ' + prev);
+      prev = n;
+      // visible: a face to the air or right behind glass (the core under glass)
+      const [sx, sy, sz] = s.size;
+      let vis = 0, tot = 0;
+      for (let y = 0; y < sy; y++) for (let z = 0; z < sz; z++) for (let x = 0; x < sx; x++) {
+        if (!/sea_lantern/.test(C.get(s, x, y, z))) continue;
+        tot++;
+        if ([[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]].some(([a, b, c]) => { const id = C.get(s, x + a, y + b, z + c); return id === 'minecraft:air' || /glass/.test(id); })) vis++;
+      }
+      if (tot) assert.ok(vis / tot >= 0.9, g + ' ' + amt + '%: ' + vis + ' of ' + tot + ' glow blocks can be seen');
+    }
+  }
+  // the cap at 100 % (speckles 12 %, veins 25 % of the surface)
+  const s = G.gen('slab', { w: 20, d: 20, h: 20, glow: 'speckles', glowAmt: 100, glowBlock: 'sea_lantern', light: false });
+  const surf = 20 * 20 * 6 - 12 * 20 + 8;
+  assert.ok(glowCount(s, /sea_lantern/) <= 0.13 * surf, 'speckles stay under their cap');
+  // every generator with glow gets some at its default size
+  for (const f of G.FAMILIES) {
+    if (f.glow === false) continue;
+    const s2 = G.gen(f.id, { glow: 'speckles', glowAmt: 40, glowBlock: 'glowstone' });
+    assert.ok(glowCount(s2, /glowstone/) >= 1, f.id + ': speckles show');
+  }
+});
 t('the same seed gives the same build, another seed another one', () => {
   for (const id of ['cluster', 'shard', 'henge', 'rock', 'mountain']) {
     const a = G.gen(id, { seed: 7 }), b = G.gen(id, { seed: 7 }), c = G.gen(id, { seed: 8 });
@@ -128,14 +274,15 @@ t('crystals are one connected piece (floating shards may float by design)', () =
     }
   }
 });
-t('size options are respected: height and footprint follow width / depth / height and scale', () => {
-  for (const [id, w, d, h, tol] of [['crystal', 10, 10, 40, 3], ['prism', 9, 9, 30, 1], ['slab', 4, 1, 9, 0], ['obelisk', 6, 6, 50, 3], ['totem', 7, 7, 30, 1]]) {
-    const s = G.gen(id, { w, d, h, tipStyle: 'none', detail: 'low' });
-    assert.ok(s.size[1] <= h + 1 && s.size[1] >= h - tol, id + ' height ' + s.size[1] + ' / ' + h + ' (a point thinner than a block is not filled)');
-    assert.ok(s.size[0] <= w + 2 && s.size[2] <= d + 2, id + ' footprint ' + s.size);
+t('size options are exact: width / depth / height and scale give that bounding size', () => {
+  for (const [id, w, d, h] of [['crystal', 10, 10, 40], ['prism', 9, 9, 30], ['slab', 4, 1, 9], ['obelisk', 6, 6, 50], ['totem', 7, 7, 30], ['cluster', 30, 24, 33], ['mountain', 60, 50, 30]]) {
+    for (const detail of ['low', 'medium', 'high']) {
+      const s = G.gen(id, { w, d, h, detail });
+      assert.deepStrictEqual(plain(s.size), [w, h, d], id + ' ' + detail);
+    }
   }
   const big = G.gen('crystal', { h: 200, w: 16, d: 16 });
-  assert.ok(big.size[1] >= 190 && big.size[1] <= 204, 'a 200-tall crystal: ' + big.size[1]);
+  assert.deepStrictEqual(plain(big.size), [16, 200, 16], 'a 200-tall crystal');
   const half = G.gen('prism', { h: 40, scale: 50 });
   assert.ok(Math.abs(half.size[1] - 20) <= 1, 'scale 50% halves the height: ' + half.size[1]);
   const slab = G.gen('slab', { w: 4, d: 1, h: 9 });
@@ -150,15 +297,8 @@ t('symmetric shapes stay symmetric (slab monolith, square prism, ziggurat)', () 
     assert.strictEqual(r.diff, 0, id + ': ' + r.diff + ' blocks without a mirrored twin');
   }
 });
-t('hollow keeps a closed wall of the chosen thickness', () => {
-  const solid = G.gen('crystal', { h: 30, w: 12, d: 12, detail: 'low', tipStyle: 'none' }), hol = G.gen('crystal', { h: 30, w: 12, d: 12, detail: 'low', hollow: true, thick: 1, tipStyle: 'none' });
-  assert.ok(C.volume(hol) < C.volume(solid) * 0.6, 'hollow has far fewer blocks');
-  assert.ok(enclosed(hol, true) > 50, 'with a closed space inside');
-  const h2 = G.gen('crystal', { h: 30, w: 12, d: 12, detail: 'low', hollow: true, thick: 2, tipStyle: 'none' });
-  assert.ok(C.volume(h2) > C.volume(hol), 'a 2-thick wall has more blocks');
-});
 t('detail levels: low = full blocks, medium adds stairs / slabs, high may add walls and trapdoors; parts can be left out', () => {
-  const low = G.gen('bipyramid', { detail: 'low' }), med = G.gen('bipyramid', { detail: 'medium' });
+  const low = G.gen('bipyramid', { detail: 'low', light: false }), med = G.gen('bipyramid', { detail: 'medium' });
   assert.ok(low.palette.slice(1).every((id) => C.def(id).shape === 'cube' || D.isThin(id)), 'low: only cubes (and the tip)');
   assert.ok(med.palette.some((id) => /_(stairs|slab)\[/.test(id)), 'medium: stairs or slabs');
   const noStairs = G.gen('bipyramid', { detail: 'medium', off: ['stairs'] });
@@ -173,24 +313,22 @@ t('detail levels: low = full blocks, medium adds stairs / slabs, high may add wa
   for (let y = sy - 1; y >= 0 && !top; y--) for (let z = 0; z < sz && !top; z++) for (let x = 0; x < sx; x++) if (needle.blocks[(y * sz + z) * sx + x]) { top = C.get(needle, x, y, z); break; }
   assert.ok(/end_rod/.test(top), 'the highest block is the end rod: ' + top);
 });
-t('glow patterns place glowing blocks; magma sits behind glass; decorations at high detail', () => {
-  for (const g of ['edges', 'veins', 'core', 'rings', 'runes', 'speckles']) {
-    const s = G.gen('obelisk', { glow: g, glowAmt: 80, glowBlock: 'sea_lantern', h: 40 });
-    assert.ok(C.counts(s, true).some((r) => nameOf(r.id) === 'sea_lantern'), g + ': sea lanterns');
-  }
+t('glow: magma sits behind glass; decorations at high detail; glow follows the palette', () => {
   const m = G.gen('split', { pal: 'basalt', glowBlock: 'magma', glow: 'veins', glowAmt: 90 });
   assert.ok(m.palette.some((id) => nameOf(id) === 'magma_block') && m.palette.some((id) => /orange_stained_glass/.test(id)), 'magma behind glass');
   const am = G.gen('crystal', { glow: 'speckles', glowAmt: 100, glowBlock: 'amethyst', detail: 'max' });
   assert.ok(am.palette.some((id) => /amethyst_cluster\[/.test(id)), 'amethyst clusters on the glowing blocks');
+  const pk = { amethyst: /froglight/, diamond: /sea_lantern/, emerald: /verdant/, nether: /shroomlight/ };
+  for (const [pal, re] of Object.entries(pk)) assert.ok(G.gen('crystal', { pal, glow: 'edges', glowAmt: 60 }).palette.some((id) => re.test(id)), pal + ' glows in its own colour');
 });
 t('surface: weathering, moss with vines, cracks change blocks deterministically', () => {
-  const base = G.gen('obelisk', { pal: 'stone', h: 40, detail: 'low' }), w = G.gen('obelisk', { pal: 'stone', h: 40, weather: 80, moss: 90, cracks: 50, detail: 'low' });
+  const base = G.gen('obelisk', { pal: 'stone', h: 40, detail: 'low', light: false }), w = G.gen('obelisk', { pal: 'stone', h: 40, weather: 80, moss: 90, cracks: 50, detail: 'low', light: false });
   assert.ok(w.palette.some((id) => nameOf(id) === 'moss_block'), 'moss');
   assert.ok(G.gen('obelisk', { pal: 'stone', h: 40, moss: 90 }).palette.some((id) => /moss/.test(id)), 'moss in medium detail too (as mossy parts)');
   assert.ok(w.palette.some((id) => /cracked/.test(id) || /mossy_cobblestone|cobblestone/.test(id)), 'worn and cracked');
   assert.ok(w.palette.some((id) => /vine\[/.test(id)), 'vines hang down from 60% moss');
   assert.ok(!sameBlocks(base, w));
-  assert.ok(sameBlocks(w, G.gen('obelisk', { pal: 'stone', h: 40, weather: 80, moss: 90, cracks: 50, detail: 'low' })), 'repeatable');
+  assert.ok(sameBlocks(w, G.gen('obelisk', { pal: 'stone', h: 40, weather: 80, moss: 90, cracks: 50, detail: 'low', light: false })), 'repeatable');
 });
 t('the angle parameter turns a generated build in 3D; 0 0 0 is the plain build', () => {
   const a = G.gen('slab', { w: 6, d: 2, h: 12, detail: 'low' }), b = G.gen('slab', { w: 6, d: 2, h: 12, detail: 'low', ay: 90 });
@@ -201,9 +339,11 @@ t('the angle parameter turns a generated build in 3D; 0 0 0 is the plain build',
   const d45 = G.gen('crystal', { ay: 45, ax: 22.5 });
   assert.strictEqual(pieces(d45).length, 1, 'a tilted crystal is still one piece');
 });
-t('light: the generator can shade by a light direction and colour', () => {
-  const s = G.gen('crystal', { light: true, lAz: 90, lEl: 0, lDither: 0, lRamp: 'stone' });
-  assert.ok(s.palette.some((id) => nameOf(id) === 'calcite') && s.palette.some((id) => /deepslate/.test(id)), 'the stone ramp from dark to light');
+t('Looks set surface, light and glow together; the light colour tints the lit side', () => {
+  for (const [k] of G.LOOKS) { const patch = G.look('crystal', k); assert.ok(Object.keys(patch).length >= 4, k); validStates(G.gen('crystal', patch), 'look ' + k); }
+  assert.strictEqual(G.look('obelisk', 'frozen').pal, undefined, 'no ice palette on stone: the palette stays');
+  const plainS = G.gen('crystal', { pal: 'quartz', lDither: 0 }), redS = G.gen('crystal', { pal: 'quartz', lDither: 0, lColour: [1, 0.2, 0.2], lTint: 100, lPool: 'concrete' });
+  assert.ok(!sameBlocks(plainS, redS) && redS.palette.some((id) => /red|pink|orange|magenta/.test(id)), 'a red light picks reddish blocks');
 });
 
 /* ======================================================================

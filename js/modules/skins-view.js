@@ -64,6 +64,7 @@ TH.skinsView = (function () {
       const ov = (map) => ({ map, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 });
       mats.grid = new THREE.MeshBasicMaterial(ov(S.gridTex));
       mats.cur = new THREE.MeshBasicMaterial(ov(S.curTex));
+      mats.sel = new THREE.MeshBasicMaterial(ov(S.selTex));
     }
     const matFor = (outer) => (S.lit ? (outer ? mats.litOuter : mats.litBase) : (outer ? mats.flatOuter : mats.flatBase));
 
@@ -100,6 +101,7 @@ TH.skinsView = (function () {
       S.gridCv = mkCanvas(512, 512); S.gridTex = nearestTex(S.gridCv, true);
       S.gridTex.magFilter = THREE.NearestFilter;
       S.curCv = mkCanvas(64, 64); S.curTex = nearestTex(S.curCv, true);
+      S.selCv = mkCanvas(512, 512); S.selTex = nearestTex(S.selCv, true);
       makeMats();
       // elytra + cape (Trims geometry)
       const WP = M().WING_PIV;
@@ -121,16 +123,17 @@ TH.skinsView = (function () {
 
     /** (re)build the twelve skin parts for the arm model */
     function buildParts(slim) {
-      Object.values(S.parts).forEach((p) => { [p.mesh, p.grid, p.cur].forEach((m) => { if (m.parent) m.parent.remove(m); }); p.mesh.geometry.dispose(); });
+      Object.values(S.parts).forEach((p) => { [p.mesh, p.grid, p.cur, p.sel].forEach((m) => { if (m && m.parent) m.parent.remove(m); }); p.mesh.geometry.dispose(); });
       S.parts = {};
       const PIV = M().PIV;
       M().skinParts(slim).forEach((p) => {
         const geo = M().boxGeometry(THREE, p, 64, 64), pv = PIV[p.bone];
         geo.translate(-pv[0], -pv[1], -pv[2]);
-        const outer = !!p.g, mesh = new THREE.Mesh(geo, matFor(outer)), grid = new THREE.Mesh(geo, mats.grid), cur = new THREE.Mesh(geo, mats.cur);
+        const outer = !!p.g, mesh = new THREE.Mesh(geo, matFor(outer)), grid = new THREE.Mesh(geo, mats.grid), cur = new THREE.Mesh(geo, mats.cur), sel = new THREE.Mesh(geo, mats.sel);
         mesh.renderOrder = outer ? 2 : 0; grid.renderOrder = outer ? 3 : 1; cur.renderOrder = 4;
         [mesh, grid, cur].forEach((m) => S.bones[p.bone].add(m));
-        S.parts[p.id] = { id: p.id, outer, mesh, grid, cur, pivot: pv };
+        sel.renderOrder = 5; S.bones[p.bone].add(sel);
+        S.parts[p.id] = { id: p.id, outer, mesh, grid, cur, sel, pivot: pv };
       });
       S.slim = slim;
       applyVis();
@@ -138,7 +141,7 @@ TH.skinsView = (function () {
     function applyVis() {
       Object.values(S.parts).forEach((p) => {
         const vis = !S.hidden[p.id];
-        p.mesh.visible = vis; p.grid.visible = vis && S.overlay !== 'none'; p.cur.visible = vis;
+        p.mesh.visible = vis; p.grid.visible = vis && S.overlay !== 'none'; p.cur.visible = vis; p.sel.visible = vis && !!S.hasSel;
         p.mesh.material = matFor(p.outer);
       });
       S.dirty = true; wake();
@@ -200,20 +203,47 @@ TH.skinsView = (function () {
       S.dirty = true; wake();
     };
     /** brush cursor: pixels [[x, y]] highlighted on the model (colour = rgba css) */
-    let curRect = null, selMask = null, selDirty = false;
-    /** the selection (64x64 mask or null) shows as a tint on the model, under the brush cursor */
-    S.setSelection = (mask) => { selMask = mask || null; selDirty = true; S.setCursor(S.lastCur || null, S.lastCurColor); };
+    let curRect = null;
+    /**
+     * The selection on the model: marching ants on the texel edges (thin dashes, dark + light, 8 canvas px per texel), the
+     * selected pixels themselves keep their true colours. phase moves the dashes (the caller ticks it; static when reduced
+     * motion / Lite). preview = an outline being drawn (a marquee in progress), in the accent colour.
+     */
+    S.setSelection = (mask, phase, preview) => {
+      if (!S.ready) return;
+      const x = S.selCv.getContext('2d');
+      x.clearRect(0, 0, 512, 512);
+      const draw = (m, cols, dash) => {
+        if (!m) return;
+        // edges drawn just inside the selected texel, so a line never bleeds onto the neighbouring face of the box
+        const at = (X, Y) => X >= 0 && Y >= 0 && X < 64 && Y < 64 && m[Y * 64 + X], seg = [], q = 0.8;
+        for (let y = 0; y < 64; y++) for (let X = 0; X < 64; X++) {
+          if (!m[y * 64 + X]) continue;
+          const x0 = X * 8, y0 = y * 8;
+          if (!at(X, y - 1)) seg.push([x0, y0 + q, x0 + 8, y0 + q]);
+          if (!at(X, y + 1)) seg.push([x0, y0 + 8 - q, x0 + 8, y0 + 8 - q]);
+          if (!at(X - 1, y)) seg.push([x0 + q, y0, x0 + q, y0 + 8]);
+          if (!at(X + 1, y)) seg.push([x0 + 8 - q, y0, x0 + 8 - q, y0 + 8]);
+        }
+        if (!seg.length) return;
+        x.lineWidth = 1.6; x.setLineDash(dash);
+        cols.forEach(([c, off]) => {
+          x.strokeStyle = c; x.lineDashOffset = off - (phase || 0);
+          x.beginPath(); seg.forEach(([a, b, c2, d]) => { x.moveTo(a, b); x.lineTo(c2, d); }); x.stroke();
+        });
+      };
+      draw(mask, [['rgba(0,0,0,.85)', 0], ['rgba(255,255,255,.95)', 3]], [3, 3]);
+      draw(preview, [['rgba(0,0,0,.6)', 0], [S.accent || '#8c96ff', 2]], [2, 2]);
+      x.setLineDash([]);
+      S.hasSel = !!(mask || preview);
+      Object.values(S.parts).forEach((p) => { if (p.sel) p.sel.visible = S.hasSel && p.mesh.visible; });
+      S.selTex.needsUpdate = true; S.dirty = true; wake();
+    };
     S.setCursor = (pts, color) => {
       if (!S.ready) return;
-      S.lastCur = pts; S.lastCurColor = color;
       const x = S.curCv.getContext('2d');
       let r = curRect;
-      if (selMask || selDirty) {   // repaint the whole small canvas: selection tint, then the cursor
-        x.clearRect(0, 0, 64, 64);
-        // only the rim of the selection is marked, so the selected pixels keep their true colours on the model
-        if (selMask) { x.fillStyle = 'rgba(140,150,255,.6)'; const m = selMask; for (let i = 0; i < 4096; i++) { if (!m[i]) continue; const cx = i & 63, cy = i >> 6; if (cx === 0 || cy === 0 || cx === 63 || cy === 63 || !m[i - 1] || !m[i + 1] || !m[i - 64] || !m[i + 64]) x.fillRect(cx, cy, 1, 1); } }
-        r = { y0: 0, y1: 63 }; selDirty = false;
-      } else if (curRect) x.clearRect(0, curRect.y0, 64, curRect.y1 - curRect.y0 + 1);
+      if (curRect) x.clearRect(0, curRect.y0, 64, curRect.y1 - curRect.y0 + 1);
       curRect = null;
       if (pts && pts.length) {
         x.fillStyle = color || 'rgba(255,255,255,.55)';
@@ -425,12 +455,43 @@ TH.skinsView = (function () {
       });
       return E().pick(S.slim ? 'slim' : 'classic', rays);
     };
+    /**
+     * Selections drawn on the model: every texel you can SEE inside a screen shape. test(cx, cy) says whether a client
+     * point is inside the shape, bb = its client bounding box. The shape is sampled every few screen pixels and each sample
+     * is picked like a brush (nearest visible part), so a marquee or lasso picks texels across all the faces it covers.
+     * A picked texel also selects the same spot of the other layer (base <-> outer), as the two lie on top of each other.
+     * Returns a 64x64 mask.
+     */
+    S.texelsIn = (test, bb) => {
+      const m = new Uint8Array(4096);
+      if (!S.ready || !S.w) return m;
+      resize(); place(); S.scene.updateMatrixWorld();
+      const model = S.slim ? 'slim' : 'classic', r = S.canvas.getBoundingClientRect(), o = S.camera.position.clone();
+      const parts = Object.values(S.parts).filter((p) => p.mesh.visible).map((p) => { const inv = p.mesh.matrixWorld.clone().invert(), lo = o.clone().applyMatrix4(inv); return { p, inv, o: [lo.x + p.pivot[0], lo.y + p.pivot[1], lo.z + p.pivot[2]] }; });
+      const x0 = Math.max(bb.x0, r.left), x1 = Math.min(bb.x1, r.right), y0 = Math.max(bb.y0, r.top), y1 = Math.min(bb.y1, r.bottom);
+      if (x1 <= x0 || y1 <= y0) return m;
+      const step = Math.max(1.5, Math.sqrt(((x1 - x0) * (y1 - y0)) / 60000));
+      const v = new THREE.Vector3(), PART = E().PART;
+      for (let cy = y0 + step / 2; cy < y1; cy += step) for (let cx = x0 + step / 2; cx < x1; cx += step) {
+        if (!test(cx, cy)) continue;
+        v.set(((cx - r.left) / r.width) * 2 - 1, -((cy - r.top) / r.height) * 2 + 1, 0.5).unproject(S.camera);
+        const rays = parts.map(({ p, inv, o: lo }) => { const lf = v.clone().applyMatrix4(inv); return { id: p.id, o: lo, d: [lf.x + p.pivot[0] - lo[0], lf.y + p.pivot[1] - lo[1], lf.z + p.pivot[2] - lo[2]] }; });
+        const hit = E().pick(model, rays);
+        if (!hit) continue;
+        m[hit.y * 64 + hit.x] = 1;
+        const twin = PART[hit.part].outer || PART[hit.part].base, A = E().rectOf(model, hit.part, hit.face), B = twin && E().rectOf(model, twin, hit.face);
+        if (A && B) m[(B.y + hit.y - A.y) * 64 + B.x + hit.x - A.x] = 1;
+      }
+      return m;
+    };
 
     /*
      * ---- input ----
-     * left button / one finger: paint with the active tool (the Turn tool: orbit) · right-drag or Alt+left-drag: orbit
-     * (Alt+click without moving still picks a colour) · middle-drag, Shift+right-drag or Space+left-drag: pan ·
-     * wheel: zoom toward the cursor · two fingers: pan + pinch zoom (always) · double-click a part: fly to it.
+     * As in the toolbox's other viewports: RIGHT-drag pans (moves the frame), the browser menu never opens. Left button /
+     * one finger: the active tool (the Turn tool: orbit) · middle-drag or Alt+left-drag: orbit (Alt+click without moving
+     * picks a colour; with S.altTool, i.e. the selection and Move tools, Alt+drag belongs to the tool: subtract / copy) ·
+     * Space+left-drag: pan · wheel: zoom toward the cursor · two fingers: pan + pinch zoom (always) · double-click a part:
+     * fly to it (S.onDbl may take the double-click first, e.g. a marquee selects the face).
      */
     let drag = null;   // { kind: 'paint' | 'orbit' | 'pan' | 'alt' | 'multi', id, x, y, t }
     const ptrs = new Map();
@@ -448,6 +509,7 @@ TH.skinsView = (function () {
       if (!prev || now - prev.t > 350 || Math.hypot(e.clientX - prev.x, e.clientY - prev.y) > 6) return false;
       lastDown = null;
       const hit = S.pickAt(e.clientX, e.clientY);
+      if (S.onDbl && S.onDbl(hit, e)) return true;
       if (!hit) { S.reset(); return true; }
       S.focus(hit.part, hit.face);
       S.onFocus && S.onFocus(hit);
@@ -465,11 +527,11 @@ TH.skinsView = (function () {
       }
       if (ptrs.size > 2) return;
       const btn = e.pointerType === 'mouse' ? e.button : 0;
-      if (btn === 0 && !e.altKey && !spaceDown && !e.shiftKey && dblFocus(e)) { drag = null; ptrs.delete(e.pointerId); return; }
+      if (btn === 0 && !spaceDown && (S.altTool || (!e.altKey && !e.shiftKey)) && dblFocus(e)) { drag = null; ptrs.delete(e.pointerId); return; }
       let kind = 'orbit';
-      if (btn === 1 || (btn === 0 && spaceDown) || (btn === 2 && e.shiftKey) || (btn === 0 && e.shiftKey && S.mode === 'orbit')) kind = 'pan';
-      else if (btn === 2) kind = 'orbit';
-      else if (btn === 0 && e.altKey) kind = 'alt';   // drag = orbit, click = pick a colour
+      if (btn === 2 || (btn === 0 && spaceDown) || (btn === 0 && e.shiftKey && S.mode === 'orbit')) kind = 'pan';
+      else if (btn === 1) kind = 'orbit';
+      else if (btn === 0 && e.altKey && !S.altTool) kind = 'alt';   // drag = orbit, click = pick a colour
       else if (btn === 0 && S.mode === 'paint') kind = 'paint';
       drag = { kind, id: e.pointerId, x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY, t: e.timeStamp };
       el.classList.toggle('grab', kind === 'orbit' || kind === 'pan');
@@ -483,6 +545,7 @@ TH.skinsView = (function () {
         return;
       }
       const dx = e.clientX - p.x, dy = e.clientY - p.y;
+      if (lastDown && Math.hypot(e.clientX - lastDown.x, e.clientY - lastDown.y) > 4) lastDown = null;   // a drag, not a click
       p.x = e.clientX; p.y = e.clientY;
       if (drag.kind === 'multi' && ptrs.size === 2) {
         const m = pmid(), mx = m.x - mid0.x, my = m.y - mid0.y; mid0 = m;

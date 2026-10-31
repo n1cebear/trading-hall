@@ -74,7 +74,7 @@
 .sk-pg { display: flex; flex-direction: column; gap: 5px; }
 .sk-pgl { padding-left: 2px; }
 .sk-pgrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; }
-.sk-tool { height: var(--sk-k); justify-content: flex-start; gap: 6px; padding: 0 7px; min-width: 0; color: var(--muted); font-size: 12.5px; }
+.sk-tool { height: var(--sk-k); justify-content: flex-start; gap: 5px; padding: 0 6px; min-width: 0; color: var(--muted); font-size: 12.5px; }
 .sk-tool:hover { color: var(--text); }
 .sk-tname { overflow: hidden; text-overflow: ellipsis; }
 .sk-tool:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
@@ -93,7 +93,7 @@
 .sk-ot-txt { display: flex; align-items: baseline; gap: 7px; }
 .sk-ot-name { font: 400 13px/1 var(--display); color: var(--text); white-space: nowrap; }
 .sk-ot-key { font: 400 10.5px/1 var(--mono); color: var(--faint); }
-.sk-orow { flex: 1 1 auto; min-width: 0; display: flex; align-items: flex-end; gap: 16px; }
+.sk-orow { flex: none; display: flex; align-items: flex-end; gap: 16px; }   /* its full width counts when the strip measures its fit */
 /* every option = the same two rows: a 13px eyebrow, then a 30px control (sliders show their value in the eyebrow row) */
 .sk-opt { flex: none; display: grid; grid-template-rows: 13px var(--sk-k); row-gap: 3px; align-items: center; }
 .sk-opt > .sk-ol { line-height: 13px; }
@@ -457,3 +457,24 @@
   .sk-dlg .sk-swbox { height: 60px; }
 }
 @media (prefers-reduced-motion: reduce) { .sk-dlg { animation: none !important; } .sk-gmore { transition: none; } }
+
+/* ---------- selection (Photoshop model, Oct 2026): the Selection chip at the right end of the options strip, the screen
+   outline of a marquee / lasso being drawn on the model ---------- */
+.sk-chip { margin-left: auto; flex: none; display: grid; grid-template-rows: 13px var(--sk-k); row-gap: 3px; padding-left: 8px; }
+.sk-chip-l { display: flex; align-items: baseline; gap: 8px; line-height: 13px; white-space: nowrap; }
+.sk-chip-size { font: 400 10px/13px var(--display); letter-spacing: .5px; color: var(--muted); white-space: nowrap; }
+.sk-chip.has .sk-chip-size { color: var(--accent); }
+.sk-chip .sk-ib.sk-mini { width: var(--sk-k); height: var(--sk-k); }
+.sk-deselect { height: var(--sk-k); gap: 5px; padding: 0 9px; font-size: 12px; }
+/* the last resort on a narrow strip: the tool title goes (the palette shows the tool), the chip keeps its size + keys */
+.sk-opts.tighter .sk-ot, .sk-opts.tighter .sk-chip-l > .sk-ol { display: none; }
+.sk-opts.tighter .sk-deselect > span:not(.sk-ico) { display: none; }
+.sk-opts.tighter .sk-deselect { width: var(--sk-k); padding: 0; }
+.sk-opts.tight .sk-chip { padding-left: 4px; }
+.sk-acts .sk-ib.sk-mini:disabled { opacity: .38; }
+.sk-marq { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 2; pointer-events: none; overflow: visible; }
+.sk-marq path { fill: none; stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+.sk-marq-a { stroke: rgb(0 0 0 / .75); }
+.sk-marq-b { stroke: #fff; stroke-dasharray: 5 4; }
+/* phones: the strip swipes sideways, the Selection chip stays pinned at its right end */
+@media (max-width: 760px) { .sk-chip { margin-left: 8px; position: sticky; right: 0; z-index: 1; background: var(--neu-bg, var(--panel)); box-shadow: -10px 0 12px -6px var(--neu-bg, var(--panel)); } }

@@ -4,7 +4,7 @@
  * - Minecraft textures, wiki icons and fonts: cache-first (they never change for a given version).
  * - The page posts { type: 'warm', urls } once, and every texture the app can show is cached in the background.
  */
-const APP = 'toolbox-app-v157';
+const APP = 'toolbox-app-v158';
 const ASSETS = 'toolbox-assets-v1';
 const CORE = [
   './', 'index.html', 'manifest.webmanifest', 'icon.svg',
@@ -13,7 +13,7 @@ const CORE = [
   'js/data/enchantments.js', 'js/data/villagers.js', 'js/data/trims.js', 'js/data/presets.js', 'js/data/items.js',
   'js/data/lang/index.js', 'js/data/lang/en_us.js',
   'js/data/ui/de.js', 'js/data/ui/fr.js', 'js/data/ui/es.js', 'js/data/ui/it.js', 'js/data/ui/pt.js', 'js/data/ui/nl.js', 'js/data/ui/sv.js', 'js/data/ui/da.js', 'js/data/ui/nb.js',
-  'js/modules/hall.js', 'js/modules/hall-canvas.js', 'js/modules/enchanting.js', 'js/data/potions.js', 'js/modules/potions-engine.js', 'js/modules/potions.js', 'js/modules/trims.js', 'js/modules/skins-engine.js', 'js/modules/skins-view.js', 'js/modules/skins.js', 'js/modules/builds-core.js', 'js/modules/builds.js', 'js/modules/builds-io.js', 'js/modules/builds-shapes.js', 'js/modules/builds-farms.js', 'js/modules/builds-view.js', 'js/data/block-colours.js', 'js/modules/builds-detail.js', 'js/modules/builds-rotate.js', 'js/modules/builds-shade.js', 'js/modules/builds-gen.js', 'js/modules/builds-edit.js', 'js/modules/builds-create.js', 'js/modules/builds-editor.js', 'js/modules/builds-mats.js', 'js/modules/materials.js', 'js/data/recipes.js', 'js/modules/palettes.js', 'js/data/palettes.js', 'js/modules/portal.js', 'js/modules/overview.js',
+  'js/modules/hall.js', 'js/modules/hall-canvas.js', 'js/modules/enchanting.js', 'js/data/potions.js', 'js/modules/potions-engine.js', 'js/modules/potions.js', 'js/modules/trims.js', 'js/modules/skins-engine.js', 'js/modules/skins-view.js', 'js/modules/skins.js', 'js/modules/builds-core.js', 'js/modules/builds.js', 'js/modules/builds-io.js', 'js/modules/builds-shapes.js', 'js/modules/builds-farms.js', 'js/modules/builds-view.js', 'js/data/block-colours.js', 'js/modules/builds-detail.js', 'js/modules/builds-rotate.js', 'js/modules/builds-shade.js', 'js/modules/builds-gen.js', 'js/modules/builds-edit.js', 'js/modules/builds-create.js', 'js/modules/builds-inside.js', 'js/modules/builds-resize.js', 'js/modules/builds-editor.js', 'js/modules/builds-mats.js', 'js/modules/materials.js', 'js/data/recipes.js', 'js/modules/palettes.js', 'js/data/palettes.js', 'js/modules/portal.js', 'js/modules/overview.js',
 ];
 const ASSET_HOSTS = ['cdn.jsdelivr.net', 'minecraft.wiki', 'fonts.googleapis.com', 'fonts.gstatic.com'];
 

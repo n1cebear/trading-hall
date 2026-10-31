@@ -34,7 +34,7 @@
   const SRC = (document.currentScript && document.currentScript.src) || location.href;
   const rel = (p) => new URL(p, SRC).href;
   const LAZY = ['builds-io.js', 'builds-shapes.js', 'builds-farms.js', 'builds-view.js', '../data/recipes.js', 'builds-mats.js',
-    '../data/block-colours.js', 'builds-detail.js', 'builds-rotate.js', 'builds-shade.js', 'builds-gen.js', 'builds-edit.js', 'builds-create.js', 'builds-editor.js'];
+    '../data/block-colours.js', 'builds-detail.js', 'builds-rotate.js', 'builds-shade.js', 'builds-inside.js', 'builds-resize.js', 'builds-gen.js', 'builds-edit.js', 'builds-create.js', 'builds-editor.js'];
   const FILE_CAP = 400000;    // characters of run-length data we keep in the saved state per file
   const MAX_FILES = 4;
   const reduced = () => !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
@@ -107,6 +107,7 @@
     grid: ['#.#.#.#', '.......', '#.#.#.#', '.......', '#.#.#.#', '.......', '#.#.#.#'],
     outline: ['#######', '#.....#', '#.....#', '#.....#', '#.....#', '#.....#', '#######'],
     slice: ['.......', '.......', '#######', '#######', '.......', '.......', '.......'],
+    glass: ['#######', '#....##', '#...#.#', '#..#..#', '#.#...#', '##....#', '#######'],
     rot: ['..###..', '.#...#.', '#.....#', '#.....#', '#....##', '.#..#.#', '..###..'],
     reset: ['##...##', '#.....#', '.......', '...#...', '.......', '#.....#', '##...##'],
     down: ['...#...', '...#...', '...#...', '#.###.#', '.#####.', '..###..', '#######'],
@@ -341,11 +342,19 @@
     const gridBtn = tip(h('button.btn.small.bd-vk.sq', { type: 'button', 'aria-label': 'Blueprint grid', onclick: () => { save((b) => { b.grid = !b.grid; }); if (V) V.setGrid(S().grid); syncBar(); } }, glyph('grid')), 'Blueprint grid');
     const outlineBtn = tip(h('button.btn.small.bd-vk.sq', { type: 'button', 'aria-label': 'Layer outline', onclick: () => { save((b) => { b.outline = !b.outline; }); if (V) V.setOutline(S().outline); syncBar(); } }, glyph('outline')), 'Outline of the top shown layer');
     const rotBtn = tip(h('button.btn.small.bd-vk.sq', { type: 'button', 'aria-label': 'Turn slowly', onclick: () => { save((b) => { b.auto = !b.auto; }); if (V) V.setAuto(S().auto); syncBar(); } }, glyph('rot')), 'Turn slowly while idle');
+    const GLASS = [['tint', 'Glass: see-through', 'Glass, panes and windows lightly tinted, so you see in and see them'], ['solid', 'Glass: solid', 'Glass nearly opaque, to read the shape of a glass build'], ['clear', 'Glass: as in game', 'Glass as clear as in Minecraft']];
+    const glassBtn = h('button.btn.small.bd-vk.bd-glasskey', { type: 'button', onclick: () => {
+      const i = (GLASS.findIndex((g) => g[0] === (S().glass || 'tint')) + 1) % GLASS.length;
+      save((b) => { b.glass = GLASS[i][0]; }); if (V) V.setGlass(GLASS[i][0]); syncGlass();
+    } }, glyph('glass'), h('span.bd-vlabel'));
+    tip(glassBtn, () => { const g = GLASS.find((x) => x[0] === (S().glass || 'tint')) || GLASS[0]; return [h('div.th-tooltip-title', g[1]), h('div.th-tooltip-sub', g[2]), h('div.th-tooltip-sub', 'Click for the next look')]; });
+    const syncGlass = () => { const g = GLASS.find((x) => x[0] === (S().glass || 'tint')) || GLASS[0]; glassBtn.querySelector('.bd-vlabel').textContent = g[1]; glassBtn.setAttribute('aria-label', g[1] + ' (click for the next look)'); };
+    syncGlass();
     const symBtn = tip(h('button.btn.small.bd-vk.bd-symkey', { type: 'button', 'aria-pressed': 'false', 'aria-controls': 'bd-sym', onclick: () => { sym.open = !sym.open; symChanged(); } }, glyph('mirror'), h('span.bd-vlabel', 'Symmetry')), 'Mirror planes: check which blocks have no mirrored twin');
     const bar = h('div.bd-abar', { role: 'group', 'aria-label': 'Animation and view' },
       h('div.bd-bar-grp', playBtn, replayBtn, modeSeg, speedSeg),
       h('div.bd-bar-grp.bd-bar-layer', h('label.bd-bar-lbl', { for: 'bd-layer' }, 'Layer'), layer, layerLbl, sliceBtn),
-      h('div.bd-bar-grp.bd-bar-end', gridBtn, outlineBtn, rotBtn));
+      h('div.bd-bar-grp.bd-bar-end', glassBtn, gridBtn, outlineBtn, rotBtn));
     layer.id = 'bd-layer';
     stage.querySelector('.bd-frametools').prepend(symBtn);   // the Symmetry key sits with the view keys on the stage
     const symPanel = symPanelUI();
@@ -418,6 +427,7 @@
     const st = S();
     V.accent = accent();
     V.mode = reduced() ? 'still' : st.mode; V.speed = st.speed; V.gridOn = st.grid; V.outlineOn = st.outline; V.auto = st.auto && !reduced(); V.autoOk = V.auto;
+    V.glassMode = ['tint', 'solid', 'clear'].includes(st.glass) ? st.glass : 'tint';
     UI.loading.hidden = false; UI.loading.textContent = 'Loading the 3D view…'; UI.loading.classList.remove('err');
     return V.init().then(() => { UI.loading.hidden = true; if (inMake()) B().editorUI.enter(ctx()); else show(st.section === 'create' ? 'shape' : (st.stage || st.cur), { animate: true, layer: 'top' }); }).catch(() => {
       if (!UI.wrap.isConnected) return;   // left the tab while it was loading: it starts again on return
@@ -441,6 +451,9 @@
     if (!s && key === 'shape') return;
     if (!s && key !== 'farm:cow_crusher') { key = 'farm:cow_crusher'; s = effective(key); save((b) => { b.cur = key; }); }
     if (!s) return;
+    // all layers were showing and the height changed (resize, angle): keep showing all of them
+    const wasTop = UI.shown && +UI.layer.value >= UI.shown.size[1] && UI.shown.size[1] !== s.size[1];
+    if (wasTop) opts = Object.assign({}, opts, { layer: 'top' });
     UI.shown = s; UI.shownKey = key;
     if (S().stage !== key) save((b) => { b.stage = key; });
     UI.title.textContent = keyName(key) || s.name;
@@ -1194,6 +1207,16 @@
       S, save, show, regen, glyph, GLYPH, tip, press, blockPicker, exportAs, toMats, fmtN, toast, effective, original,
       patch: () => patch(), UI: () => UI, V: () => V, keep: keepSchem, genArt: shapeArt, basicSchem: () => shapeSchem(), basicBlocks: () => blocksPanel(),
       closePickers: () => closePickers(),
+      /** Hold to compare: the build as it came (block swaps kept, no size, angle or light) while on, then back. */
+      peek: (key, on) => {
+        if (!V || !V.ready || UI.shownKey !== key) return;
+        if (!on) { if (UI.peeking) { UI.peeking = false; show(key, { keepView: true }); } return; }
+        if (UI.peeking) return;
+        const s = original(key), sw = S().swaps[key];
+        if (!s) return;
+        UI.peeking = true;
+        V.setSchematic(sw && Object.keys(sw).length ? core().applySwaps(s, sw) : s, { keepView: true, keepZoom: true, layer: 'top' });
+      },
       replay: () => { if (V) { if (S().mode === 'still') setMode('once'); V.replay(); } },
       edit: (s) => { if (!s) return; save((b) => { b.section = 'create'; b.createMode = 'make'; }); B().editorUI.drop(ctx(), s); if (V && V.ready) B().editorUI.enter(ctx()); patch(); toast('Opened ' + s.name + ' in Make it myself'); },
     };

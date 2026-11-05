@@ -113,17 +113,10 @@ TH.builds = TH.builds || {};
     this.idx = new Buf(Uint32Array); this.verts = 0;
   }
 
-  /**
-   * Mesh a schematic. opts: { order: 'build' } -> { opaque, trans, tiles: [spec], tileIndex: Map, times: Float32Array (per cell,
-   * -1 = air), span, drop, blocks, faces }.
-   */
-  function mesh(s, opts) {
-    opts = opts || {};
-    GLASS = opts.glass || 'tint';
-    const core = C(), [sx, sy, sz] = s.size, B = s.blocks, N = B.length;
-    const ox = sx / 2, oz = sz / 2;
-    // palette info
-    const P = s.palette.map((id, i) => {
+  /** What the mesher needs to know about every palette entry (null = air): block table entry, shape, occludes, cut, glow. */
+  function palInfo(palette) {
+    const core = C();
+    return palette.map((id, i) => {
       if (i === 0 || core.isAir(id)) return null;
       const d = core.def(id), p = core.parse(id);
       let shape = d.shape === 'slab' && p.props.type === 'double' ? 'cube' : d.shape;
@@ -138,12 +131,59 @@ TH.builds = TH.builds || {};
       const occl = shape === 'cube' && !d.cut;
       return { id, d, props: p.props, name: p.name, shape, occl, cut: d.cut || (shape === 'liquid' ? (d.alpha ? 'translucent' : null) : null), glow: !!d.glow };
     });
+  }
+  const facingOf = (props, dft) => DIRV[props.facing] ? props.facing : dft;
+  /** Texture role + rotation of face f for a block. */
+  function roleOf(info, f) {
+    const d = info.d, pr = info.props, F = FACES[f].name;
+    if (d.dir === 'f6' || d.dir === 'f4') {
+      const fac = facingOf(pr, d.dir === 'f4' ? 'south' : 'north'), fv = DIRV[fac], vert = fac === 'up' || fac === 'down';
+      if (F === fac) return { role: vert && d.fv ? 'fv' : 'f', rot: 0 };
+      if (FI[F] === OPP[FI[fac]]) return { role: d.k ? 'k' : vert ? 's' : (d.dir === 'f4' ? 's' : 's'), rot: 0 };
+      if (d.side === 'rot') return { role: 's', rot: bestRot(f, fv) };
+      if (d.side === 'observer') {
+        if (!vert && (F === 'up' || F === 'down')) return { role: 't', rot: bestRot(f, fv) };
+        return { role: 's', rot: vert ? bestRot(f, fv) : 0 };
+      }
+      if (F === 'up') return { role: 't', rot: 0 };
+      if (F === 'down') return { role: 'b', rot: 0 };
+      return { role: 's', rot: 0 };
+    }
+    if (d.dir === 'fixed-front') {
+      if (F === 'up') return { role: 't', rot: 0 };
+      if (F === 'down') return { role: 'b', rot: 0 };
+      return { role: F === 'north' || F === 'east' ? 'f' : 's', rot: 0 };
+    }
+    if (d.axis) {
+      const ax = pr.axis === 'x' || pr.axis === 'z' ? pr.axis : 'y';
+      if (ax === 'y') return { role: F === 'up' ? 't' : F === 'down' ? 'b' : 's', rot: 0 };
+      const w = ax === 'x' ? [1, 0, 0] : [0, 0, 1];
+      if ((ax === 'x' && (F === 'east' || F === 'west')) || (ax === 'z' && (F === 'north' || F === 'south'))) return { role: 't', rot: 0 };
+      return { role: 's', rot: bestRot(f, w, true) };
+    }
+    return { role: F === 'up' ? 't' : F === 'down' ? 'b' : 's', rot: 0 };
+  }
+
+  /**
+   * Mesh a schematic. opts: { order: 'build' } -> { opaque, trans, tiles: [spec], tileIndex: Map, times: Float32Array (per cell,
+   * -1 = air), span, drop, blocks, faces }.
+   * For the chunked mesher of big builds: opts.P = palInfo() to reuse, opts.cullHidden drops every face a neighbour
+   * hides (no assemble animation), opts.skipPal (Uint8Array per palette index, 1 = leave out: the full cubes the chunk
+   * mesher merges itself).
+   */
+  function mesh(s, opts) {
+    opts = opts || {};
+    GLASS = opts.glass || 'tint';
+    const [sx, sy, sz] = s.size, B = s.blocks, N = B.length;
+    const ox = sx / 2, oz = sz / 2;
+    // palette info
+    const P = opts.P || palInfo(s.palette), skipPal = opts.skipPal || null, cullHidden = !!opts.cullHidden;
     // build order: bottom to top, then a diagonal sweep across the layer. opts.still (the quick editor): no animation,
     // every block landed at time 0; opts.box = [x0, y0, z0, x1, y1, z1) meshes only that part (a chunk), its
     // neighbours still read from the whole schematic so faces and shading join up across chunks.
     const still = !!opts.still, bx = opts.box;
     const cells = [];
-    if (bx) { for (let y = bx[1]; y < bx[4]; y++) for (let z = bx[2]; z < bx[5]; z++) for (let x = bx[0]; x < bx[3]; x++) { const i = (y * sz + z) * sx + x; if (B[i] && P[B[i]]) cells.push(i); } }
+    if (bx) { for (let y = bx[1]; y < bx[4]; y++) for (let z = bx[2]; z < bx[5]; z++) for (let x = bx[0]; x < bx[3]; x++) { const i = (y * sz + z) * sx + x; if (B[i] && P[B[i]] && !(skipPal && skipPal[B[i]] === 1)) cells.push(i); } }
     else for (let i = 0; i < N; i++) if (B[i] && P[B[i]]) cells.push(i);
     const n = cells.length;
     const span = still ? 0 : Math.min(10, Math.max(2.2, 1.4 + Math.sqrt(n) * 0.09)), drop = 0.55;
@@ -208,39 +248,6 @@ TH.builds = TH.builds || {};
       }
       return out;
     }
-    const facingOf = (props, dft) => DIRV[props.facing] ? props.facing : dft;
-
-    /** Texture role + rotation of face f for a block. */
-    function roleOf(info, f) {
-      const d = info.d, pr = info.props, F = FACES[f].name;
-      if (d.dir === 'f6' || d.dir === 'f4') {
-        const fac = facingOf(pr, d.dir === 'f4' ? 'south' : 'north'), fv = DIRV[fac], vert = fac === 'up' || fac === 'down';
-        if (F === fac) return { role: vert && d.fv ? 'fv' : 'f', rot: 0 };
-        if (FI[F] === OPP[FI[fac]]) return { role: d.k ? 'k' : vert ? 's' : (d.dir === 'f4' ? 's' : 's'), rot: 0 };
-        if (d.side === 'rot') return { role: 's', rot: bestRot(f, fv) };
-        if (d.side === 'observer') {
-          if (!vert && (F === 'up' || F === 'down')) return { role: 't', rot: bestRot(f, fv) };
-          return { role: 's', rot: vert ? bestRot(f, fv) : 0 };
-        }
-        if (F === 'up') return { role: 't', rot: 0 };
-        if (F === 'down') return { role: 'b', rot: 0 };
-        return { role: 's', rot: 0 };
-      }
-      if (d.dir === 'fixed-front') {
-        if (F === 'up') return { role: 't', rot: 0 };
-        if (F === 'down') return { role: 'b', rot: 0 };
-        return { role: F === 'north' || F === 'east' ? 'f' : 's', rot: 0 };
-      }
-      if (d.axis) {
-        const ax = pr.axis === 'x' || pr.axis === 'z' ? pr.axis : 'y';
-        if (ax === 'y') return { role: F === 'up' ? 't' : F === 'down' ? 'b' : 's', rot: 0 };
-        const w = ax === 'x' ? [1, 0, 0] : [0, 0, 1];
-        if ((ax === 'x' && (F === 'east' || F === 'west')) || (ax === 'z' && (F === 'north' || F === 'south'))) return { role: 't', rot: 0 };
-        return { role: 's', rot: bestRot(f, w, true) };
-      }
-      return { role: F === 'up' ? 't' : F === 'down' ? 'b' : 's', rot: 0 };
-    }
-
     /** Neighbour hiding rule for a boundary face. Returns null = skip, else [nbT, nbY]. */
     function hide(info, x, y, z, i, f) {
       const F = FACES[f], X = x + F.n[0], Y = y + F.n[1], Z = z + F.n[2];
@@ -251,7 +258,7 @@ TH.builds = TH.builds || {};
       const same = nb.name === info.name && (info.cut || info.shape === 'liquid' || info.d.leafy);
       if (!(nb.occl || same)) return [-1, 0];
       if (info.shape === 'liquid' && nb.shape !== 'liquid' && !nb.occl) return [-1, 0];
-      if (big) return null;
+      if (big || cullHidden) return null;
       const j = (Y * sz + Z) * sx + X;
       if (F.n[1] === 0 && tOf(i) > tOf(j)) return null;   // horizontal: only the earlier block keeps the face
       return [tOf(j), Y];
@@ -473,6 +480,290 @@ TH.builds = TH.builds || {};
     }
     return out;
   }
+
+  /* ======================================================================
+   * Chunked mesher for big builds (pure: runs on the page, in builds-worker.js and in node tests)
+   *
+   * A big build is meshed in CK^3 chunks. The page cuts each chunk out of the block array with a 1-cell border of its
+   * neighbours (TH.builds.chunks.extract: cells outside the shown range, or of a hidden block, become air there), so a
+   * chunk job is small and self-contained. Full cubes are merged greedily: neighbouring faces of the same texture,
+   * turn, glow and an even ambient occlusion become one quad whose uv runs over several blocks (the shader repeats the
+   * tile with fract()); faces with uneven shading stay one per block, exactly as the small-build mesher draws them.
+   * Every other shape (stairs, slabs, panes, rods ...) goes through mesh() above with cullHidden, so it looks the same.
+   * LOD 1 = the chunk at half resolution (2 x 2 x 2 blocks per cell, the most common solid block, thin blocks left out),
+   * coloured with each tile's average colour: for chunks far from the camera.
+   *
+   * Compact vertex format (20 bytes + index): position Float32 x3 (chunk-local blocks), normal Int8 x4 (normalised),
+   * uv Uint16 x4 = (u * 256, v * 256, tile, flag 1 = average colour), colour Uint8 x4 (ambient occlusion x glow / 1.5).
+   * ====================================================================== */
+  const CK = 32;
+  const THIN = new Set(['rod', 'pane', 'cross', 'rail', 'dust', 'torch', 'button', 'plate', 'lever', 'candle', 'lantern', 'bamboo', 'fence', 'trapdoor', 'carpet']);
+  /** Palette tables for the chunk mesher (one per build and thread; holds the tile registry of that thread). */
+  function chunkTables(palette) {
+    GLASS = 'tint';   // the page swaps the glass look on the atlas, so the geometry never depends on it
+    const P = palInfo(palette), n = palette.length;
+    const kind = new Uint8Array(n), occl = new Uint8Array(n), trans = new Uint8Array(n), glow = new Uint8Array(n), thin = new Uint8Array(n), glass = new Uint8Array(n);
+    const same = new Int32Array(n).fill(-1), faceSpec = new Array(n * 6), faceRot = new Uint8Array(n * 6), faceTile = new Int32Array(n * 6).fill(-1), lodSpec = new Array(n * 6), lodTile = new Int32Array(n * 6).fill(-1);
+    const names = new Map();
+    for (let i = 1; i < n; i++) {
+      const info = P[i];
+      if (!info) continue;
+      const cube = info.shape === 'cube' && !(/piston$/.test(info.name) && info.props.extended === 'true');
+      kind[i] = cube ? 1 : 2;
+      occl[i] = info.occl ? 1 : 0;
+      trans[i] = info.cut === 'translucent' ? 1 : 0;
+      glow[i] = info.glow ? 1 : 0;
+      thin[i] = THIN.has(info.shape) ? 1 : 0;
+      glass[i] = /glass/.test(info.name) ? 1 : 0;
+      if (info.cut || info.d.leafy || info.shape === 'liquid') { if (!names.has(info.name)) names.set(info.name, names.size); same[i] = names.get(info.name); }
+      for (let f = 0; f < 6; f++) {
+        const r = roleOf(info, f);
+        lodSpec[i * 6 + f] = tileSpec(info.d, r.role);
+        if (cube) { faceSpec[i * 6 + f] = lodSpec[i * 6 + f]; faceRot[i * 6 + f] = r.rot || 0; }
+      }
+    }
+    return { palette, P, kind, occl, trans, glow, thin, glass, same, faceSpec, faceRot, faceTile, lodSpec, lodTile, reg: { tiles: [], tileIndex: new Map() }, sent: 0 };
+  }
+  function regTile(T, spec) {
+    let t = T.reg.tileIndex.get(spec);
+    if (t == null) { t = T.reg.tiles.length; T.reg.tiles.push(spec); T.reg.tileIndex.set(spec, t); }
+    return t;
+  }
+  /** Growable compact geometry. */
+  function CGeo() { this.cap = 0; this.verts = 0; this.nIdx = 0; this.grow(256); this.idx = new Uint32Array(384); }
+  CGeo.prototype.grow = function (need) {
+    let c = this.cap || 256;
+    while (c < need) c *= 2;
+    if (c === this.cap) return;
+    const re = (a, T, k) => { const b = new T(c * k); if (a) b.set(a.subarray(0, this.verts * k)); return b; };
+    this.pos = re(this.pos, Float32Array, 3); this.nrm = re(this.nrm, Int8Array, 4); this.uv = re(this.uv, Uint16Array, 4); this.col = re(this.col, Uint8Array, 4);
+    this.cap = c;
+  };
+  CGeo.prototype.tri = function (a, b, c2, d, e, f2) {
+    if (this.nIdx + 6 > this.idx.length) { const b2 = new Uint32Array(this.idx.length * 2); b2.set(this.idx); this.idx = b2; }
+    const I = this.idx, k = this.nIdx;
+    I[k] = a; I[k + 1] = b; I[k + 2] = c2; I[k + 3] = d; I[k + 4] = e; I[k + 5] = f2; this.nIdx += 6;
+  };
+  CGeo.prototype.vert = function (x, y, z, nx, ny, nz, u, v, tile, flag, c) {
+    if (this.verts >= this.cap) this.grow(this.verts + 1);
+    const i = this.verts++, p = i * 3, q = i * 4;
+    this.pos[p] = x; this.pos[p + 1] = y; this.pos[p + 2] = z;
+    this.nrm[q] = nx; this.nrm[q + 1] = ny; this.nrm[q + 2] = nz; this.nrm[q + 3] = 0;
+    this.uv[q] = u; this.uv[q + 1] = v; this.uv[q + 2] = tile; this.uv[q + 3] = flag;
+    this.col[q] = c; this.col[q + 1] = c; this.col[q + 2] = c; this.col[q + 3] = 255;
+  };
+  CGeo.prototype.done = function () {
+    if (!this.verts) return null;
+    const n = this.verts, I = this.idx.subarray(0, this.nIdx);
+    return { verts: n, pos: this.pos.slice(0, n * 3), nrm: this.nrm.slice(0, n * 4), uv: this.uv.slice(0, n * 4), col: this.col.slice(0, n * 4), idx: n <= 65535 ? Uint16Array.from(I) : I.slice() };
+  };
+  const colByte = (a) => Math.max(0, Math.min(255, Math.round(a / 1.5 * 255)));
+  const AOB = AO.map(colByte), AOG = AO.map((a) => colByte(a * 1.45));   // vertex colour bytes: plain, glowing
+  // unit-cube corner offsets per face as flat numbers, and the face's two uv axes (from FACES)
+  const FC = FACES.map((F) => F.c);
+  const FRT = FACES.map((F) => sub(F.c[1], F.c[0])), FUP = FACES.map((F) => sub(F.c[3], F.c[0]));
+  const FAX = FACES.map((F) => (F.n[0] ? 0 : F.n[1] ? 1 : 2));
+  const lo3 = new Float64Array(3), hi3 = new Float64Array(3), pt = new Float64Array(12), uvq = new Float64Array(8);   // quad() scratch
+  // for merging faces whose shading only changes in one direction: the corner pairs that share their place along the
+  // slice's second axis (va: a row along ua can merge) and along its first axis (ua: a column along va can merge)
+  const PAIRS = FACES.map((F, f) => {
+    const a = FAX[f], ua = (a + 1) % 3, va = (a + 2) % 3, by = (ax) => { const g = [[], []]; F.c.forEach((c, k) => g[c[ax]].push(k)); return g; };
+    return { row: by(va), col: by(ua) };
+  });
+
+  /**
+   * Mesh one chunk job: { id, dims: [w, h, d], sub: Uint16Array((w+2)(h+2)(d+2)) with a 1-cell border, lod: 0 | 1,
+   * scale (blocks per cell, LOD 1 = 2) }. Returns { o, t, tiles, tileBase, faces } (o / t = opaque / translucent
+   * compact geometry or null; tiles = texture specs new to this thread's registry since the last chunk).
+   */
+  function meshChunk(job, T) {
+    const [w, h, d] = job.dims, W = w + 2, H = h + 2, D = d + 2, sub2 = job.sub, lod = job.lod || 0, sc = job.scale || 1;
+    const at = (x, y, z) => ((y + 1) * D + (z + 1)) * W + (x + 1);
+    const step = [1, -1, W * D, -W * D, W, -W];   // neighbour offset per face
+    const dims = [w, h, d];
+    const geoO = new CGeo(), geoT = lod ? geoO : new CGeo();
+    let faces = 0;
+    const occ = (i) => T.occl[sub2[i]] === 1;
+    const mask = new Int32Array(CK * CK), aoBuf = new Uint8Array(4);
+    const stride = [1, W * D, W], i0 = at(0, 0, 0);
+    // ---- the cube faces, slice by slice, merged greedily ----
+    for (let f = 0; f < 6; f++) {
+      const a = FAX[f], ua = (a + 1) % 3, va = (a + 2) % 3, nu = dims[ua], nv = dims[va], st = step[f];
+      const T4 = AO_T[f], sa = stride[a], su = stride[ua], sv = stride[va];
+      const aoOff = T4.map(([t1, t2]) => [t1[0] + t1[1] * W * D + t1[2] * W, t2[0] + t2[1] * W * D + t2[2] * W]);
+      for (let c = 0; c < dims[a]; c++) {
+        let any = false;
+        for (let q = 0; q < nv; q++) for (let p = 0; p < nu; p++) {
+          const i = i0 + c * sa + p * su + q * sv, v = sub2[i], m = q * nu + p;
+          mask[m] = 0;
+          if (!v) continue;
+          if (lod) {   // every cell of the coarse grid is a plain cube
+            if (sub2[i + st]) continue;
+            let t = T.lodTile[v * 6 + f];
+            if (t < 0) t = T.lodTile[v * 6 + f] = regTile(T, T.lodSpec[v * 6 + f]);
+            mask[m] = t + 1; any = true;
+            continue;
+          }
+          if (T.kind[v] !== 1) continue;
+          const nb = sub2[i + st];
+          if (nb && (T.occl[nb] || (T.same[v] >= 0 && T.same[nb] === T.same[v]))) continue;   // hidden by its neighbour
+          let t = T.faceTile[v * 6 + f];
+          if (t < 0) t = T.faceTile[v * 6 + f] = regTile(T, T.faceSpec[v * 6 + f]);
+          let ao0 = 0, ao1 = 0, ao2 = 0, ao3 = 0;
+          if (T.occl[v]) {
+            const ni = i + st;
+            for (let k = 0; k < 4; k++) {
+              const o1 = aoOff[k][0], o2 = aoOff[k][1];
+              const s1 = occ(ni + o1) ? 1 : 0, s2 = occ(ni + o2) ? 1 : 0;
+              aoBuf[k] = s1 && s2 ? 3 : s1 + s2 + (occ(ni + o1 + o2) ? 1 : 0);
+            }
+            ao0 = aoBuf[0]; ao1 = aoBuf[1]; ao2 = aoBuf[2]; ao3 = aoBuf[3];
+          }
+          const tr = T.trans[v], gl = T.glow[v], rot = T.faceRot[v * 6 + f];
+          // shading: even (merges both ways), changing only across the row (merges along it), only along the column
+          // (merges down it), or in both directions (one face, exactly as the small mesher draws it)
+          let mode = -1;
+          if (ao0 === ao1 && ao1 === ao2 && ao2 === ao3) mode = 0;
+          else {
+            const PR = PAIRS[f], eq = (g) => aoBuf[g[0][0]] === aoBuf[g[0][1]] && aoBuf[g[1][0]] === aoBuf[g[1][1]];
+            if (eq(PR.row)) mode = 1; else if (eq(PR.col)) mode = 2;
+          }
+          const pat = ao0 | (ao1 << 2) | (ao2 << 4) | (ao3 << 6);
+          if (mode >= 0) { mask[m] = 1 + (t | (rot << 13) | (gl << 15) | (tr << 16) | (pat << 17) | (mode << 25)); any = true; }
+          else quad(tr ? geoT : geoO, f, a, ua, va, c, p, q, 1, 1, t, rot, gl, aoBuf, 0);
+        }
+        if (!any) continue;
+        // greedy rectangles over the mask
+        for (let q = 0; q < nv; q++) for (let p = 0; p < nu;) {
+          const key = mask[q * nu + p];
+          if (!key) { p++; continue; }
+          const kv = key - 1, mode = lod ? 0 : (kv >> 25) & 3;
+          let wd = 1;
+          if (mode !== 2) while (p + wd < nu && mask[q * nu + p + wd] === key) wd++;
+          let ht = 1;
+          if (mode !== 1) {
+            grow: while (q + ht < nv) {
+              for (let k = 0; k < wd; k++) if (mask[(q + ht) * nu + p + k] !== key) break grow;
+              ht++;
+            }
+          }
+          for (let j = 0; j < ht; j++) for (let k = 0; k < wd; k++) mask[(q + j) * nu + p + k] = 0;
+          if (lod) quad(geoO, f, a, ua, va, c, p, q, wd, ht, kv, 0, 0, null, 1);
+          else {
+            const pat = (kv >> 17) & 0xff;
+            for (let k = 0; k < 4; k++) aoBuf[k] = (pat >> (2 * k)) & 3;
+            quad((kv >> 16) & 1 ? geoT : geoO, f, a, ua, va, c, p, q, wd, ht, kv & 0x1fff, (kv >> 13) & 3, (kv >> 15) & 1, pat ? aoBuf : null, 0);
+          }
+          p += wd;
+        }
+      }
+    }
+    /** One quad: cells [p, p + wd) x [q, q + ht) of slice c, face f. */
+    function quad(g, f, a, ua, va, c, p, q, wd, ht, tile, rot, gl, ao, flag) {
+      const fc = FC[f], rt = FRT[f], up = FUP[f], nn = FACES[f].n, v0 = g.verts;
+      lo3[a] = c; hi3[a] = c + 1; lo3[ua] = p; hi3[ua] = p + wd; lo3[va] = q; hi3[va] = q + ht;
+      // corner positions, their uv (extent along the face's own right / up axes), then the texture turn
+      let Wu = 0, Hv = 0;
+      for (let k = 0; k < 4; k++) {
+        const cc = fc[k], o = k * 3;
+        pt[o] = cc[0] ? hi3[0] : lo3[0]; pt[o + 1] = cc[1] ? hi3[1] : lo3[1]; pt[o + 2] = cc[2] ? hi3[2] : lo3[2];
+        const d0 = pt[o] - pt[0], d1 = pt[o + 1] - pt[1], d2 = pt[o + 2] - pt[2];
+        const u = d0 * rt[0] + d1 * rt[1] + d2 * rt[2], v = d0 * up[0] + d1 * up[1] + d2 * up[2];
+        uvq[k * 2] = u; uvq[k * 2 + 1] = v;
+        if (u > Wu) Wu = u; if (v > Hv) Hv = v;
+      }
+      for (let r = 0; r < rot; r++) {
+        for (let k = 0; k < 4; k++) { const u = uvq[k * 2]; uvq[k * 2] = Hv - uvq[k * 2 + 1]; uvq[k * 2 + 1] = u; }
+        const tw = Wu; Wu = Hv; Hv = tw;
+      }
+      const cb = gl ? AOG : AOB;
+      for (let k = 0; k < 4; k++) g.vert(pt[k * 3] * sc, pt[k * 3 + 1] * sc, pt[k * 3 + 2] * sc, nn[0] * 127, nn[1] * 127, nn[2] * 127, uvq[k * 2] * 256, uvq[k * 2 + 1] * 256, tile, flag, ao ? cb[ao[k]] : cb[0]);
+      if (ao && ao[0] + ao[2] > ao[1] + ao[3]) g.tri(v0 + 1, v0 + 2, v0 + 3, v0 + 1, v0 + 3, v0);
+      else g.tri(v0, v0 + 1, v0 + 2, v0, v0 + 2, v0 + 3);
+      faces++;
+    }
+    // ---- every other shape: the small-build mesher on the bordered chunk, converted to the compact format ----
+    if (!lod) {
+      let other = false;
+      for (let i = 0; i < sub2.length && !other; i++) if (T.kind[sub2[i]] === 2) other = true;
+      if (other) {
+        const mini = { size: [W, H, D], palette: T.palette, blocks: sub2 };
+        const M = mesh(mini, { still: true, box: [1, 1, 1, w + 1, h + 1, d + 1], tiles: T.reg.tiles, tileIndex: T.reg.tileIndex, glass: 'tint', P: T.P, cullHidden: true, skipPal: T.kind });
+        const put = (src, g) => {
+          for (let v = 0; v < src.verts; v++) {
+            const b3 = v * 3, b2 = v * 2;
+            g.vert(src.pos[b3] + W / 2 - 1, src.pos[b3 + 1] - 1, src.pos[b3 + 2] + D / 2 - 1, Math.round(src.nrm[b3] * 127), Math.round(src.nrm[b3 + 1] * 127), Math.round(src.nrm[b3 + 2] * 127),
+              Math.round(src.uv[b2] * 256), Math.round(src.uv[b2 + 1] * 256), src.tile[v], 0, colByte(src.col[b3]));
+          }
+          const base = g.verts - src.verts;
+          for (let k = 0; k < src.idx.length; k += 6) g.tri(base + src.idx[k], base + src.idx[k + 1], base + src.idx[k + 2], base + src.idx[k + 3], base + src.idx[k + 4], base + src.idx[k + 5]);
+          faces += src.idx.length / 6;
+        };
+        put(M.opaque, geoO); put(M.trans, geoT);
+      }
+    }
+    const tileBase = T.sent, tiles = T.reg.tiles.slice(T.sent);
+    T.sent = T.reg.tiles.length;
+    return { id: job.id, o: geoO.done(), t: lod ? null : geoT.done(), tiles, tileBase, faces };
+  }
+  const transfers = (out) => { const l = []; [out && out.o, out && out.t].forEach((g) => { if (g) l.push(g.pos.buffer, g.nrm.buffer, g.uv.buffer, g.col.buffer, g.idx.buffer); }); return l; };
+
+  /**
+   * Cut one chunk out of a build, with a 1-cell border: { dims, sub } for meshChunk (cells, dims, sub, pal set by the
+   * caller). f = optional filter { lo: [x, y, z], hi: [x, y, z] } (inclusive, cells outside are air) and `show`
+   * (Uint8Array per palette index, 0 = hidden). lod 1 = the half-resolution grid (2 x 2 x 2 blocks per cell: the most
+   * common block that is not thin). Returns null when the chunk (without its border) holds nothing to draw.
+   */
+  function extractChunk(s, cx, cy, cz, lod, f, T) {
+    const [sx, sy, sz] = s.size, B = s.blocks, k = lod ? 2 : 1;
+    const x0 = cx * CK, y0 = cy * CK, z0 = cz * CK;
+    const w = Math.ceil(Math.min(CK, sx - x0) / k), h = Math.ceil(Math.min(CK, sy - y0) / k), d = Math.ceil(Math.min(CK, sz - z0) / k);
+    if (w <= 0 || h <= 0 || d <= 0) return null;
+    const W = w + 2, H = h + 2, D = d + 2, out = new Uint16Array(W * H * D);
+    const lo = [0, 1, 2].map((a) => Math.max(0, f && f.lo ? f.lo[a] : 0)), hi = [0, 1, 2].map((a) => Math.min(s.size[a] - 1, f && f.hi ? f.hi[a] : s.size[a] - 1)), show = f && f.show ? f.show : null;
+    let any = false;
+    if (!lod) {
+      for (let y = -1; y <= h; y++) {
+        const Y = y0 + y;
+        if (Y < lo[1] || Y > hi[1]) continue;
+        for (let z = -1; z <= d; z++) {
+          const Z = z0 + z;
+          if (Z < lo[2] || Z > hi[2]) continue;
+          const row = (Y * sz + Z) * sx, o = ((y + 1) * D + (z + 1)) * W + 1;
+          const inner = y >= 0 && y < h && z >= 0 && z < d;
+          for (let x = -1; x <= w; x++) {
+            const X = x0 + x;
+            if (X < lo[0] || X > hi[0]) continue;
+            let v = B[row + X];
+            if (v && show && !show[v]) v = 0;
+            if (v) { out[o + x] = v; if (inner && x >= 0 && x < w) any = true; }
+          }
+        }
+      }
+    } else {
+      const cand = new Uint16Array(8), cnt = new Uint8Array(8);
+      for (let y = -1; y <= h; y++) for (let z = -1; z <= d; z++) for (let x = -1; x <= w; x++) {
+        let nc = 0;
+        for (let dy = 0; dy < 2; dy++) for (let dz = 0; dz < 2; dz++) for (let dx = 0; dx < 2; dx++) {
+          const X = x0 + x * 2 + dx, Y = y0 + y * 2 + dy, Z = z0 + z * 2 + dz;
+          if (X < lo[0] || Y < lo[1] || Z < lo[2] || X > hi[0] || Y > hi[1] || Z > hi[2]) continue;
+          let v = B[(Y * sz + Z) * sx + X];
+          if (!v || (show && !show[v]) || (T && (T.thin[v] || !T.kind[v]))) continue;
+          let j = 0;
+          while (j < nc && cand[j] !== v) j++;
+          if (j === nc) { cand[nc] = v; cnt[nc] = 0; nc++; }
+          cnt[j]++;
+        }
+        if (!nc) continue;
+        let best = 0;
+        for (let j = 1; j < nc; j++) if (cnt[j] > cnt[best]) best = j;
+        out[((y + 1) * D + (z + 1)) * W + x + 1] = cand[best];
+        if (x >= 0 && y >= 0 && z >= 0 && x < w && y < h && z < d) any = true;
+      }
+    }
+    return any ? { dims: [w, h, d], sub: out, lod: lod ? 1 : 0, scale: k } : null;
+  }
+  TH.builds.chunks = { CK, THIN, tables: chunkTables, mesh: meshChunk, extract: extractChunk, transfers, palInfo };
 
   /* ======================================================================
    * Symmetry (pure, no DOM): mirror planes, the mismatch check, the mirrored preview
@@ -816,7 +1107,7 @@ TH.builds = TH.builds || {};
     /* ---- the animation clock ---- */
     const Tend = () => (S.M ? S.M.span + S.M.drop : 0);
     function stepClock(dt) {
-      if (!S.M || ed) return false;   // the editor never animates
+      if (!S.M || ed || big) return false;   // the editor and big builds never animate
       const end = Tend();
       if (S.mode === 'still' || reduced()) { if (S.t !== end) { S.t = end; S.phase = 'done'; return true; } return false; }
       if (!S.playing) return false;
@@ -877,10 +1168,12 @@ TH.builds = TH.builds || {};
       if (ticking) { uni.uT.value = S.t; moving = true; if (S.onState) S.onState(state()); }
       const running = S.run && S.phaseSets && S.phaseSets.length > 1;
       const animating = (S.playing && S.mode !== 'still' && !reduced() && S.phase !== 'done') || running;
-      if (moving || S.dirty) { resize(); place(); S.renderer.render(S.scene, S.camera); S.dirty = false; }
+      if (moving || S.dirty) { resize(); place(); if (big) bigFrame(); S.renderer.render(S.scene, S.camera); S.dirty = false; frames++; }
       if (moving || dragging || animating) S.raf = requestAnimationFrame(frame);
     }
     function wake() { if (!S.raf && visible()) { S.last = 0; S.raf = requestAnimationFrame(frame); } }
+    let frames = 0;
+    S.frames = () => frames;   // frames drawn so far (tests measure the frame rate with it)
     S.wake = () => { S.dirty = true; wake(); };
     const state = () => ({ t: S.t, end: Tend(), phase: S.phase, playing: S.playing, mode: S.mode });
 
@@ -943,7 +1236,8 @@ TH.builds = TH.builds || {};
       let mx = 0, my = 0, mz = 0;
       held.forEach((k) => { const v = FLY[k]; if (v && !(k === "shift" && dragging)) { mx += v[0]; my += v[1]; mz += v[2]; } });
       if (!mx && !my && !mz) return false;
-      const d = S.dist / S.zoom, sp = clamp(d * 0.9, 3, 60) * dt, sy = Math.sin(S.yaw), cy = Math.cos(S.yaw);
+      const span = S.schem ? Math.max(...S.schem.size) : 40;   // big builds fly faster (a 1000-block city in a few seconds)
+      const d = S.dist / S.zoom, sp = clamp(d * 0.9, 3, Math.max(60, span * 0.35)) * dt, sy = Math.sin(S.yaw), cy = Math.cos(S.yaw);
       const t = tNow();
       t[0] += (cy * mx - sy * mz) * sp; t[1] += my * sp; t[2] += (-sy * mx - cy * mz) * sp;
       S.tgoal = null; S.target = bound(t);
@@ -1075,7 +1369,7 @@ TH.builds = TH.builds || {};
       if (S.onHover) S.onHover(hit);
     }
     function pick(e) {
-      if (!S.ready || !S.schem || !S.M || !S.M.times) return null;
+      if (!S.ready || !S.schem || !S.M || (!S.M.times && !big)) return null;
       const r = el.getBoundingClientRect();
       const nx = ((e.clientX - r.left) / r.width) * 2 - 1, ny = -(((e.clientY - r.top) / r.height) * 2 - 1);
       const a = new THREE.Vector3(nx, ny, -1).unproject(S.camera), b = new THREE.Vector3(nx, ny, 1).unproject(S.camera);
@@ -1098,10 +1392,12 @@ TH.builds = TH.builds || {};
       const tMax = d.map((v, k) => { const c = [x, y, z][k] + (v > 0 ? 1 : 0); return Math.abs(v) < 1e-9 ? Infinity : t0 + (c - p[k]) / v; });
       const tD = d.map((v) => (Math.abs(v) < 1e-9 ? Infinity : Math.abs(1 / v)));
       const T = S.M.times, D = S.M.drop, lo2 = S.minY, hi2 = S.maxY;
-      for (let n = 0; n < 2000; n++) {
+      // big builds have no landing times: a block counts when it is inside the cut and not hidden
+      const cb = big ? cutBox(s) : null, show = big ? big.show : null;
+      for (let n = 0, lim = sx + sy + sz + 8; n < lim; n++) {
         if (x < 0 || y < 0 || z < 0 || x >= sx || y >= sy || z >= sz) break;
-        const i = (y * sz + z) * sx + x;
-        if (s.blocks[i] && y >= lo2 && y <= hi2 && T[i] >= 0 && S.t >= T[i] + D * 0.8) return [x, y, z];
+        const i = (y * sz + z) * sx + x, v = s.blocks[i];
+        if (v && y >= lo2 && y <= hi2 && (T ? T[i] >= 0 && S.t >= T[i] + D * 0.8 : x >= cb.lo[0] && x <= cb.hi[0] && z >= cb.lo[2] && z <= cb.hi[2] && (!show || show[v]))) return [x, y, z];
         const k = tMax[0] < tMax[1] ? (tMax[0] < tMax[2] ? 0 : 2) : (tMax[1] < tMax[2] ? 1 : 2);
         if (k === 0) { x += st[0]; tMax[0] += tD[0]; } else if (k === 1) { y += st[1]; tMax[1] += tD[1]; } else { z += st[2]; tMax[2] += tD[2]; }
       }
@@ -1112,6 +1408,7 @@ TH.builds = TH.builds || {};
     /* ---- scene content ---- */
     function clearContent() {
       edClear(); ed = null;
+      bigClear();
       S.meshes.forEach((m) => { S.root.remove(m); m.geometry.dispose(); });
       S.meshes = [];
       if (S.atlas) { S.atlas.dispose(); S.atlas = null; }
@@ -1132,7 +1429,8 @@ TH.builds = TH.builds || {};
     /** Blueprint ground: dots on every block corner, a soft contact shadow of the footprint, fading out at the rim. */
     function makeGrid() {
       const s = S.schem, [sx, , sz] = s.size, pad = Math.max(3, Math.round(Math.max(sx, sz) * 0.35));
-      const W = sx + 2 * pad, H = sz + 2 * pad, ppc = Math.max(4, Math.min(24, Math.floor(2048 / Math.max(W, H))));
+      // pixels per cell: 4..24 up to ~500 blocks across; wider footprints go down to 1, so the canvas stays <= 2048 px
+      const W = sx + 2 * pad, H = sz + 2 * pad, ppc = Math.max(Math.max(W, H) > 512 ? 1 : 4, Math.min(24, Math.floor(2048 / Math.max(W, H))));
       const c = mkCanvas(W * ppc, H * ppc), x = c.getContext('2d');
       // contact shadow: the footprint (any block in the column), blurred
       const sh = mkCanvas(W * ppc, H * ppc), shx = sh.getContext('2d');
@@ -1144,9 +1442,9 @@ TH.builds = TH.builds || {};
       }
       x.save(); x.filter = 'blur(' + Math.round(ppc * 0.9) + 'px)'; x.globalAlpha = 0.34; x.drawImage(sh, 0, 0); x.restore();
       // dots
-      const dot = Math.max(1, Math.round(ppc / 11));
+      const dot = Math.max(1, Math.round(ppc / 11)), every = Math.max(1, Math.ceil(Math.max(W, H) / 400));   // big footprints: a dot every few blocks
       x.fillStyle = S.accent;
-      for (let j = 0; j <= H; j++) for (let i = 0; i <= W; i++) {
+      for (let j = 0; j <= H; j += every) for (let i = 0; i <= W; i += every) {
         const dx = (i - W / 2) / (W / 2), dz = (j - H / 2) / (H / 2), r = Math.hypot(dx, dz);
         const a = Math.max(0, 1 - Math.pow(r / 1.05, 3));
         if (a <= 0.02) continue;
@@ -1297,8 +1595,9 @@ TH.builds = TH.builds || {};
       const id = ++S.buildId;
       S.schem = schem;
       if (!S.ready) return;
-      const reg = { tiles: [], tileIndex: new Map(), glass: S.glassMode }, ph = opts.phases && opts.phases.length > 1 ? opts.phases : null;
-      const M = mesh(schem, reg);
+      if (S.isBig(schem)) return setBig(schem, opts, id);   // big builds: chunk meshes in the background (see above)
+      const reg = { tiles: [], tileIndex: new Map(), glass: S.glassMode === 'hide' ? 'tint' : S.glassMode }, ph = opts.phases && opts.phases.length > 1 ? opts.phases : null;
+      const M = mesh(smallView(schem), reg);
       const Ms = ph ? ph.map((p) => (p.schem === schem ? M : mesh(p.schem, reg))) : [M];
       // texture atlas (tiles load in parallel; a failed one becomes the unknown tile)
       const canv = await Promise.all(M.tiles.map(tileCanvas));
@@ -1332,7 +1631,7 @@ TH.builds = TH.builds || {};
       uni.uD.value = M.drop; uni.uH.value = clamp(schem.size[1] * 0.5 + 3, 4, 14);
       S.maxY = Math.min(S.maxY, schem.size[1] - 1);
       if (opts.layer === 'top' || S.maxY < 0) S.maxY = schem.size[1] - 1;
-      S.minY = S.slice ? S.maxY : 0;
+      S.minY = S.slice ? S.maxY : clamp(S.fromY || 0, 0, S.maxY);
       uni.uMaxY.value = S.maxY; uni.uMinY.value = S.minY;
       const sizeKey = schem.size.join('x'), sameBox = S.sizeKey === sizeKey;
       S.sizeKey = sizeKey;
@@ -1357,7 +1656,23 @@ TH.builds = TH.builds || {};
       S.dirty = true; wake();
       return M;
     };
-    S.stats = () => (S.M ? { blocks: S.M.blocks, faces: S.M.faces, tiles: S.M.tiles.length, verts: S.M.opaque.verts + S.M.trans.verts, big: S.M.big } : null);
+    S.stats = () => (S.M ? { blocks: S.M.blocks, faces: big ? big.faces : S.M.faces, tiles: S.M.tiles.length, verts: S.M.opaque.verts + S.M.trans.verts, big: S.M.big, chunked: !!big } : null);
+    /**
+     * What the small-build mesher draws: the build itself, or a view of it with hidden glass (palette entries turned
+     * to air, O(palette)) and the X / Z cut (cells outside set to air in a copy). The layer range stays in the shader.
+     */
+    function smallView(s) {
+      const mask = showMask(s), cx = S.cut.x, cz = S.cut.z;
+      if (!mask && !cx && !cz) return s;
+      const palette = mask ? s.palette.map((id, i) => (mask[i] ? id : 'minecraft:air')) : s.palette;
+      let blocks = s.blocks;
+      if (cx || cz) {
+        const [sx, sy, sz] = s.size, b = cutBox(s);
+        blocks = new Uint16Array(s.blocks);
+        for (let y = 0, i = 0; y < sy; y++) for (let z = 0; z < sz; z++) for (let x = 0; x < sx; x++, i++) if (x < b.lo[0] || x > b.hi[0] || z < b.lo[2] || z > b.hi[2]) blocks[i] = 0;
+      }
+      return { name: s.name, size: s.size, palette, blocks };
+    }
 
     /* ======================================================================
      * The quick editor: the canvas meshed in 16-block chunks (an edit re-meshes only the chunks it touched), a
@@ -1386,7 +1701,7 @@ TH.builds = TH.builds || {};
       const s = ed.schem, [sx, sy, sz] = s.size;
       const box = [cx * CH, cy * CH, cz * CH, Math.min(sx, (cx + 1) * CH), Math.min(sy, (cy + 1) * CH), Math.min(sz, (cz + 1) * CH)];
       const n0 = ed.reg.tiles.length;
-      const M = mesh(s, { still: true, box, tiles: ed.reg.tiles, tileIndex: ed.reg.tileIndex, glass: S.glassMode });
+      const M = mesh(s, { still: true, box, tiles: ed.reg.tiles, tileIndex: ed.reg.tileIndex, glass: S.glassMode === 'hide' ? 'tint' : S.glassMode });
       for (let k = n0; k < ed.reg.tiles.length; k++) edTile(ed.reg.tiles[k], k);
       const list = [];
       [[M.opaque, S.mats[0]], [M.trans, S.mats[1]]].forEach(([g, m], k) => {
@@ -1430,8 +1745,16 @@ TH.builds = TH.builds || {};
     /** Glass: 'tint' (see-through with a faint tint, default), 'solid' (to read the shape), 'clear' (as in the game). */
     S.glassMode = 'tint';
     S.setGlass = (m) => {
-      S.glassMode = ['tint', 'solid', 'clear'].includes(m) ? m : 'tint';
+      const was = S.glassMode;
+      S.glassMode = ['tint', 'solid', 'clear', 'hide'].includes(m) ? m : 'tint';
       if (!S.ready || !S.schem) return;
+      if (big && !ed) {
+        // the look of glass is only the atlas tiles; hiding it re-meshes the chunks (glass as air)
+        big.specs.forEach((sp, g) => { if (/%tint$/.test(sp)) drawBigTile(g); });
+        if ((was === 'hide') !== (S.glassMode === 'hide')) { big.show = showMask(big.schem); big.showVer++; big.qDirty = true; bigShow(); kick(); }
+        S.dirty = true; wake();
+        return;
+      }
       if (ed) S.setEdit(ed.schem, { keepView: true });
       else S.setSchematic(S.schem, { keepView: true, keepZoom: true, phases: null });
     };
@@ -1549,6 +1872,378 @@ TH.builds = TH.builds || {};
       return planeHit();
     };
 
+    /* ======================================================================
+     * Big builds (over BIG_BLOCKS blocks or BIG_CELLS cells): chunk meshes from TH.builds.chunks, made in the
+     * background (Web Workers when the browser has them, else small time slices on the page), nearest and in-view
+     * chunks first, so the stage stays responsive and the build fills in while you look around. Per chunk: a full
+     * mesh (LOD 0) near the camera, a half-resolution colour mesh (LOD 1, no thin blocks) far away, both frustum-culled
+     * by three.js. The layer range, the X / Z cut and hidden glass act at once in the shader (fragments outside are
+     * dropped) and, after a short rest, the chunks they cross are re-meshed with those cells as air, so cuts are closed.
+     * No assemble animation for these: the build is shown as it stands.
+     * ====================================================================== */
+    const BIG_BLOCKS = 400000, BIG_CELLS = 8000000, BCOLS = 64, CKS = () => TH.builds.chunks.CK;
+    let big = null, pool = null, bigMats = null, SphereC = null;
+    const bigUni = { uAtlas: { value: null }, uMean: { value: null }, uGrid: { value: null }, uLo: { value: null }, uHi: { value: null } };
+    S.isBig = (s) => !!s && (s.blocks.length > BIG_CELLS || C().volume(s) > BIG_BLOCKS);
+    function bigMaterial(kind) {
+      const m = new THREE.MeshLambertMaterial({ vertexColors: true, alphaTest: kind === 'trans' ? 0.02 : 0.5, transparent: kind === 'trans', depthWrite: kind !== 'trans', side: THREE.FrontSide });
+      m.onBeforeCompile = (sh) => {
+        Object.assign(sh.uniforms, bigUni);
+        sh.vertexShader = 'attribute vec4 aUV;\nuniform vec2 uGrid;\nvarying vec2 vTU;\nvarying vec2 vTO;\nvarying float vFlag;\nvarying vec3 vWP;\n' + sh.vertexShader
+          .replace('#include <begin_vertex>', '#include <begin_vertex>\n  vTU = aUV.xy / 256.0; vFlag = aUV.w;\n  vTO = vec2(mod(aUV.z, uGrid.x) / uGrid.x, 1.0 - (floor(aUV.z / uGrid.x) + 1.0) / uGrid.y);\n  vWP = (modelMatrix * vec4(transformed, 1.0)).xyz;')
+          .replace('#include <color_vertex>', '#include <color_vertex>\n  vColor.rgb *= 1.5;');
+        sh.fragmentShader = 'uniform sampler2D uAtlas;\nuniform sampler2D uMean;\nuniform vec2 uGrid;\nuniform vec3 uLo;\nuniform vec3 uHi;\nvarying vec2 vTU;\nvarying vec2 vTO;\nvarying float vFlag;\nvarying vec3 vWP;\n' + sh.fragmentShader
+          .replace('#include <map_fragment>', [
+            'if (vWP.x < uLo.x || vWP.y < uLo.y || vWP.z < uLo.z || vWP.x > uHi.x || vWP.y > uHi.y || vWP.z > uHi.z) discard;',
+            'vec2 bdCell = vec2(1.0 / uGrid.x, 1.0 / uGrid.y);',
+            'vec4 bdTex = vFlag > 0.5 ? texture2D(uMean, vTO + 0.5 * bdCell) : texture2D(uAtlas, vTO + clamp(fract(vTU), 0.03125, 0.96875) * bdCell);',
+            'diffuseColor *= bdTex;'].join('\n'));
+      };
+      m.customProgramCacheKey = () => 'bd-big-' + kind;
+      return m;
+    }
+    /** The cut as an inclusive cell box { lo, hi } (null parts = the whole build). */
+    S.cut = { x: null, z: null };
+    function cutBox(s) {
+      const [sx, sy, sz] = s.size;
+      const r = (ax, n) => (S.cut[ax] ? [clamp(Math.min(S.cut[ax][0], S.cut[ax][1]), 0, n - 1), clamp(Math.max(S.cut[ax][0], S.cut[ax][1]), 0, n - 1)] : [0, n - 1]);
+      const X = r('x', sx), Z = r('z', sz), y0 = clamp(S.minY, 0, sy - 1), y1 = clamp(S.maxY, y0, sy - 1);
+      return { lo: [X[0], y0, Z[0]], hi: [X[1], y1, Z[1]] };
+    }
+    /** Palette entries shown (0 = hidden: glass when the glass is hidden), or null for all. */
+    function showMask(s) {
+      if (S.glassMode !== 'hide') return null;
+      const m = new Uint8Array(s.palette.length).fill(1);
+      s.palette.forEach((id, i) => { if (i && /glass/.test(C().parse(id).name)) m[i] = 0; });
+      return m;
+    }
+    /** The shader's clip box in world units, from the cut. */
+    function setClipUniforms() {
+      if (!S.schem) return;
+      const s = S.schem, b = cutBox(s), e = 0.002, ox = s.size[0] / 2, oz = s.size[2] / 2;
+      bigUni.uLo.value = new THREE.Vector3(b.lo[0] - ox - e, b.lo[1] - e, b.lo[2] - oz - e);
+      bigUni.uHi.value = new THREE.Vector3(b.hi[0] + 1 - ox + e, b.hi[1] + 1 + e, b.hi[2] + 1 - oz + e);
+    }
+    /* ---- mesh workers (one per spare core, up to 4); each keeps its own texture registry, mapped to ours ---- */
+    function workerPool() {
+      if (pool) return pool;
+      pool = { list: [], ok: false };
+      if (typeof Worker === 'undefined' || /^file:/.test(SRC) || TH.builds.noWorker) return pool;
+      const n = Math.max(1, Math.min(4, (navigator.hardwareConcurrency || 4) - 1));
+      for (let k = 0; k < n; k++) {
+        try {
+          const w = new Worker(rel('builds-worker.js'));
+          const rec = { w, k, ready: false, dead: false, inflight: new Map(), remap: new Map() };
+          w.onmessage = (ev) => onWorker(rec, ev.data || {});
+          w.onerror = (e) => { if (e && e.preventDefault) e.preventDefault(); workerDied(rec); };
+          pool.list.push(rec);
+        } catch (e) { /* no workers here: the page meshes */ }
+      }
+      return pool;
+    }
+    function workerDied(rec) {
+      if (rec.dead) return;
+      rec.dead = true;
+      try { rec.w.terminate(); } catch (e) { /* ignore */ }
+      rec.inflight.forEach((job) => { const ch = big && big.byId.get(job.ch); if (ch) ch.pend[job.lod] = null; });
+      rec.inflight.clear();
+      if (big) { big.qDirty = true; kick(); }
+    }
+    function onWorker(rec, m) {
+      if (m.type === 'ready') { rec.ready = true; if (big) kick(); return; }
+      if (m.type === 'error') { if (m.boot) workerDied(rec); else if (m.id != null) { const job = rec.inflight.get(m.id); rec.inflight.delete(m.id); if (job && big) { const ch = big.byId.get(job.ch); if (ch) { ch.pend[job.lod] = null; ch.fail = (ch.fail || 0) + 1; } } kick(); } return; }
+      if (m.type !== 'chunk') return;
+      const job = rec.inflight.get(m.id);
+      rec.inflight.delete(m.id);
+      if (job && big && job.build === big.id && m.out) integrate(job, m.out, remapOf(rec, job.pal));
+      else if (job && big && job.build === big.id) { const ch = big.byId.get(job.ch); if (ch) ch.pend[job.lod] = null; }
+      kick();
+    }
+    function remapOf(rec, pal) { let r = rec.remap.get(pal); if (!r) { r = []; rec.remap.set(pal, r); } return r; }
+    /* ---- the shared texture atlas of a big build: 64 x 64 tiles of 16 px, and one average-colour texel per tile ---- */
+    function bigTile(spec) {
+      let g = big.specIndex.get(spec);
+      if (g != null) return g;
+      g = big.specs.length;
+      if (g >= BCOLS * BCOLS) return 0;
+      big.specs.push(spec); big.specIndex.set(spec, g);
+      drawBigTile(g);
+      return g;
+    }
+    /** The look of a glass tile follows the glass key without re-meshing (the mesher always writes '%tint'). */
+    const glassSpec = (spec) => (/%tint$/.test(spec) ? (S.glassMode === 'clear' ? spec.slice(0, -5) : S.glassMode === 'solid' ? spec.slice(0, -5) + '%solid' : spec) : spec);
+    function drawBigTile(g) {
+      const B = big, spec = glassSpec(B.specs[g]);
+      tileCanvas(spec).then((c) => {
+        if (big !== B) return;
+        const x = (g % BCOLS) * 16, y = Math.floor(g / BCOLS) * 16;
+        B.ctx.clearRect(x, y, 16, 16); B.ctx.drawImage(c, x, y);
+        // average colour (alpha-weighted), for the far meshes
+        const d = c.getContext('2d').getImageData(0, 0, 16, 16).data;
+        let r = 0, gg = 0, b = 0, w = 0;
+        for (let i = 0; i < d.length; i += 4) { const a = d[i + 3] / 255; r += d[i] * a; gg += d[i + 1] * a; b += d[i + 2] * a; w += a; }
+        w = w || 1;
+        B.mctx.fillStyle = 'rgb(' + Math.round(r / w) + ',' + Math.round(gg / w) + ',' + Math.round(b / w) + ')';
+        B.mctx.fillRect(g % BCOLS, Math.floor(g / BCOLS), 1, 1);
+        B.texDirty = true; S.dirty = true; wake();
+      });
+    }
+    /* ---- chunks ---- */
+    function bigClear() {
+      if (!big) return;
+      big.chunks.forEach((ch) => [0, 1].forEach((l) => dropMeshes(ch, l)));
+      if (big.tex) big.tex.dispose(); if (big.mtex) big.mtex.dispose();
+      if (big.timer) clearTimeout(big.timer);
+      big = null;
+      S.bigInfo = null;
+    }
+    function dropMeshes(ch, l) {
+      const m = ch.m[l];
+      if (!m) return;
+      m.meshes.forEach((mm) => { S.root.remove(mm); mm.geometry.dispose(); });
+      ch.m[l] = null;
+    }
+    function setBig(schem, opts, id) {
+      clearContent();
+      const [sx, sy, sz] = schem.size, CK = CKS();
+      if (!bigMats) {
+        bigMats = [bigMaterial('opaque'), bigMaterial('trans')];
+        const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0], 3)); g.computeBoundingSphere(); SphereC = g.boundingSphere.constructor; g.dispose();
+      }
+      const ac = mkCanvas(BCOLS * 16, BCOLS * 16), mc = mkCanvas(BCOLS, BCOLS);
+      const tex = new THREE.CanvasTexture(ac), mtex = new THREE.CanvasTexture(mc);
+      [tex, mtex].forEach((t) => { t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter; t.generateMipmaps = false; t.colorSpace = THREE.SRGBColorSpace; });
+      bigUni.uAtlas.value = tex; bigUni.uMean.value = mtex; bigUni.uGrid.value = { x: BCOLS, y: BCOLS };
+      const n = [Math.ceil(sx / CK), Math.ceil(sy / CK), Math.ceil(sz / CK)];
+      const chunks = [], byId = new Map();
+      for (let cy = 0; cy < n[1]; cy++) for (let cz = 0; cz < n[2]; cz++) for (let cx = 0; cx < n[0]; cx++) {
+        const o = [cx * CK, cy * CK, cz * CK], sz3 = [Math.min(CK, sx - o[0]), Math.min(CK, sy - o[1]), Math.min(CK, sz - o[2])];
+        const ch = { id: chunks.length, c: [cx, cy, cz], o, n: sz3, centre: [o[0] + sz3[0] / 2 - sx / 2, o[1] + sz3[1] / 2, o[2] + sz3[2] / 2 - sz / 2], r: Math.hypot(...sz3) / 2, m: [null, null], pend: [null, null], empty: ['', ''], want: 1, shown: -1 };
+        chunks.push(ch); byId.set(ch.id, ch);
+      }
+      const P = workerPool();
+      big = {
+        id, schem, chunks, byId, n, ctx: ac.getContext('2d'), mctx: mc.getContext('2d'), tex, mtex, specs: [], specIndex: new Map(), texDirty: false,
+        pal: TH.util && TH.util.uid ? TH.util.uid('p') : 'p' + id + '_' + Date.now(), T: null, mainRemap: [], show: showMask(schem), showVer: 1, filterSig: '',
+        qDirty: true, queue: [], lodFar: 600, timer: 0, t0: performance.now(), blocks: C().volume(schem), faces: 0, done: false, lastQ: 0,
+      };
+      big.mctx.fillStyle = '#808080'; big.mctx.fillRect(0, 0, BCOLS, BCOLS);
+      // the workers learn this build's palette once; the page keeps its own tables for the fallback
+      P.list.forEach((r) => { if (!r.dead) r.w.postMessage({ type: 'pal', id: big.pal, palette: schem.palette }); });
+      S.M = { times: null, span: 0, drop: 0.55, blocks: big.blocks, faces: 0, opaque: { verts: 0 }, trans: { verts: 0 }, tiles: big.specs, big: true };
+      S.Mfor = schem; S.phaseSets = null; S.phaseInfo = null; S.run = false;
+      S.t = Tend(); S.phase = 'done'; uni.uT.value = S.t;
+      S.grid = makeGrid(); S.root.add(S.grid);
+      S.hl = makeHighlight(); S.root.add(S.hl);
+      S.maxY = Math.min(S.maxY, sy - 1);
+      if (opts.layer === 'top' || S.maxY < 0) S.maxY = sy - 1;
+      S.minY = S.slice ? S.maxY : clamp(S.fromY || 0, 0, S.maxY);
+      uni.uMaxY.value = S.maxY; uni.uMinY.value = S.minY;
+      const sizeKey = schem.size.join('x'), sameBox = S.sizeKey === sizeKey;
+      S.sizeKey = sizeKey;
+      S.home = [0, sy * 0.47, 0];
+      if (!opts.keepView) { S.target = S.home.slice(); S.tgoal = null; S.w = 0; resize(); S.dist = fitDist(); if (!opts.keepZoom) { S.zoom = 1; S.goal = null; S.zgoal = null; } }
+      else { if (!sameBox) { S.target = bound(S.target); S.tgoal = null; } S.dist = fitDist(); }
+      setClipUniforms();
+      resize(); place();
+      bigLod(true);
+      refreshOutline();
+      drawSym();
+      hover(null);
+      if (S.onState) S.onState(state());
+      kick();
+      S.dirty = true; wake();
+      return Promise.resolve(S.M);
+    }
+    /** What a chunk is meshed with under the current cut and hidden blocks; null = nothing of it is shown. */
+    function sigFor(ch) {
+      const s = big.schem, b = cutBox(s), parts = [];
+      for (let a = 0; a < 3; a++) {
+        const c0 = ch.o[a], c1 = ch.o[a] + ch.n[a] - 1;
+        if (b.hi[a] < c0 || b.lo[a] > c1) return null;
+        const e0 = Math.max(0, c0 - 1), e1 = Math.min(s.size[a] - 1, c1 + 1);
+        parts.push(b.lo[a] <= e0 ? '' : b.lo[a], b.hi[a] >= e1 ? '' : b.hi[a]);
+      }
+      return parts.join(',') + '|' + (big.show ? big.showVer : 0);
+    }
+    /** LOD choice per chunk from the camera distance (with hysteresis), and a face budget that pulls LOD 1 closer. */
+    function bigLod(force) {
+      const cam = S.camera.position, B = big, lite = document.documentElement.dataset.perf === 'lite';
+      const base = Math.max(64, (S.h || 600) / (2 * Math.tan((S.camera.fov * Math.PI) / 360)) / (lite ? 3 : 2));   // a block under ~2 px (3 in Lite)
+      if (!B.lodBase || Math.abs(B.lodBase - base) > 1) { B.lodBase = base; B.lodFar = Math.min(B.lodFar || base, base); if (force) B.lodFar = base; }
+      let near = 0, changed = false;
+      for (const ch of B.chunks) {
+        const d = Math.hypot(cam.x - ch.centre[0], cam.y - ch.centre[1], cam.z - ch.centre[2]) - ch.r;
+        const want = force ? (d > B.lodFar ? 1 : 0) : d > B.lodFar * 1.08 ? 1 : d < B.lodFar * 0.92 ? 0 : ch.want;
+        if (want !== ch.want) { ch.want = want; changed = true; }
+        ch.dist = d;
+        if (want === 0 && ch.m[0] && ch.m[0].faces) near += ch.m[0].faces;
+      }
+      const budget = lite ? 900000 : 2500000;
+      if (near > budget) { B.lodFar = Math.max(48, B.lodFar * 0.85); changed = true; }
+      else if (near < budget * 0.5 && B.lodFar < B.lodBase) { B.lodFar = Math.min(B.lodBase, B.lodFar * 1.06); changed = true; }
+      if (changed) B.qDirty = true;
+      bigShow();
+      if (changed) kick();
+    }
+    /** Which mesh of each chunk is visible: the wanted LOD when it exists, else the other one; nothing outside the cut. */
+    function bigShow() {
+      let faces = 0;
+      for (const ch of big.chunks) {
+        const sig = sigFor(ch);
+        let l = -1;
+        if (sig != null) {
+          if (ch.m[ch.want]) l = ch.want; else if (ch.m[1 - ch.want]) l = 1 - ch.want;
+        }
+        if (l !== ch.shown) {
+          [0, 1].forEach((k) => { if (ch.m[k]) ch.m[k].meshes.forEach((mm) => { mm.visible = k === l; }); });
+          ch.shown = l;
+        }
+        if (l >= 0) faces += ch.m[l].faces;
+      }
+      big.faces = faces;
+    }
+    /** Work still to do: (chunk, lod) pairs whose mesh is missing or was made for another cut, best first. */
+    function bigQueue() {
+      const B = big, cam = S.camera.position, f = basis().f, cosv = Math.cos(((S.camera.fov * Math.max(1, S.camera.aspect)) * Math.PI) / 180 * 0.75);
+      const q = [];
+      let total = 0, done = 0;
+      for (const ch of B.chunks) {
+        const sig = sigFor(ch);
+        if (sig == null) continue;
+        const l = ch.want;
+        total++;
+        const have = (ch.m[l] && ch.m[l].sig === sig) || ch.empty[l] === sig;
+        if (have) { done++; continue; }
+        if (ch.pend[l] === sig || (ch.fail || 0) > 2) continue;
+        const dx = ch.centre[0] - cam.x, dy = ch.centre[1] - cam.y, dz = ch.centre[2] - cam.z, L = Math.hypot(dx, dy, dz) || 1;
+        const inView = (dx * f[0] + dy * f[1] + dz * f[2]) / L > cosv || L < ch.r * 1.5;
+        q.push({ ch, l, sig, score: Math.max(0, ch.dist) * (inView ? 1 : 4) * (l ? 0.6 : 1) + (ch.m[l] || ch.m[1 - l] ? 1e6 : 0) });
+      }
+      q.sort((a, b) => a.score - b.score);
+      B.queue = q; B.qDirty = false; B.lastQ = performance.now();
+      B.total = total; B.doneN = done;
+    }
+    function kick() { if (big && !big.timer) big.timer = setTimeout(pump, 0); }
+    function pump() {
+      const B = big;
+      if (!B) return;
+      B.timer = 0;
+      if (B.qDirty || performance.now() - B.lastQ > 400) bigQueue();
+      const P = pool && pool.list.filter((r) => !r.dead && r.ready);
+      const starting = !(P && P.length) && pool && pool.list.some((r) => !r.dead && !r.ready) && performance.now() - B.t0 < 3000;
+      const t0 = performance.now(), cb = cutBox(B.schem), filt = { lo: cb.lo, hi: cb.hi, show: B.show };
+      while (B.queue.length && !starting) {
+        let rec = null;
+        if (P && P.length) { rec = P.reduce((a, r) => (r.inflight.size < a.inflight.size ? r : a), P[0]); if (rec.inflight.size >= 3) break; }
+        else if (performance.now() - t0 > 10) break;   // the page meshes: 10 ms at a time
+        const it = B.queue.shift(), ch = it.ch;
+        const job = TH.builds.chunks.extract(B.schem, ch.c[0], ch.c[1], ch.c[2], it.l, filt, B.T || (B.T = TH.builds.chunks.tables(B.schem.palette)));
+        if (!job) { dropMeshes(ch, it.l); ch.empty[it.l] = it.sig; ch.shown = -2; B.doneN++; continue; }
+        Object.assign(job, { id: ++jobSeq, ch: ch.id, pal: B.pal, build: B.id, sig: it.sig });
+        ch.pend[it.l] = it.sig;
+        if (rec) { rec.inflight.set(job.id, { id: job.id, ch: ch.id, lod: it.l, pal: B.pal, build: B.id, sig: it.sig }); rec.w.postMessage({ type: 'chunk', job }, [job.sub.buffer]); }
+        else {
+          const out = TH.builds.chunks.mesh(job, B.T);
+          integrate({ ch: ch.id, lod: it.l, sig: it.sig, build: B.id }, out, B.mainRemap);
+        }
+      }
+      progress();
+      // page meshing: the next slice after the browser had its turn; workers: their answers kick the pump
+      if (starting) B.timer = setTimeout(pump, 60);
+      else if (B.queue.length && !(P && P.length)) B.timer = setTimeout(pump, 0);
+      else if (!B.queue.length && B.qDirty) kick();
+    }
+    let jobSeq = 0;
+    function integrate(job, out, remap) {
+      const B = big;
+      // texture specs new to the thread that meshed this: map them onto the shared atlas
+      out.tiles.forEach((spec, j) => { remap[out.tileBase + j] = bigTile(spec); });
+      const ch = B.byId.get(job.ch);
+      if (!ch) return;
+      if (ch.pend[job.lod] === job.sig) ch.pend[job.lod] = null;
+      if (sigFor(ch) !== job.sig) { B.qDirty = true; return; }   // the cut moved on meanwhile: a newer job follows
+      dropMeshes(ch, job.lod);
+      const meshes = [];
+      [[out.o, bigMats[0], 0], [out.t, bigMats[1], 1]].forEach(([g, mat, k]) => {
+        if (!g) return;
+        for (let i = 2; i < g.uv.length; i += 4) g.uv[i] = remap[g.uv[i]] || 0;
+        const IA = BA(), geo = new THREE.BufferGeometry(), free = function () { this.array = null; };
+        geo.setAttribute('position', new IA(g.pos, 3).onUpload(free));
+        geo.setAttribute('normal', new IA(g.nrm, 4, true).onUpload(free));
+        geo.setAttribute('color', new IA(g.col, 4, true).onUpload(free));
+        geo.setAttribute('aUV', new IA(g.uv, 4).onUpload(free));
+        geo.setIndex(new IA(g.idx, 1).onUpload(free));
+        const sp = new SphereC(); sp.center.set(ch.n[0] / 2, ch.n[1] / 2, ch.n[2] / 2); sp.radius = ch.r + 0.5; geo.boundingSphere = sp;
+        const mm = new THREE.Mesh(geo, mat);
+        mm.position.set(ch.o[0] - B.schem.size[0] / 2, ch.o[1], ch.o[2] - B.schem.size[2] / 2);
+        mm.renderOrder = k; mm.visible = false; mm.matrixAutoUpdate = false; mm.updateMatrix();
+        S.root.add(mm); meshes.push(mm);
+      });
+      ch.m[job.lod] = { meshes, sig: job.sig, faces: out.faces };
+      ch.empty[job.lod] = '';
+      ch.shown = -2;   // re-pick the visible mesh
+      B.doneN = (B.doneN || 0) + 1;
+      bigShow();
+      S.dirty = true; wake();
+    }
+    function progress() {
+      const B = big;
+      if (!B || !S.onProgress) return;
+      const left = B.queue.length + (pool ? pool.list.reduce((a, r) => a + r.inflight.size, 0) : 0);
+      const total = Math.max(1, B.total || 1), done = Math.max(0, Math.min(total, total - left));
+      if (!left) { if (!B.done) { B.done = true; if (B.meshMs == null) B.meshMs = Math.round(performance.now() - B.t0); S.onProgress(null); } return; }   // meshMs = the first full view
+      B.done = false;
+      S.onProgress({ stage: 'Building the view', f: done / total, blocks: B.blocks });
+    }
+    /** Called by frame(): textures that changed, LOD as the camera moves. */
+    function bigFrame() {
+      if (big.texDirty) { big.tex.needsUpdate = true; big.mtex.needsUpdate = true; big.texDirty = false; }
+      bigLod(false);
+    }
+    let cutT = 0;
+    /** The cut or the layer range changed: the shader clips at once, the chunks follow after a short rest. */
+    function cutChanged() {
+      if (big) {
+        setClipUniforms(); bigShow();
+        clearTimeout(cutT);
+        cutT = setTimeout(() => { if (big) { big.qDirty = true; kick(); } }, 220);
+      } else if (S.schem && S.ready && !ed) {
+        clearTimeout(cutT);
+        cutT = setTimeout(() => { if (S.schem && !ed && !big) S.setSchematic(S.schem, { keepView: true, keepZoom: true }); }, 140);
+      }
+      S.dirty = true; wake();
+    }
+    /** X / Z cut: [from, to] in cells or null (whole build). */
+    S.setCut = (axis, r) => {
+      if (axis !== 'x' && axis !== 'z') return;
+      const n = S.schem ? S.schem.size[axis === 'x' ? 0 : 2] : 0;
+      S.cut[axis] = r && n && !(Math.min(r[0], r[1]) <= 0 && Math.max(r[0], r[1]) >= n - 1) ? [Math.round(r[0]), Math.round(r[1])] : null;
+      cutChanged();
+    };
+    /** The lowest layer shown (the layer slider sets the highest). */
+    S.setFrom = (y) => {
+      S.fromY = Math.max(0, Math.round(y) || 0);
+      if (!S.schem || S.slice) return;
+      S.minY = clamp(S.fromY, 0, S.maxY); uni.uMinY.value = S.minY;
+      if (big) cutChanged(); else { refreshOutline(); S.dirty = true; wake(); }
+    };
+    /** The part shown: { lo, hi } cells (for "fit to the cut"). */
+    S.cutBox = () => (S.schem ? cutBox(S.schem) : null);
+    /** Fly to the part that is shown (the cut), framing it. */
+    S.fitCut = () => {
+      if (!S.schem) return;
+      const s = S.schem, b = cutBox(s), ext = [0, 1, 2].map((a) => b.hi[a] - b.lo[a] + 1);
+      touched(); S.vel = 0; S.goal = null;
+      S.tgoal = bound([(b.lo[0] + b.hi[0] + 1) / 2 - s.size[0] / 2, (b.lo[1] + b.hi[1] + 1) / 2, (b.lo[2] + b.hi[2] + 1) / 2 - s.size[2] / 2]);
+      const r = 0.5 * Math.hypot(...ext) + 0.6, t = Math.tan((S.camera.fov * Math.PI) / 360) * Math.min(1, Math.max(0.3, S.w / Math.max(1, S.h)));
+      S.zgoal = clamp(S.dist / (r / Math.sin(Math.atan(t)) * 0.94), ZMIN, zmax());
+      if (reduced()) { S.target = S.tgoal; S.tgoal = null; S.zoom = S.zgoal; S.zgoal = null; }
+      S.dirty = true; wake();
+    };
+    /** Big-build numbers for the stage and the tests: chunks, faces drawn, meshing time. */
+    S.bigStats = () => (big ? { chunks: big.chunks.length, meshed: big.chunks.filter((c) => c.m[0] || c.m[1]).length, faces: big.faces, lodFar: Math.round(big.lodFar), tiles: big.specs.length, workers: pool ? pool.list.filter((r) => !r.dead && r.ready).length : 0, meshMs: big.meshMs || null, done: big.done, total: big.total } : null);
+
     /* ---- playback controls ---- */
     S.play = () => { if (S.phase === 'done' && S.mode !== 'still') { S.t = S.t >= Tend() ? 0 : S.t; S.phase = 'in'; } S.playing = true; S.last = 0; if (S.onState) S.onState(state()); S.wake(); };
     S.pause = () => { S.playing = false; if (S.onState) S.onState(state()); S.wake(); };
@@ -1573,13 +2268,15 @@ TH.builds = TH.builds || {};
     S.setLayer = (y) => {
       if (!S.schem) return;
       S.maxY = clamp(Math.round(y), 0, S.schem.size[1] - 1);
-      S.minY = S.slice ? S.maxY : 0;
+      S.minY = S.slice ? S.maxY : clamp(S.fromY || 0, 0, S.maxY);
       uni.uMaxY.value = S.maxY; uni.uMinY.value = S.minY;
+      if (big) cutChanged();
       refreshOutline(); hover(null);
     };
     S.setSlice = (on) => {
       S.slice = !!on;
-      S.minY = S.slice ? S.maxY : 0; uni.uMinY.value = S.minY;
+      S.minY = S.slice ? S.maxY : clamp(S.fromY || 0, 0, S.maxY); uni.uMinY.value = S.minY;
+      if (big) cutChanged();
       if (S.slice) { S.auto = false; S.vel = 0; S.goal = { yaw: Math.round(S.yaw / (Math.PI / 2)) * (Math.PI / 2), pitch: PMAX, zoom: Math.max(1, S.zoom) }; }
       else S.goal = Object.assign({}, HOME, { yaw: S.yaw, zoom: S.zoom });
       if (reduced() && S.goal) { Object.assign(S, S.goal); S.goal = null; }
@@ -1602,12 +2299,12 @@ TH.builds = TH.builds || {};
     S.seek = (t) => {
       if (!S.ready || !S.M) return;
       S.t = t == null ? Tend() : clamp(t, 0, Tend()); uni.uT.value = S.t;
-      resize(); place(); S.renderer.render(S.scene, S.camera);
+      resize(); place(); if (big) bigFrame(); S.renderer.render(S.scene, S.camera);
       if (S.onState) S.onState(state());
     };
     S.shot = () => new Promise((res) => {
       if (!S.ready) return res(null);
-      resize(); place(); S.renderer.render(S.scene, S.camera);
+      resize(); place(); if (big) bigFrame(); S.renderer.render(S.scene, S.camera);
       S.canvas.toBlob((b) => res(b), 'image/png');
     });
 
@@ -1632,6 +2329,8 @@ TH.builds = TH.builds || {};
       if (!S.ready && !S.renderer) return;
       clearContent();
       S.mats.forEach((m) => m.dispose()); S.mats = [];
+      if (bigMats) { bigMats.forEach((m) => m.dispose()); bigMats = null; }
+      if (pool) { pool.list.forEach((r) => { try { r.w.terminate(); } catch (e) { /* ignore */ } }); pool = null; }
       if (S.renderer) { S.renderer.dispose(); try { S.renderer.forceContextLoss(); } catch (e) { /* ignore */ } }
       if (S.canvas) S.canvas.remove();
       if (ro) ro.disconnect(); if (io) io.disconnect();

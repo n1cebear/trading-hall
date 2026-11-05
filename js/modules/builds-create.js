@@ -337,7 +337,7 @@ TH.builds = TH.builds || {};
     const count = h('span.bd-count');
     const fill = () => {
       const g = c.S().shape.group;
-      const list = G().FAMILIES.filter((f) => f.group === g).map((f) => [f.id, f.name, f]).concat(g === 'shapes' ? Object.entries(BASIC()).map(([k, v]) => [k, v.name, null]) : []);
+      const list = G().FAMILIES.filter((f) => f.group === g).map((f) => [f.id, f.name, f]).concat(g === 'shapes' ? Object.entries(BASIC()).filter(([k]) => !isGen(k) && k !== 'ellipsoid').map(([k, v]) => [k, v.name, null]) : []);
       tiles.replaceChildren(...list.map(([k, name, f]) => {
         const on = c.S().shape.kind === k;
         const b = h('button.btn.bd-gen' + (on ? '.on' : ''), { type: 'button', role: 'listitem', 'aria-pressed': String(on), onclick: () => { if (c.S().shape.kind === k) return; c.save((bb) => { bb.shape.kind = k; }); c.show('shape', { animate: true, layer: 'top' }); c.patch(); } },

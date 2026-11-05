@@ -13,7 +13,7 @@ const root = path.join(__dirname, '..');
 global.window = global;
 global.TH = { data: {}, langData: {}, icon: () => null };
 for (const f of ['js/data/block-db.js', 'js/data/block-colours.js', 'js/modules/builds-core.js', 'js/modules/builds-io.js', 'js/modules/builds-view.js', 'js/modules/builds-shapes.js',
-  'js/modules/builds-detail.js', 'js/modules/builds-rotate.js', 'js/modules/builds-shade.js', 'js/modules/builds-inside.js', 'js/modules/builds-resize.js', 'js/modules/builds-gen.js', 'js/modules/builds-edit.js']) vm.runInThisContext(fs.readFileSync(path.join(root, f), 'utf8'), { filename: f });
+  'js/modules/builds-detail.js', 'js/modules/builds-rotate.js', 'js/modules/builds-shade.js', 'js/modules/builds-inside.js', 'js/modules/builds-resize.js', 'js/modules/builds-gen.js', 'js/modules/builds-gen-world.js', 'js/modules/builds-edit.js']) vm.runInThisContext(fs.readFileSync(path.join(root, f), 'utf8'), { filename: f });
 const TH = global.TH, C = TH.builds.core, IO = TH.builds.io, G = TH.builds.gen, D = TH.builds.detail, R = TH.builds.rotate, SH = TH.builds.shade, E = TH.builds.edit, DB = TH.data.blockDb.b;
 
 const tests = [];
@@ -297,6 +297,75 @@ t('symmetric shapes stay symmetric (slab monolith, square prism, ziggurat)', () 
     assert.strictEqual(r.diff, 0, id + ': ' + r.diff + ' blocks without a mirrored twin');
   }
 });
+// ---- monoliths, nature and shapes (builds-gen-world.js) ----
+const occ = (g) => C.fromFunction(g.size, (x, y, z) => (g.blocks[(y * g.size[2] + z) * g.size[0] + x] ? 'minecraft:stone' : null), 'occ');
+const has = (s, re) => s.palette.some((id, i) => i && re.test(id) && s.blocks.some((v) => v === i));
+t('world generators: standing ones are one piece; the ones that float or lie in pieces say so', () => {
+  for (const id of ['slab', 'obelisk', 'menhir', 'totem', 'runestone', 'stepped', 'twisted', 'rock', 'mountain', 'volcano', 'waterfall', 'mushroom', 'ziggurat', 'arch', 'helix', 'sphere', 'dome', 'cylinder', 'cone', 'pyramid', 'torus']) {
+    const pc = pieces(G.gen(id, { detail: 'low' }));
+    assert.strictEqual(pc.length, 1, id + ': ' + pc.length + ' pieces (' + pc.slice(0, 5).join(', ') + ')');
+  }
+});
+t('symmetry where it is promised: obelisk, stepped, totem, the classic shapes, the dome', () => {
+  for (const [id, patch] of [['obelisk', { carving: 'none', w: 9, d: 9 }], ['stepped', {}], ['totem', { w: 7, d: 7 }], ['sphere', {}], ['dome', { ribs: 0 }], ['cylinder', { flutes: 0 }], ['cone', {}], ['pyramid', {}], ['torus', {}]]) {
+    const s = occ(G.gen(id, Object.assign({ detail: 'low', tipStyle: 'none' }, patch)));
+    const r = TH.builds.sym.check(s, [{ axis: 0, m: TH.builds.sym.centre(s, 0) }, { axis: 2, m: TH.builds.sym.centre(s, 2) }]);
+    assert.strictEqual(r.diff, 0, id + ': ' + r.diff + ' blocks without a mirrored twin');
+  }
+});
+t('stone circle: evenly spaced uprights, lintels resting on them, ruin takes stones away', () => {
+  const full = G.gen('henge', { detail: 'low', light: false, altar: false }), none = G.gen('henge', { detail: 'low', light: false, altar: false, lintels: 'none' }), ruin = G.gen('henge', { detail: 'low', light: false, altar: false, ruin: 80 });
+  assert.ok(C.volume(full) > C.volume(none), 'lintels add blocks');
+  assert.ok(C.volume(ruin) < C.volume(full), 'ruin takes blocks away');
+  // the top layer of the full ring is the lintel ring: one closed loop seen from above
+  const [sx, sy, sz] = full.size; let top = 0; for (let z = 0; z < sz; z++) for (let x = 0; x < sx; x++) if (full.blocks[((sy - 1) * sz + z) * sx + x]) top++;
+  assert.ok(top > (sx + sz) * 1.2, 'a ring of lintels on top: ' + top);
+});
+t('height fields stand on their own footprint: no square plate under mountains, volcanoes or craters', () => {
+  for (const id of ['mountain', 'volcano', 'crater']) {
+    const s = G.gen(id, { detail: 'low' }), [sx, , sz] = s.size;
+    for (const [x, z] of [[0, 0], [sx - 1, 0], [0, sz - 1], [sx - 1, sz - 1]]) assert.strictEqual(C.get(s, x, 0, z), 'minecraft:air', id + ': corner ' + x + ',' + z + ' is empty');
+  }
+});
+t('nature: water falls in front of the cliff, the volcano holds lava, the crater has its meteor, mushrooms have spots and gills', () => {
+  const wf = G.gen('waterfall', {}), [sx, sy, sz] = wf.size;
+  let front = 0; for (let y = 3; y < sy - 2; y++) for (let z = Math.floor(sz / 2); z < sz; z++) for (let x = 0; x < sx; x++) if (/water/.test(C.get(wf, x, y, z))) front++;
+  assert.ok(front > sy, 'a sheet of water on the south side: ' + front);
+  assert.ok(has(G.gen('volcano', {}), /lava/), 'lava in the volcano');
+  assert.ok(!has(G.gen('volcano', { lava: false, flows: 0 }), /lava/), 'a sleeping volcano has none');
+  assert.ok(has(G.gen('crater', { molten: true }), /magma/), 'a fresh crater glows');
+  const mu = G.gen('mushroom', { light: false }), plainCap = G.gen('mushroom', { light: false, spots: 0 });
+  assert.ok(has(mu, /white_concrete/) && !has(plainCap, /white_concrete/), 'spots come and go with the slider');
+  assert.ok(has(mu, /smooth_sandstone/), 'gills under the cap');
+});
+t('rune stone: runes are carved into both faces and light up whole glyphs; more amount never fewer', () => {
+  const lit = (amt) => { const s = G.gen('runestone', { glowAmt: amt, light: false }); return C.counts(s).filter((r) => /sea_lantern/.test(r.id)).reduce((a, r) => a + r.n, 0); };
+  const n = [0, 30, 60, 100].map(lit);
+  assert.strictEqual(n[0], 0, 'amount 0: none');
+  for (let i = 1; i < n.length; i++) assert.ok(n[i] >= n[i - 1] && n[i] > 0, 'monotonic: ' + n);
+  assert.ok(has(G.gen('runestone', { glow: 'none', light: false }), /polished_blackstone/), 'carved runes without glow');
+});
+t('ziggurat stairway and the arch ring are their own parts; the helix stair has a step for every block of height', () => {
+  // the stairway runs up the middle of the south side: the middle column there rises higher than at the corner
+  const z = G.gen('ziggurat', { detail: 'low', light: false, temple: false }), [zx, zy, zz] = z.size, colH = (x, zc) => { let n = 0; for (let y = 0; y < zy; y++) if (z.blocks[(y * zz + zc) * zx + x]) n = y + 1; return n; };
+  assert.ok(colH(zx >> 1, zz - 3) > colH(4, zz - 3) + 1, 'the stairway climbs the south face: ' + colH(zx >> 1, zz - 3) + ' / ' + colH(4, zz - 3));
+  const a = G.gen('arch', { light: false, detail: 'low' });
+  assert.ok(has(a, /^minecraft:(stone|polished_andesite)$/), 'voussoir ring in the trim stone');
+  const h = G.gen('helix', { kind: 'stair', detail: 'low', light: false, rail: false, column: false }), [sx, sy, sz] = h.size;
+  for (let y = 0; y < sy; y++) { let n = 0; for (let zz = 0; zz < sz; zz++) for (let x = 0; x < sx; x++) if (h.blocks[(y * sz + zz) * sx + x]) n++; assert.ok(n > 0, 'a step at height ' + y); }
+});
+t('world generators keep working with Inside, angle, detail levels and resize', () => {
+  for (const id of ['slab', 'sphere', 'rock', 'ziggurat', 'henge']) {
+    const sz0 = id === 'slab' ? { w: 8, d: 6, h: 12 } : {}, s = G.gen(id, Object.assign({ light: false }, sz0)), hol = G.gen(id, Object.assign({ light: false, inside: 'hollow', wall: 1 }, sz0));
+    assert.ok(C.volume(hol) < C.volume(s), id + ': hollow has fewer blocks');
+    const r = G.gen(id, { light: false, ay: 45, detail: 'low' });
+    assert.ok(C.volume(r) > 0, id + ': turned');
+    validStates(G.gen(id, { detail: 'max' }), id + ' max');
+    const big = TH.builds.resize.resize(s, { factor: [2, 2, 2] });
+    assert.deepStrictEqual(plain(big.s.size), s.size.map((v) => v * 2), id + ': resize');
+  }
+});
+
 t('detail levels: low = full blocks, medium adds stairs / slabs, high may add walls and trapdoors; parts can be left out', () => {
   const low = G.gen('bipyramid', { detail: 'low', light: false }), med = G.gen('bipyramid', { detail: 'medium' });
   assert.ok(low.palette.slice(1).every((id) => C.def(id).shape === 'cube' || D.isThin(id)), 'low: only cubes (and the tip)');

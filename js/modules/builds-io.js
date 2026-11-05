@@ -25,9 +25,31 @@ TH.builds = TH.builds || {};
 (function () {
   'use strict';
   const C = () => TH.builds.core;
-  const MAX_BLOCKS = 300000;      // non-air blocks we are willing to show
-  const MAX_VOLUME = 6000000;     // cells of the bounding box (memory)
+  const SRC = (typeof document !== 'undefined' && document.currentScript && document.currentScript.src) || (typeof location !== 'undefined' ? location.href : '');
+  /*
+   * Memory limits. A build lives as ONE flat Uint16Array of palette indices (2 bytes per cell of its bounding box), so
+   * the box is what costs memory; the non-air blocks are what the viewer has to mesh. The numbers are for a desktop
+   * browser (8 GB or more); a device that reports less memory (navigator.deviceMemory, Chrome / Edge) gets a share of
+   * them, never less than a quarter.
+   */
+  const LIMIT = { cells: 134217728, blocks: 16777216, fileMB: 512 };   // 128 Mi cells (256 MB of block data), 16 Mi blocks
+  function limits(mem) {
+    if (mem == null) mem = (typeof navigator !== 'undefined' && navigator.deviceMemory) || 8;
+    const k = Math.max(0.25, Math.min(1, mem / 8));
+    return { cells: Math.round(LIMIT.cells * k), blocks: Math.round(LIMIT.blocks * k), fileMB: Math.round(LIMIT.fileMB * k) };
+  }
+  let LIM = limits();
+  const MAX_BLOCKS = LIM.blocks;   // kept for code that reads TH.builds.io.MAX_BLOCKS
+  /** 12345678 -> '12.3 million', 845000 -> '845,000'. */
+  const many = (n) => (n >= 1e6 ? (n / 1e6).toFixed(1).replace(/\.0$/, '') + ' million' : Math.round(n).toLocaleString('en'));
   const fail = (msg) => { const e = new Error(msg); e.user = true; return e; };
+  const TOO_BIG_HELP = 'Export a smaller part (a selection in Litematica or WorldEdit) or split it into pieces, then open those one by one.';
+  /** The friendly "too big" messages (also used by the tests). */
+  const tooBig = {
+    box: (sx, sy, sz, L) => 'This build is too big for the viewer: its box is ' + sx + ' × ' + sy + ' × ' + sz + ' = ' + many(sx * sy * sz) + ' cells, and the viewer handles up to ' + many(L.cells) + ' cells on this device. ' + TOO_BIG_HELP,
+    blocks: (n, L) => 'This build has ' + many(n) + ' blocks, and the viewer handles up to ' + many(L.blocks) + ' blocks on this device. ' + TOO_BIG_HELP,
+    file: (mb, L) => 'This file is ' + Math.round(mb) + ' MB, and the viewer reads files up to ' + L.fileMB + ' MB on this device. ' + TOO_BIG_HELP,
+  };
 
   /* ======================================================================
    * gzip
@@ -41,8 +63,13 @@ TH.builds = TH.builds || {};
     if (typeof DecompressionStream === 'undefined') throw fail('This browser cannot unpack compressed schematic files. Try a current Chrome, Edge, Firefox or Safari.');
     try { return await pipe(bytes, new DecompressionStream('gzip')); } catch (e) { throw fail('This file looks compressed but could not be unpacked. It may be damaged.'); }
   }
+  /** bytes = one Uint8Array or a list of parts (streamed through without joining them first). */
   async function gzip(bytes) {
     if (typeof CompressionStream === 'undefined') throw fail('This browser cannot write compressed files. Use the JSON download instead.');
+    if (Array.isArray(bytes)) {
+      const out = new Blob(bytes).stream().pipeThrough(new CompressionStream('gzip'));
+      return new Uint8Array(await new Response(out).arrayBuffer());
+    }
     return pipe(bytes, new CompressionStream('gzip'));
   }
 
@@ -76,7 +103,8 @@ TH.builds = TH.builds || {};
         case 4: { need(8); if (typed) { const v = dv.getBigInt64(p).toString(); p += 8; return v; } const hi = dv.getInt32(p), lo = dv.getUint32(p + 4); p += 8; return hi * 4294967296 + lo; }
         case 5: { need(4); const v = dv.getFloat32(p); p += 4; return v; }
         case 6: { need(8); const v = dv.getFloat64(p); p += 8; return v; }
-        case 7: { const n = i32(); if (n < 0) throw fail('This file has a broken byte array.'); need(n); const a = new Int8Array(bytes.buffer.slice(bytes.byteOffset + p, bytes.byteOffset + p + n)); p += n; return a; }
+        // a view, not a copy: Sponge block data can be hundreds of MB (what is kept long-term is copied by safe())
+        case 7: { const n = i32(); if (n < 0) throw fail('This file has a broken byte array.'); need(n); const a = new Int8Array(bytes.buffer, bytes.byteOffset + p, n); p += n; return a; }
         case 8: return str();
         case 9: {
           const et = u8(), n = i32();
@@ -116,8 +144,8 @@ TH.builds = TH.builds || {};
     return { name, value: payload(10) };
   }
 
-  /** Minimal NBT writer: values tagged as [type, value]. */
-  function writeNBT(rootName, compound) {
+  /** Minimal NBT writer: values tagged as [type, value]. parts = true returns the list of byte parts (not joined). */
+  function writeNBT(rootName, compound, parts) {
     const chunks = [];
     let size = 0;
     const push = (u8) => { chunks.push(u8); size += u8.length; };
@@ -150,6 +178,7 @@ TH.builds = TH.builds || {};
       }
     }
     num(1, (d) => d.setInt8(0, 10)); wstr(rootName); wpay(10, compound);
+    if (parts) return chunks;
     const out = new Uint8Array(size);
     let o = 0;
     chunks.forEach((c) => { out.set(c, o); o += c.length; });
@@ -187,33 +216,50 @@ TH.builds = TH.builds || {};
   const num = (v) => (typeof v === 'number' ? v : Number(v) || 0);
   function guard(sx, sy, sz) {
     if (!(sx > 0 && sy > 0 && sz > 0)) throw fail('This schematic is empty.');
-    if (sx * sy * sz > MAX_VOLUME) throw fail('This build is too big for the viewer (' + sx + ' x ' + sy + ' x ' + sz + '). Try a smaller selection, up to about 300,000 blocks.');
+    if (sx * sy * sz > LIM.cells) throw fail(tooBig.box(sx, sy, sz, LIM));
   }
   function finish(s) {
     const n = C().volume(s);
     if (!n) throw fail('This schematic has no blocks in it, only air.');
-    if (n > MAX_BLOCKS) throw fail('This build has ' + n.toLocaleString('en') + ' blocks. The viewer handles up to ' + MAX_BLOCKS.toLocaleString('en') + ', so please export a smaller part.');
+    if (n > LIM.blocks) throw fail(tooBig.blocks(n, LIM));
     return C().trim(C().compact(s));
   }
-  /** Unsigned LEB128 varints (Sponge BlockData). */
-  function readVarints(bytes, count) {
-    const out = new Uint16Array(count);
+  /**
+   * Unsigned LEB128 varints (Sponge BlockData), decoded straight into `out` (a Uint16Array, or a new one) through `map`
+   * (file palette index -> ours; optional), with no array per block. tick(i) is called every ~1 M cells (progress).
+   */
+  function readVarints(bytes, count, out, map, tick) {
+    out = out || new Uint16Array(count);
+    const n = bytes.length;
     let p = 0;
     for (let i = 0; i < count; i++) {
-      let v = 0, shift = 0, b;
-      do {
-        if (p >= bytes.length) throw fail('The block data in this file is shorter than its size says.');
-        b = bytes[p++] & 0xff; v |= (b & 0x7f) << shift; shift += 7;
-      } while (b & 0x80 && shift < 35);
-      if (v > 65535) throw fail('This file uses more block types than the viewer supports.');
-      out[i] = v;
+      let b = p < n ? bytes[p++] : -1, v;
+      if (b < 0x80) { if (b < 0) throw fail('The block data in this file is shorter than its size says.'); v = b; }   // one byte: most files
+      else {
+        v = b & 0x7f;
+        let shift = 7;
+        do {
+          if (p >= n) throw fail('The block data in this file is shorter than its size says.');
+          b = bytes[p++]; v |= (b & 0x7f) << shift; shift += 7;
+        } while (b & 0x80 && shift < 35);
+        if (v > 65535) throw fail('This file uses more block types than the viewer supports.');
+      }
+      out[i] = map ? map[v] || 0 : v;
+      if (tick && (i & 0xfffff) === 0xfffff) tick(i / count);
     }
     return out;
   }
+  /** Varints of a Uint16Array, two passes over typed arrays (no array per block). */
   function writeVarints(arr) {
-    const out = [];
-    for (let i = 0; i < arr.length; i++) { let v = arr[i]; while (v >= 0x80) { out.push((v & 0x7f) | 0x80); v >>>= 7; } out.push(v); }
-    return Int8Array.from(out.map((b) => (b > 127 ? b - 256 : b)));
+    let len = 0;
+    for (let i = 0; i < arr.length; i++) { const v = arr[i]; len += v < 0x80 ? 1 : v < 0x4000 ? 2 : 3; }
+    const out = new Uint8Array(len);
+    for (let i = 0, p = 0; i < arr.length; i++) {
+      let v = arr[i];
+      while (v >= 0x80) { out[p++] = (v & 0x7f) | 0x80; v >>>= 7; }
+      out[p++] = v;
+    }
+    return new Int8Array(out.buffer);
   }
 
   /* ---- typed helpers for the extras ---- */
@@ -228,7 +274,7 @@ TH.builds = TH.builds || {};
   const xyz = (c) => (c && c.x && c.y && c.z ? [num(c.x[1]), num(c.y[1]), num(c.z[1])] : null);
 
   /** Sponge .schem v1 / v2 (root = Schematic) and v3 (root.Schematic, blocks under Blocks). */
-  function readSponge(root, name, T) {
+  function readSponge(root, name, T, tick) {
     const S = root.Schematic && typeof root.Schematic === 'object' && !Array.isArray(root.Schematic) ? root.Schematic : root;
     const ver = num(S.Version);
     const sx = num(S.Width) & 0xffff, sy = num(S.Height) & 0xffff, sz = num(S.Length) & 0xffff;
@@ -238,10 +284,10 @@ TH.builds = TH.builds || {};
     if (!palObj || !data) throw fail('This .schem file has no block palette or block data.');
     const pal = [];
     Object.entries(palObj).forEach(([state, i]) => { pal[num(i)] = state; });
-    const idx = readVarints(new Uint8Array(data.buffer, data.byteOffset, data.length), sx * sy * sz);
     const s = C().create(sx, sy, sz, name);
-    const map = pal.map((st) => (st ? C().pal(s, st) : 0));
-    for (let i = 0; i < idx.length; i++) s.blocks[i] = map[idx[i]] || 0;   // Sponge index = (y * Length + z) * Width + x, same as ours
+    const map = Array.from(pal, (st) => (st ? C().pal(s, st) : 0));
+    // Sponge index = (y * Length + z) * Width + x, same as ours: the varints go straight into the build's own array
+    readVarints(new Uint8Array(data.buffer, data.byteOffset, data.length), sx * sy * sz, s.blocks, map, tick);
     if (!T) return s;
     // ---- extras: block entities (v2 inline data, v3 under Data), entities, metadata, offset ----
     const TS = S === root ? T : T.Schematic[1], TB = ver >= 3 ? tc(TS.Blocks) || {} : TS;
@@ -267,7 +313,7 @@ TH.builds = TH.builds || {};
   }
 
   /** Litematica: every region placed at its position (negative sizes grow backwards), bit-packed palette indices spanning longs. */
-  function readLitematic(root, name, T) {
+  function readLitematic(root, name, T, tick) {
     const regs = root.Regions || {};
     const list = Object.entries(regs).map(([rn, r]) => {
       const P = r.Position || {}, Z = r.Size || {};
@@ -282,26 +328,37 @@ TH.builds = TH.builds || {};
     guard(W, H, L);
     const s = C().create(W, H, L, (root.Metadata && root.Metadata.Name) || name);
     s.declared = (root.Metadata && Number(root.Metadata.TotalBlocks)) || 0;   // what the file header claims (it can be stale); the list counts the real blocks
+    const allCells = list.reduce((a, g) => a + g.ax * g.ay * g.az, 0);
+    let doneCells = 0;
     list.forEach((g) => {
       const palL = g.r.BlockStatePalette || [];
       const states = palL.map((e) => {
         const props = e.Properties || {};
         return C().stateOf(e.Name || 'minecraft:air', Object.keys(props).length ? props : null);
       });
-      const map = states.map((st) => C().pal(s, st));
+      const map = Uint16Array.from(states, (st) => C().pal(s, st));
       const bits = Math.max(2, Math.ceil(Math.log2(Math.max(1, palL.length))));
       const L64 = g.r.BlockStates;
       if (!L64 || !L64.longs) throw fail('A region in this .litematic file has no block data.');
       const words = L64.longs, mask = bits >= 32 ? 0xffffffff : (1 << bits) - 1, total = g.ax * g.ay * g.az;
       if (Math.ceil(total * bits / 64) > L64.length) throw fail('The block data in this .litematic file is shorter than its size says.');
-      for (let i = 0; i < total; i++) {
-        const bit = i * bits, w = bit >>> 5, o = bit & 31;
-        let v = (words[w] >>> o);
-        if (o + bits > 32) v |= words[w + 1] << (32 - o);
-        v &= mask;
-        const x = i % g.ax, z = Math.floor(i / g.ax) % g.az, y = Math.floor(i / (g.ax * g.az));   // litematica index = (y * sz + z) * sx + x
-        const pi = map[v];
-        if (pi) s.blocks[C().idx(s, g.x0 - mx + x, g.y0 - my + y, g.z0 - mz + z)] = pi;
+      // litematica index = (y * sz + z) * sx + x, the same order as ours: walk it row by row, the bit position as a
+      // running counter (a total over 2^31 bits would overflow i * bits), and write each row at its place in the box
+      const B = s.blocks, ox = g.x0 - mx, oy = g.y0 - my, oz = g.z0 - mz, nm = map.length;
+      let w = 0, o = 0;
+      for (let y = 0; y < g.ay; y++) {
+        for (let z = 0; z < g.az; z++) {
+          let at = ((y + oy) * L + z + oz) * W + ox;
+          for (let x = 0; x < g.ax; x++, at++) {
+            let v = words[w] >>> o;
+            if (o + bits > 32) v |= words[w + 1] << (32 - o);
+            v &= mask;
+            o += bits; if (o >= 32) { o -= 32; w++; }
+            const pi = v < nm ? map[v] : 0;
+            if (pi) B[at] = pi;
+          }
+        }
+        if (tick) tick((doneCells += g.ax * g.az) / allCells);
       }
     });
     if (!T) return s;
@@ -471,7 +528,19 @@ TH.builds = TH.builds || {};
    * ====================================================================== */
   const DATA_VERSION = 3955;   // Java 1.21.1
   /** A copy with one palette entry per state (two entries of the same state would collide in a palette compound). */
-  const clean = (s) => C().compact(C().clone(s));
+  function clean(s) {
+    // a build that already has one entry per used state is written as it is (no copy of a big block array)
+    const used = new Uint8Array(s.palette.length), b = s.blocks;
+    for (let i = 0; i < b.length; i++) used[b[i]] = 1;
+    const seen = new Set();
+    let ok = true;
+    for (let i = 1; i < s.palette.length && ok; i++) {
+      const id = s.palette[i];
+      if (!used[i] || C().isAir(id) || seen.has(id)) ok = false;
+      seen.add(id);
+    }
+    return ok ? s : C().compact(C().clone(s));
+  }
   const TOOL = "n1cebear's toolbox";
   /** The source file's metadata value of a key (typed), or undefined. */
   const metaOf = (s, fmt, k) => (s.src && s.src.fmt === fmt && s.src.meta && s.src.meta[k]) || undefined;
@@ -510,7 +579,7 @@ TH.builds = TH.builds || {};
       Metadata: [10, meta],
     };
     if (s.ents && s.ents.length) root.Entities = [9, [10, s.ents.map((e) => Object.assign({ Pos: [9, [6, e.pos.map((v, a) => v + ed[a])]], Id: [8, e.id] }, C().entShift(e.nbt, ed)))]];
-    return gzip(writeNBT('Schematic', root));
+    return gzip(writeNBT('Schematic', root, true));
   }
 
   /* ======================================================================
@@ -573,41 +642,96 @@ TH.builds = TH.builds || {};
       Metadata: [10, meta],
       Regions: [10, { [R ? R.name : name]: [10, region] }],
     };
-    return gzip(writeNBT('', root));
+    return gzip(writeNBT('', root, true));
   }
 
   /* ======================================================================
    * Entry
    * ====================================================================== */
   const baseName = (n) => String(n || 'Build').replace(/\.(schem|schematic|litematic|nbt|json)$/i, '').replace(/[_-]+/g, ' ').trim() || 'Build';
-  async function load(src) {
-    let bytes, name;
-    if (src && typeof src.arrayBuffer === 'function') {
-      if (src.size > 40 * 1024 * 1024) throw fail('This file is too large (over 40 MB) for the viewer.');
-      bytes = new Uint8Array(await src.arrayBuffer()); name = src.name;
-    } else { bytes = src.bytes; name = src.name; }
-    if (!bytes || !bytes.length) throw fail('This file is empty.');
-    const nice = baseName(name);
-    // JSON?
-    let k = 0; while (k < bytes.length && k < 64 && (bytes[k] === 0x20 || bytes[k] === 0x0a || bytes[k] === 0x0d || bytes[k] === 0x09 || bytes[k] === 0xef || bytes[k] === 0xbb || bytes[k] === 0xbf)) k++;
-    if (bytes[k] === 0x7b) {
-      let o;
-      try { o = JSON.parse(new TextDecoder('utf-8').decode(bytes)); } catch (e) { throw fail('This JSON file could not be read. It may be damaged.'); }
-      return finish(fromJSON(o, nice));
-    }
-    if (isGzip(bytes)) bytes = await gunzip(bytes);
-    if (bytes[0] !== 10) throw fail('This file isn’t a schematic I can read. Supported: .schem, .litematic, .nbt (structure), .schematic and our .json.');
-    const { value: T } = readNBT(bytes, true);   // typed, so what we keep writes back exactly
-    const root = untag(10, T);
-    let s;
-    if (root.Regions && root.Metadata) s = readLitematic(root, nice, T);
-    else if ((root.Schematic && (root.Schematic.Blocks || root.Schematic.Palette)) || (root.Palette && root.BlockData)) s = readSponge(root, nice, T);
-    else if (root.Blocks && root.Width != null && (root.Materials != null || root.Data)) s = readLegacy(root, nice);   // pre-1.13 numeric ids: block entities not read
-    else if (Array.isArray(root.size) && (root.palette || root.palettes) && root.blocks) s = readStructure(root, nice, T);
-    else throw fail('This file isn’t a schematic I can read. It is NBT, but not a .schem, .litematic, structure or .schematic file.');
-    s.name = s.name || nice;
-    return finish(s);
+  /**
+   * Read a schematic. opts.onProgress(stage, fraction 0..1) is told how far it is: 'Reading the file', 'Unpacking',
+   * 'Reading the blocks', 'Tidying up'. opts.limits overrides the memory limits (tests).
+   */
+  async function load(src, opts) {
+    opts = opts || {};
+    const L = opts.limits || LIM, prog = opts.onProgress || null;
+    const step = (st, f) => { if (prog) prog(st, f); };
+    const was = LIM; LIM = L;
+    try {
+      let bytes, name;
+      step('Reading the file', 0);
+      if (src && typeof src.arrayBuffer === 'function') {
+        if (src.size > L.fileMB * 1048576) throw fail(tooBig.file(src.size / 1048576, L));
+        bytes = new Uint8Array(await src.arrayBuffer()); name = src.name;
+      } else { bytes = src.bytes; name = src.name; }
+      if (!bytes || !bytes.length) throw fail('This file is empty.');
+      const nice = baseName(name);
+      // JSON?
+      let k = 0; while (k < bytes.length && k < 64 && (bytes[k] === 0x20 || bytes[k] === 0x0a || bytes[k] === 0x0d || bytes[k] === 0x09 || bytes[k] === 0xef || bytes[k] === 0xbb || bytes[k] === 0xbf)) k++;
+      if (bytes[k] === 0x7b) {
+        let o;
+        step('Reading the blocks', 0);
+        try { o = JSON.parse(new TextDecoder('utf-8').decode(bytes)); } catch (e) { throw fail('This JSON file could not be read. It may be damaged.'); }
+        bytes = null;
+        const sj = fromJSON(o, nice);
+        step('Tidying up', 0);
+        return finish(sj);
+      }
+      if (isGzip(bytes)) { step('Unpacking', 0); bytes = await gunzip(bytes); }
+      if (bytes[0] !== 10) throw fail('This file isn’t a schematic I can read. Supported: .schem, .litematic, .nbt (structure), .schematic and our .json.');
+      step('Reading the blocks', 0);
+      const { value: T } = readNBT(bytes, true);   // typed, so what we keep writes back exactly
+      const root = untag(10, T);
+      const tick = prog ? (f) => prog('Reading the blocks', f) : null;
+      let s;
+      if (root.Regions && root.Metadata) s = readLitematic(root, nice, T, tick);
+      else if ((root.Schematic && (root.Schematic.Blocks || root.Schematic.Palette)) || (root.Palette && root.BlockData)) s = readSponge(root, nice, T, tick);
+      else if (root.Blocks && root.Width != null && (root.Materials != null || root.Data)) s = readLegacy(root, nice);   // pre-1.13 numeric ids: block entities not read
+      else if (Array.isArray(root.size) && (root.palette || root.palettes) && root.blocks) s = readStructure(root, nice, T);
+      else throw fail('This file isn’t a schematic I can read. It is NBT, but not a .schem, .litematic, structure or .schematic file.');
+      s.name = s.name || nice;
+      step('Tidying up', 0);
+      return finish(s);
+    } finally { LIM = was; }
   }
 
-  TH.builds.io = { load, readNBT, writeNBT, untag, safe, safeC, tagBytes, toJSON, fromJSON, toSchem, toLitematic, gunzip, gzip, readVarints, writeVarints, MAX_BLOCKS, FORMAT, DATA_VERSION };
+  /*
+   * loadAsync: the same as load, but in a Web Worker (builds-worker.js) so the page never freezes on a big file; the
+   * block array comes back as a transferred buffer (no copy). Without workers (file://, an old browser, a blocked
+   * worker) it reads on the page, with a pause between the stages so the progress can paint.
+   */
+  const workerURL = () => new URL('builds-worker.js', SRC).href;
+  function loadAsync(src, onProgress) {
+    const main = () => {
+      const prog = onProgress ? (st, f) => onProgress(st, f) : null;
+      return new Promise((r) => setTimeout(r, 30)).then(() => load(src, { onProgress: prog }));
+    };
+    if (typeof Worker === 'undefined' || !SRC || /^file:/.test(SRC) || TH.builds.noWorker) return main();
+    return new Promise((resolve, reject) => {
+      let w, settled = false, started = false;
+      const end = (fn, v) => { if (settled) return; settled = true; try { w.terminate(); } catch (e) { /* ignore */ } fn(v); };
+      const fallback = () => { if (settled) return; settled = true; try { w.terminate(); } catch (e) { /* ignore */ } main().then(resolve, reject); };
+      try { w = new Worker(workerURL()); } catch (e) { main().then(resolve, reject); return; }
+      w.onerror = (e) => { if (e && e.preventDefault) e.preventDefault(); fallback(); };   // the worker could not start: read on the page
+      w.onmessage = (ev) => {
+        const m = ev.data || {};
+        if (m.type === 'ready') {
+          started = true;
+          // a File / Blob goes as it is (the worker reads it); note Blob has a bytes() method of its own in new browsers
+          const isBlob = src && typeof src.arrayBuffer === 'function';
+          try { w.postMessage({ type: 'load', file: isBlob ? src : null, bytes: !isBlob && src && src.bytes instanceof Uint8Array ? src.bytes : null, name: src && src.name }); } catch (e) { fallback(); }
+        }
+        else if (m.type === 'progress') { if (onProgress) onProgress(m.stage, m.f); }
+        else if (m.type === 'loaded') end(resolve, m.s);
+        else if (m.type === 'error') { if (!started || m.boot) fallback(); else { const e = new Error(m.message); e.user = !!m.user; end(reject, e); } }
+      };
+      setTimeout(() => { if (!started) fallback(); }, 8000);   // never wait forever on a worker that does not answer
+    });
+  }
+
+  TH.builds.io = {
+    load, loadAsync, readNBT, writeNBT, untag, safe, safeC, tagBytes, toJSON, fromJSON, toSchem, toLitematic, gunzip, gzip, readVarints, writeVarints,
+    MAX_BLOCKS, FORMAT, DATA_VERSION, limits, tooBig, many, get LIMITS() { return LIM; },
+  };
 })();

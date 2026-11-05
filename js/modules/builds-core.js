@@ -722,6 +722,7 @@ TH.builds = TH.builds || {};
   }
   /** Drop unused palette entries and merge duplicates. */
   function compact(s) {
+    if (s._cow) { s.blocks = new Uint16Array(s.blocks); s._cow = false; }   // a swap view shares its blocks: copy before rewriting
     const used = new Uint8Array(s.palette.length), b = s.blocks;
     for (let i = 0; i < b.length; i++) used[b[i]] = 1;
     const map = new Uint16Array(s.palette.length), pal2 = [AIR], seen = new Map([[AIR, 0]]);
@@ -849,13 +850,31 @@ TH.builds = TH.builds || {};
    * Apply block swaps { 'minecraft:stone_bricks': 'minecraft:deepslate_bricks' } (keys and values are base ids).
    * Only the palette changes: properties are kept, functional blocks are never touched. Returns a new schematic.
    */
+  const SHARE_AT = 1 << 22;   // 4 M cells: from here a swap shares the block array (a palette remap, O(palette))
   function applySwaps(s, swaps) {
     if (!swaps || !Object.keys(swaps).length) return s;
+    const share = s.blocks.length >= SHARE_AT;
     const o = { name: s.name, size: s.size.slice(), palette: s.palette.map((id) => {
       const p = parse(id), to = swaps[p.base];
       return to && to !== p.base && canSwap(id, to) ? swapState(id, to) : id;
-    }), blocks: new Uint16Array(s.blocks) };
+    }), blocks: share ? s.blocks : new Uint16Array(s.blocks) };
     carry(s, o, 0, 0, 0);
+    if (share) {
+      // big builds: only the palette changes; two entries may now name the same state (the writers merge them, see
+      // builds-io.js clean()). Anything that rewrites the blocks (compact) copies them first (_cow), so the original stays.
+      Object.defineProperty(o, '_cow', { value: true, writable: true });
+      if (o.be && o.be.length) {
+        const keep = [], lost = (o.beLost || []).slice();
+        o.be.forEach((b) => {
+          const v = s.blocks[idx(s, b.x, b.y, b.z)], was = s.palette[v], now = o.palette[v];
+          if (was === now || beKind(was) === beKind(now)) keep.push(b);
+          else lost.push({ x: b.x, y: b.y, z: b.z, id: b.id, from: parse(was).base, to: parse(now).base });
+        });
+        o.be = keep;
+        if (lost.length) o.beLost = lost;
+      }
+      return o;
+    }
     // a block entity stays when its block still holds the same kind (oak sign -> spruce sign, red -> lime shulker box);
     // anything else is dropped and listed, so the downloads can warn about it
     if (o.be && o.be.length) {
@@ -947,25 +966,37 @@ TH.builds = TH.builds || {};
   }
   /** Run-length text of the block indices: "count*index" pairs (count omitted when 1), comma separated. */
   function rle(blocks) {
-    const out = [];
+    // joined in pieces of 64 K runs, so a big build never holds millions of small strings at once
+    const parts = [];
+    let out = [];
     for (let i = 0; i < blocks.length;) {
       const v = blocks[i];
       let j = i + 1;
       while (j < blocks.length && blocks[j] === v) j++;
       out.push(j - i > 1 ? (j - i) + '*' + v : String(v));
+      if (out.length === 65536) { parts.push(out.join(',')); out = []; }
       i = j;
     }
-    return out.join(',');
+    if (out.length) parts.push(out.join(','));
+    return parts.join(',');
   }
   function unrle(text, n) {
-    const out = new Uint16Array(n);
+    const out = new Uint16Array(n), t = String(text), L = t.length;
     let i = 0;
-    for (const part of String(text).split(',')) {
-      if (!part) continue;
-      const st = part.indexOf('*');
-      const c = st >= 0 ? parseInt(part.slice(0, st), 10) : 1, v = parseInt(st >= 0 ? part.slice(st + 1) : part, 10);
-      if (!(c > 0) || !(v >= 0) || i + c > n) throw new Error('bad block data');
-      out.fill(v, i, i + c); i += c;
+    // scanned in place (no split into millions of strings): "count*index" or "index", comma separated
+    for (let p = 0; p < L;) {
+      let e = t.indexOf(',', p);
+      if (e < 0) e = L;
+      if (e > p) {
+        let st = p;
+        while (st < e && t.charCodeAt(st) !== 42) st++;   // '*' inside this part only
+        const star = st < e;
+        const c = star ? parseInt(t.slice(p, st), 10) : 1, v = parseInt(star ? t.slice(st + 1, e) : t.slice(p, e), 10);
+        if (!(c > 0) || !(v >= 0) || i + c > n) throw new Error('bad block data');
+        if (c === 1) out[i] = v; else out.fill(v, i, i + c);
+        i += c;
+      }
+      p = e + 1;
     }
     if (i !== n) throw new Error('block data has the wrong length');
     return out;

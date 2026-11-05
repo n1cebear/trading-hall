@@ -498,7 +498,9 @@ TH.skinsView = (function () {
     let pinch0 = 0, zoom0 = 1, mid0 = null, spaceDown = false, lastDown = null;
     const pdist = () => { const a = [...ptrs.values()]; return Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y) || 1; };
     const pmid = () => { const a = [...ptrs.values()]; return { x: (a[0].x + a[1].x) / 2, y: (a[0].y + a[1].y) / 2 }; };
-    window.addEventListener('keydown', (e) => { if (e.code === 'Space' && el.matches(':hover')) spaceDown = true; });
+    let over = false;   // the pointer is over the view (Space then turns the model)
+    el.addEventListener('pointerenter', () => { over = true; });
+    window.addEventListener('keydown', (e) => { if (e.code === 'Space' && (over || el.matches(':hover'))) spaceDown = true; });
     window.addEventListener('keyup', (e) => { if (e.code === 'Space') spaceDown = false; });
     window.addEventListener('blur', () => { spaceDown = false; });
     el.addEventListener('contextmenu', (e) => e.preventDefault());
@@ -528,20 +530,27 @@ TH.skinsView = (function () {
       if (ptrs.size > 2) return;
       const btn = e.pointerType === 'mouse' ? e.button : 0;
       if (btn === 0 && !spaceDown && (S.altTool || (!e.altKey && !e.shiftKey)) && dblFocus(e)) { drag = null; ptrs.delete(e.pointerId); return; }
-      let kind = 'orbit';
-      if (btn === 2 || (btn === 0 && spaceDown) || (btn === 0 && e.shiftKey && S.mode === 'orbit')) kind = 'pan';
-      else if (btn === 1) kind = 'orbit';
+      // LEFT-drag orbits like every viewport of the toolbox, unless it starts ON the model with a tool (paint, select, move):
+      // a press beside the model, in Orbit mode (S.orbitOnly), with Space held or with the Turn tool always turns the model
+      let kind = 'orbit', hit0 = null;
+      if (btn === 2 || (btn === 0 && e.shiftKey && S.mode === 'orbit')) kind = 'pan';
+      else if (btn === 1 || (btn === 0 && spaceDown)) kind = 'orbit';
       else if (btn === 0 && e.altKey && !S.altTool) kind = 'alt';   // drag = orbit, click = pick a colour
-      else if (btn === 0 && S.mode === 'paint') kind = 'paint';
+      else if (btn === 0 && S.mode === 'paint' && !S.orbitOnly) { hit0 = S.pickAt(e.clientX, e.clientY); kind = hit0 ? 'paint' : 'orbit'; }
       drag = { kind, id: e.pointerId, x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY, t: e.timeStamp };
       el.classList.toggle('grab', kind === 'orbit' || kind === 'pan');
-      if (kind === 'paint') S.onPaint && S.onPaint('start', S.pickAt(e.clientX, e.clientY), e);
+      if (kind === 'paint') S.onPaint && S.onPaint('start', hit0, e);
       wake();
     });
     el.addEventListener('pointermove', (e) => {
       const p = ptrs.get(e.pointerId);
+      over = true;
       if (!drag || !p) {
-        if (S.mode === 'paint' && e.pointerType !== 'touch' && S.onHover) S.onHover(S.pickAt(e.clientX, e.clientY), e);
+        if (S.mode === 'paint' && !S.orbitOnly && e.pointerType !== 'touch') {
+          const h = S.pickAt(e.clientX, e.clientY);
+          el.classList.toggle('off', !h);   // beside the model the cursor says "drag turns it"
+          if (S.onHover) S.onHover(h, e);
+        }
         return;
       }
       const dx = e.clientX - p.x, dy = e.clientY - p.y;
@@ -590,7 +599,8 @@ TH.skinsView = (function () {
     };
     el.addEventListener('pointerup', up);
     el.addEventListener('pointercancel', up);
-    el.addEventListener('pointerleave', (e) => { if (!drag && S.onHover) S.onHover(null, e); });
+    el.addEventListener('pointerleave', (e) => {
+      over = false; if (!drag && S.onHover) S.onHover(null, e); });
     el.addEventListener('wheel', (e) => {
       e.preventDefault();
       S.goal = null;
@@ -626,6 +636,8 @@ TH.skinsView = (function () {
       S.dirty = true; wake();
     };
     S.setMode = (m) => { S.mode = m === 'orbit' ? 'orbit' : 'paint'; el.dataset.mode = S.mode; if (S.mode === 'orbit' && S.onHover) S.onHover(null); };
+    /** Orbit mode: left-drag always turns the model and a click never paints (the Paint / Orbit keys, O, on the stage) */
+    S.setOrbitOnly = (on) => { S.orbitOnly = !!on; el.dataset.orbit = on ? '1' : ''; if (on && S.onHover) S.onHover(null); };
     S.shot = () => new Promise((res) => {
       if (!S.ready) return res(null);
       resize(); place(); S.renderer.render(S.scene, S.camera);

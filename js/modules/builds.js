@@ -33,10 +33,13 @@
   const { h, toast, clamp } = TH.util;
   const SRC = (document.currentScript && document.currentScript.src) || location.href;
   const rel = (p) => new URL(p, SRC).href;
-  const LAZY = ['builds-io.js', 'builds-shapes.js', 'builds-farms.js', 'builds-view.js', '../data/recipes.js', 'builds-mats.js',
-    '../data/block-colours.js', 'builds-detail.js', 'builds-rotate.js', 'builds-shade.js', 'builds-inside.js', 'builds-resize.js', 'builds-gen.js', 'builds-edit.js', 'builds-create.js', 'builds-editor.js'];
+  const LAZY = ['builds-io.js', 'builds-store.js', 'builds-shapes.js', 'builds-farms.js', 'builds-view.js', '../data/recipes.js', 'builds-mats.js',
+    '../data/block-colours.js', 'builds-detail.js', 'builds-rotate.js', 'builds-shade.js', 'builds-inside.js', 'builds-resize.js', 'builds-gen.js', 'builds-gen-world.js', 'builds-edit.js', 'builds-create.js', 'builds-editor.js'];
   const FILE_CAP = 400000;    // characters of run-length data we keep in the saved state per file
   const MAX_FILES = 4;
+  // bigger builds go to IndexedDB (builds-store.js); the state keeps only their index record ({ idb: true, ... })
+  const IDB_FROM = 2000000;   // cells: from here the run-length text is not even tried
+  const MAX_IDB = 8;          // big builds kept in the Library (the oldest goes first)
   const reduced = () => !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
   const B = () => TH.builds;
   const core = () => TH.builds.core;
@@ -125,6 +128,8 @@
     file: ['####...', '#..##..', '#...##.', '#....#.', '#....#.', '#....#.', '######.'],
     mirror: ['...#...', '#.....#', '##.#.##', '###.###', '##.#.##', '#.....#', '...#...'],
     centre: ['...#...', '.#####.', '.#...#.', '##.#.##', '.#...#.', '.#####.', '...#...'],
+    cut: ['####...', '#..#...', '#..#.#.', '####.##', '....###', '...####', '.......'],
+    fit: ['##...##', '#.....#', '..###..', '..###..', '..###..', '#.....#', '##...##'],
   };
   const glyphURL = new Map();
   function glyph(name, cls) {
@@ -175,6 +180,7 @@
       if (mem.files.has(id)) return mem.files.get(id);
       const r = fileRec(id);
       if (!r) return null;
+      if (r.idb) { loadIdb(id); return null; }   // a big build: its blocks come from IndexedDB (show() waits for them)
       try {
         const s = core().create(r.size[0], r.size[1], r.size[2], r.name);
         s.palette = r.palette.slice(); s.blocks = core().unrle(r.data, r.size[0] * r.size[1] * r.size[2]);
@@ -188,6 +194,66 @@
     if (key === 'shape') { try { return B().createUI.schem(ctx()); } catch (e) { if (e.user) toast(e.message); else console.error(e); return mem.lastShape || null; } }
     if (key === 'edit') return B().editorUI ? B().editorUI.out() : null;
     return null;
+  }
+  /** Load a big build kept in IndexedDB into memory (once; later calls share the promise). Resolves to the schematic or null. */
+  function loadIdb(id) {
+    mem.idbP = mem.idbP || new Map();
+    if (mem.files.has(id)) return Promise.resolve(mem.files.get(id));
+    if (mem.idbP.has(id)) return mem.idbP.get(id);
+    const r = fileRec(id);
+    const p = (B().store ? B().store.get(id) : Promise.resolve(null)).then((s) => {
+      if (s) {
+        if (r && r.name) s.name = r.name;
+        mem.files.set(id, s);
+        // the Materials tool asked for it (it reads builds synchronously): draw it again now that the blocks are here
+        if (location.hash === '#/materials' && TH.app && TH.app.render) TH.app.render();
+      } else mem.idbP.delete(id);
+      return s;
+    }, (e) => { console.warn('Builds: could not read ' + (r ? r.name : id) + ' from the browser storage', e); mem.idbP.delete(id); return null; });
+    mem.idbP.set(id, p);
+    return p;
+  }
+  const isIdbKey = (key) => !!(key && key.startsWith('file:') && !mem.files.has(key.slice(5)) && (fileRec(key.slice(5)) || {}).idb);
+  /**
+   * Keep an opened or made build in the Library: small ones as run-length text in the saved state (as always), big ones
+   * in IndexedDB with only the index record in the state. Resolves to 'state' | 'idb' | 'session' (only for this visit).
+   */
+  async function keepBuild(id, s, xz) {
+    const cells = s.blocks.length;
+    const data = cells < IDB_FROM ? core().rle(s.blocks) : null;
+    if (data && data.length <= FILE_CAP && (xz == null || (xz && xz.length <= XZ_CAP))) {
+      save((b) => {
+        b.files = b.files || [];
+        const rec = { id, name: s.name, size: s.size.slice(), palette: s.palette.slice(), data, added: Date.now(), declared: s.declared || 0 };
+        if (xz) rec.xz = xz;
+        b.files.unshift(rec);
+        trimFiles(b);
+      });
+      return 'state';
+    }
+    try {
+      if (!B().store || !(await B().store.ok())) throw new Error('no IndexedDB');
+      const r = await B().store.put(id, s);
+      save((b) => {
+        b.files = b.files || [];
+        b.files.unshift({ id, name: s.name, size: s.size.slice(), added: Date.now(), declared: s.declared || 0, idb: true, n: core().volume(s), kb: Math.round(r.bytes / 1024) });
+        trimFiles(b);
+      });
+      return 'idb';
+    } catch (e) {
+      console.warn('Builds: could not keep ' + s.name + ' in the browser storage', e);
+      mem.sessionOnly = mem.sessionOnly || [];
+      mem.sessionOnly.unshift({ id, name: s.name, size: s.size.slice(), session: true });
+      return 'session';
+    }
+  }
+  /** At most MAX_FILES small and MAX_IDB big builds; the oldest go, with their swaps, ticks and stored blocks. */
+  function trimFiles(b) {
+    const drop = (old) => { mem.extras.delete(old.id); delete b.swaps['file:' + old.id]; delete b.ticks['file:' + old.id]; if (old.idb && B().store) B().store.del(old.id).catch(() => {}); };
+    const small = b.files.filter((f) => !f.idb), bigs = b.files.filter((f) => f.idb);
+    const out = new Set([...small.slice(MAX_FILES), ...bigs.slice(MAX_IDB)]);
+    out.forEach(drop);
+    if (out.size) b.files = b.files.filter((f) => !out.has(f));
   }
   /** The schematic as shown: the original with the user's block swaps, then its angle and light (Library). fast: a quick preview while a slider moves. */
   function effective(key, fast) {
@@ -313,10 +379,12 @@
     function seen() { if (!S().viewHelp) { save((b) => { b.viewHelp = true; }); hint.hidden = true; } }
     const drop = h('div.bd-drop', { 'aria-hidden': 'true' }, h('span', 'Drop a schematic file'), h('small', '.schem · .litematic · .nbt · .schematic · .json'));
     const loading = h('div.bd-loading', 'Loading the 3D view…');
+    // reading a big file and building its view: one quiet line + a slim bar, the stage stays usable under it
+    const prog = h('div.bd-busy', { role: 'status', 'aria-live': 'polite', hidden: true }, h('span.bd-busy-t'), h('span.bd-busy-bar', { 'aria-hidden': 'true' }, h('span.bd-busy-fill')));
     const runBtn = h('button.btn.small.bd-run', { type: 'button', 'aria-pressed': 'false', hidden: true, onclick: () => { if (!V || !V.hasRun()) return; V.setRun(!V.run); syncRun(); } }, glyph('run'), h('span', 'Run the machine'));
     tip(runBtn, 'Play the machine: the plants grow, the observer fires and the pistons move');
     const phaseCap = h('div.bd-phase', { 'aria-live': 'polite', hidden: true });
-    stage.append(h('div.bd-label', title, meta), h('div.bd-runbox', runBtn, phaseCap), h('div.bd-frametools', { role: 'group', 'aria-label': 'View' }, zoomOut, zoomIn, resetV), views, helpCard, hint, drop, loading);
+    stage.append(h('div.bd-label', title, meta), h('div.bd-runbox', runBtn, phaseCap), h('div.bd-frametools', { role: 'group', 'aria-label': 'View' }, zoomOut, zoomIn, resetV), views, helpCard, hint, drop, loading, prog);
     // the first real move of the camera (drag, wheel, keys) also counts as having seen the hint
     ['pointerdown', 'wheel', 'keydown'].forEach((ev) => stage.addEventListener(ev, (e) => {
       if (!e.target.closest || !e.target.closest('.bd-canvas')) return;
@@ -342,7 +410,7 @@
     const gridBtn = tip(h('button.btn.small.bd-vk.sq', { type: 'button', 'aria-label': 'Blueprint grid', onclick: () => { save((b) => { b.grid = !b.grid; }); if (V) V.setGrid(S().grid); syncBar(); } }, glyph('grid')), 'Blueprint grid');
     const outlineBtn = tip(h('button.btn.small.bd-vk.sq', { type: 'button', 'aria-label': 'Layer outline', onclick: () => { save((b) => { b.outline = !b.outline; }); if (V) V.setOutline(S().outline); syncBar(); } }, glyph('outline')), 'Outline of the top shown layer');
     const rotBtn = tip(h('button.btn.small.bd-vk.sq', { type: 'button', 'aria-label': 'Turn slowly', onclick: () => { save((b) => { b.auto = !b.auto; }); if (V) V.setAuto(S().auto); syncBar(); } }, glyph('rot')), 'Turn slowly while idle');
-    const GLASS = [['tint', 'Glass: see-through', 'Glass, panes and windows lightly tinted, so you see in and see them'], ['solid', 'Glass: solid', 'Glass nearly opaque, to read the shape of a glass build'], ['clear', 'Glass: as in game', 'Glass as clear as in Minecraft']];
+    const GLASS = [['tint', 'Glass: see-through', 'Glass, panes and windows lightly tinted, so you see in and see them'], ['solid', 'Glass: solid', 'Glass nearly opaque, to read the shape of a glass build'], ['clear', 'Glass: as in game', 'Glass as clear as in Minecraft'], ['hide', 'Glass: hidden', 'Glass and panes left out, to look into a build of glass and steel']];
     const glassBtn = h('button.btn.small.bd-vk.bd-glasskey', { type: 'button', onclick: () => {
       const i = (GLASS.findIndex((g) => g[0] === (S().glass || 'tint')) + 1) % GLASS.length;
       save((b) => { b.glass = GLASS[i][0]; }); if (V) V.setGlass(GLASS[i][0]); syncGlass();
@@ -357,8 +425,10 @@
       h('div.bd-bar-grp.bd-bar-end', glassBtn, gridBtn, outlineBtn, rotBtn));
     layer.id = 'bd-layer';
     stage.querySelector('.bd-frametools').prepend(symBtn);   // the Symmetry key sits with the view keys on the stage
-    const symPanel = symPanelUI();
-    const viewer = h('section.panel.bd-viewer', { 'aria-label': '3D view' }, stage, bar, symPanel.el);
+    const cutBtn = tip(h('button.btn.small.bd-vk.bd-symkey.bd-cutkey', { type: 'button', 'aria-pressed': 'false', 'aria-controls': 'bd-cut', onclick: () => { cut.open = !cut.open; syncCut(); } }, glyph('cut'), h('span.bd-vlabel', 'Cut')), 'Look inside: show only some layers, or cut the build open along X and Z');
+    stage.querySelector('.bd-frametools').prepend(cutBtn);
+    const symPanel = symPanelUI(), cutPanel = cutPanelUI();
+    const viewer = h('section.panel.bd-viewer', { 'aria-label': '3D view' }, stage, bar, cutPanel.el, symPanel.el);
 
     // ---- side ----
     const side = h('div.bd-side');
@@ -408,8 +478,26 @@
       placeHov();
     }
 
-    UI = { wrap, layout, head, secBtns, stage, title, meta, runBtn, phaseCap, loading, playBtn, modeBtns, speedBtns, layer, layerLbl, sliceBtn, gridBtn, outlineBtn, rotBtn, symBtn, symPanel, side, viewer, fileIn, hov, onHover, shown: null, shownKey: null, picker: null };
+    UI = { cutBtn, cutPanel, wrap, layout, head, secBtns, stage, title, meta, runBtn, phaseCap, loading, prog, playBtn, modeBtns, speedBtns, layer, layerLbl, sliceBtn, gridBtn, outlineBtn, rotBtn, symBtn, symPanel, side, viewer, fileIn, hov, onHover, shown: null, shownKey: null, picker: null };
     return UI;
+  }
+
+  /**
+   * The progress line on the stage: info = { stage, f (0..1), blocks } or null to hide it. Reading a file and building
+   * the view of a big build both report here ("Loading 4.2 million blocks · Building the view 37%").
+   */
+  let progLast = '';
+  function stageProgress(info) {
+    if (!UI || !UI.prog) return;
+    if (!info) { UI.prog.hidden = true; progLast = ''; UI.viewer.classList.remove('is-loading'); return; }
+    const n = info.blocks || (UI.shown && V && V.schem === UI.shown && V.M && V.M.blocks) || 0;
+    const pct = Math.max(0, Math.min(99, Math.floor((info.f || 0) * 100)));
+    // the number and the percentage first, so a narrow stage only cuts off the stage name
+    const txt = (n >= 100000 ? 'Loading ' + B().io.many(n) + ' blocks… ' : '') + (info.f > 0 ? pct + '% · ' : '') + info.stage + (info.f > 0 ? '' : '…');
+    if (txt !== progLast) { UI.prog.querySelector('.bd-busy-t').textContent = txt; progLast = txt; }
+    UI.prog.style.setProperty('--p', (info.f || 0).toFixed(3));
+    UI.prog.hidden = false;
+    UI.viewer.classList.add('is-loading');
   }
 
   /* ---- viewer life cycle ---- */
@@ -421,13 +509,14 @@
       V.onState = syncPlay;
       V.onRun = (k, info, running) => syncRun(info, running);
       V.onHover = (hit) => UI.onHover(hit);
+      V.onProgress = (info) => stageProgress(info);
       new MutationObserver(() => { if (V) V.setAccent(accent()); }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'data-tool'] });
       matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { if (V) setTimeout(() => V.setAccent(accent()), 50); });
     }
     const st = S();
     V.accent = accent();
     V.mode = reduced() ? 'still' : st.mode; V.speed = st.speed; V.gridOn = st.grid; V.outlineOn = st.outline; V.auto = st.auto && !reduced(); V.autoOk = V.auto;
-    V.glassMode = ['tint', 'solid', 'clear'].includes(st.glass) ? st.glass : 'tint';
+    V.glassMode = ['tint', 'solid', 'clear', 'hide'].includes(st.glass) ? st.glass : 'tint';
     UI.loading.hidden = false; UI.loading.textContent = 'Loading the 3D view…'; UI.loading.classList.remove('err');
     return V.init().then(() => { UI.loading.hidden = true; if (inMake()) B().editorUI.enter(ctx()); else show(st.section === 'create' ? 'shape' : (st.stage || st.cur), { animate: true, layer: 'top' }); }).catch(() => {
       if (!UI.wrap.isConnected) return;   // left the tab while it was loading: it starts again on return
@@ -447,6 +536,19 @@
   function show(key, opts) {
     opts = opts || {};
     if (inMake()) return;   // the editor owns the stage
+    if (isIdbKey(key)) {
+      // a big build kept in IndexedDB: read its blocks first (progress on the stage), then show it
+      const r = fileRec(key.slice(5));
+      stageProgress({ stage: 'Opening ' + ((r && r.name) || 'the build') + ' from this browser', f: 0, blocks: r && r.n });
+      UI.shownKey = key;
+      loadIdb(key.slice(5)).then((s) => {
+        stageProgress(null);
+        if (!UI || UI.shownKey !== key) return;
+        if (s) { show(key, opts); if (S().cur === key) patch(); }
+        else { toast('Could not read this build back from the browser storage. Open the file again.'); show('farm:cow_crusher', { animate: true, layer: 'top' }); }
+      });
+      return;
+    }
     let s = effective(key, opts.fast);
     if (!s && key === 'shape') return;
     if (!s && key !== 'farm:cow_crusher') { key = 'farm:cow_crusher'; s = effective(key); save((b) => { b.cur = key; }); }
@@ -464,6 +566,7 @@
     if (V && V.ready) {
       const st = stageSchem(s, key);   // the build, or its mirrored preview while the symmetry preview is on
       const ph = st === s && key.startsWith('farm:') ? B().farms.phases(key.slice(5), s) : null;
+      syncCut();   // a new build starts uncut
       V.setSchematic(st, { animate: !!opts.animate, keepView: !!opts.keepView, keepZoom: !!opts.keepView, phases: ph, layer: opts.layer || (+UI.layer.value >= s.size[1] ? 'top' : null) }).then(() => { if (V) { V.setLayer(+UI.layer.value - 1); syncLayer(); syncRun(); syncSym(); } });
     } else if (V) V.schem = s;
     syncLayer();
@@ -573,6 +676,80 @@
     if (V && V.ready && !inMake()) V.setSymmetry(active ? { schem: sym.preview ? V.schem : sym.src, planes: symPlanes(), flags: sym.preview ? null : r.flags } : null);
   }
 
+  /* ======================================================================
+   * Cut: look inside a build. Layers from .. to (the bar's layer slider is "to"), and a from .. to range along X and Z.
+   * The viewer clips at once and closes the cut faces after a short rest (builds-view.js setCut / setFrom).
+   * ====================================================================== */
+  const cut = { open: false, key: '', size: '' };
+  const CUT_AX = [['y', 'Y', 'Layers: show from this layer up to that one'], ['x', 'X', 'West to east: cut the build open from both sides'], ['z', 'Z', 'North to south: cut the build open from both sides']];
+  function cutPanelUI() {
+    const rows = CUT_AX.map(([ax, label, t]) => {
+      const mk = (which) => {
+        const sl = h('input.slider.bd-sym-pos.bd-cut-pos' + (which ? '' : '.bd-cut-from'), { type: 'range', min: 1, max: 1, value: 1, step: 1, 'aria-label': (which ? 'To ' : 'From ') + label });
+        sl.addEventListener('input', () => cutInput(ax, which, +sl.value));
+        return sl;
+      };
+      const from = mk(0), to = mk(1);
+      tip(from, ax === 'y' ? 'The lowest layer shown' : 'Where the cut starts'); tip(to, ax === 'y' ? 'The highest layer shown (the same as the Layer slider)' : 'Where the cut ends');
+      const at = h('span.bd-sym-at.bd-cut-at');
+      const reset = tip(h('button.btn.small.bd-vk.sq', { type: 'button', 'aria-label': 'Whole build along ' + label, onclick: () => cutReset(ax) }, glyph('reset')), 'The whole build along ' + label);
+      const el = h('div.bd-sym-row.bd-cut-row', tip(h('span.bd-sym-ax.bd-cut-ax', label), t), from, to, at, reset);
+      return { ax, el, from, to, at, reset };
+    });
+    const fitBtn = tip(h('button.btn.small.bd-vk', { type: 'button', onclick: () => { if (V) V.fitCut(); } }, glyph('fit'), h('span', 'Fly to the cut')), 'Turn the view onto what is shown');
+    const allBtn = tip(h('button.btn.small.bd-vk', { type: 'button', onclick: () => { ['y', 'x', 'z'].forEach((a) => cutReset(a, true)); syncCut(); } }, glyph('reset'), h('span', 'Whole build')), 'Show everything again');
+    const sum = h('p.bd-sym-sum', { 'aria-live': 'polite' });
+    const el = h('div.bd-sym.bd-cut', { id: 'bd-cut', role: 'group', 'aria-label': 'Cut', hidden: true }, ...rows.map((r) => r.el), h('div.bd-sym-foot', fitBtn, allBtn, sum));
+    return { el, rows, sum };
+  }
+  /** A cut slider moved: keep from <= to, tell the viewer. */
+  function cutInput(ax, which, v) {
+    if (!V || !UI.shown) return;
+    const row = UI.cutPanel.rows.find((r) => r.ax === ax), n = UI.shown.size[ax === 'x' ? 0 : ax === 'y' ? 1 : 2];
+    let a = +row.from.value, b = +row.to.value;
+    if (which === 0 && a > b) { b = a; row.to.value = String(b); }
+    if (which === 1 && b < a) { a = b; row.from.value = String(a); }
+    if (ax === 'y') {
+      if (V.slice) V.setSlice(false);
+      UI.layer.value = String(b);
+      V.setFrom(a - 1); V.setLayer(b - 1); syncLayer();
+    } else V.setCut(ax, a === 1 && b === n ? null : [a - 1, b - 1]);
+    syncCut();
+  }
+  function cutReset(ax, quiet) {
+    if (!V || !UI.shown) return;
+    if (ax === 'y') { V.setFrom(0); UI.layer.value = String(UI.shown.size[1]); V.setLayer(UI.shown.size[1] - 1); syncLayer(); }
+    else V.setCut(ax, null);
+    if (!quiet) syncCut();
+  }
+  function syncCut() {
+    if (!UI || !UI.cutPanel) return;
+    const P = UI.cutPanel, s = UI.shown;
+    press(UI.cutBtn, cut.open);
+    P.el.hidden = !cut.open;
+    UI.cutBtn.classList.toggle('is-cut', !!(V && s && isCut()));
+    if (!s || !V) return;
+    // another build (or another size) on the stage: the cut starts again from the whole build
+    const sig = UI.shownKey + '|' + s.size.join('x');
+    if (cut.size !== sig) { cut.size = sig; if (V.cut.x || V.cut.z || V.fromY) { V.setCut('x', null); V.setCut('z', null); V.setFrom(0); } }
+    const fill = (sl, lo, hi, n) => { sl.style.setProperty('--fill', ((hi - 1) / Math.max(1, n - 1) * 100).toFixed(1) + '%'); };
+    P.rows.forEach((row) => {
+      const a = row.ax === 'x' ? 0 : row.ax === 'y' ? 1 : 2, n = s.size[a];
+      row.from.max = row.to.max = String(n);
+      let lo, hi;
+      if (row.ax === 'y') { lo = (V.slice ? V.maxY : V.fromY || 0) + 1; hi = +UI.layer.value || n; }
+      else { const c = V.cut[row.ax]; lo = c ? Math.min(c[0], c[1]) + 1 : 1; hi = c ? Math.max(c[0], c[1]) + 1 : n; }
+      lo = clamp(lo, 1, n); hi = clamp(hi, lo, n);
+      row.from.value = String(lo); row.to.value = String(hi);
+      fill(row.from, 1, lo, n); fill(row.to, 1, hi, n);
+      row.at.textContent = (row.ax === 'y' ? 'layers ' : row.ax + ' ') + (lo === hi ? lo : lo + '–' + hi);
+      row.el.classList.toggle('off', lo === 1 && hi === n);
+    });
+    const b = V.cutBox && V.cutBox();
+    P.sum.textContent = !b ? '' : isCut() ? 'Showing ' + (b.hi[0] - b.lo[0] + 1) + ' × ' + (b.hi[1] - b.lo[1] + 1) + ' × ' + (b.hi[2] - b.lo[2] + 1) + ' of ' + s.size.join(' × ') + '.' : 'The whole build is shown. Move a slider to look inside.';
+  }
+  const isCut = () => !!(V && UI.shown && (V.cut.x || V.cut.z || (V.fromY || 0) > 0 || V.slice || (+UI.layer.value || 0) < UI.shown.size[1]));
+
   function setMode(m) {
     save((b) => { b.mode = m; });
     if (V) V.setMode(reduced() ? 'still' : m);
@@ -613,6 +790,18 @@
     UI.layerLbl.textContent = (V && V.slice ? 'only ' : '') + v + ' / ' + max;
     UI.layer.style.setProperty('--fill', ((v - 1) / Math.max(1, max - 1) * 100).toFixed(1) + '%');
     press(UI.sliceBtn, !!(V && V.slice));
+    syncCut();
+    syncBig();
+  }
+  /** Big builds have no build-up animation: the play keys rest (dimmed, with a tooltip on their group). */
+  function syncBig() {
+    if (!UI) return;
+    const on = !!(V && V.ready && V.bigStats && V.bigStats() && !inMake());
+    if (UI.viewer.classList.contains('is-big') === on) return;
+    UI.viewer.classList.toggle('is-big', on);
+    const grp = UI.playBtn.closest('.bd-bar-grp');
+    grp.querySelectorAll('button').forEach((b) => { b.tabIndex = on ? -1 : 0; b.setAttribute('aria-disabled', String(on)); });
+    if (on && !grp.dataset.tip) { grp.dataset.tip = '1'; tip(grp, () => (UI.viewer.classList.contains('is-big') ? 'Big builds are shown as they stand, without the build-up animation' : '')); }
   }
 
   /* ---- sections ---- */
@@ -715,6 +904,7 @@
     const key = 'file:' + rec.id;
     save((b) => { b.files = (b.files || []).filter((x) => x.id !== rec.id); delete b.swaps[key]; delete b.ticks[key]; delete b.ticks[key + '#raw']; if (b.have) { delete b.have[key]; delete b.have[key + '#raw']; } delete b.meta[key]; if (b.matSrc === key) b.matSrc = 'stage'; if (b.cur === key) b.cur = 'farm:cow_crusher'; if (b.stage === key) b.stage = b.cur; });
     mem.files.delete(rec.id); mem.extras.delete(rec.id);
+    if (rec.idb && B().store) B().store.del(rec.id).catch(() => {});
     if (mem.sessionOnly) mem.sessionOnly = mem.sessionOnly.filter((x) => x.id !== rec.id);
     if (UI.shownKey === key) show(S().cur, { animate: true, layer: 'top' });
     patch();
@@ -1110,9 +1300,13 @@
     if (!ready) return;
     if (B().mats.isText(f)) { B().mats.importFile(f); return; }   // a .txt / .csv material list
     opts = opts || {};
-    toast('Reading ' + f.name + '…');
+    const bigFile = f.size > 2 * 1048576;
+    if (!bigFile) toast('Reading ' + f.name + '…');
+    stageProgress({ stage: 'Reading ' + f.name, f: 0 });
     try {
-      const s = await B().io.load(f);
+      // in a worker when the browser has them, so a big file never freezes the page; progress on the stage
+      const s = await B().io.loadAsync(f, (stage, fr) => stageProgress({ stage, f: fr, name: f.name }));
+      stageProgress(null);
       if (!s.name || /^(unnamed|untitled|schematic|structure|default|template|new)$/i.test(String(s.name).trim())) {
         // "castle_final-v2.litematic" -> "Castle Final V2" (shortened to 36 characters)
         let n = f.name.replace(/\.[^.]+$/, '').replace(/[_\-+.]+/g, ' ').replace(/\s+/g, ' ').trim();
@@ -1121,26 +1315,13 @@
       }
       const id = TH.util.uid('f');
       mem.files.set(id, s);
-      let kept = true;
-      const data = core().rle(s.blocks);
-      // container contents, sign text, entities and the file's metadata go into the saved state too (packed)
+      // container contents, sign text, entities and the file's metadata go into the saved state too (packed); a big
+      // build keeps them with its blocks in IndexedDB instead
       const x = core().extrasOf(s);
       let xz = null;
-      if (Object.keys(x).length) { try { xz = await packX(x); mem.extras.set(id, x); } catch (e) { xz = ''; } }
-      save((b) => {
-        b.files = b.files || [];
-        if (data.length <= FILE_CAP && (xz == null || (xz && xz.length <= XZ_CAP))) {
-          const rec = { id, name: s.name, size: s.size.slice(), palette: s.palette.slice(), data, added: Date.now(), declared: s.declared || 0 };
-          if (xz) rec.xz = xz;
-          b.files.unshift(rec);
-          while (b.files.length > MAX_FILES) { const old = b.files.pop(); mem.extras.delete(old.id); delete b.swaps['file:' + old.id]; delete b.ticks['file:' + old.id]; }
-        } else kept = false;
-      });
-      if (!kept) {
-        // session only: show it under Your builds until the page reloads
-        mem.sessionOnly = mem.sessionOnly || [];
-        mem.sessionOnly.unshift({ id, name: s.name, size: s.size.slice(), session: true });
-      }
+      if (Object.keys(x).length && s.blocks.length < IDB_FROM) { try { xz = await packX(x); mem.extras.set(id, x); } catch (e) { xz = ''; } }
+      const where = await keepBuild(id, s, xz);
+      const kept = where !== 'session';
       if (opts.mats) {   // opened from the Materials tool: it becomes its source, and it waits on the Builds stage and in the Library
         save((b) => { b.cur = 'file:' + id; b.stage = 'file:' + id; b.browse = false; b.section = 'library'; b.matSrc = 'file:' + id; });
         if (UI && UI.wrap.isConnected) { show('file:' + id, { layer: 'top' }); patch(); }
@@ -1149,8 +1330,9 @@
       const unknown = s.palette.filter((p, i) => i && !core().known(p)).length;
       const m = core().hasExtras(s) ? core().extrasSummary(s) : null;
       const inside = m ? [m.filled ? m.filled + (m.filled === 1 ? ' container' : ' containers') + ' with items' : '', m.signs.length ? m.signs.length + (m.signs.length === 1 ? ' sign' : ' signs') : '', m.entities ? m.entities + (m.entities === 1 ? ' entity' : ' entities') : ''].filter(Boolean).join(', ') : '';
-      toast('Opened ' + s.name + ' · ' + fmtN(core().volume(s)) + ' blocks' + (inside ? ' · ' + inside : '') + (unknown ? ' · ' + unknown + ' unknown block type' + (unknown > 1 ? 's' : '') : '') + (kept ? '' : ' · too big to keep after a reload'));
+      toast('Opened ' + s.name + ' · ' + fmtN(core().volume(s)) + ' blocks' + (inside ? ' · ' + inside : '') + (unknown ? ' · ' + unknown + ' unknown block type' + (unknown > 1 ? 's' : '') : '') + (kept ? '' : ' · the browser storage is full, so it is kept for this visit only'));
     } catch (e) {
+      stageProgress(null);
       toast(e && e.user ? e.message : 'This file isn’t a schematic I can read.');
       if (e && !e.user) console.error(e);
     }
@@ -1256,18 +1438,13 @@
   /** Keep a build (the shape, your hand-made build) in the Library as one of your files. */
   function keepSchem(src) {
     const s = core().clone(src);
-    const id = TH.util.uid('f'), data = core().rle(s.blocks);
+    const id = TH.util.uid('f');
     mem.files.set(id, s);
-    save((b) => {
-      b.files = b.files || [];
-      if (data.length <= FILE_CAP) {
-        b.files.unshift({ id, name: s.name, size: s.size.slice(), palette: s.palette.slice(), data, added: Date.now() });
-        while (b.files.length > MAX_FILES) { const old = b.files.pop(); delete b.swaps['file:' + old.id]; delete b.ticks['file:' + old.id]; }
-      }
+    // small builds keep blocks only in the saved state (as before); big ones go to IndexedDB with everything they carry
+    keepBuild(id, s, null).then((where) => {
+      pickKey('file:' + id);
+      toast('Kept ' + s.name + ' in your builds' + (where === 'session' ? ' for this visit (the browser storage is full)' : ''));
     });
-    if (data.length > FILE_CAP) { mem.sessionOnly = mem.sessionOnly || []; mem.sessionOnly.unshift({ id, name: s.name, size: s.size.slice(), session: true }); }
-    pickKey('file:' + id);
-    toast('Kept ' + s.name + ' in your builds');
   }
 
   /* ======================================================================

@@ -220,26 +220,29 @@ TH.builds = TH.builds || {};
     end: { name: 'End crystal', look: 'Dusky purple to pale purpur', body: ['purple_terracotta', 'magenta_terracotta', 'purpur_block', 'purpur_pillar'], base: ['end_stone_bricks', 'end_stone'], trim: ['purpur_pillar'], accent: ['purpur_block'], edge: 'magenta_stained_glass', glow: 'end_rod', worn: ['end_stone'], partial: { stairs: 'purpur_stairs', slab: 'purpur_slab', wall: 'end_stone_brick_wall', pane: 'magenta_stained_glass_pane' }, tip: 'needle' },
     nether: { name: 'Nether', look: 'Charred red to glowing orange', body: ['nether_bricks', 'red_nether_bricks', 'netherrack', 'magma_block'], base: ['blackstone', 'basalt'], trim: ['shroomlight'], accent: ['magma_block'], edge: 'orange_stained_glass', glow: 'shroomlight', worn: ['netherrack'], partial: { stairs: 'red_nether_brick_stairs', slab: 'red_nether_brick_slab', wall: 'red_nether_brick_wall', pane: 'orange_stained_glass_pane' }, tip: 'needle' },
     // stone styles
-    deepslate: { name: 'Deepslate', look: 'Dark grey tiles and bricks', body: ['deepslate_tiles', 'deepslate_bricks', 'polished_deepslate', 'cobbled_deepslate'], base: ['deepslate_tiles', 'cobbled_deepslate'], trim: ['chiseled_deepslate'], accent: ['deepslate_tiles'], edge: 'tinted_glass', glow: 'sea_lantern', worn: ['cracked_deepslate_bricks'], crack: 'cracked_deepslate_tiles' },
-    blackstone: { name: 'Blackstone', look: 'Black with gold flecks', body: ['blackstone', 'polished_blackstone_bricks', 'polished_blackstone'], base: ['blackstone'], trim: ['chiseled_polished_blackstone'], accent: ['gilded_blackstone'], edge: 'tinted_glass', glow: 'shroomlight', worn: ['cracked_polished_blackstone_bricks'], crack: 'cracked_polished_blackstone_bricks' },
-    basalt: { name: 'Basalt', look: 'Dark grey columns', body: ['smooth_basalt', 'basalt', 'polished_basalt'], base: ['blackstone', 'smooth_basalt'], trim: ['polished_basalt'], accent: ['magma_block'], edge: 'tinted_glass', glow: 'magma', worn: ['blackstone'], crack: 'magma_block' },
-    tuff: { name: 'Tuff', look: 'Warm grey tuff', body: ['chiseled_tuff', 'tuff_bricks', 'polished_tuff', 'tuff'], base: ['tuff'], trim: ['chiseled_tuff_bricks'], accent: ['chiseled_tuff'], edge: 'glass', glow: 'copper_bulb', worn: ['cobblestone'], crack: 'cobblestone' },
-    stone: { name: 'Stone bricks', look: 'Mid grey bricks', body: ['cracked_stone_bricks', 'stone_bricks', 'stone', 'polished_andesite', 'smooth_stone'], base: ['stone', 'cobblestone'], trim: ['chiseled_stone_bricks'], accent: ['mossy_stone_bricks'], edge: 'glass', glow: 'glowstone', worn: ['mossy_stone_bricks', 'cobblestone'], crack: 'cracked_stone_bricks' },
-    rockstone: { name: 'Fieldstone', look: 'Natural grey rock', body: ['tuff', 'stone', 'cobblestone', 'andesite'], base: ['tuff', 'gravel'], trim: ['mossy_cobblestone'], accent: ['andesite'], edge: 'glass', glow: 'glowstone', worn: ['mossy_cobblestone'], crack: 'gravel' },
-    obsidian: { name: 'Obsidian', look: 'Black with purple tears', body: ['obsidian', 'crying_obsidian'], base: ['obsidian', 'blackstone'], trim: ['crying_obsidian'], accent: ['crying_obsidian'], edge: 'tinted_glass', glow: 'crying', worn: ['blackstone'], crack: 'crying_obsidian' },
-    copper: { name: 'Oxidised copper', look: 'Verdigris teal', body: ['weathered_cut_copper', 'oxidized_cut_copper', 'oxidized_copper'], base: ['weathered_copper', 'oxidized_copper'], trim: ['oxidized_chiseled_copper'], accent: ['oxidized_copper_grate'], edge: 'glass', glow: 'copper_bulb', worn: ['weathered_cut_copper'], crack: 'oxidized_copper_grate' },
-    endstone: { name: 'End stone', look: 'Pale yellow stone', body: ['end_stone_bricks', 'end_stone'], base: ['end_stone'], trim: ['purpur_block'], accent: ['purpur_pillar'], edge: 'magenta_stained_glass', glow: 'end_rod', worn: ['end_stone'], crack: 'end_stone' },
-    prismarine: { name: 'Prismarine', look: 'Sea green to aqua', body: ['dark_prismarine', 'prismarine', 'prismarine_bricks'], base: ['dark_prismarine'], trim: ['prismarine_bricks'], accent: ['sea_lantern'], edge: 'cyan_stained_glass', glow: 'sea_lantern', worn: ['prismarine'], crack: 'prismarine' },
-    sandstone: { name: 'Sandstone', look: 'Desert sand', body: ['chiseled_sandstone', 'sandstone', 'cut_sandstone', 'smooth_sandstone'], base: ['sandstone', 'cut_sandstone'], trim: ['chiseled_sandstone'], accent: ['gold_block'], edge: 'yellow_stained_glass', glow: 'shroomlight', worn: ['sandstone'], crack: 'smooth_sandstone' },
-    terracotta: { name: 'Canyon', look: 'Brown, red, orange, yellow bands', body: ['brown_terracotta', 'red_terracotta', 'orange_terracotta', 'yellow_terracotta', 'white_terracotta'], base: ['brown_terracotta'], trim: ['white_terracotta'], accent: ['yellow_terracotta'], edge: 'orange_stained_glass', glow: 'ochre', worn: ['terracotta'], crack: 'red_sand' },
-    quartzstone: { name: 'Marble', look: 'White quartz', body: ['chiseled_quartz_block', 'quartz_bricks', 'quartz_block', 'smooth_quartz'], base: ['quartz_block'], trim: ['chiseled_quartz_block'], accent: ['gold_block'], edge: 'white_stained_glass', glow: 'froglight', worn: ['diorite'], crack: 'calcite' },
+    // stone styles: smooth, low-noise blocks in one family, so a lit face reads as one tone and the shading as bands
+    deepslate: { name: 'Slate', look: 'Dark polished slate', body: ['deepslate_tiles', 'polished_deepslate', 'polished_tuff', 'polished_andesite'], base: ['deepslate_bricks', 'cobbled_deepslate'], trim: ['chiseled_deepslate'], accent: ['polished_blackstone'], edge: 'tinted_glass', glow: 'sea_lantern', worn: ['cracked_deepslate_tiles'], crack: 'cracked_deepslate_tiles', mossy: 'mossy_cobblestone' },
+    blackstone: { name: 'Blackstone', look: 'Black with gold flecks', body: ['blackstone', 'polished_blackstone_bricks', 'polished_blackstone', 'polished_deepslate'], base: ['cobbled_deepslate'], trim: ['chiseled_polished_blackstone'], accent: ['gilded_blackstone'], edge: 'tinted_glass', glow: 'shroomlight', worn: ['cracked_polished_blackstone_bricks'], crack: 'cracked_polished_blackstone_bricks' },
+    basalt: { name: 'Basalt', look: 'Dark grey columns', body: ['polished_blackstone', 'smooth_basalt', 'polished_basalt', 'polished_tuff'], base: ['blackstone'], trim: ['basalt'], accent: ['magma_block'], edge: 'tinted_glass', glow: 'magma', worn: ['blackstone'], crack: 'magma_block' },
+    tuff: { name: 'Tuff', look: 'Warm grey tuff', body: ['polished_deepslate', 'tuff_bricks', 'polished_tuff', 'polished_andesite'], base: ['tuff'], trim: ['chiseled_tuff_bricks'], accent: ['chiseled_tuff'], edge: 'glass', glow: 'copper_bulb', worn: ['cobblestone'], crack: 'cobblestone', mossy: 'mossy_cobblestone' },
+    stone: { name: 'Stone bricks', look: 'Grey bricks', body: ['deepslate_bricks', 'tuff_bricks', 'stone_bricks', 'smooth_stone'], base: ['cobbled_deepslate', 'cobblestone'], trim: ['stone', 'polished_andesite'], accent: ['chiseled_stone_bricks'], edge: 'glass', glow: 'glowstone', worn: ['cracked_stone_bricks'], crack: 'cracked_stone_bricks', mossy: 'mossy_stone_bricks' },
+    greystone: { name: 'Grey stone', look: 'Smooth natural grey', body: ['polished_deepslate', 'stone', 'polished_andesite', 'smooth_stone'], base: ['cobbled_deepslate', 'cobblestone'], trim: ['stone_bricks'], accent: ['polished_deepslate'], edge: 'glass', glow: 'glowstone', worn: ['andesite', 'cobblestone'], crack: 'gravel', mossy: 'mossy_cobblestone' },
+    rockstone: { name: 'Fieldstone', look: 'Natural grey rock', body: ['deepslate', 'stone', 'andesite'], base: ['cobbled_deepslate', 'cobblestone'], trim: ['granite', 'polished_granite'], accent: ['blackstone', 'polished_blackstone'], edge: 'glass', glow: 'glowstone', worn: ['gravel'], crack: 'gravel', mossy: 'mossy_cobblestone' },
+    obsidian: { name: 'Obsidian', look: 'Black, glossy', body: ['black_concrete', 'obsidian', 'polished_blackstone'], base: ['blackstone', 'polished_blackstone_bricks'], trim: ['chiseled_polished_blackstone'], accent: ['crying_obsidian'], edge: 'tinted_glass', glow: 'crying', worn: ['blackstone'], crack: 'crying_obsidian' },
+    copper: { name: 'Oxidised copper', look: 'Verdigris teal', body: ['weathered_cut_copper', 'oxidized_cut_copper', 'oxidized_copper'], base: ['weathered_copper'], trim: ['oxidized_chiseled_copper'], accent: ['cut_copper'], edge: 'glass', glow: 'copper_bulb', worn: ['exposed_cut_copper'], crack: 'oxidized_copper_grate' },
+    endstone: { name: 'End stone', look: 'Pale yellow stone', body: ['sandstone', 'end_stone', 'end_stone_bricks'], base: ['purpur_block'], trim: ['purpur_pillar'], accent: ['obsidian'], edge: 'magenta_stained_glass', glow: 'end_rod', worn: ['end_stone'], crack: 'end_stone' },
+    prismarine: { name: 'Prismarine', look: 'Sea green to aqua', body: ['dark_prismarine', 'prismarine', 'prismarine_bricks'], base: ['cyan_terracotta'], trim: ['dark_prismarine'], accent: ['warped_wart_block'], edge: 'cyan_stained_glass', glow: 'sea_lantern', worn: ['prismarine'], crack: 'prismarine' },
+    sandstone: { name: 'Sandstone', look: 'Desert sand', body: ['sandstone', 'cut_sandstone', 'smooth_sandstone'], base: ['yellow_terracotta'], trim: ['chiseled_sandstone'], accent: ['gold_block'], edge: 'yellow_stained_glass', glow: 'shroomlight', worn: ['sandstone'], crack: 'smooth_sandstone' },
+    terracotta: { name: 'Canyon', look: 'Brown terracotta, red and orange bands', body: ['brown_terracotta', 'terracotta', 'light_gray_terracotta'], base: ['gray_terracotta'], trim: ['red_terracotta', 'orange_terracotta'], accent: ['black_terracotta'], edge: 'orange_stained_glass', glow: 'ochre', worn: ['light_gray_terracotta'], crack: 'red_sand' },
+    quartzstone: { name: 'Marble', look: 'White quartz', body: ['smooth_stone', 'white_concrete', 'calcite', 'smooth_quartz'], base: ['quartz_pillar'], trim: ['chiseled_quartz_block'], accent: ['gold_block'], edge: 'white_stained_glass', glow: 'froglight', worn: ['diorite'], crack: 'calcite' },
+    snow: { name: 'Snow', look: 'Calcite shadow to snow white', body: ['calcite', 'white_wool', 'snow_block'], base: ['packed_ice'], trim: ['packed_ice'], accent: ['blue_ice'], edge: 'light_blue_stained_glass', glow: 'sea_lantern', worn: ['powder_snow'], crack: 'packed_ice' },
     // nature
-    mountain: { name: 'Mountain', look: 'Grey rock, grass, snow', body: ['tuff', 'stone', 'andesite'], base: ['coarse_dirt', 'dirt'], skin: { base: 'grass_block[snowy=false]' }, trim: ['snow_block'], accent: ['gravel'], edge: 'packed_ice', glow: 'glowstone', worn: ['gravel'], crack: 'cobblestone' },
-    volcano: { name: 'Volcano', look: 'Black rock and magma', body: ['blackstone', 'smooth_basalt', 'basalt', 'tuff'], base: ['blackstone', 'coarse_dirt'], trim: ['magma_block'], accent: ['magma_block'], edge: 'orange_stained_glass', glow: 'magma', worn: ['gravel'], crack: 'magma_block' },
-    redcap: { name: 'Red cap', look: 'Red cap, white stem', body: ['red_mushroom_block'], base: ['mushroom_stem'], trim: ['mushroom_stem'], accent: ['white_concrete'], edge: 'glass', glow: 'shroomlight', worn: ['red_terracotta'] },
-    browncap: { name: 'Brown cap', look: 'Brown cap, white stem', body: ['brown_mushroom_block'], base: ['mushroom_stem'], trim: ['mushroom_stem'], accent: ['shroomlight'], edge: 'glass', glow: 'shroomlight', worn: ['brown_terracotta'] },
-    glowcap: { name: 'Warped cap', look: 'Teal cap, dark stem', body: ['cyan_terracotta', 'warped_wart_block'], base: ['warped_stem'], trim: ['warped_hyphae'], accent: ['shroomlight'], edge: 'cyan_stained_glass', glow: 'shroomlight', worn: ['warped_nylium'] },
-    sandrock: { name: 'Red rock', look: 'Orange to red sandstone', body: ['orange_terracotta', 'smooth_red_sandstone', 'red_sandstone', 'cut_red_sandstone'], base: ['coarse_dirt', 'red_sand'], trim: ['white_terracotta'], accent: ['yellow_terracotta'], edge: 'orange_stained_glass', glow: 'ochre', worn: ['red_sand'], crack: 'red_sand' },
+    mountain: { name: 'Mountain', look: 'Grey rock, grass, snow', body: ['deepslate', 'tuff', 'stone', 'andesite'], base: ['coarse_dirt', 'dirt'], skin: { base: 'grass_block[snowy=false]' }, trim: ['snow_block'], accent: ['gravel'], edge: 'packed_ice', glow: 'glowstone', worn: ['gravel'], crack: 'cobblestone', mossy: 'mossy_cobblestone' },
+    volcano: { name: 'Volcano', look: 'Black rock, ash and magma', body: ['blackstone', 'smooth_basalt', 'basalt', 'polished_basalt'], base: ['cobbled_deepslate', 'tuff'], trim: ['magma_block'], accent: ['black_concrete', 'polished_blackstone'], edge: 'orange_stained_glass', glow: 'magma', worn: ['gravel'], crack: 'magma_block' },
+    redcap: { name: 'Red cap', look: 'Red cap, white stem', body: ['red_concrete', 'red_wool', 'red_mushroom_block'], base: ['white_terracotta', 'mushroom_stem', 'white_wool'], trim: ['smooth_sandstone'], accent: ['white_concrete'], edge: 'glass', glow: 'shroomlight', worn: ['red_terracotta'] },
+    browncap: { name: 'Brown cap', look: 'Brown cap, white stem', body: ['brown_concrete', 'brown_wool', 'brown_mushroom_block'], base: ['white_terracotta', 'mushroom_stem', 'white_wool'], trim: ['smooth_sandstone'], accent: ['calcite'], edge: 'glass', glow: 'shroomlight', worn: ['brown_terracotta'] },
+    glowcap: { name: 'Warped cap', look: 'Teal cap, dark stem', body: ['cyan_terracotta', 'warped_wart_block', 'prismarine'], base: ['warped_stem'], trim: ['warped_hyphae'], accent: ['shroomlight'], edge: 'cyan_stained_glass', glow: 'shroomlight', worn: ['warped_nylium'] },
+    sandrock: { name: 'Red rock', look: 'Orange to red sandstone', body: ['brown_terracotta', 'orange_terracotta', 'smooth_red_sandstone', 'cut_red_sandstone'], base: ['coarse_dirt'], trim: ['terracotta'], accent: ['red_terracotta'], edge: 'orange_stained_glass', glow: 'ochre', worn: ['red_sand'], crack: 'red_sand' },
   };
   const FIXED = { moss: 'moss_block', water: 'water[level=0]', lava: 'lava[level=0]' };
   const AXIS_BLOCK = /(_log|_wood|_stem|_hyphae|basalt|_pillar|^deepslate$|bamboo_block|hay_block|bone_block|froglight|muddy_mangrove_roots)$/;
@@ -445,305 +448,21 @@ TH.builds = TH.builds || {};
     },
   });
 
-  // ---------------- monoliths ----------------
-  const MONO = (o) => fam(Object.assign({ group: 'monoliths', pals: STONES, parts: ['body', 'base', 'trim', 'accent'], size: { w: [1, 64, 6], d: [1, 64, 2], h: [3, 256, 18] } }, o));
-  const plinth = (p, prims) => { if (p.plinth) for (let k = 0; k < p.plinth; k++) { const s = (p.plinth - k) * 1.2; prims.push(Object.assign(slab({ h: k + 1, hx: rx(p) * 0.7 + s, hz: rz(p) * 0.7 + s }), { part: 'base' })); } };
-  const lift = (p) => (p.plinth || 0);
-  const bodyW = (p) => (p.plinth ? 0.7 : 1);
-  const monoShape = (p, extra) => Object.assign(slab(Object.assign({ h: p.h - lift(p), hx: rx(p) * bodyW(p), hz: rz(p) * bodyW(p), taper: (p.taper || 0) / 100, bulge: (p.bulge || 0) / 100, twist: p.twist || 0, chamfer: (p.chamfer || 0) / 100, tip: (p.tip || 0) / 100, round: (p.round || 0) / 100 }, extra || {})), { part: 'body' });
-  const MP = { taper: sh('taper', 'Taper', 0, 90, 0, { unit: '%' }), bulge: sh('bulge', 'Belly', -50, 50, 0, { unit: '%' }), chamfer: sh('chamfer', 'Bevel', 0, 100, 0, { unit: '%' }), twist: sh('twist', 'Twist', 0, 720, 0, { unit: '°' }), lean: sh('lean', 'Lean', 0, 45, 0, { unit: '°' }), leanDir: sh('leanDir', 'Lean toward', 0, 359, 90, { unit: '°' }), round: sh('round', 'Roundness', 0, 100, 0, { unit: '%' }), plinth: sh('plinth', 'Plinth steps', 0, 4, 0), tip: sh('tip', 'Pyramid top', 0, 40, 0, { unit: '% of height' }) };
-  const standOn = (p, c, prims, tips) => { const R = leanMat(p.lean || 0, p.leanDir || 0), o = [0, lift(p), 0]; prims.push(place(c, o, R)); if (tips) tips.push(tipAt(o, R, [0, p.h - lift(p), 0])); };
-
-  MONO({ id: 'slab', name: 'Slab monolith', key: ['chamfer', 'taper', 'plinth', 'lean'], params: [MP.chamfer, MP.taper, MP.plinth, MP.lean, MP.leanDir],
-    variants: [['The black slab', { pal: 'obsidian', w: 4, d: 1, h: 9 }], ['Giant slab', { pal: 'obsidian', w: 16, d: 4, h: 36 }], ['Copper tablet', { pal: 'copper', w: 8, d: 2, h: 14, weather: 30 }], ['Marble tablet', { pal: 'quartzstone', w: 8, d: 3, h: 12, plinth: 2 }]],
-    make(p) { const prims = []; plinth(p, prims); standOn(p, monoShape(p), prims); return { prims }; } });
-  MONO({ id: 'obelisk', name: 'Obelisk', tip: true, size: { w: [2, 48, 6], d: [2, 48, 6], h: [8, 256, 40] }, key: ['taper', 'tip', 'plinth', 'bands'], params: [Object.assign({}, MP.taper, { def: 35 }), Object.assign({}, MP.tip, { def: 10 }), MP.plinth, sh('bands', 'Carved bands', 0, 8, 2), MP.chamfer],
-    variants: [['Sandstone obelisk', { pal: 'sandstone', plinth: 2, w: 10, d: 10 }], ['Marble obelisk', { pal: 'quartzstone', plinth: 3, bands: 3, w: 12, d: 12 }], ['Obsidian needle', { pal: 'obsidian', w: 4, d: 4, h: 64, taper: 50, tip: 14, glow: 'edges', glowAmt: 60 }], ['Deepslate spike', { pal: 'deepslate', bands: 4, glow: 'rings', glowAmt: 50 }]],
-    make(p) {
-      const prims = []; plinth(p, prims);
-      const c = monoShape(p, { tip: Math.max(1, p.tip) / 100 }), hb = p.h - lift(p);
-      if (p.bands) c.partAt = (x, y) => { const q = (y / hb) * (p.bands + 1) * 2, k = Math.floor(q); return k % 2 === 1 && y < hb * 0.85 && Math.abs(q - k - 0.5) < 0.18 ? 'trim' : 'body'; };
-      const tips = []; standOn(p, c, prims, tips); return { prims, tips };
-    } });
-  MONO({ id: 'broken', name: 'Broken monolith', seed: true, fitMain: true, key: ['lean', 'break', 'fallen'], params: [Object.assign({}, MP.lean, { def: 12 }), sh('break', 'Break height', 30, 85, 62, { unit: '% of height' }), sh('fallen', 'Fallen part', 0, 100, 100, { unit: '%' }), MP.leanDir, MP.chamfer],
-    variants: [['Toppled giant', { pal: 'deepslate', w: 8, d: 4, h: 30, weather: 40, cracks: 40 }], ['Ancient ruin', { pal: 'sandstone', weather: 50, moss: 20 }], ['Overgrown', { pal: 'stone', moss: 70, weather: 30 }]],
-    make(p, V) {
-      const prims = [], hb = p.h * p.break / 100, seed = strHash('break') ^ (p.seed | 0);
-      const cut = (x, y, z) => y - (hb + (vnoise(x * 0.5, 0, z * 0.5, seed) - 0.5) * Math.max(2, p.w * 0.4));
-      const low = monoShape(p), lowF = low.f;
-      low.main = true;
-      low.f = (x, y, z) => Math.max(lowF(x, y, z), cut(x, y, z));
-      standOn(p, low, prims);
-      if (p.fallen > 0) {
-        const top = monoShape(p), tf = top.f;
-        top.f = (x, y, z) => Math.max(tf(x, y, z), -cut(x, y, z), y - hb - (p.h - hb) * p.fallen / 100);
-        top.box = [top.box[0], hb - p.w, top.box[2], top.box[3], p.h, top.box[5]];
-        const dir = V('fall', 0) * 360, R = mat({ order: 'YXZ', y: -dir, x: 84 });
-        prims.push(place(top, [Math.sin(dir * RAD) * (rz(p) + 2), rz(p) - hb * Math.cos(84 * RAD) + 0.5, Math.cos(dir * RAD) * (rz(p) + 2)], R));
-      }
-      return { prims };
-    } });
-  MONO({ id: 'menhir', name: 'Standing stone', pals: OLD, roughDef: 30, size: { w: [2, 40, 5], d: [2, 40, 3], h: [3, 120, 12] }, key: ['taper', 'round', 'lean'], params: [Object.assign({}, MP.taper, { def: 30 }), Object.assign({}, MP.round, { def: 60 }), MP.lean, MP.leanDir, MP.bulge],
-    variants: [['Mossy menhir', { pal: 'rockstone', moss: 45, rough: 40 }], ['Tuff stone', { pal: 'tuff', rough: 30 }], ['Sun stone', { pal: 'sandrock', rough: 20 }]],
-    make(p) { const prims = []; standOn(p, monoShape(p, { tip: 0.12 }), prims); return { prims }; } });
-  MONO({ id: 'henge', name: 'Stone circle', seed: true, pals: OLD, roughDef: 20, size: { w: [12, 160, 40], d: [12, 160, 40], h: [3, 64, 10] }, key: ['stones', 'lintels', 'stoneW', 'ruin'], params: [sh('stones', 'Stones', 4, 30, 12), seg('lintels', 'Lintels', 'shape', [['all', 'All'], ['pairs', 'Pairs'], ['none', 'None']], 'all'), sh('stoneW', 'Stone width', 1, 12, 3, { unit: 'blocks' }), sh('ruin', 'Ruin', 0, 80, 0, { unit: '%', tip: 'Some stones shorter or gone' }), sh('stoneD', 'Stone depth', 1, 8, 2, { unit: 'blocks' }), bool('altar', 'Altar', 'shape', true), Object.assign({}, MP.round, { def: 30 })],
-    variants: [['Stonehenge', { pal: 'sandstone', stones: 16, lintels: 'all', ruin: 25, weather: 35 }], ['Druid circle', { pal: 'rockstone', stones: 9, lintels: 'none', moss: 60 }], ['Glowing ring', { pal: 'deepslate', glow: 'runes', glowAmt: 60, lintels: 'pairs' }]],
-    make(p, V) {
-      const prims = [], n = p.stones, R0 = rx(p) - p.stoneW, Rz0 = rz(p) - p.stoneW, top = [];
-      for (let i = 0; i < n; i++) {
-        if (p.ruin && V('gone', i) < p.ruin / 200) continue;
-        const a = (i / n) * Math.PI * 2, o = [Math.cos(a) * R0, 0, Math.sin(a) * Rz0], hh = p.h * (p.ruin ? 1 - V('short', i) * p.ruin / 150 : 1);
-        prims.push(place(Object.assign(slab({ h: hh, hx: p.stoneD / 2, hz: p.stoneW / 2, round: p.round / 100, taper: 0.1 }), { part: 'body' }), o, mat({ y: -a / RAD })));
-        top.push([o, hh, a]);
-      }
-      if (p.lintels !== 'none') for (let i = 0; i < top.length; i++) {
-        if (p.lintels === 'pairs' && i % 2) continue;
-        const [a, ha] = top[i], [b, hb2] = top[(i + 1) % top.length];
-        if (top.length < 3 || Math.abs(ha - hb2) > 2 || Math.abs(ha - p.h) > 1) continue;
-        const mx = (a[0] + b[0]) / 2, mz = (a[2] + b[2]) / 2, len = Math.hypot(b[0] - a[0], b[2] - a[2]) / 2 + p.stoneW * 0.6, ang = Math.atan2(b[2] - a[2], b[0] - a[0]);
-        prims.push(place(Object.assign(slab({ h: 2, hx: len, hz: p.stoneD / 2 + 0.2 }), { part: 'trim' }), [mx, ha - 1, mz], mat({ y: -ang / RAD })));
-      }
-      if (p.altar) prims.push(Object.assign(slab({ h: 2, hx: p.stoneW, hz: p.stoneD + 1 }), { part: 'accent' }));
-      return { prims };
-    } });
-  MONO({ id: 'dolmen', name: 'Dolmen', seed: true, pals: OLD, roughDef: 25, size: { w: [5, 60, 12], d: [4, 60, 9], h: [3, 40, 7] }, key: ['legs', 'capT', 'tilt'], params: [sh('legs', 'Uprights', 3, 6, 4), sh('capT', 'Capstone', 1, 6, 2, { unit: 'blocks' }), sh('tilt', 'Cap tilt', 0, 20, 6, { unit: '°' }), Object.assign({}, MP.round, { def: 50 })],
-    variants: [['Portal tomb', { pal: 'rockstone', moss: 35 }], ['Basalt table', { pal: 'basalt', legs: 3 }], ['Desert dolmen', { pal: 'sandrock', weather: 40 }]],
-    make(p, V) {
-      const prims = [], legH = Math.max(1, p.h - p.capT);
-      for (let i = 0; i < p.legs; i++) {
-        const a = (i / p.legs) * Math.PI * 2 + 0.4, o = [Math.cos(a) * rx(p) * 0.6, 0, Math.sin(a) * rz(p) * 0.6];
-        prims.push(place(Object.assign(slab({ h: legH + 1, hx: 0.9, hz: Math.max(1, p.w / 8), round: p.round / 100 }), { part: 'body' }), o, mat({ y: -a / RAD + V('leg', i) * 20 })));
-      }
-      prims.push(place(Object.assign(slab({ h: p.capT, hx: rx(p) * 0.92, hz: rz(p) * 0.92, round: p.round / 100 }), { part: 'trim' }), [0, legH, 0], mat({ x: p.tilt, y: V('cap', 0) * 40 })));
-      return { prims };
-    } });
-  MONO({ id: 'alignment', name: 'Menhir rows', seed: true, pals: OLD, roughDef: 25, size: { w: [8, 200, 48], d: [2, 60, 8], h: [3, 64, 10] }, key: ['count', 'rows', 'fall'], params: [sh('count', 'Stones per row', 2, 30, 9), sh('rows', 'Rows', 1, 4, 2), sh('fall', 'Last stone', 20, 100, 45, { unit: '% of height', tip: 'The rows get shorter toward the east' }), Object.assign({}, MP.round, { def: 55 })],
-    variants: [['Carnac rows', { pal: 'rockstone', rows: 3, moss: 40 }], ['Avenue of tuff', { pal: 'tuff', rows: 2, fall: 100 }], ['Rune path', { pal: 'deepslate', rows: 2, glow: 'runes', glowAmt: 60 }]],
-    make(p, V) {
-      const prims = [];
-      for (let r = 0; r < p.rows; r++) for (let i = 0; i < p.count; i++) {
-        const t = i / Math.max(1, p.count - 1), x = -rx(p) + 1.5 + t * (p.w - 3), z = p.rows > 1 ? -rz(p) + 1.5 + (r / (p.rows - 1)) * (p.d - 3) : 0, k = r * 100 + i;
-        const hh = Math.max(2, p.h * lerp(1, p.fall / 100, t) * (0.85 + V('h', k) * 0.15));
-        prims.push(place(Object.assign(slab({ h: hh, hx: 0.8 + V('w', k) * 0.7, hz: 1 + V('d', k) * 0.5, round: p.round / 100, taper: 0.25, tip: 0.1 }), { part: 'body' }), [x, 0, z], leanMat(V('lean', k) * 8, V('dir', k) * 360)));
-      }
-      return { prims };
-    } });
-  MONO({ id: 'totem', name: 'Totem pillar', size: { w: [3, 40, 7], d: [3, 40, 7], h: [6, 200, 30] }, key: ['segs', 'vary', 'faces', 'capH'], params: [sh('segs', 'Segments', 2, 12, 5), sh('vary', 'Narrow bands', 0, 60, 30, { unit: '%' }), bool('faces', 'Carved faces', 'shape', true), sh('capH', 'Cap', 0, 6, 2, { unit: 'blocks' })],
-    variants: [['Canyon totem', { pal: 'terracotta', segs: 5 }], ['Prismarine pillar', { pal: 'prismarine', segs: 7, glow: 'rings', glowAmt: 50 }], ['Copper stack', { pal: 'copper', segs: 4 }]],
-    make(p) {
-      const prims = [], k = p.segs, sh2 = (p.h - p.capH) / k, w0 = p.capH ? 1 / 1.3 : 1;
-      for (let i = 0; i < k; i++) {
-        const s = w0 * (1 - (i % 2 ? p.vary / 100 : 0) * 0.6), c = Object.assign(slab({ h: sh2, hx: rx(p) * s, hz: rz(p) * s, chamfer: 0.4 }), { part: i % 2 ? 'trim' : 'body' });
-        if (p.faces && i % 2 === 0) c.partAt = (x, y) => { const fy = y / sh2; return (fy > 0.55 && fy < 0.75 && Math.abs(Math.abs(x) - rx(p) * s * 0.4) < 0.9) || (fy > 0.2 && fy < 0.35 && Math.abs(x) < rx(p) * s * 0.5) ? 'accent' : 'body'; };
-        prims.push(place(c, [0, i * sh2, 0], I3));
-      }
-      if (p.capH) prims.push(place(Object.assign(slab({ h: p.capH, hx: rx(p), hz: rz(p), chamfer: 0.5 }), { part: 'base' }), [0, p.h - p.capH, 0], I3));
-      return { prims };
-    } });
-  MONO({ id: 'runestone', name: 'Rune stone', glowDef: 'runes', size: { w: [3, 48, 8], d: [1, 24, 3], h: [4, 120, 14] }, key: ['round', 'taper', 'plinth'], params: [Object.assign({}, MP.round, { def: 45 }), Object.assign({}, MP.taper, { def: 15 }), MP.plinth, MP.lean, MP.leanDir],
-    variants: [['Sea runes', { pal: 'deepslate', glowBlock: 'sea_lantern' }], ['Redstone runes', { pal: 'stone', glowBlock: 'redstone_lamp' }], ['Prismarine runes', { pal: 'prismarine', glowBlock: 'sea_lantern' }], ['Amethyst runes', { pal: 'blackstone', glowBlock: 'amethyst' }], ['Glowstone runes', { pal: 'sandstone', glowBlock: 'glowstone' }]],
-    make(p) { const prims = []; plinth(p, prims); standOn(p, monoShape(p, { tip: 0.08 }), prims); return { prims }; } });
-  MONO({ id: 'floating', name: 'Floating monolith', seed: true, floating: true, fitMain: true, size: { w: [2, 48, 6], d: [1, 24, 2], h: [4, 160, 24] }, key: ['hover', 'chips', 'pedestal'], params: [sh('hover', 'Hover', 1, 40, 5, { unit: 'blocks' }), sh('chips', 'Orbiting shards', 0, 24, 8), bool('pedestal', 'Pedestal', 'shape', true), sh('orbit', 'Orbit', 50, 400, 180, { unit: '%' }), MP.chamfer],
-    variants: [['Void slab', { pal: 'obsidian', glow: 'edges', glowAmt: 60, glowBlock: 'crying' }], ['End relic', { pal: 'endstone', glowBlock: 'end_rod', glow: 'veins', glowAmt: 50 }], ['Prismarine tablet', { pal: 'prismarine', glow: 'core', glowAmt: 50 }]],
-    make(p, V) {
-      const prims = [], ped = p.pedestal ? 2 : 0, y0 = ped + p.hover, bh = Math.max(2, p.h - y0);
-      if (p.pedestal) prims.push(Object.assign(slab({ h: 2, hx: rx(p) + 2, hz: rz(p) + 2, chamfer: 0.6 }), { part: 'base' }));
-      prims.push(place(Object.assign(slab({ h: bh, hx: rx(p), hz: rz(p), chamfer: (p.chamfer || 0) / 100 }), { part: 'body', main: true }), [0, y0, 0], I3));
-      for (let i = 0; i < p.chips; i++) {
-        const a = (i / Math.max(1, p.chips)) * Math.PI * 2 + V('chip', i, 0) * 0.4, rr = Math.max(rx(p), rz(p)) * p.orbit / 100 + 2, s = Math.max(0.8, Math.min(rx(p), 3) * (0.3 + V('chip', i, 1) * 0.4));
-        prims.push(place(Object.assign(jagged({ r: [s, s * 1.6, s], jag: 0.3, k: 8 }, (k, j) => V('chipface' + i, k, j)), { part: 'accent' }), [Math.cos(a) * rr, y0 + bh * (0.2 + 0.6 * V('chip', i, 2)), Math.sin(a) * rr], leanMat(V('chip', i, 3) * 70, V('chip', i, 4) * 360)));
-      }
-      return { prims };
-    } });
-  MONO({ id: 'split', name: 'Split monolith', seed: true, glowDef: 'core', size: { w: [3, 64, 10], d: [1, 32, 3], h: [4, 200, 22] }, key: ['gap', 'jag', 'seam'], params: [sh('gap', 'Gap', 1, 12, 2, { unit: 'blocks' }), sh('jag', 'Jagged split', 0, 100, 50, { unit: '%' }), bool('seam', 'Glowing seam', 'shape', true), MP.chamfer, MP.plinth],
-    variants: [['Molten seam', { pal: 'basalt', glowBlock: 'magma' }], ['Sea rift', { pal: 'deepslate', glowBlock: 'sea_lantern' }], ['Crying split', { pal: 'obsidian', glowBlock: 'crying' }]],
-    make(p) {
-      const prims = [], seed = strHash('split') ^ (p.seed | 0), g = p.gap / 2;
-      plinth(p, prims);
-      const seam = (x, y) => x - (vnoise(y * 0.2, 0, 0, seed) - 0.5) * p.w * 0.5 * (p.jag / 100);
-      for (const sg of [1, -1]) { const c = monoShape(p), f0 = c.f; c.f = (x, y, z) => Math.max(f0(x, y, z), g - sg * seam(x, y)); prims.push(place(c, [0, lift(p), 0], I3)); }
-      if (p.seam) {
-        const c = Object.assign(slab({ h: (p.h - lift(p)) * 0.9, hx: g + 0.4, hz: rz(p) * 0.45 }), { part: 'glow' }), f0 = c.f;
-        c.f = (x, y, z) => Math.max(f0(x, y, z), Math.abs(seam(x, y)) - g - 0.4);
-        prims.push(place(c, [0, lift(p), 0], I3));
-      }
-      return { prims };
-    } });
-  MONO({ id: 'stepped', name: 'Stepped monolith', size: { w: [3, 80, 10], d: [3, 80, 10], h: [4, 200, 24] }, key: ['tiers', 'shrink', 'litSteps'], params: [sh('tiers', 'Tiers', 2, 10, 4), sh('shrink', 'Step in', 5, 40, 18, { unit: '%' }), bool('litSteps', 'Lit steps', 'shape', false)],
-    variants: [['Basalt steps', { pal: 'basalt', tiers: 5 }], ['Marble ziggurat', { pal: 'quartzstone', tiers: 4, litSteps: true }], ['Tuff tower', { pal: 'tuff', tiers: 6, shrink: 10 }]],
-    make(p) {
-      const prims = [], k = p.tiers, th = p.h / k;
-      for (let i = 0; i < k; i++) { const s = Math.max(0.15, 1 - i * p.shrink / 100); prims.push(place(Object.assign(slab({ h: th, hx: rx(p) * s, hz: rz(p) * s }), { part: i % 2 ? 'trim' : 'body', partAt: p.litSteps ? (x, y) => (y > th - 1 ? 'glow' : i % 2 ? 'trim' : 'body') : null }), [0, i * th, 0], I3)); }
-      return { prims };
-    } });
-  MONO({ id: 'twisted', name: 'Twisted monolith', tip: true, size: { w: [2, 48, 6], d: [2, 48, 4], h: [6, 256, 36] }, key: ['twist', 'taper', 'tip'], params: [Object.assign({}, MP.twist, { def: 180 }), Object.assign({}, MP.taper, { def: 30 }), Object.assign({}, MP.tip, { def: 8 }), MP.chamfer, MP.bulge],
-    variants: [['Spiral obsidian', { pal: 'obsidian', twist: 270 }], ['Copper corkscrew', { pal: 'copper', twist: 540, w: 8, d: 3 }], ['End helix', { pal: 'endstone', twist: 360, glow: 'edges', glowAmt: 50, glowBlock: 'end_rod' }]],
-    make(p) { const prims = [], tips = []; standOn(p, monoShape(p), prims, tips); return { prims, tips }; } });
-
-  // ---------------- nature ----------------
-  fam({ id: 'rock', group: 'nature', name: 'Rock', seed: true, roughDef: 35, pals: ['rockstone', 'stone', 'deepslate', 'tuff', 'sandrock', 'basalt', 'blackstone', 'endstone', 'sandstone'], parts: ['body', 'base', 'trim'], size: { w: [3, 128, 14], d: [3, 128, 11], h: [2, 160, 9] }, key: ['kind', 'lumps', 'strata'],
-    params: [seg('kind', 'Kind', 'shape', [['boulder', 'Boulder'], ['stack', 'Sea stack'], ['pinnacles', 'Pinnacles'], ['arch', 'Rock arch']], 'boulder'), sh('lumps', 'Lumps', 1, 8, 3), sh('strata', 'Layers', 0, 100, 0, { unit: '%', tip: 'Horizontal bands in the trim block' }), sh('sink', 'Sunk in', 0, 60, 20, { unit: '%' })],
-    variants: [['Mossy boulder', { kind: 'boulder', pal: 'rockstone', moss: 55, rough: 45 }], ['Sea stack', { kind: 'stack', pal: 'sandrock', h: 40, w: 14, d: 12, strata: 60 }], ['Basalt pinnacles', { kind: 'pinnacles', pal: 'basalt', h: 30 }], ['Desert arch', { kind: 'arch', pal: 'sandrock', w: 40, h: 22, strata: 50 }]],
-    make(p, V) {
-      const prims = [], W = rx(p), Dz = rz(p);
-      if (p.kind === 'boulder') {
-        for (let i = 0; i < p.lumps; i++) { const s = i ? 0.45 + V('lump', i, 0) * 0.35 : 1, o = i ? [(V('lump', i, 1) - 0.5) * W, 0, (V('lump', i, 2) - 0.5) * Dz] : [0, 0, 0]; const ry = p.h * s; prims.push(place(Object.assign(ellipsoid({ rx: W * s, ry, rz: Dz * s }), { part: 'body' }), [o[0], ry * (1 - 2 * p.sink / 100), o[2]], leanMat(V('lump', i, 3) * 20, V('lump', i, 4) * 360))); }
-      } else if (p.kind === 'stack') {
-        prims.push(Object.assign(slab({ h: p.h, hx: W, hz: Dz, taper: 0.35, round: 0.7, bulge: -0.1, tip: 0.08 }), { part: 'body' }));
-      } else if (p.kind === 'pinnacles') {
-        for (let i = 0; i < p.lumps + 2; i++) { const a = V('pin', i, 0) * Math.PI * 2, r = i ? V('pin', i, 1) * 0.7 : 0, hh = p.h * (i ? 0.35 + V('pin', i, 2) * 0.55 : 1), s = 0.25 + V('pin', i, 3) * 0.2; prims.push(place(Object.assign(slab({ h: hh, hx: W * s, hz: Dz * s, taper: 0.6, round: 0.6, tip: 0.15 }), { part: 'body' }), [Math.cos(a) * r * W, 0, Math.sin(a) * r * Dz], leanMat(V('pin', i, 4) * 8, V('pin', i, 5) * 360))); }
-      } else {
-        const R = W - Math.max(2, W * 0.25), t = Math.max(2, W * 0.3), ky = (R + t) / Math.max(2, p.h);
-        prims.push({ f: (x, y, z) => { const q = Math.hypot(x, y * ky) - (R + t / 2); return Math.max(Math.hypot(q, z * (t / 2) / Math.max(1, Dz)) - t / 2, -y); }, part: 'body', grad: (x, y) => clamp(y / p.h, 0, 1), box: [-W - 1, 0, -Dz - 1, W + 1, p.h + 1, Dz + 1] });
-      }
-      if (p.strata) prims.forEach((pr) => { const pa = pr.partAt; pr.partAt = (x, y, z) => ((Math.floor(y / 3 + vnoise(x * 0.1, 0, z * 0.1, 3) * 2) % 3 === 0 && (((y % 3) + 3) % 3) < 3 * p.strata / 100) ? 'trim' : pa ? pa(x, y, z) : pr.part); });
-      return { prims };
-    } });
-  fam({ id: 'mountain', group: 'nature', name: 'Mountain', seed: true, pals: ['mountain', 'sandrock', 'deepslate', 'tuff'], parts: ['body', 'base', 'trim'], size: { w: [16, 256, 96], d: [16, 256, 96], h: [8, 192, 48] }, glow: false, key: ['peaks', 'ridges', 'snow', 'steep'],
-    params: [sh('peaks', 'Peaks', 1, 6, 2), sh('ridges', 'Ridges', 0, 100, 55, { unit: '%' }), sh('snow', 'Snow from', 0, 100, 70, { unit: '% of height' }), sh('steep', 'Steepness', 50, 250, 120, { unit: '%' }), sh('grass', 'Grass up to', 0, 60, 18, { unit: '% of height' })],
-    variants: [['Alpine peak', { pal: 'mountain', peaks: 1, snow: 62 }], ['Twin peaks', { pal: 'mountain', peaks: 2 }], ['Red mesa', { pal: 'sandrock', steep: 220, snow: 100, grass: 0, ridges: 30 }]],
-    make(p, V) {
-      const W = rx(p), Dz = rz(p), seed = strHash('mountain') ^ (p.seed | 0), pk = [];
-      for (let i = 0; i < p.peaks; i++) pk.push([i ? (V('peak', i, 0) - 0.5) * W : 0, i ? (V('peak', i, 1) - 0.5) * Dz : 0, i ? 0.55 + V('peak', i, 2) * 0.35 : 1]);
-      const height = (x, z) => {
-        let hh = 0;
-        for (const [px, pz, s] of pk) { const r = Math.hypot((x - px) / W, (z - pz) / Dz); hh = Math.max(hh, s * Math.pow(Math.max(0, 1 - r), p.steep / 100)); }
-        const n = fbm(x * 0.045 * 96 / Math.max(16, p.w), 0, z * 0.045 * 96 / Math.max(16, p.d), seed), rid = 1 - Math.abs(vnoise(x * 0.06, 3, z * 0.06, seed + 5) * 2 - 1);
-        const v = p.h * clamp(hh * (1 + (n - 0.5) * 0.5) + rid * hh * 0.25 * (p.ridges / 100), 0, 1.15);
-        return Math.hypot(x / W, z / Dz) < 1 ? Math.max(v, 1) : v;   // at least one layer of ground over the whole oval
-      };
-      const partAt = (x, y) => (y > p.h * p.snow / 100 ? 'trim' : y < p.h * p.grass / 100 ? 'base' : 'body');
-      return { prims: [{ f: (x, y, z) => y - height(x, z), partAt, part: 'body', grad: (x, y) => clamp(y / p.h, 0, 1), box: [-W, 0, -Dz, W, p.h * 1.15 + 1, Dz], heightfield: true, height }] };
-    } });
-  fam({ id: 'volcano', group: 'nature', name: 'Volcano', seed: true, pals: ['volcano', 'deepslate', 'blackstone'], parts: ['body', 'base', 'trim'], size: { w: [16, 256, 72], d: [16, 256, 72], h: [8, 160, 36] }, glow: false, key: ['crater', 'depth', 'flows', 'lava'],
-    params: [sh('crater', 'Crater width', 10, 60, 28, { unit: '%' }), sh('depth', 'Crater depth', 5, 80, 30, { unit: '% of height' }), sh('flows', 'Lava flows', 0, 10, 4), bool('lava', 'Lava lake', 'shape', true), sh('steep', 'Steepness', 60, 200, 110, { unit: '%' })],
-    variants: [['Active volcano', { flows: 5 }], ['Sleeping cone', { flows: 0, lava: false, pal: 'deepslate' }], ['Caldera', { crater: 55, depth: 20, steep: 70 }]],
-    make(p, V) {
-      const W = rx(p), Dz = rz(p), seed = strHash('volcano') ^ (p.seed | 0), cw = p.crater / 100, dep = p.h * p.depth / 100;
-      const flows = []; for (let i = 0; i < p.flows; i++) flows.push(V('flow', i) * Math.PI * 2);
-      const height = (x, z) => {
-        const r = Math.hypot(x / W, z / Dz), n = fbm(x * 0.06, 0, z * 0.06, seed);
-        let hh = p.h * Math.pow(Math.max(0, 1 - r), p.steep / 100) * (0.9 + n * 0.2);
-        if (r < cw) hh = Math.min(hh, p.h - dep * (1 - Math.pow(r / cw, 2)));
-        return r < 1 ? Math.max(hh, 1) : hh;
-      };
-      const flowAt = (x, z) => { const a = Math.atan2(z / Dz, x / W); return flows.some((fa) => { let d = Math.abs(((a - fa + Math.PI * 3) % (Math.PI * 2)) - Math.PI); d += (vnoise(Math.hypot(x, z) * 0.15, 0, fa * 10, seed) - 0.5) * 0.25; return d < 0.06; }); };
-      const partAt = (x, y, z) => (Math.hypot(x / W, z / Dz) < cw * 1.1 && y > p.h - dep - 2 ? 'trim' : flowAt(x, z) ? 'trim' : y < 3 ? 'base' : 'body');
-      const fluid = p.lava ? { id: 'lava', at: (x, y, z) => Math.hypot(x / W, z / Dz) < cw && y <= p.h - dep * 0.6 && y > height(x, z) - 0.5 } : null;
-      return { prims: [{ f: (x, y, z) => y - height(x, z), partAt, part: 'body', grad: (x, y) => clamp(y / p.h, 0, 1), box: [-W, 0, -Dz, W, p.h + 2, Dz], heightfield: true, height }], fluid };
-    } });
-  fam({ id: 'crater', group: 'nature', name: 'Meteor crater', seed: true, pals: ['rockstone', 'sandrock', 'deepslate', 'endstone'], parts: ['body', 'base', 'trim', 'accent'], size: { w: [12, 200, 48], d: [12, 200, 48], h: [4, 60, 12] }, key: ['rim', 'meteor', 'molten'],
-    params: [sh('rim', 'Rim height', 0, 100, 35, { unit: '%' }), sh('meteor', 'Meteor size', 0, 40, 14, { unit: '%' }), bool('molten', 'Still glowing', 'shape', true), sh('rays', 'Ejecta rays', 0, 12, 6)],
-    variants: [['Fresh impact', { molten: true }], ['Old crater', { molten: false, moss: 40, meteor: 8 }], ['End impact', { pal: 'endstone' }]],
-    make(p, V) {
-      const W = rx(p), Dz = rz(p), seed = strHash('crater') ^ (p.seed | 0), rays = []; for (let i = 0; i < p.rays; i++) rays.push(V('ray', i) * Math.PI * 2);
-      const depth = Math.max(2, p.h * 0.65), top = Math.max(2, Math.round(p.h * 0.45)) + depth * 0.5, floorY = top - depth;
-      const height = (x, z) => {
-        const r = Math.hypot(x / W, z / Dz) / 0.62;
-        if (r < 1) return top - depth * (1 - r * r) + (fbm(x * 0.15, 1, z * 0.15, seed) - 0.5);
-        return top + p.h * (p.rim / 100) * Math.exp(-Math.pow((r - 1) * 3.5, 2)) * (0.8 + fbm(x * 0.1, 0, z * 0.1, seed) * 0.4);
-      };
-      const ms = Math.min(W, Dz) * p.meteor / 100, met = ms > 0.8 ? Object.assign(jagged({ r: [ms, ms * 0.85, ms], jag: 0.3, k: 14 }, (i, j) => V('meteor', i, j)), { part: 'accent' }) : null;
-      const prims = [{ f: (x, y, z) => y - height(x, z), part: 'body', grad: (x, y) => clamp(y / (top + 2), 0, 1), box: [-W, 0, -Dz, W, top + p.h * p.rim / 100 + 2, Dz], heightfield: true, height,
-        partAt: (x, y, z) => { const r = Math.hypot(x / W, z / Dz) / 0.62, a = Math.atan2(z, x); return r > 1 && rays.some((ra) => Math.abs(Math.sin(a - ra)) < 0.05 && Math.cos(a - ra) > 0) && y > top - 2 ? 'trim' : y < 2 ? 'base' : 'body'; } }];
-      if (met) prims.push(place(met, [0, floorY + ms * 0.55, 0], mat({ x: 20, y: 30 })));
-      return { prims, molten: p.molten && met ? { r: ms + 1.5, y: floorY } : null };
-    } });
-  fam({ id: 'waterfall', group: 'nature', name: 'Waterfall cliff', seed: true, pals: ['rockstone', 'mountain', 'sandrock', 'deepslate', 'tuff'], parts: ['body', 'base', 'trim'], size: { w: [10, 160, 40], d: [6, 80, 16], h: [8, 160, 36] }, glow: false, key: ['fallW', 'pool', 'ledges', 'curve'],
-    params: [sh('fallW', 'Fall width', 1, 16, 4, { unit: 'blocks' }), sh('pool', 'Pool', 0, 100, 60, { unit: '%' }), sh('ledges', 'Ledges', 0, 6, 2), sh('curve', 'Curve', 0, 100, 40, { unit: '%' })],
-    variants: [['Mossy falls', { pal: 'rockstone', moss: 50 }], ['Canyon fall', { pal: 'sandrock', ledges: 4, curve: 70 }], ['Tall fall', { pal: 'mountain', h: 64, fallW: 3 }]],
-    make(p) {
-      const W = rx(p), Dz = rz(p), seed = strHash('falls') ^ (p.seed | 0), fw = p.fallW;
-      const front = (x, y) => -Dz * 0.3 + (x * x) / (W * W) * Dz * 1.4 * (p.curve / 100) + (fbm(x * 0.12, y * 0.12, 0, seed) - 0.5) * 3 + (p.ledges ? Math.sin((y / p.h) * Math.PI * p.ledges) * 1.2 : 0);
-      const f = (x, y, z) => Math.max(front(x, y) - z, z - Dz, Math.abs(x) - W, y - p.h, -y);
-      const poolR = Math.max(2, (W * 0.5) * p.pool / 100);
-      const floor = (x, y, z) => Math.max(y - 1, Math.abs(x) - W, Math.abs(z + Dz * 0.3) - Dz * 0.7);
-      const fluid = { id: 'water', at: (x, y, z) => {
-        const fz = front(0, y);
-        if (Math.abs(x) <= fw / 2 && z >= fz - 1.5 && z < fz && y >= 1 && y <= p.h) return true;
-        if (y >= p.h - 1 && y <= p.h && Math.abs(x) <= fw / 2 && z >= fz - 0.5 && z < Dz - 1) return true;
-        if (y === 1 && Math.hypot(x / poolR, (z - fz + poolR * 0.8) / (poolR * 0.8)) < 1 && z < fz) return true;
-        return false;
-      } };
-      return { prims: [{ f: (x, y, z) => Math.min(f(x, y, z), floor(x, y, z)), part: 'body', grad: (x, y) => clamp(y / p.h, 0, 1), box: [-W, 0, -Dz, W, p.h, Dz], partAt: (x, y) => (y < 1 ? 'base' : y > p.h - 2 ? 'trim' : 'body'),
-        carve: (x, y, z) => { const fz = front(0, y); return (Math.abs(x) <= fw / 2 && y >= p.h - 1 && z >= fz - 0.5 && z < Dz - 1) || (y === 1 && Math.hypot(x / poolR, (z - fz + poolR * 0.8) / (poolR * 0.8)) < 1 && z < fz); } }], fluid };
-    } });
-  fam({ id: 'mushroom', group: 'nature', name: 'Giant mushroom', seed: true, pals: ['redcap', 'browncap', 'glowcap'], parts: ['body', 'base', 'accent'], size: { w: [6, 96, 23], d: [6, 96, 23], h: [6, 160, 28] }, key: ['capH', 'stem', 'capShape', 'spots'],
-    params: [sh('capH', 'Cap height', 10, 60, 30, { unit: '% of height' }), sh('stem', 'Stem width', 10, 50, 22, { unit: '%' }), seg('capShape', 'Cap', 'shape', [['dome', 'Dome'], ['flat', 'Flat'], ['cone', 'Cone']], 'dome'), sh('spots', 'Spots', 0, 100, 45, { unit: '%' }), sh('bend', 'Bend', 0, 60, 15, { unit: '°' }), bool('gills', 'Gills', 'shape', true)],
-    variants: [['Fly agaric', { pal: 'redcap', spots: 55 }], ['Flat brown', { pal: 'browncap', capShape: 'flat', spots: 15 }], ['Warped cap', { pal: 'glowcap', capShape: 'cone', spots: 30 }]],
-    make(p, V) {
-      const W = rx(p), Dz = rz(p), ch = p.h * p.capH / 100, st = Math.max(1, Math.min(W, Dz) * p.stem / 100), seed = strHash('shroom') ^ (p.seed | 0);
-      const bend = p.bend * RAD, bd = V('bend', 0) * Math.PI * 2;
-      const stemX = (y) => Math.sin(bend) * (y * y) / (2 * p.h) * Math.cos(bd), stemZ = (y) => Math.sin(bend) * (y * y) / (2 * p.h) * Math.sin(bd);
-      const top = p.h - ch, cx = stemX(top), cz = stemZ(top);
-      const stem = { f: (x, y, z) => Math.max(Math.hypot(x - stemX(y), z - stemZ(y)) - st * (1 + 0.4 * Math.max(0, 1 - y / 4)), -y, y - top - 1), part: 'base', grad: (x, y) => clamp(y / p.h, 0, 1), box: [-W, 0, -Dz, W, top + 1, Dz] };
-      const capF = (x, y, z) => {
-        const X = (x - cx) / W, Z = (z - cz) / Dz, Y = (y - top) / ch, r = Math.hypot(X, Z);
-        const o = p.capShape === 'cone' ? Math.max(r + Y - 1, -Y) : p.capShape === 'flat' ? Math.max(Math.hypot(r, Y * 1.6) - 1, -Y) : Math.max(Math.hypot(r, Y) - 1, -Y);
-        return o * Math.min(W, ch);
-      };
-      const cap = { f: capF, part: 'body', grad: (x, y) => clamp((y - top) / ch, 0, 1), box: [cx - W - 1, top - 1, cz - Dz - 1, cx + W + 1, p.h + 1, cz + Dz + 1],
-        partAt: (x, y, z) => { if (y < top + 1 && p.gills) return 'base'; const sp = hash(Math.floor(x / 3), Math.floor(y / 3), Math.floor(z / 3), seed) < p.spots / 220; return sp && vnoise(x * 0.5, y * 0.5, z * 0.5, seed) > 0.45 ? 'accent' : 'body'; } };
-      return { prims: [stem, cap] };
-    } });
-
-  // ---------------- shapes ----------------
-  fam({ id: 'ziggurat', group: 'shapes', name: 'Ziggurat', pals: ['sandstone', 'stone', 'terracotta', 'deepslate', 'quartzstone', 'prismarine', 'blackstone'], parts: ['body', 'trim', 'accent'], size: { w: [7, 200, 41], d: [7, 200, 41], h: [3, 128, 16] }, key: ['tiers', 'stepIn', 'stairs', 'temple'],
-    params: [sh('tiers', 'Tiers', 2, 20, 6), sh('stepIn', 'Step in', 1, 8, 3, { unit: 'blocks' }), bool('stairs', 'Stairway', 'shape', true), bool('temple', 'Temple on top', 'shape', true)],
-    variants: [['Desert ziggurat', { pal: 'sandstone' }], ['Jungle temple', { pal: 'stone', moss: 45, weather: 30 }], ['Dark pyramid', { pal: 'blackstone', glow: 'edges', glowAmt: 50, glowBlock: 'shroomlight' }]],
-    make(p) {
-      const k = p.tiers, tempH = p.temple ? Math.max(2, Math.round(p.h / (k + 2)) * 2) : 0, th = Math.max(1, (p.h - tempH) / k), prims = [];
-      for (let i = 0; i < k; i++) {
-        const hx = Math.max(1, rx(p) - i * p.stepIn), hz = Math.max(1, rz(p) - i * p.stepIn);
-        prims.push(Object.assign(slab({ h: (i + 1) * th, hx, hz }), { part: i % 2 ? 'trim' : 'body', box: [-hx - 1, i * th, -hz - 1, hx + 1, (i + 1) * th, hz + 1] }));
-      }
-      if (p.stairs) prims.push({ f: (x, y, z) => Math.max(Math.abs(x) - 2, -y, y - k * th, z - rz(p), y - (rz(p) - z) * (th / p.stepIn), -z), part: 'accent', grad: () => 0.5, box: [-3, 0, 0, 3, k * th, rz(p) + 1] });
-      if (p.temple) {
-        const hx = Math.max(1, rx(p) - k * p.stepIn) * 0.8 + 1, hz = Math.max(1, rz(p) - k * p.stepIn) * 0.8 + 1, y0 = k * th, t = slab({ h: tempH, hx, hz, tip: 0.3 }), f0 = t.f;
-        prims.push(Object.assign(t, { part: 'trim', f: (x, y, z) => f0(x, y - y0, z), box: [-hx - 1, y0, -hz - 1, hx + 1, y0 + tempH, hz + 1] }));
-      }
-      return { prims };
-    } });
-  fam({ id: 'arch', group: 'shapes', name: 'Arch and bridge', pals: ['stone', 'sandstone', 'deepslate', 'quartzstone', 'blackstone', 'tuff', 'prismarine'], parts: ['body', 'trim'], size: { w: [5, 200, 30], d: [1, 40, 5], h: [3, 120, 16] }, key: ['archShape', 'thickA', 'piers', 'deck'],
-    params: [seg('archShape', 'Shape', 'shape', [['round', 'Round'], ['pointed', 'Pointed'], ['flat', 'Flat']], 'round'), sh('thickA', 'Top thickness', 1, 20, 3, { unit: 'blocks' }), sh('piers', 'Pier width', 0, 20, 3, { unit: 'blocks' }), bool('deck', 'Bridge deck', 'shape', false)],
-    variants: [['Roman arch', { archShape: 'round', piers: 4 }], ['Gothic arch', { archShape: 'pointed', pal: 'deepslate' }], ['Stone bridge', { deck: true, w: 48, h: 14, d: 7, pal: 'stone' }]],
-    make(p) {
-      const W = rx(p), t = p.thickA, H = p.h - (p.deck ? 1 : 0), sp = Math.max(1, W - p.piers);
-      const Rp = sp * 1.6, cc = Rp - sp, apex = Math.sqrt(Rp * Rp - cc * cc), ky = apex / Math.max(1, H - t);
-      const inner = (x, y) => (p.archShape === 'pointed' ? Math.hypot(Math.abs(x) + cc, y * ky) < Rp : p.archShape === 'flat' ? Math.abs(x) < sp && y < H - t : Math.hypot(x / sp, y / Math.max(1, H - t)) < 1);
-      const f = (x, y, z) => { const out = Math.max(Math.abs(x) - W, y - H, -y, Math.abs(z) - rz(p)); return inner(x, y) ? Math.max(out, 0.5) : out; };
-      const prims = [{ f, part: 'body', grad: (x, y) => clamp(y / H, 0, 1), box: [-W - 1, 0, -rz(p) - 1, W + 1, H + 1, rz(p) + 1], partAt: (x, y) => (y > H - 1.5 ? 'trim' : 'body') }];
-      if (p.deck) prims.push({ f: (x, y, z) => Math.max(Math.abs(x) - W, Math.abs(y - H - 0.5) - 0.5, Math.abs(z) - rz(p)), part: 'trim', grad: () => 1, box: [-W - 1, H - 1, -rz(p) - 1, W + 1, H + 1, rz(p) + 1] });
-      return { prims };
-    } });
-  fam({ id: 'helix', group: 'shapes', name: 'Helix and stairs', pals: ['quartzstone', 'stone', 'deepslate', 'copper', 'prismarine', 'blackstone', 'amethyst'], parts: ['body', 'trim'], size: { w: [5, 120, 18], d: [5, 120, 18], h: [4, 256, 40] }, key: ['kind', 'turns', 'band', 'column'],
-    params: [seg('kind', 'Kind', 'shape', [['stair', 'Spiral stair'], ['helix', 'Helix'], ['double', 'Double helix']], 'stair'), sh('turns', 'Turns', 1, 12, 3), sh('band', 'Band width', 1, 16, 4, { unit: 'blocks' }), bool('column', 'Centre column', 'shape', true), sh('bandT', 'Band thickness', 1, 6, 1, { unit: 'blocks' })],
-    variants: [['Spiral staircase', { kind: 'stair' }], ['DNA tower', { kind: 'double', pal: 'amethyst', glow: 'rings', glowAmt: 50 }], ['Copper coil', { kind: 'helix', pal: 'copper', turns: 6 }]],
-    make(p) {
-      const W = rx(p), Dz = rz(p), turns = p.turns, strands = p.kind === 'double' ? 2 : 1, band = p.band, bt = p.bandT;
-      const f = (x, y, z) => {
-        const r = Math.hypot(x / W, z / Dz) * Math.min(W, Dz), a = Math.atan2(z / Dz, x / W);
-        if (y < 0 || y > p.h) return Math.max(-y, y - p.h);
-        let best = Infinity;
-        for (let s = 0; s < strands; s++) {
-          const ph = ((a / (Math.PI * 2) + s / strands) % 1 + 1) % 1, yy = y / p.h * turns;
-          let dy = ((yy - ph) % 1 + 1) % 1; dy = Math.min(dy, 1 - dy) * (p.h / turns);
-          best = Math.min(best, Math.max(dy - bt / 2, Math.min(W, Dz) - band - r, r - Math.min(W, Dz)));
-        }
-        if (p.column) best = Math.min(best, Math.hypot(x, z) - Math.max(1, Math.min(W, Dz) * 0.15));
-        return best;
-      };
-      return { prims: [{ f, part: 'body', grad: (x, y) => clamp(y / p.h, 0, 1), box: [-W - 1, 0, -Dz - 1, W + 1, p.h, Dz + 1], partAt: (x, y, z) => (Math.hypot(x, z) < Math.max(1, Math.min(W, Dz) * 0.15) + 0.5 ? 'trim' : 'body') }] };
-    } });
+  // monoliths, nature and the shapes: builds-gen-world.js (registered through _api.fam)
 
   /* ======================================================================
    * Parameters: lists, defaults, cleaning
    * ====================================================================== */
   const byId = new Map();
-  FAMILIES.forEach((f) => {
+  /** A family's full parameter list; f.defs overrides shared defaults (palette, light, surface) for this family. */
+  function finish(f) {
     f.all = (f.params || []).map((q) => Object.assign({}, q, { more: !(f.key || []).includes(q.id) })).concat(common(f));
+    if (f.defs) f.all = f.all.map((q) => (f.defs[q.id] !== undefined ? Object.assign({}, q, { def: f.defs[q.id] }) : q));
     byId.set(f.id, f);
-  });
+  }
+  FAMILIES.forEach(finish);
+  /** Families from other modules (builds-gen-world.js). */
+  const register = (o) => { FAMILIES.push(o); finish(o); return o; };
   const GROUPS = [['crystals', 'Crystals'], ['monoliths', 'Monoliths'], ['nature', 'Nature'], ['shapes', 'Shapes']];
   function params(id) { const f = byId.get(id); return f ? f.all : []; }
   function defaults(id) {
@@ -878,6 +597,7 @@ TH.builds = TH.builds || {};
           for (let y = y0; y <= y1; y++) {
             const my = LO[1] + y + 0.5, i = I(x, y, z);
             let d = my - H;
+            if (my < 0) d = Math.max(d, -my);   // nothing under the ground (no plate under a height field)
             if (d > 2.5 + ramp) { if (d < best[i]) { best[i] = d; own[i] = qi; } break; }
             if (ramp && Math.abs(d) < 2 + ramp) d += rN(mx, my, mz) * ramp * 0.6;
             if (q.carve && q.carve(mx, my, mz)) d = Math.max(d, 0.5);
@@ -982,11 +702,26 @@ TH.builds = TH.builds || {};
       else if (pal.skin && pal.skin[part] && !filled(x, y + 1, z)) id = m(pal.skin[part]);   // grass on top of the dirt
       else { const r = rampFor(part); id = r[clamp(Math.round((p.light ? 0.5 : t) * (r.length - 1) + bayer(x, y, z) * 0.95), 0, r.length - 1)]; }
       if (exposed && part !== 'glow' && part !== 'edge') {
-        if (wAmt && worn.length && fbm(mx * 0.18, my * 0.18, mz * 0.18, seedN + 4) > 1 - wAmt * 0.55) id = worn[hash(x, y, z, seedN) < 0.5 ? 0 : worn.length - 1];
         if (cAmt && Math.abs(vnoise(mx * 0.11, my * 0.07, mz * 0.11, seedN + 6) - 0.5) < 0.012 + 0.035 * cAmt) { if (cAmt > 0.6 && hash(x, y, z, seedN + 1) < (cAmt - 0.6) * 2) { state[i] = 0; continue; } if (crack) id = crack; }
-        if (mAmt && (y + 1 >= sy || state[I(x, y + 1, z)] !== 1) && fbm(mx * 0.12, my * 0.05, mz * 0.12, seedN + 8) > 1 - mAmt * 0.75) id = moss;
       }
       putId(i, id);
+    }
+    // weathering and moss gather where they would in the world: near the foot, on upward faces, in corners and
+    // crevices, in patches (low-frequency noise), never as an even sprinkle. A score per surface block, the best
+    // share wins (more = a superset).
+    if ((wAmt || mAmt) && surface.length) {
+      const yMin = CB ? CB[1] : 0, yMax = CB ? CB[4] : sy - 1, hh = Math.max(1, yMax - yMin);
+      const crev = (x, y, z) => { let n = 0; for (let dy = -1; dy <= 1; dy++) for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) if (filled(x + dx, y + dy, z + dz)) n++; return n / 27; };
+      const cand = surface.filter((i) => state[i] && partOf[i] && partOf[i] < 5);
+      const pick = (amt, cap, score) => cand.map((i) => [i, score(i)]).sort((a, b) => b[1] - a[1] || a[0] - b[0]).slice(0, Math.round(Math.pow(amt, 1.1) * cap * cand.length));
+      const xyz = (i) => [i % sx, Math.floor(i / (sx * sz)), Math.floor(i / sx) % sz];
+      if (wAmt && worn.length) pick(wAmt, 0.4, (i) => { const [x, y, z] = xyz(i), [mx, my, mz] = modelOf(x, y, z), t = (y - yMin) / hh; return fbm(mx * 0.13, my * 0.13, mz * 0.13, seedN + 4) * 0.55 + Math.pow(1 - t, 1.5) * 0.35 + (ridge[i] ? 0.12 : 0) + crev(x, y, z) * 0.2; })
+        .forEach(([i]) => putId(i, worn[hash(i, 3, 1, seedN) < 0.5 ? 0 : worn.length - 1]));
+      if (mAmt) {
+        const mossy = pal.mossy ? full(pal.mossy) : null;
+        pick(mAmt, 0.45, (i) => { const [x, y, z] = xyz(i), [mx, my, mz] = modelOf(x, y, z), t = (y - yMin) / hh, up = !filled(x, y + 1, z); return fbm(mx * 0.1, my * 0.08, mz * 0.1, seedN + 8) * 0.5 + (1 - t) * 0.3 + (up ? 0.22 : 0) + crev(x, y, z) * 0.35; })
+          .forEach(([i]) => { const [x, y, z] = xyz(i); if (!filled(x, y + 1, z)) putId(i, moss); else if (mossy) putId(i, mossy); });
+      }
     }
     // 5. glow: each pattern scores every surface block, the best `amount` share lights up (nested: more = a superset)
     const glowCells = [];
@@ -1001,6 +736,7 @@ TH.builds = TH.builds || {};
           case 'veins': return Math.abs(fbm(mx * 0.09, my * 0.09, mz * 0.09, seedN + 2) - 0.5) + hsh * 0.004;
           case 'rings': { const d = Math.abs(((my % per) + per) % per - per / 2); return (per / 2 - d) + hsh * 0.01; }
           case 'runes': {
+            if (model.runes) return model.runes(mx / ks[0], my / ks[1], mz / ks[2]);   // the generator's own carved runes
             // 3 x 3 glyphs on a grid over the faces; a whole glyph lights up at once
             const u = Math.abs(mx) > Math.abs(mz) ? mz : mx, gu = Math.floor((u + 1000) / 4), gv = Math.floor(my / 4), lu = ((Math.floor(u + 1000) % 4) + 4) % 4, lv = ((Math.floor(my) % 4) + 4) % 4;
             if (lu > 2 || lv > 2) return Infinity;
@@ -1073,6 +809,15 @@ TH.builds = TH.builds || {};
         const [mx, my, mz] = modelOf(x, y, z), dd = Math.hypot(mx / ks[0], (my - my0) * 1.4 / ks[1], mz / ks[2]);
         if (dd < r + 1.2 && dd > r - 1 && hash(x, y, z, seedN) < 0.5) SB[i] = core.pal(s, m('magma_block'));
       }
+    }
+    // the generator's own finishing touches (ejecta, foam): model coordinates (unstretched), a part or a block id
+    if (model.decorate) {
+      const cellOf = (mx, my, mz) => { const w = app(G, [mx * ks[0], my * ks[1], mz * ks[2]]); return [Math.floor(w[0] + SX - LO[0]), Math.floor(w[1] - LO[1]), Math.floor(w[2] + SZ - LO[2])]; };
+      const idOf = (v) => (v.startsWith('minecraft:') ? v : rampFor(v)[Math.floor(rampFor(v).length / 2)]);
+      model.decorate({
+        atModel: (mx, my, mz, v, onlyEmpty) => { const [x, y, z] = cellOf(mx, my, mz); if (!inCB(x, y, z) || (onlyEmpty === false ? false : onlyEmpty && at(x, y, z) !== 0)) return; if (at(x, y, z) < 0) return; set(x, y, z, idOf(v)); },
+        onTop: (mx, mz, v) => { const c = cellOf(mx, 0, mz); for (let y = sy - 2; y >= 0; y--) if (at(c[0], y, c[2]) > 0) { if (at(c[0], y + 1, c[2]) === 0 && inCB(c[0], y + 1, c[2])) set(c[0], y + 1, c[2], idOf(v)); return; } },
+      });
     }
     if (model.geode && model.geode.amount > 0) {
       const sizes = ['small_amethyst_bud', 'medium_amethyst_bud', 'large_amethyst_bud', 'amethyst_cluster'];
@@ -1207,5 +952,6 @@ TH.builds = TH.builds || {};
     return s;
   }
 
-  TH.builds.gen = { _run: run, FAMILIES, GROUPS, GROUP_LABEL, STEPS, PALETTES, PART_LABEL, GLOW_PATTERNS, GLOW_CAP, LOOKS, look, params, defaults, clean, gen, byId: (id) => byId.get(id), rng, hash, vnoise, fbm, variation };
+  TH.builds.gen = { _run: run, FAMILIES, GROUPS, GROUP_LABEL, STEPS, PALETTES, PART_LABEL, GLOW_PATTERNS, GLOW_CAP, LOOKS, look, params, defaults, clean, gen, byId: (id) => byId.get(id), rng, hash, vnoise, fbm, variation,
+    _api: { fam: register, slab, ellipsoid, jagged, crystal, place, mat, app, appT, leanMat, I3, fbm, vnoise, hash, strHash, clamp, lerp, RAD, superE, box2, num, seg, bool, rx, rz, tipAt } };
 })();

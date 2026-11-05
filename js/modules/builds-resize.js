@@ -333,6 +333,7 @@ TH.builds = TH.builds || {};
     return out;
   }
 
+  const SMART_MAX = 8000000;   // cells of the result
   function resize(s, o) {
     o = o || {};
     const n = s.size;
@@ -340,6 +341,11 @@ TH.builds = TH.builds || {};
     const notes = [];
     if (tgt.every((v, a) => v === n[a])) return { s, mode: 'none', notes, before: n.slice(), after: n.slice() };
     let mode = o.mode || 'auto';
+    // big builds: the smart modes cost ~0.5 s per million cells of the result, so past SMART_MAX the build is scaled
+    // plainly (a few ms per million) and the note says so; past the viewer's memory limit nothing is done
+    const cells = tgt[0] * tgt[1] * tgt[2], maxCells = TH.builds.io && TH.builds.io.LIMITS ? TH.builds.io.LIMITS.cells : 134217728;
+    if (cells > maxCells) { notes.push('Too big: ' + tgt.join(' × ') + ' would be more than the viewer can hold, so the size is unchanged'); return { s, mode: 'none', notes, before: n.slice(), after: n.slice() }; }
+    if (mode !== 'plain' && cells > SMART_MAX) { notes.push('Big build: scaled plainly (smart resizing works up to ' + Math.round(SMART_MAX / 1e6) + ' million cells)'); mode = 'plain'; }
     if (mode === 'auto') mode = orthogonal(s) >= 0.55 ? 'stretch' : 'thin';
     const out = mode === 'stretch' ? stretch(s, tgt, notes) : mode === 'thin' ? thin(s, tgt, notes) : plain(s, tgt, notes);
     delete out._dropped;

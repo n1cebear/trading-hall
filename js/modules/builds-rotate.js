@@ -227,11 +227,15 @@ TH.builds = TH.builds || {};
     return fullIdx.get(p.base) || null;
   }
 
+  const BIG_ROT = 6000000;
   function rotate(s, o) {
     o = o || {};
     if (!s || isZero(o)) return s;
     const core = C(), D = DT();
     const [sx, sy, sz] = s.size, F = frame(s.size, o), { R, fwd, lo, out } = F;
+    // big builds: the resampling of a free angle (9 / 64 samples a cell) is skipped past BIG_ROT cells of the result,
+    // one sample per cell instead (the quick preview quality); multiples of 90 degrees stay exact at any size
+    if (!o.fast && out[0] * out[1] * out[2] > BIG_ROT) o = Object.assign({}, o, { fast: true });
     const Rs = snap(R), yaw = angleOf(o, 'Y');
     const [ox, oy, oz] = out;
     const res = core.create(ox, oy, oz, s.name);

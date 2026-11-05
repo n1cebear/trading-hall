@@ -536,4 +536,18 @@ t('Move with Alt = copy: lift without cutting keeps the source, the dropped copy
   assert.deepStrictEqual(px(c, 4, 4), CLEAR, 'a plain move cuts');
 });
 
+t('skinPalette: up to 48 colours, a gradient comes out as one run in order (dark to light)', () => {
+  const b = E.newBuf(), F = E.rectOf('classic', 'body', 'front');
+  for (let y = 0; y < 12; y++) for (let x = 0; x < 8; x++) b.data.set([20 + y * 18, 40 + y * 16, 120 + y * 10, 255], ((F.y + y) * 64 + F.x + x) * 4);
+  for (let x = 0; x < 3; x++) b.data.set([90, 90, 90, 255], (8 * 64 + 8 + x) * 4);   // a grey on the head
+  const p = E.skinPalette(b, 'classic');
+  assert(p.length <= 48 && p.length >= 12, 'n ' + p.length);
+  assert(p.some((hx) => hx.slice(0, 7) === '#5a5a5a'), 'the grey is there');
+  const grad = p.filter((hx) => hx.slice(0, 7) !== '#5a5a5a'), ls = grad.map((hx) => { const c = E.hex2rgba(hx); return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]; });
+  for (let i = 1; i < ls.length; i++) assert(ls[i] >= ls[i - 1], 'the blue gradient reads dark to light');
+  const gi = p.findIndex((hx) => hx.slice(0, 7) === '#5a5a5a');
+  assert(gi === 0 || gi === p.length - 1, 'the grey does not split the gradient run');
+  assert.strictEqual(E.sortPalette(['#ffffff', '#000000', '#808080'])[0].slice(0, 7), '#000000', 'starts at the darkest');
+});
+
 console.log(n + ' skins tests passed' + (process.exitCode ? ' (with failures)' : ''));

@@ -812,6 +812,25 @@ TH.skinsEngine = (function () {
     }
     return out.sort((a, b) => b.n - a.n).slice(0, n || 16).map((e) => rgba2hex(e.c));
   }
+  /**
+   * Order colours so a palette reads like the skin: a chain that starts at the darkest colour and always steps to the
+   * nearest colour not used yet (weighted RGB distance), so the steps of a gradient sit side by side, dark to light,
+   * and families of colours stay together.
+   */
+  function sortPalette(hexes) {
+    const lum = (c) => 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+    const rows = hexes.map((hx) => ({ hx, c: hex2rgba(hx) }));
+    const dist = (a, b) => { const rm = (a[0] + b[0]) / 2, dr = a[0] - b[0], dg = a[1] - b[1], db = a[2] - b[2]; return (2 + rm / 256) * dr * dr + 4 * dg * dg + (2 + (255 - rm) / 256) * db * db; };
+    const out = [];
+    let cur = rows.reduce((m, r) => (!m || lum(r.c) < lum(m.c) ? r : m), null);
+    while (cur) {
+      out.push(cur); rows.splice(rows.indexOf(cur), 1);
+      cur = rows.reduce((m, r) => (!m || dist(r.c, cur.c) < dist(m.c, cur.c) ? r : m), null);
+    }
+    return out.map((r) => r.hx);
+  }
+  /** the colours of a skin for its palette: up to n (48), near-duplicates merged a little, in chart order (sortPalette) */
+  const skinPalette = (buf, model, n) => sortPalette(palette(buf, n || 48, 6, model));
 
   /* ====================================================================== history (undo / redo) */
   /**
@@ -1154,7 +1173,7 @@ TH.skinsEngine = (function () {
     BLENDS, newLayer, newDoc, addLayer, removeLayer, moveLayer, duplicateLayer, blendOnto, composite, mergeDown, flattenDoc, snapshot, restore,
     footprint, beginStroke, strokeTo, endStroke, linePts, drawLine, rectPts, drawRect, ellipsePts, drawEllipse, gradient, partCoord, partGradient, copyFace, unionRect, bayer,
     floodSet, fill, replaceColor, pickColor, selNew, selRect, selLasso, selWand, selCombine, selEllipse, selPolygon, selGrow, selShrink, selShift, selInvert, selCount, selBounds, selEdges, lift, flTransform, drop,
-    adjust, palette, History,
+    adjust, palette, sortPalette, skinPalette, History,
     fromLegacy, noAlpha, inNoAlpha, flattenBase, check, clearUnused, detectSlim, refitArms, clearPart, copyPart, puff, project, validate, downscale, importImage,
     encodePNG, crc32, bytesToB64, b64ToBytes, pngDataURL, bufToB64, b64ToBuf,
   };

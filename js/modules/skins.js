@@ -43,7 +43,7 @@
     ['noise', 'Noise and dither', 'N', 'draw', 'Add texture: random noise or a dither of both colours', 'Noise'],
     ['line', 'Line', 'U', 'shape', 'Drag a straight line', 'Line'],
     ['rect', 'Rectangle', 'R', 'shape', 'Drag a rectangle (filled or outline)', 'Box'],
-    ['ellipse', 'Ellipse', 'O', 'shape', 'Drag an ellipse (filled or outline)', 'Ellipse'],
+    ['ellipse', 'Ellipse', 'Shift+R', 'shape', 'Drag an ellipse (filled or outline)', 'Ellipse'],
     ['gradient', 'Gradient', 'Q', 'shape', 'Drag from the first colour to the second', 'Gradient'],
     ['fill', 'Fill', 'G', 'fill', 'Fill an area of one colour', 'Fill'],
     ['replace', 'Replace colour', 'F', 'fill', 'Click a colour: every pixel of it becomes the current colour', 'Replace'],
@@ -66,7 +66,7 @@
     sample: 'layer', filled: false, gradType: 'linear', gradAxis: 'height', gradLayers: 'this', gradEnds: 'picked', gradSteps: 0, dither: false, selMode: 'rect', selOp: 'new', marquee: 'rect', lassoMode: 'free', wandMode: 'wand', wandContig: true, sym: { body: false, faceX: false, faceY: false },
     color: '#3c44aaff', color2: '#f9fffeff', recent: [], palettes: [], anim: 'idle', speed: 1, bg: 'studio', bgColor: '#20212b', lit: false, litV: 2, overlay: 'none', gameLook: true,
     main: 'model', dock: true, dockZoom: 4, sheetZoom: 0, sheetGrid: true, sheetLabels: false, hidden: {}, locks: {}, capeOn: true, elytra: false, side: 'versions', view: 'model', defModel: 'auto',
-    tab: 'layers', swatches: 'skin',
+    tab: 'layers', swatches: 'skin', orbitMode: false,
   };
   const defaults = () => ({ v: 1, work: null, lib: [], ui: JSON.parse(JSON.stringify(UI_DEFAULTS)) });
   function norm(s) {
@@ -842,7 +842,7 @@
   function swapColors() { save((s) => { const t = s.ui.color; s.ui.color = s.ui.color2; s.ui.color2 = t; }); patchColor(); }
   function pushRecent(hex) {
     const v = String(hex).slice(0, 9).toLowerCase();
-    save((s) => { s.ui.recent = [v].concat(s.ui.recent.filter((x) => x !== v)).slice(0, 14); });
+    save((s) => { s.ui.recent = [v].concat(s.ui.recent.filter((x) => x !== v)).slice(0, 20); });
     patchRecent();
   }
 
@@ -1432,7 +1432,7 @@
       btns.forEach((b, id) => { if (SYM[id]) press(b, ui().sym[SYM[id]]); else if (id[0] !== '@') press(b, ui().tool === id); });
       const t = TOOL[ui().tool];
       hName.textContent = t.label; hText.textContent = t.hint + '.';
-      hMouse.textContent = MOUSE[t.id] || 'Left: paint (only inside a selection) · Alt-click: pick · right-drag: move the frame · middle or Alt-drag: turn · wheel: zoom';
+      hMouse.textContent = MOUSE[t.id] || 'Drag on the model: paint (only inside a selection) · drag beside it: turn · right-drag: move the frame · wheel: zoom · O: orbit mode';
     };
     return pal;
   }
@@ -1500,7 +1500,7 @@
     W.moveActs = opt('Transform', h('div.sk-acts', eFlipH, eFlipV, act('rotL', 'Turn left', () => transformFloat('rotCCW'), 'Shift+,'), act('rotR', 'Turn right', () => transformFloat('rotCW'), 'Shift+.'),
       act('check', 'Drop it here', () => commitFloat(), 'Enter'), act('x', 'Cancel the move', () => cancelFloat(), 'Esc')));
     const hint = (text) => h('p.sk-ohint', text);
-    W.orbit = hint('Drag to turn, right-drag to move, scroll to zoom toward the pointer, double-click a part to go there. The animation plays with this tool.');
+    W.orbit = hint('Drag anywhere to turn, right-drag to move, scroll to zoom toward the pointer, double-click a part to go there. The animation plays with this tool.');
     W.picker = hint('Click a pixel to take its colour (Shift-click: the second colour). Alt-click picks with every tool.');
     W.replace = hint('Click a colour: every pixel of it becomes the current colour.');
     const ROWS = {
@@ -1662,17 +1662,21 @@
       return b;
     });
     const focusGrp = h('div.sk-ovg', { role: 'group', 'aria-label': 'Go to a part' }, h('span.sk-ovl', { 'aria-hidden': 'true' }, 'Go to'), focusKeys);
-    const camHelp = vb('help', 'Camera', () => openKeys(), { tip: ['Camera', 'Right-drag or Space+drag: move the frame', 'Middle-drag or Alt+drag: turn (Alt+drag selects / copies with the selection and Move tools)', 'Wheel: zoom toward the pointer', 'Double-click a part: fly to it (a marquee selects the face) · Home: reset', 'Touch: two fingers move and pinch; one finger turns with the Turn tool'] });
+    const camHelp = vb('help', 'Camera', () => openKeys(), { tip: ['Camera', 'Left-drag beside the model (or anywhere in Orbit mode, O): turn', 'Right-drag: move the frame', 'Middle-drag, Space+drag or Alt+drag: turn (Alt+drag selects / copies with the selection and Move tools)', 'Wheel: zoom toward the pointer', 'Double-click a part: fly to it (a marquee selects the face) · Home: reset', 'Touch: two fingers move and pinch; one finger turns with the Turn tool'] });
     const zoomGrp = h('div.sk-ovg', { role: 'group', 'aria-label': 'Zoom' }, h('span.sk-ovl', { 'aria-hidden': 'true' }, 'Zoom'),
       vb('zoomout', 'Zoom out', () => V.zoomBy(1 / 1.2), { key: '-' }), vb('zoomin', 'Zoom in', () => V.zoomBy(1.2), { key: '+' }),
       vb('reset', 'Reset view', () => V.reset(), { key: 'Home', sub: 'The whole model from the front again' }), camHelp);
     const playGrp = h('div.sk-ovg', { role: 'group', 'aria-label': 'Animation' }, playBtn, animBtn);
+    const dragSeg = seg('Left-drag on the model', [['paint', 'Paint', 'Left-drag on the model uses the tool (paint, select, move); beside the model it turns the view (O switches)'],
+      ['orbit', 'Orbit', 'Left-drag anywhere turns the model, clicks never paint (O switches; holding Space does the same for a moment)']], () => (ui().orbitMode ? 'orbit' : 'paint'), (v) => setOrbitMode(v === 'orbit'), 'sk-dragseg');
+    const dragGrp = h('div.sk-ovg', { role: 'group', 'aria-label': 'Left-drag' }, h('span.sk-ovl', { 'aria-hidden': 'true' }, 'Drag'), dragSeg);
+    UI_STAGE.dragSeg = dragSeg;
     const info = h('div.sk-info', { 'aria-live': 'off' });
     const swapM = vb('swap', 'Make the model big', () => setMain('model'), { sub: 'Swap the model and the flat sheet (Shift+1)' });
     const modelPane = h('div.sk-pane.sk-pane-model', V.el,
       h('div.sk-ov.sk-ov-tl', sides, focusGrp),
       h('div.sk-ov.sk-ov-tr', zoomGrp, viewBtn),
-      h('div.sk-ov.sk-ov-bl', playGrp, info),
+      h('div.sk-ov.sk-ov-bl', dragGrp, playGrp, info),
       h('div.sk-ov.sk-ov-dock', h('span.sk-ovl', 'Model'), swapM));
     const NS = 'http://www.w3.org/2000/svg', marq = document.createElementNS(NS, 'svg');
     marq.setAttribute('class', 'sk-marq'); marq.setAttribute('aria-hidden', 'true'); marq.hidden = true;
@@ -1723,23 +1727,35 @@
     save((s) => { s.ui.main = m === 'sheet' ? 'sheet' : 'model'; s.ui.dock = true; });
     applyView();
   }
+  /** Orbit mode: left-drag always turns the model (the stage keys Paint / Orbit, O); Paint mode: a drag that starts on the model uses the tool */
+  function setOrbitMode(on) {
+    save((s) => { s.ui.orbitMode = !!on; });
+    V.setOrbitOnly(!!on);
+    if (UI_STAGE.dragSeg) UI_STAGE.dragSeg.paint();
+    if (UI) UI.stage.dataset.orbit = on ? '1' : '';
+  }
   function setDock(on) { save((s) => { s.ui.dock = !!on; }); applyView(); }
   /* ====================================================================== colour block (top of the right panel, always visible)
-     two colour keys + code, then the picker (saturation / brightness field with an upright hue and opacity bar beside it),
-     then one row of swatch sources (Recent, This skin, Minecraft, Saved) over two fixed rows of swatches. */
+     Photoshop-style and with NO hidden mode (Oct 31 2026): the big swatch is THE colour you paint with (primary), the small
+     one behind it is the second colour (gradient end, Shift-clicks); the picker, the code field and every palette swatch
+     set the paint colour, Shift-click a swatch for the second colour, click the small swatch (or X) to swap them.
+     Bug fixed here: the old block had an invisible "active tile" state; after one click on the right tile every swatch,
+     the picker and the code field edited the SECOND colour while painting kept using the first. */
   function buildColor() {
-    const sv = h('canvas.sk-sv', { width: 200, height: 120, 'aria-label': 'Saturation and brightness', role: 'slider', tabindex: 0 });
-    const hue = h('canvas.sk-hue', { width: 14, height: 120, 'aria-label': 'Hue', role: 'slider', tabindex: 0 });
-    const alpha = h('canvas.sk-alpha', { width: 14, height: 120, 'aria-label': 'Opacity of the colour', role: 'slider', tabindex: 0 });
-    const hex = h('input.field.sk-hex', { type: 'text', maxlength: 9, spellcheck: false, autocomplete: 'off', 'aria-label': 'Colour code', 'data-focus': 'sk-hex',
-      onkeydown: (e) => { if (e.key === 'Enter') { e.preventDefault(); hex.blur(); } }, onchange: () => { const c = E.hex2rgba(hex.value); if (c) setColor(E.rgba2hex(c, true), slot); else paint(); } });
-    let slot = 0, hsv = [0, 0, 0], a = 255;
-    const sw1 = h('button.sk-sw1', { type: 'button', 'aria-label': 'First colour', onclick: () => { slot = 0; paint(); } }), sw2 = h('button.sk-sw2', { type: 'button', 'aria-label': 'Second colour', onclick: () => { slot = 1; paint(); } });
-    tip(sw1, ['First colour', 'Left click, pencil and fill']); tip(sw2, ['Second colour', 'Right click on the sheet, dither and gradient end']);
-    const swapB = ibtn('swap', 'Swap the colours', () => { swapColors(); }, { key: 'X', size: 16, cls: 'sk-mini' });
-    const cur = () => (slot ? ui().color2 : ui().color);
+    const sv = h('canvas.sk-sv', { width: 200, height: 120, 'aria-label': 'Saturation and brightness of the paint colour', role: 'slider', tabindex: 0 });
+    const hue = h('canvas.sk-hue', { width: 14, height: 120, 'aria-label': 'Hue of the paint colour', role: 'slider', tabindex: 0 });
+    const alpha = h('canvas.sk-alpha', { width: 14, height: 120, 'aria-label': 'Opacity of the paint colour', role: 'slider', tabindex: 0 });
+    const hex = h('input.field.sk-hex', { type: 'text', maxlength: 9, spellcheck: false, autocomplete: 'off', 'aria-label': 'Paint colour code', 'data-focus': 'sk-hex',
+      onkeydown: (e) => { if (e.key === 'Enter') { e.preventDefault(); hex.blur(); } }, onchange: () => { const c = E.hex2rgba(hex.value); if (c) { setColor(E.rgba2hex(c, true), 0); pushRecent(ui().color); } else paint(); } });
+    let hsv = [0, 0, 0], a = 255;
+    const sw1 = h('button.sk-sw1', { type: 'button', 'aria-label': 'Paint colour', onclick: () => hex.focus() });
+    const sw2 = h('button.sk-sw2', { type: 'button', 'aria-label': 'Second colour: click to paint with it', onclick: () => swapColors() });
+    tip(sw1, () => ['Paint colour ' + E.rgba2hex(E.hex2rgba(ui().color), true).toUpperCase(), 'Every tool paints with this colour. The picker, the code and the swatches below change it']);
+    tip(sw2, () => ['Second colour ' + E.rgba2hex(E.hex2rgba(ui().color2), true).toUpperCase(), 'The gradient end and the dither colour. Click: paint with it (swap, X). Shift-click a swatch to set it']);
+    const swapB = ibtn('swap', 'Swap the two colours', () => swapColors(), { key: 'X', size: 12, cls: 'sk-mini.sk-cswap' });
+    const cur = () => ui().color;
     function fromState() { const c = E.hex2rgba(cur()); const v = E.rgb2hsv(c[0], c[1], c[2]); if (v[1] > 0.001 && v[2] > 0.001) hsv = v; else hsv = [hsv[0], v[1], v[2]]; a = c[3]; }
-    function commit() { const rgb = E.hsv2rgb(hsv[0], hsv[1], hsv[2]); const v = E.rgba2hex(rgb.concat(a), true); const val = v.length === 7 ? v + 'ff' : v; save((s) => { if (slot) s.ui.color2 = val; else s.ui.color = val; }); drawAll(false); }
+    function commit() { const rgb = E.hsv2rgb(hsv[0], hsv[1], hsv[2]); const v = E.rgba2hex(rgb.concat(a), true); const val = v.length === 7 ? v + 'ff' : v; save((s) => { s.ui.color = val; }); drawAll(false); }
     function drawAll(read) {
       if (read !== false) fromState();
       const x = sv.getContext('2d'), w = sv.width, hh = sv.height;
@@ -1764,14 +1780,14 @@
       ax.fillStyle = '#fff'; ax.fillRect(0, ay, AW, 3); ax.strokeStyle = '#000'; ax.strokeRect(0.5, ay - 0.5, AW - 1, 4);
       const c1 = E.hex2rgba(ui().color), c2 = E.hex2rgba(ui().color2);
       sw1.style.setProperty('--c', 'rgba(' + c1.slice(0, 3) + ',' + c1[3] / 255 + ')'); sw2.style.setProperty('--c', 'rgba(' + c2.slice(0, 3) + ',' + c2[3] / 255 + ')');
-      sw1.classList.toggle('on', slot === 0); sw2.classList.toggle('on', slot === 1);
-      if (document.activeElement !== hex) hex.value = E.rgba2hex(E.hex2rgba(cur()), true).toUpperCase();
+      if (document.activeElement !== hex) hex.value = E.rgba2hex(c1, true).toUpperCase();
+      markSwatches();
       if (panel && panel.onColor) panel.onColor();
     }
     const paint = () => drawAll(true);
     const drag = (cv, fn) => {
       const go = (e) => { const r = cv.getBoundingClientRect(); fn(clamp((e.clientX - r.left) / r.width, 0, 1), clamp((e.clientY - r.top) / r.height, 0, 1)); commit(); };
-      cv.addEventListener('pointerdown', (e) => { cv.setPointerCapture(e.pointerId); go(e); const mv = (ev) => go(ev); const end = () => { cv.removeEventListener('pointermove', mv); cv.removeEventListener('pointerup', end); pushRecent(cur()); }; cv.addEventListener('pointermove', mv); cv.addEventListener('pointerup', end); });
+      cv.addEventListener('pointerdown', (e) => { if (e.button !== 0) return; try { cv.setPointerCapture(e.pointerId); } catch (x) { /* synthetic pointer */ } go(e); const mv = (ev) => go(ev); const end = () => { cv.removeEventListener('pointermove', mv); cv.removeEventListener('pointerup', end); pushRecent(cur()); }; cv.addEventListener('pointermove', mv); cv.addEventListener('pointerup', end); });
     };
     drag(sv, (fx, fy) => { hsv[1] = fx; hsv[2] = 1 - fy; });
     drag(hue, (fx, fy) => { hsv[0] = fy * 359.9; });
@@ -1786,33 +1802,42 @@
       [sv, hue, alpha].forEach((c) => { const w = Math.round(c.clientWidth), hh = Math.round(c.clientHeight); if (w > 0 && hh > 0 && (c.width !== w || c.height !== hh)) { c.width = w; c.height = hh; ch = true; } });
       if (ch) drawAll(false);
     }).observe(sv);
-    const swatch = (hexv, title, onpick, extra) => { const b = vars(h('button.sk-swatch', { type: 'button', 'aria-label': title || hexv, onclick: (e) => onpick(hexv, e), oncontextmenu: (e) => { e.preventDefault(); setColor(hexv, 1); } }, extra), { '--c': hexv }); tip(b, [hexv.toUpperCase().slice(0, 7), 'Click: first colour · right-click: second']); return b; };
-    const pick = (v, e) => setColor(v, e && e.shiftKey ? 1 : slot);
+    /* ---- the palette: a readable grid, the swatch of the paint colour outlined ---- */
+    const key8 = (v) => { const c = E.hex2rgba(v); return c ? E.rgba2hex(c, true).toLowerCase().padEnd(9, 'f') : ''; };
+    const swatch = (hexv) => {
+      const b = vars(h('button.sk-swatch', { type: 'button', 'aria-label': hexv.toUpperCase().slice(0, 7), 'data-hex': key8(hexv), onclick: (e) => pick(hexv, e) }), { '--c': hexv });
+      tip(b, [hexv.toUpperCase().slice(0, 7), 'Click: paint with it · Shift-click: second colour']);
+      return b;
+    };
+    const pick = (v, e) => { const second = !!(e && e.shiftKey); setColor(v, second ? 1 : 0); if (!second) pushRecent(v); };
+    function markSwatches() { if (!swBox) return; const k = key8(ui().color); swBox.querySelectorAll('.sk-swatch').forEach((b) => b.classList.toggle('on', b.dataset.hex === k)); }
     const recentRow = h('div.sk-swatches');
     const skinRow = h('div.sk-swatches');
-    const mcRow = h('div.sk-swatches', MC_PALETTE.map((v) => swatch(v, v, pick)));
+    const mcRow = h('div.sk-swatches', MC_PALETTE.map((v) => swatch(v)));
     const palsBox = h('div.sk-pals');
     const savePal = ibtn('plus', 'Save as palette', async () => {
       const name = await TH.util.ask({ text: 'Name for this palette (the colours of your skin)', input: 'Palette ' + (ui().palettes.length + 1), ok: 'Save palette' });
       if (!name) return;
-      save((s) => { s.ui.palettes.unshift({ id: uid('pal'), name, colors: E.palette(ED.comp, 24, 10, model()) }); s.ui.swatches = 'saved'; });
+      save((s) => { s.ui.palettes.unshift({ id: uid('pal'), name, colors: E.skinPalette(ED.comp, model(), 48) }); s.ui.swatches = 'saved'; });
       paintPals(); showSrc(); toast('Palette saved');
     }, { size: 14, cls: 'sk-mini', sub: 'Keeps the colours of this skin as a palette, to use on other skins' });
-    function paintRecent() { recentRow.replaceChildren(...(ui().recent.length ? ui().recent.map((v) => swatch(v, v, pick)) : [h('span.sk-empty', 'Colours you paint with show up here.')])); }
-    function paintSkinPal() { skinRow.replaceChildren(...E.palette(ED.comp, 24, 10, model()).map((v) => swatch(v, v, pick))); }
+    function paintRecent() { recentRow.replaceChildren(...(ui().recent.length ? ui().recent.map((v) => swatch(v)) : [h('span.sk-empty', 'Colours you paint with show up here.')])); markSwatches(); }
+    function paintSkinPal() { skinRow.replaceChildren(...E.skinPalette(ED.comp, model(), 48).map((v) => swatch(v))); markSwatches(); }
     function paintPals() {
       palsBox.replaceChildren(...(ui().palettes.length ? ui().palettes.map((p) => h('div.sk-pal', h('div.sk-pal-head', h('span.sk-pal-name', p.name),
         ibtn('x', 'Delete the palette ' + p.name, () => { save((s) => { s.ui.palettes = s.ui.palettes.filter((x) => x.id !== p.id); }); paintPals(); }, { size: 12, cls: 'sk-mini' })),
-      h('div.sk-swatches', p.colors.map((v) => swatch(v, v, pick))))) : [h('span.sk-empty', 'No saved palettes. + keeps the colours of this skin.')]));
+      h('div.sk-swatches', p.colors.map((v) => swatch(v))))) : [h('span.sk-empty', 'No saved palettes. + keeps the colours of this skin.')]));
+      markSwatches();
     }
     const rows = { recent: recentRow, skin: skinRow, mc: mcRow, saved: palsBox };
-    const srcSeg = seg('Swatches', [['recent', 'Recent', 'Colours you used last'], ['skin', 'Skin', 'The colours of this skin'], ['mc', 'Minecraft', 'The 16 dye colours and skin tones'], ['saved', 'Saved', 'Your saved palettes']],
+    const srcSeg = seg('Swatches', [['recent', 'Recent', 'The colours you used last'], ['skin', 'This skin', 'Every colour of this skin, in order (a gradient reads as a gradient)'], ['mc', 'Minecraft', 'The 16 dye colours and skin tones'], ['saved', 'Saved', 'Your saved palettes']],
       () => ui().swatches, (v) => { save((s) => { s.ui.swatches = v; }); showSrc(); }, 'sk-srcseg');
-    const swBox = h('div.sk-swbox', recentRow, skinRow, mcRow, palsBox);
-    palsBox.classList.add('th-scroll');
-    function showSrc() { srcSeg.paint(); Object.keys(rows).forEach((k) => { rows[k].hidden = ui().swatches !== k; }); }
+    const swBox = h('div.sk-swbox.th-scroll', recentRow, skinRow, mcRow, palsBox);
+    function showSrc() { srcSeg.paint(); Object.keys(rows).forEach((k) => { rows[k].hidden = ui().swatches !== k; }); swBox.scrollTop = 0; }
     const panel = h('div.sk-color', { role: 'group', 'aria-label': 'Colour' },
-      h('div.sk-crow', h('div.sk-swpair', sw1, sw2, swapB), hex),
+      h('div.sk-crow',
+        h('div.sk-cstack', sw2, sw1, swapB),
+        h('div.sk-cinfo', h('span.sk-ol', 'Paint colour'), hex, h('span.sk-chint', 'Swatch: click = paint · Shift = 2nd'))),
       h('div.sk-pick', sv, hue, alpha),
       h('div.sk-srcrow', srcSeg, savePal), swBox);
     panel.paint = paint; panel.paintRecent = paintRecent; panel.paintSkinPal = paintSkinPal; panel.paintPals = paintPals;
@@ -2271,7 +2296,9 @@
       ['Ctrl + C / X / V', 'Copy / cut / paste (paste floats at the pointer)'], ['Ctrl + Shift + V', 'Paste in place'], ['Ctrl + J', 'Duplicate the selection'],
       ['Alt + Backspace', 'Fill the selection with the first colour'], ['Delete', 'Clear the selected pixels'], ['Alt + drag (Move)', 'Move a copy'],
       ['Enter / Esc', 'Drop / cancel a floating piece (a click outside it drops it too)'],
-      ['Right-drag, Space + drag', 'Move the frame (pan), on the model and the sheet'], ['Middle-drag, Alt + drag', 'Turn the camera around the model'], ['Wheel', 'Zoom toward the pointer'],
+      ['Left-drag beside the model', 'Turn the camera (a drag that starts ON the model uses the tool)'], ['O', 'Orbit mode on / off: left-drag always turns, clicks never paint'],
+      ['Space + drag, middle-drag, Alt + drag', 'Turn the camera around the model'], ['Right-drag', 'Move the frame (pan), on the model and the sheet (Space + drag pans the sheet)'], ['Wheel', 'Zoom toward the pointer'],
+      ['Click a swatch / Shift + click', 'Paint with that colour / make it the second colour'],
       ['Double-click a part', 'Fly the camera to it, turned to that face'], ['Two fingers', 'Move and pinch-zoom (touch)'], ['K', 'Play / pause the animation'], ['Home (on the model)', 'Reset the view'],
       ['A', 'Adjust colours'], ['P', 'Part tools'], ['J', 'Reference image'], ['Ctrl + S', 'Save to My skins'], ['?', 'This card']]);
     openSheet('Keyboard shortcuts', h('dl.sk-keys', rows.map(([k, d]) => [h('dt', h('kbd', k)), h('dd', d)])), { wide: true });
@@ -2312,6 +2339,8 @@
     if (e.shiftKey && (k === '<' || k === ',')) { done(); transformFloat('rotCCW'); return; }
     if (e.shiftKey && (k === '>' || k === '.')) { done(); transformFloat('rotCW'); return; }
     if (e.shiftKey && lk === 'g') { done(); const n = { none: 'grid', grid: 'parts', parts: 'none' }[ui().overlay]; save((s) => { s.ui.overlay = n; }); V.setOverlay(n); patchViewBar(); return; }
+    if (lk === 'r' && e.shiftKey) { done(); setTool('ellipse'); return; }
+    if (lk === 'o' && !e.shiftKey) { done(); setOrbitMode(!ui().orbitMode); return; }
     const tool = TOOLS.find((t) => t[2].toLowerCase() === lk && !e.shiftKey);
     if (tool) { done(); setTool(tool[0]); return; }
     if (/^[0-9]$/.test(k)) { done(); const v = k === '0' ? 1 : +k / 10; save((s) => { s.ui.opacity = v; }); patchOptions(); toast('Opacity ' + Math.round(v * 100) + '%'); return; }
@@ -2442,6 +2471,7 @@
     if (!UI) mount();
     root.append(UI.wrap);
     setTool(ui().tool);
+    setOrbitMode(!!ui().orbitMode);
     applyView();
     patchAll();
     if (!booting) booting = boot();

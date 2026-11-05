@@ -691,3 +691,31 @@
   .bd-mopt-hint { flex-basis: 100%; }
   .bd-palgrid { grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); }
 }
+
+/* ---- big builds: the progress line on the stage, the resting play keys, the Cut panel ---- */
+.bd-busy { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); z-index: 3; display: grid; gap: 6px; width: min(500px, calc(100% - 36px)); pointer-events: none; text-align: center; }
+.bd-busy[hidden] { display: none; }
+.bd-busy-t { font: 400 12px/1.3 var(--display); color: var(--text); text-shadow: 0 1px 0 var(--edge-lo); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bd-busy-bar { display: block; height: 4px; border-radius: 2px; overflow: hidden; background: var(--slot, var(--bg-2)); box-shadow: var(--slot-shadow); }
+:root[data-neu] .bd-busy-bar { background: var(--neu-well); box-shadow: var(--neu-inset-xs); }
+.bd-busy-fill { display: block; height: 100%; width: calc(var(--p, 0) * 100%); background: var(--accent); }
+.bd-viewer.is-loading .bd-hint { visibility: hidden; }
+/* no build-up animation for big builds: the play group rests (its tooltip says why) */
+.bd-viewer.is-big .bd-abar > .bd-bar-grp:first-child > * { opacity: .45; pointer-events: none; }
+.bd-cut-row { grid-template-columns: 34px minmax(80px, 1fr) minmax(80px, 1fr) 96px 34px; }
+.bd-cut-ax { text-align: center; }
+/* the "from" slider lights what is shown: from its thumb to the right */
+:root .module-builds .slider.bd-cut-from::-webkit-slider-runnable-track {
+  background: linear-gradient(90deg, var(--slot, var(--neu-well)) var(--fill, 0%), color-mix(in srgb, var(--accent) 38%, var(--slot, var(--neu-well))) var(--fill, 0%));
+}
+:root[data-neu] .module-builds .slider.bd-cut-from::-webkit-slider-runnable-track {
+  background: linear-gradient(90deg, var(--neu-well) var(--fill, 0%), color-mix(in srgb, var(--accent) 34%, var(--neu-well)) var(--fill, 0%));
+}
+.bd-cutkey.is-cut { color: var(--accent); }
+.bd-viewer.is-make .bd-cutkey, .bd-viewer.is-make .bd-cut { display: none; }
+@container (max-width: 640px) {
+  .bd-cut-row { grid-template-columns: 34px minmax(0, 1fr) minmax(0, 1fr) 34px; }
+  .bd-cut-row > .btn { grid-column: 4; grid-row: 1; }
+  .bd-cut-at { grid-column: 2 / 4; grid-row: 2; }
+}
+@media (max-width: 640px) { .bd-cut-row { grid-template-columns: 40px minmax(0, 1fr) minmax(0, 1fr) 40px; } }

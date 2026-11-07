@@ -71,7 +71,8 @@ TH.builds = TH.builds || {};
     if (poolCache.has(key)) return poolCache.get(key);
     const core = C(), names = Object.keys(colours()).filter((n) => {
       const d = core.def('minecraft:' + n);
-      if (d.shape !== 'cube' || d.fn || !d.fam || /glazed|_ore$|command|spawner|shulker|sus|_log$|_wood$|_stem$|hyphae|grass_block|mycelium|podzol|farmland|leaves|tnt|sponge|infested|reinforced|budding|crafter|vault|bookshelf|pumpkin|melon|hay|honey|slime|target|bee|barrel|loom|furnace|table|chest|anchor|lodestone/.test(n)) return false;
+      // d.note: once-functional blocks that now swap with a warning chip (mud, soul sand, magma, ice): not in the colour pools
+      if (d.shape !== 'cube' || d.fn || d.note || !d.fam || /glazed|_ore$|command|spawner|shulker|sus|_log$|_wood$|_stem$|hyphae|grass_block|mycelium|podzol|farmland|leaves|tnt|sponge|infested|reinforced|budding|crafter|vault|bookshelf|pumpkin|melon|hay|honey|slime|target|bee|barrel|loom|furnace|table|chest|anchor|lodestone/.test(n)) return false;
       if (key === 'concrete') return /_concrete$/.test(n);
       if (key === 'terracotta') return /terracotta$/.test(n);
       if (key === 'wool') return /_wool$/.test(n);

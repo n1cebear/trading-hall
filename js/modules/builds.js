@@ -117,6 +117,7 @@
     up: ['#######', '..###..', '.#####.', '#.###.#', '...#...', '...#...', '...#...'],
     copy: ['####...', '#..#...', '#..####', '#..#..#', '####..#', '...#..#', '...####'],
     lock: ['..###..', '.#...#.', '.#...#.', '#######', '###.###', '###.###', '#######'],
+    warn: ['...#...', '..#.#..', '..#.#..', '.#.#.#.', '.#...#.', '#..#..#', '#######'],
     swap: ['..#....', '.###...', '#.#....', '..#..#.', '....#.#', '...###.', '....#..'],
     dice: ['#######', '#.....#', '#.#.#.#', '#.....#', '#.#.#.#', '#.....#', '#######'],
     x: ['#.....#', '.#...#.', '..#.#..', '...#...', '..#.#..', '.#...#.', '#.....#'],
@@ -1156,6 +1157,7 @@
     const n = Object.keys(swaps).length;
     const mkRow = (r) => {
       const to = swaps[r.id] && core().canSwap(r.id, swaps[r.id]) ? swaps[r.id] : null, cur = to || r.id;
+      const warn = to ? core().swapWarnings(r.id, to) : [];
       const btn = h('button.btn.bd-swap' + (to ? '.on' : ''), { type: 'button', 'aria-expanded': 'false', onclick: () => {
         const open = btn.getAttribute('aria-expanded') === 'true';
         closePickers();
@@ -1165,11 +1167,12 @@
         btn.after(blockPicker({ ids: core().familyOf(fam), current: cur, original: r.id, note: core().famNote(fam), onPick: (id) => setSwap(key, r.id, id), label: 'Replace ' + core().nameOf(r.id) }));
       } },
       core().blockIcon(cur, { size: 24 }),
-      h('span.bd-swap-txt', h('span.bd-swap-name', core().nameOf(cur)), to ? h('span.bd-swap-was', 'was ' + core().nameOf(r.id)) : h('span.bd-swap-was', 'Click to replace')),
+      h('span.bd-swap-txt', h('span.bd-swap-name', core().nameOf(cur)), to ? h('span.bd-swap-was', 'was ' + core().nameOf(r.id), warn.length ? [' · ', h('span.bd-swap-warn', glyph('warn', 'bd-warn-ico'), warn.map((w) => w.text).join(', '))] : null) : h('span.bd-swap-was', 'Click to replace')),
       h('span.bd-swap-n', fmtN(r.n)), glyph('swap', 'bd-swap-ico'));
+      if (warn.length) tip(btn, () => [h('div.th-tooltip-title', core().nameOf(r.id) + ' → ' + core().nameOf(cur))].concat(warn.map((w) => h('div.th-tooltip-sub.bd-tip-warn', w.text + ': ' + w.tip))));
       return btn;
     };
-    const lockRow = (r) => tip(h('div.bd-lockrow', { tabindex: 0 }, core().blockIcon(r.id, { size: 20 }), h('span.bd-swap-name', core().nameOf(r.id)), h('span.bd-swap-n', fmtN(r.n)), glyph('lock', 'bd-lock-ico')),
+    const lockRow = (r) => tip(h('div.bd-lockrow', { tabindex: 0 }, core().blockIcon(r.id, { size: 20 }), h('span.bd-swap-name', core().nameOf(r.id)), h('span.bd-lock-why', core().replaceable(r.id).why), h('span.bd-swap-n', fmtN(r.n)), glyph('lock', 'bd-lock-ico')),
       () => [h('div.th-tooltip-title', core().nameOf(r.id) + ' stays'), h('div.th-tooltip-sub', core().replaceable(r.id).why)]);
     // whole sets: only those with two or more kinds of block (one kind is the same as its single row)
     const sets = core().setsIn(orig, swaps).filter((x) => x.blocks.length > 1).slice(0, 6);
@@ -1240,7 +1243,7 @@
       const rep = core().setName(set.kind, tk, top.role);
       const icon = rep ? 'minecraft:' + rep : core().setIcon(set.kind, tk);
       const b = h('button.btn.bd-pick-tile', { type: 'button', 'aria-pressed': 'false', 'aria-label': core().setLabel(set.kind, tk), disabled: !plan.kinds, onclick: () => pick(tk, plan, b) }, core().blockIcon(icon, { size: 24 }));
-      return tip(b, () => [h('div.th-tooltip-title', core().setLabel(set.kind, tk)), h('div.th-tooltip-sub', plan.kinds ? plan.kinds + ' of ' + set.blocks.length + ' kinds change · ' + fmtN(plan.blocks) + ' blocks' : 'Nothing here has a ' + core().setLabel(set.kind, tk) + ' version'), plan.note ? h('div.th-tooltip-sub', plan.note) : null].filter(Boolean));
+      return tip(b, () => [h('div.th-tooltip-title', core().setLabel(set.kind, tk)), h('div.th-tooltip-sub', plan.kinds ? plan.kinds + ' of ' + set.blocks.length + ' kinds change · ' + fmtN(plan.blocks) + ' blocks' : 'Nothing here has a ' + core().setLabel(set.kind, tk) + ' version'), plan.note ? h('div.th-tooltip-sub', plan.note) : null].concat(plan.warn.map((w) => h('div.th-tooltip-sub.bd-tip-warn', w.text + ': ' + w.tip))).filter(Boolean));
     });
     const line = (from, to, nn, why) => h('div.bd-plan-row' + (to ? '' : '.stay'), core().blockIcon(from, { size: 20 }), h('span.bd-plan-name', core().nameOf(from)),
       to ? [glyph('right', 'bd-plan-arr'), core().blockIcon(to, { size: 20 }), h('span.bd-plan-name.bd-plan-new', core().nameOf(to))] : h('span.bd-plan-why', why), h('span.bd-swap-n', fmtN(nn)));
@@ -1255,6 +1258,7 @@
       preview.replaceChildren(...[
         h('div.bd-plan-rows.th-scroll', plan.change.map((c) => line(c.from, c.to, c.n)), plan.stay.map((x) => line(x.id, null, x.n, x.why))),
         plan.note ? h('p.bd-note.bd-plan-note', plan.note) : null,
+        plan.warn.length ? h('div.bd-pick-chips.bd-plan-warn', warnChips(plan.warn)) : null,
         h('div.bd-actions', apply, h('button.btn.small', { type: 'button', onclick: () => { closePickers(); } }, 'Cancel'))].filter(Boolean));
     }
     const el = h('div.bd-picker.bd-setpick', { role: 'dialog', 'aria-label': 'Change every ' + set.label + ' block' },
@@ -1264,34 +1268,121 @@
     return el;
   }
 
-  /** Compact block picker: search + grouped tiles with real textures. */
+  /** The warning chips of a swap, as small flat labels (the tooltip of each has the longer reason). */
+  function warnChips(list, max) {
+    const shown = max ? list.slice(0, max) : list;
+    return shown.map((w) => tip(h('span.chip.bd-wchip', glyph('warn', 'bd-warn-ico'), w.text), w.tip)).concat(list.length > shown.length ? [tip(h('span.chip.bd-wchip', '+' + (list.length - shown.length)), () => list.slice(shown.length).map((w) => h('div.th-tooltip-sub', w.text + ': ' + w.tip)))] : []);
+  }
+  /**
+   * Block picker (Builds "Customise blocks", the generators, the editor, the Material List "Replace"): the class note, the
+   * current pick with its warning chips, a search field, one key per block group (GROUP_ORDER), then the blocks as texture
+   * tiles under their group heading. Filtering only hides tiles (nothing is rebuilt, nothing jumps); icons are drawn when a
+   * tile scrolls into view, since a solid block can be replaced by some 380 others.
+   * o = { ids (block names), current (id), original (id: shows the warning chips of swapping it), note, label, onPick(id),
+   *       pin: { label, ids } (a first group, e.g. blocks already in the list), icon(id, size), onClose() }
+   */
+  let pickIO = null;
   function blockPicker(o) {
-    const field = h('input.field.bd-pick-search', { type: 'search', placeholder: 'Search blocks', 'aria-label': 'Search blocks', autocomplete: 'off', spellcheck: false });
-    const body = h('div.bd-pick-body.th-scroll');
-    const G = core().GROUPS, ord = core().GROUP_ORDER;
-    const origName = o.original ? core().parse(o.original).name : null, origBurns = origName ? core().burns(origName) : null;
-    function fill() {
-      const q = field.value.trim().toLowerCase();
-      const ids = o.ids.filter((n) => !q || core().nameOf('minecraft:' + n).toLowerCase().includes(q) || n.includes(q.replace(/ /g, '_')));
-      const groups = new Map();
-      ids.forEach((n) => { const g = core().def('minecraft:' + n).grp || 'misc'; if (!groups.has(g)) groups.set(g, []); groups.get(g).push(n); });
-      const out = [];
-      [...groups.keys()].sort((a, b) => ord.indexOf(a) - ord.indexOf(b)).forEach((g) => {
-        out.push(h('div.bd-pick-grp', G[g] || g));
-        out.push(h('div.bd-pick-grid', groups.get(g).map((n) => {
-          const id = 'minecraft:' + n, on = core().parse(o.current).name === n, orig = origName === n;
-          const fire = origName && !orig && core().burns(n) !== origBurns ? (origBurns ? 'Does not burn' : 'Burns: keep it away from lava and fire') : null;
-          const b = h('button.btn.bd-pick-tile' + (on ? '.on' : ''), { type: 'button', 'aria-pressed': String(on), 'aria-label': core().nameOf(id), onclick: () => o.onPick(id) }, core().blockIcon(id, { size: 24 }), orig ? h('span.bd-pick-orig', { 'aria-hidden': 'true' }) : null);
-          return tip(b, () => [h('div.th-tooltip-title', core().nameOf(id)), orig ? h('div.th-tooltip-sub', 'The original block') : null, fire ? h('div.th-tooltip-sub', fire) : null].filter(Boolean));
-        })));
+    const C = core(), G = C.GROUPS, ord = C.GROUP_ORDER;
+    const origName = o.original ? C.parse(o.original).name : null, curName = o.current ? C.parse(o.current).name : null;
+    const icon = (id, size) => (o.icon ? o.icon(id, size) : C.blockIcon(id, { size }));
+    const names = o.ids.slice();
+    if (origName && !names.includes(origName) && C.known(o.original)) names.unshift(origName);   // the way back is always there
+    const pinned = new Set((o.pin && o.pin.ids) || []);
+    // tiles by group, in the picker's group order (a pinned group first)
+    const byGrp = new Map();
+    names.forEach((n) => { const g = pinned.has(n) ? 'pin' : C.def('minecraft:' + n).grp || 'misc'; if (!byGrp.has(g)) byGrp.set(g, []); byGrp.get(g).push(n); });
+    const gkeys = [...byGrp.keys()].sort((a, b) => (a === 'pin' ? -1 : b === 'pin' ? 1 : ord.indexOf(a) - ord.indexOf(b)));
+    const gname = (g) => (g === 'pin' ? o.pin.label : G[g] || g);
+    // the current pick (idle) or the tile under the pointer / focus, with what the swap changes
+    const now = o.original ? h('div.bd-pick-now', { 'aria-live': 'polite' }) : null;
+    const showNow = (n, hover) => {
+      if (!now) return;
+      const id = 'minecraft:' + n, w = n === origName ? [] : C.swapWarnings(o.original, id);
+      now.replaceChildren(h('span.bd-pick-eye', hover ? 'Swap to' : 'Now'), icon(id, 20), h('span.bd-pick-nowname', C.nameOf(id)),
+        n === origName ? h('span.bd-pick-same', 'the original') : w.length ? h('span.bd-pick-chips', warnChips(w, 2)) : h('span.bd-pick-same', 'works the same'));
+    };
+    const idle = () => showNow(curName || origName, false);
+    const io = 'IntersectionObserver' in window ? null : false;
+    const tiles = [];
+    const mkTile = (n) => {
+      const id = 'minecraft:' + n, on = n === curName, orig = n === origName;
+      const w = o.original && !orig ? C.swapWarnings(o.original, id) : [];
+      const ico = h('span.bd-pick-ico', { 'aria-hidden': 'true' });
+      const b = h('button.btn.bd-pick-tile' + (on ? '.on' : ''), { type: 'button', 'aria-pressed': String(on), 'aria-label': C.nameOf(id) + (orig ? ', the original' : '') + (w.length ? ', ' + w.map((x) => x.text).join(', ') : ''), onclick: () => o.onPick(id) },
+        ico, orig ? h('span.bd-pick-orig', { 'aria-hidden': 'true' }) : null, w.length ? glyph('warn', 'bd-pick-warn') : null);
+      b._n = n; b._q = (C.nameOf(id) + ' ' + n.replace(/_/g, ' ')).toLowerCase(); b._ico = ico; b._id = id;
+      if (now) {
+        b.addEventListener('pointerenter', () => showNow(n, true)); b.addEventListener('focus', () => showNow(n, true));
+        b.addEventListener('pointerleave', idle); b.addEventListener('blur', idle);
+      }
+      tiles.push(b);
+      return tip(b, () => [h('div.th-tooltip-title', C.nameOf(id)), orig ? h('div.th-tooltip-sub', 'The original block') : on ? h('div.th-tooltip-sub', 'Chosen now') : null,
+        o.original && !orig && !w.length ? h('div.th-tooltip-sub', 'Works the same here') : null].concat(w.map((x) => h('div.th-tooltip-sub.bd-tip-warn', x.text + ': ' + x.tip))).filter(Boolean));
+    };
+    const sections = gkeys.map((g) => {
+      const head = h('div.bd-pick-grp', gname(g)), grid = h('div.bd-pick-grid', byGrp.get(g).map(mkTile));
+      return { g, head, grid, tiles: [...grid.children] };
+    });
+    const body = h('div.bd-pick-body.th-scroll' + (names.length > 36 ? '.is-tall' : ''), sections.map((s) => [s.head, s.grid]).flat());
+    const none = h('p.bd-note.bd-pick-none', { hidden: true });
+    body.append(none);
+    // icons only for tiles that come into view
+    if (pickIO) pickIO.disconnect();
+    if (io !== false) {
+      pickIO = new IntersectionObserver((es, obs) => es.forEach((e) => {
+        if (!e.isIntersecting) return;
+        const b = e.target;
+        obs.unobserve(b);
+        if (b._ico) { b._ico.replaceWith(icon(b._id, 24)); b._ico = null; }
+      }), { root: body, rootMargin: '160px 0px' });
+      tiles.forEach((b) => pickIO.observe(b));
+    } else tiles.forEach((b) => { b._ico.replaceWith(icon(b._id, 24)); b._ico = null; });
+    // filter: the search text and one group key at a time
+    let grp = 'all';
+    const field = h('input.field.bd-pick-search', { type: 'search', placeholder: 'Search ' + names.length + ' blocks', 'aria-label': 'Search blocks', autocomplete: 'off', spellcheck: false });
+    function filter() {
+      const q = field.value.trim().toLowerCase().replace(/_/g, ' ');
+      let any = 0;
+      sections.forEach((s) => {
+        let vis = 0;
+        s.tiles.forEach((b) => { const show = (grp === 'all' || grp === s.g) && (!q || b._q.includes(q)); b.hidden = !show; if (show) vis++; });
+        s.head.hidden = s.grid.hidden = !vis;
+        any += vis;
       });
-      body.replaceChildren(...(out.length ? out : [h('p.bd-note', 'No block matches “' + field.value + '”.')]));
+      none.hidden = !!any;
+      none.textContent = any ? '' : 'No block matches “' + field.value.trim() + '”' + (grp !== 'all' ? ' in ' + gname(grp) : '') + '.';
     }
-    field.addEventListener('input', fill);
-    fill();
-    const el = h('div.bd-picker', { role: 'dialog', 'aria-label': o.label || 'Pick a block' }, o.note ? h('p.bd-note', o.note) : null, o.ids.length > 12 ? h('div.bd-pick-top', field) : null, body);
-    setTimeout(() => { if (el.isConnected && matchMedia('(hover: hover)').matches) field.focus({ preventScroll: true }); }, 30);
-    el.addEventListener('keydown', (e) => { if (e.key === 'Escape') { el.remove(); UI.side.querySelectorAll('[aria-expanded="true"]').forEach((b) => { b.setAttribute('aria-expanded', 'false'); b.focus(); }); } });
+    field.addEventListener('input', filter);
+    const keyBtns = sections.length > 1 ? [['all', 'All', names.length]].concat(sections.map((s) => [s.g, gname(s.g), s.tiles.length])).map(([g, label, n]) => {
+      const b = h('button.chip' + (g === 'all' ? '.on' : ''), { type: 'button', 'aria-pressed': String(g === 'all'), onclick: () => {
+        grp = g; keyBtns.forEach((k) => press(k, k === b)); filter(); body.scrollTop = 0;
+      } }, label, h('em', String(n)));
+      return b;
+    }) : [];
+    const keys = keyBtns.length ? h('div.bd-pick-keys', { role: 'group', 'aria-label': 'Block groups' }, keyBtns) : null;
+    // one line of keys that scrolls sideways; a mouse wheel scrolls it too
+    if (keys) keys.addEventListener('wheel', (e) => { if (Math.abs(e.deltaY) > Math.abs(e.deltaX) && keys.scrollWidth > keys.clientWidth) { keys.scrollLeft += e.deltaY; e.preventDefault(); } }, { passive: false });
+    const many = names.length > 12;
+    const el = h('div.bd-picker', { role: 'dialog', 'aria-label': o.label || 'Pick a block' },
+      o.note ? h('p.bd-note.bd-pick-note', o.note) : null, now,
+      many ? h('div.bd-pick-top', field) : null,
+      many ? keys : null,
+      body);
+    idle();
+    setTimeout(() => {
+      if (!el.isConnected) return;
+      // the chosen block in view (no smooth scroll: nothing moves on its own)
+      const cur = tiles.find((b) => b.classList.contains('on'));
+      if (cur && cur.offsetTop - body.offsetTop > body.clientHeight - 48) body.scrollTop = cur.offsetTop - body.offsetTop - 40;
+      if (many && matchMedia('(hover: hover)').matches) field.focus({ preventScroll: true });
+    }, 30);
+    el.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape') return;
+      e.stopPropagation();
+      if (o.onClose) { o.onClose(); return; }
+      el.remove(); UI.side.querySelectorAll('[aria-expanded="true"]').forEach((b) => { b.setAttribute('aria-expanded', 'false'); b.focus(); });
+    });
     return el;
   }
 
@@ -1465,6 +1556,8 @@
   TH.builds.api = {
     load: () => loadAll(), isReady: () => ready, loadError: () => loadErr,
     S, save, effective, original, keyName, glyph, sources: matSources, openFile, download: downloadBlob,
+    /** The shared block picker and warning chips (the Material List "Replace" uses the same picker as Builds). */
+    blockPicker, warnChips,
     /** The user's block swaps of a build ({ original base: shown base }); setSwaps replaces them (the stage follows). */
     swaps: (key) => Object.assign({}, S().swaps[key] || {}), setSwaps,
     /** Builds that can take swaps (the shape generator has its own block keys instead). */

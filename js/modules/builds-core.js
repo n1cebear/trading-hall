@@ -8,9 +8,12 @@
  *
  * Block table (BLOCKS): name -> { t, s, b (top / side / bottom texture paths), f / k (front / back for directional
  * blocks), shape, fam, grp, fn (functional reason), tint, ov, cut, icon }.
- *   fam = replacement family: a block may only be swapped for another non-functional block of the same family
- *         (cube, log, glass, leaves, light, gravity, slab, stairs, fence, carpet), so the shape and physics stay the same.
+ *   fam = replacement family (cube, log, glass, leaves, light, gravity, glazed, grate, slab, stairs, fence, carpet,
+ *         trapdoor, ...). A block may be swapped for any non-functional block of the same swap CLASS (classOf: every full
+ *         block is one 'solid' class, the other families are their own class), so the shape and how the build works stay
+ *         the same; where the new block still behaves differently (falls, light ...) swapWarnings names it.
  *   fn  = why the block makes the mechanics work; functional blocks are never replaceable.
+ *   only = the block may be swapped away but is never offered as a replacement (infested, reinforced deepslate ...).
  * Every texture is written as a literal 'block/...' string so tools/build-icon-list.js bundles it for the artifact.
  */
 window.TH = window.TH || {};
@@ -334,7 +337,7 @@ TH.builds = TH.builds || {};
   const woodTokens = memo(() => allNames().filter((n) => /_planks$/.test(n)).map((n) => n.slice(0, -7)).sort((a, b) => b.length - a.length || a.localeCompare(b)));
   const WOOD_ROLE = { planks: 'planks', log: 'log', stem: 'log', wood: 'wood', hyphae: 'wood', stairs: 'stairs', slab: 'slab', fence: 'fence', fence_gate: 'fence_gate',
     door: 'door', trapdoor: 'trapdoor', button: 'button', pressure_plate: 'pressure_plate', sign: 'sign', wall_sign: 'wall_sign', hanging_sign: 'hanging_sign',
-    wall_hanging_sign: 'wall_hanging_sign', leaves: 'leaves', mosaic: 'mosaic', mosaic_slab: 'mosaic_slab', mosaic_stairs: 'mosaic_stairs' };
+    wall_hanging_sign: 'wall_hanging_sign', leaves: 'leaves', mosaic: 'mosaic', mosaic_slab: 'mosaic_slab', mosaic_stairs: 'mosaic_stairs', shelf: 'shelf' };
   function woodOf(name) {
     let n = name, strip = '';
     if (n.startsWith('stripped_')) { strip = 'stripped_'; n = n.slice(9); }
@@ -445,20 +448,50 @@ TH.builds = TH.builds || {};
   /* ---- replacement families beyond the plain building shapes ----
      A swap must never change how the build works: a family holds only blocks of the same shape AND behaviour
      (wooden trapdoors open by hand and by redstone, copper ones the same and weather, iron ones only by redstone). */
+  const CU = '(waxed_)?((exposed|weathered|oxidized)_)?';
+  const cu = (rest) => new RegExp('^' + CU + rest + '$');
+  const FLOWERS = /^(dandelion|golden_dandelion|poppy|blue_orchid|allium|azure_bluet|(red|orange|white|pink)_tulip|oxeye_daisy|cornflower|lily_of_the_valley|torchflower|wither_rose|(open|closed)_eyeblossom)$/;
   const FAM_RULES = [
-    // [test, family]
-    [(n, w) => w && w.role === 'trapdoor', 'trapdoor_wood'], [(n, w) => w && w.role === 'fence_gate', 'fence_gate_wood'], [(n, w) => w && w.role === 'door', 'door_wood'],
+    // [test, family]; wood and copper behaviour classes first
+    [(n, w) => w && w.role === 'trapdoor', 'trapdoor'], [(n) => cu('copper_trapdoor').test(n), 'trapdoor'],
+    [(n, w) => w && w.role === 'fence_gate', 'fence_gate_wood'], [(n, w) => w && w.role === 'door', 'door_wood'], [(n) => cu('copper_door').test(n), 'door_copper'],
     [(n, w) => w && w.role === 'button', 'button_wood'], [(n, w) => w && w.role === 'pressure_plate', 'plate_wood'],
     [(n, w) => w && /^(sign|wall_sign|hanging_sign|wall_hanging_sign)$/.test(w.role), (n, w) => w.role],
-    [(n, w) => w && w.role === 'fence', 'fence'], [(n, w) => w && /log|wood/.test(w.role), 'log'],
-    [(n) => /^(waxed_)?((exposed|weathered|oxidized)_)?copper_trapdoor$/.test(n), 'trapdoor_copper'], [(n) => /^(waxed_)?((exposed|weathered|oxidized)_)?copper_door$/.test(n), 'door_copper'],
-    [(n) => /^(waxed_)?((exposed|weathered|oxidized)_)?copper_grate$/.test(n), 'grate'], [(n) => /^((waxed_)?((exposed|weathered|oxidized)_)?copper|iron)_bars$/.test(n), 'bars'],
-    [(n) => /^((waxed_)?((exposed|weathered|oxidized)_)?copper_chain|iron_chain|chain)$/.test(n), 'chain'], [(n) => /^((waxed_)?((exposed|weathered|oxidized)_)?copper_lantern|lantern)$/.test(n), 'lantern'],
+    [(n, w) => w && w.role === 'shelf', 'shelf'], [(n, w) => w && w.role === 'mosaic', 'cube'],
+    [(n, w) => (w && w.role === 'fence') || n === 'nether_brick_fence', 'fence'], [(n, w) => w && /log|wood/.test(w.role), 'log'],
+    [(n) => cu('copper_grate').test(n), 'grate'],
+    [(n) => /^(glass_pane|[a-z_]+_stained_glass_pane|iron_bars)$/.test(n) || cu('copper_bars').test(n), 'pane'],
+    [(n) => /^(iron_)?chain$/.test(n) || cu('copper_chain').test(n), 'chain'], [(n) => /^(soul_)?lantern$/.test(n) || cu('copper_lantern').test(n), 'lantern'],
+    [(n) => /^(soul_|copper_)?torch$/.test(n), 'torch'], [(n) => /^(soul_|copper_)?wall_torch$/.test(n), 'wall_torch'], [(n) => /^(soul_)?campfire$/.test(n), 'campfire'],
+    [(n) => cu('copper_bulb').test(n), 'copper_bulb'], [(n) => cu('copper_chest').test(n), 'copper_chest'], [(n) => cu('copper_golem_statue').test(n), 'copper_statue'],
+    [(n) => cu('lightning_rod').test(n), 'lightning_rod'],
     [(n) => /^(stone|polished_blackstone)_button$/.test(n), 'button_stone'], [(n) => /^(stone|polished_blackstone)_pressure_plate$/.test(n), 'plate_stone'],
-    [(n) => /^[a-z_]+_glazed_terracotta$/.test(n), 'glazed'], [(n) => /^(glass_pane|[a-z_]+_stained_glass_pane)$/.test(n), 'pane'],
+    [(n) => /_glazed_terracotta$/.test(n), 'glazed'], [(n) => /_carpet$/.test(n), 'carpet'],
     [(n, w, c) => c && c.role === 'bed', 'bed'], [(n, w, c) => c && c.role === 'banner', 'banner'], [(n, w, c) => c && c.role === 'wall_banner', 'wall_banner'],
     [(n, w, c) => c && c.role === 'candle', 'candle'], [(n, w, c) => c && c.role === 'candle_cake', 'candle_cake'], [(n, w, c) => c && c.role === 'shulker_box', 'shulker'],
+    // decoration with a shape of its own
+    [(n) => /_wall_(head|skull)$/.test(n), 'wall_head'], [(n) => /_(head|skull)$/.test(n), 'head'],
+    [(n) => n === 'flower_pot' || /^potted_/.test(n), 'pot'], [(n) => /^(chipped_|damaged_)?anvil$/.test(n), 'anvil'],
+    [(n) => FLOWERS.test(n), 'flower'], [(n) => /^(tall_grass|large_fern|lilac|rose_bush|peony|sunflower|pitcher_plant)$/.test(n), 'tall_plant'],
+    [(n) => /^(short_grass|fern|bush|firefly_bush)$/.test(n), 'grass'], [(n) => /^(dead_bush|short_dry_grass|tall_dry_grass)$/.test(n), 'dry_plant'],
+    [(n) => /^(flowering_)?azalea$/.test(n), 'azalea'], [(n) => /^(pink_petals|wildflowers)$/.test(n), 'petals'],
+    [(n) => /_sapling$/.test(n) && n !== 'bamboo_sapling', 'sapling'], [(n) => /^(brown|red)_mushroom$/.test(n), 'mushroom'],
+    [(n) => /^(crimson|warped)_(fungus|roots)$|^nether_sprouts$/.test(n), 'nether_plant'],
+    [(n) => /^(dead_)?(tube|brain|bubble|fire|horn)_coral$/.test(n), 'coral'], [(n) => /^(dead_)?(tube|brain|bubble|fire|horn)_coral_fan$/.test(n), 'coral_fan'],
+    [(n) => /^(dead_)?(tube|brain|bubble|fire|horn)_coral_wall_fan$/.test(n), 'coral_wall_fan'],
+    [(n) => /^(small|medium|large)_amethyst_bud$|^amethyst_cluster$/.test(n), 'amethyst_bud'],
+    // full cubes the name rules of the database miss, or that had a farm-only reason to stay (see the warning chips)
+    [(n) => /^(carved_pumpkin|honeycomb_block|sculk|soul_soil|sponge|wet_sponge|(deepslate_)?redstone_ore|mud|soul_sand|magma_block|ice|packed_ice|blue_ice|reinforced_deepslate|budding_amethyst|(brown|red)_mushroom_block|mushroom_stem)$/.test(n), 'cube'],
+    [(n) => /^suspicious_(sand|gravel)$/.test(n), 'gravity'], [(n) => n === 'verdant_froglight', 'light'],
   ];
+  /**
+   * Swap classes: families whose blocks may stand in for one another although their states differ. 'solid' = every full
+   * block a builder uses (plain cubes, pillars and logs, glazed terracotta, light blocks, falling blocks, glass, leaves,
+   * copper grates). A property the new block does not have is dropped, a missing one takes the game's default (swapState);
+   * where they behave differently a warning chip says how (swapWarnings).
+   */
+  const CLASS = { cube: 'solid', log: 'solid', glazed: 'solid', light: 'solid', gravity: 'solid', glass: 'solid', leaves: 'solid', grate: 'solid' };
+  const classOf = (fam) => (fam ? CLASS[fam] || fam : null);
   /** Blocks that never swap, with the reason (they have no partner that behaves the same). */
   const LOCKED = {
     iron_door: 'Iron doors only open with redstone, and no other door works that way, so it stays.',
@@ -466,23 +499,54 @@ TH.builds = TH.builds || {};
     light_weighted_pressure_plate: 'Weighted plates give a signal by how many items are on them; no other plate does that.',
     heavy_weighted_pressure_plate: 'Weighted plates give a signal by how many items are on them; no other plate does that.',
     pale_moss_carpet: 'Pale moss carpet grows sides on walls, unlike any other carpet, so it stays.',
-    soul_lantern: 'A soul lantern gives less light than a lantern, which changes where mobs can spawn.',
+    bedrock: 'Bedrock cannot be broken or moved: whatever it holds in place relies on that.',
+    frosted_ice: 'Frosted ice melts away by itself within seconds, so it stays.',
     // blocks that hold a block entity of their own: a swap into a plain cube would throw away what they hold
     chiseled_bookshelf: 'A chiseled bookshelf holds books and gives a comparator signal, so it stays.',
     test_block: 'Test blocks keep their own settings, so they stay.',
     test_instance_block: 'Test blocks keep their own settings, so they stay.',
   };
+  /** Blocks that may be swapped away but are never offered as the new block (you cannot get or place them in survival). */
+  function onlyFrom(name) {
+    if (/^infested_/.test(name)) return 'Hides a silverfish, so it is never offered as a replacement.';
+    if (name === 'reinforced_deepslate') return 'Cannot be mined or crafted in survival, so it is never offered as a replacement.';
+    if (name === 'budding_amethyst') return 'Cannot be picked up, not even with Silk Touch, so it is never offered as a replacement.';
+    if (/^suspicious_/.test(name)) return 'Holds archaeology loot and cannot be crafted, so it is never offered as a replacement.';
+    return null;
+  }
+  /** Why a block without a family stays as it is (the picker and the locked rows show it). */
+  const RS_WHY = 'Redstone part: the machine needs exactly this block.';
+  const LOCK_WHY = [
+    [/^(air|cave_air|void_air|structure_void|barrier|light|bedrock|(chain_|repeating_)?command_block|structure_block|jigsaw|test_(instance_)?block|moving_piston)$/, 'A creative or technical block, so it stays.'],
+    [/portal|end_gateway/, 'Part of a portal, so it stays.'],
+    [/^(water|lava|bubble_column|fire|soul_fire)$|cauldron$/, 'Water, lava or fire: the build depends on where it flows or burns, so it stays.'],
+    [/redstone|repeater|comparator|observer|piston|dispenser|dropper|hopper|^lever$|daylight|tripwire|^target$|note_block|rail$|sculk_(sensor|shrieker)|crafter|^tnt$|trapped_chest/, RS_WHY],
+    [/chest$|barrel|shulker|decorated_pot|lectern|jukebox|bookshelf|beehive|bee_nest|brewing_stand|furnace|smoker|vault|spawner/, 'It holds items or data of its own that no other block can keep, so it stays.'],
+    [/table$|loom|grindstone|stonecutter|composter|bell$/, 'A workstation: villagers take their job from it and it has its own use, so it stays.'],
+    [/beacon|conduit|respawn_anchor|lodestone|heavy_core|creaking_heart|sculk_catalyst|end_portal_frame|dragon_egg|sniffer_egg|turtle_egg|frogspawn|dried_ghast/, 'It has a job of its own that no other block does, so it stays.'],
+    [/wheat|carrots|potatoes|beetroots|_stem$|cocoa|nether_wart$|sweet_berry|cactus|sugar_cane|^bamboo|kelp|seagrass|cave_vines|_crop$|chorus|propagule|dripleaf|sea_pickle|lily_pad/, 'A crop or a plant that grows: the farm relies on it, so it stays.'],
+    [/vine|ladder|scaffolding|hanging_moss|hanging_roots|glow_lichen|sculk_vein|resin_clump|pointed_dripstone|sulfur_spike/, 'You climb it, or it hangs from or grows on a wall, unlike any other block, so it stays.'],
+    [/^snow$|powder_snow|cobweb|honey_block|slime_block|farmland|dirt_path/, 'It changes how players and mobs move or what grows on it, so it stays.'],
+  ];
+  function lockWhy(name) {
+    for (const [re, why] of LOCK_WHY) if (re.test(name)) return why;
+    return 'No other block has this shape and behaviour, so it stays.';
+  }
   function ruleFam(name) {
-    if (/^petrified_oak/.test(name)) return null;
+    if (name === 'petrified_oak_slab') return 'slab';
     const w = woodOf(name), c = colourOf(name);
     for (const [test, fam] of FAM_RULES) if (test(name, w, c)) return typeof fam === 'function' ? fam(name, w) : fam;
     return undefined;
   }
-  /** What a family is, in words (shown in pickers and summaries). */
+  /** What a family (or a class) is, in words (shown in pickers and summaries). */
   const FAM_NOTE = {
-    trapdoor_wood: 'Wooden trapdoors all open by hand and by redstone in the same way.',
-    trapdoor_copper: 'Copper trapdoors open by hand and by redstone; they only differ in how weathered they look.',
-    door_wood: 'Wooden doors all open by hand and by redstone. Iron doors need redstone, so they are not offered.',
+    solid: 'Any full block: stone, wood, wool, concrete, glazed terracotta, ores, glass, leaves, light blocks. A warning shows where the new block behaves differently.',
+    slab: 'Every slab: top, bottom and double halves stay.', stairs: 'Every stair: facing, half and corner shape stay.',
+    wall: 'Every wall: they all connect to each other the same way.', carpet: 'Every carpet: the same thin layer.',
+    fence: 'Every fence: wooden fences join each other; nether brick fences only join nether brick fences.',
+    pane: 'Glass panes and bars: they all join each other the same way.',
+    trapdoor: 'Wooden and copper trapdoors open by hand and by redstone in the same way. Iron ones need redstone, so they are not offered.',
+    door_wood: 'Wooden doors all open by hand and by redstone. Iron doors need redstone and copper doors work differently for mobs, so they are not offered.',
     door_copper: 'Copper doors open by hand and by redstone; they only differ in how weathered they look.',
     fence_gate_wood: 'Every wooden fence gate opens and connects the same way.',
     button_wood: 'Wooden buttons stay pressed longer than stone ones and arrows press them, so only wooden ones are offered.',
@@ -492,13 +556,21 @@ TH.builds = TH.builds || {};
     sign: 'Standing signs. The text stays on the sign.', wall_sign: 'Wall signs. The text stays on the sign.',
     hanging_sign: 'Hanging signs. The text stays on the sign.', wall_hanging_sign: 'Wall hanging signs. The text stays on the sign.',
     banner: 'Banners. Their patterns stay.', wall_banner: 'Wall banners. Their patterns stay.',
-    shulker: 'Shulker boxes. What is inside stays inside.',
+    shulker: 'Shulker boxes. What is inside stays inside.', shelf: 'Wooden shelves. What they hold stays.',
+    lantern: 'Lanterns, hanging or standing. Soul lanterns give less light.', torch: 'Torches on the floor. Soul torches give less light.', wall_torch: 'Torches on a wall. Soul torches give less light.',
+    campfire: 'Campfires: what cooks on them stays. Soul campfires give less light.', copper_bulb: 'Copper bulbs all switch the same way; more weathered ones give less light.',
+    head: 'Mob and player heads on the floor.', wall_head: 'Mob and player heads on a wall.', pot: 'Flower pots, empty or planted.',
+    flower: 'Small flowers. They all grow on grass and dirt.', tall_plant: 'Two-block-tall plants.', grass: 'Grass, ferns and bushes: they grow on grass and dirt.',
+    dry_plant: 'Dead bushes and dry grass: they grow on sand, terracotta and dirt.', azalea: 'Azalea bushes, with or without flowers.', petals: 'Pink petals and wildflowers: the same patches, one to four per block.',
+    sapling: 'Saplings: each grows into its own tree.', coral: 'Coral. Live coral dies out of water.', coral_fan: 'Coral fans. Live coral dies out of water.',
+    coral_wall_fan: 'Coral fans on a wall. Live coral dies out of water.', amethyst_bud: 'Amethyst buds and clusters; bigger ones give more light.',
   };
-  // the hand-made table: buttons and plates were 'functional'; in their own behaviour class they may swap now
+  // the hand-made table: buttons, plates, torches, mud ... were 'functional'; in their own behaviour class they may swap now
   Object.keys(BLOCKS).forEach((n) => {
     const d = BLOCKS[n], f = ruleFam(n);
     if (LOCKED[n]) { d.fam = null; d.fn = LOCKED[n]; return; }
     if (f !== undefined && f) { d.fam = f; if (d.fn) { d.note = d.fn; delete d.fn; } }
+    if (onlyFrom(n)) d.only = onlyFrom(n);
   });
   if (BLOCKS.bamboo_block) BLOCKS.bamboo_block.fam = 'log';
   /** Group for pickers and the material list when a block only comes from the database. */
@@ -556,7 +628,8 @@ TH.builds = TH.builds || {};
       if (t || s) {
         const shape = DB_SHAPE[e[0]] || (name === 'bamboo_fence' ? 'fence' : dbOther(name, flags));
         const functional = DB_FUNC.test(name), rule = ruleFam(name);
-        let fam = functional ? null : { slab: 'slab', stairs: 'stairs', wall: 'wall', carpet: 'carpet' }[shape] || (shape === 'fence' && e[0] === 'fence' ? 'fence' : null)
+        // a family only from the database's own shape (snow layers, vines and lily pads draw as carpets but are not carpets)
+        let fam = functional ? null : (shape === e[0] && { slab: 'slab', stairs: 'stairs', wall: 'wall', carpet: 'carpet' }[shape]) || (shape === 'fence' && e[0] === 'fence' ? 'fence' : null)
           || (shape === 'cube' && e[0] === 'cube' ? (flags & 8 ? 'leaves' : flags & 2 ? 'glass' : DB_BUILD.test(name) ? 'cube' : null) : null);
         if (rule !== undefined) fam = rule;   // trapdoors, gates, doors, signs, beds, logs ... swap within their own behaviour class
         d = { t: t || s, s: s || t, b: b || s || t, shape, fam, grp: grpGuess(name), db: true,
@@ -564,6 +637,7 @@ TH.builds = TH.builds || {};
         if (!(flags & 1)) { const m = name.match(/^(.+)_wall_(torch|sign|hanging_sign|banner|fan)$/); if (m) d.item = m[1] + '_' + m[2]; }
         if (d.tint && name === 'grass_block') d.tint = { t: d.tint };
         if (LOCKED[name]) { d.fam = null; d.fn = LOCKED[name]; }
+        if (d.fam && onlyFrom(name)) d.only = onlyFrom(name);
         if (d.fam && /(_log|_wood|_stem|_hyphae|basalt|_pillar|^deepslate|bamboo_block|hay_block|bone_block|froglight|muddy_mangrove_roots|chain)$/.test(name)) d.axis = true;
       }
     }
@@ -581,54 +655,147 @@ TH.builds = TH.builds || {};
     const d = def(id);
     if (d === UNKNOWN) return { ok: false, why: 'Not a block this tool knows, so it stays as it is.' };
     if (d.fn) return { ok: false, why: d.fn };
-    if (!d.fam) return { ok: false, why: 'This block has no safe replacement of the same shape.' };
+    if (!d.fam) return { ok: false, why: lockWhy(parse(id).name) };
     return { ok: true, why: '' };
   }
-  /** Every non-functional block of a family (for the picker): the hand-made table and the game's database, in group order. */
+  /**
+   * Every block that may stand in for a block of family `fam` (for the picker): its whole swap class, from the hand-made
+   * table and the game's database, without functional blocks and without those never offered (onlyFrom), in group order.
+   */
   const famCache = new Map();
   function familyOf(fam) {
     if (!fam) return [];
-    let v = famCache.get(fam);
+    const key = classOf(fam);
+    let v = famCache.get(key);
     if (v) return v;
     const gi = (n) => { const i = GROUP_ORDER.indexOf(def('minecraft:' + n).grp); return i < 0 ? 99 : i; };
-    v = allNames().filter((n) => { const d = BLOCKS[n] || dbDef(n); return d && d.fam === fam && !d.fn; })
+    v = allNames().filter((n) => { const d = BLOCKS[n] || dbDef(n); return d && d.fam && classOf(d.fam) === key && !d.fn && !d.only; })
       .sort((a, b) => gi(a) - gi(b) || (setOf(a) && setOf(a).kind === 'wood' && setOf(b) && setOf(b).kind === 'wood' ? WOOD_ORDER.indexOf(setOf(a).token) - WOOD_ORDER.indexOf(setOf(b).token) : 0) || a.localeCompare(b));
-    famCache.set(fam, v);
+    famCache.set(key, v);
     return v;
   }
-  /** Can `id` be swapped for `to` (a base id)? Same family, both swappable. */
+  /** Can `id` be swapped for `to` (a base id)? Same swap class, both swappable, `to` one that is offered. */
   function canSwap(id, to) {
     const a = def(id), b = def(to);
-    return !!(a.fam && a.fam === b.fam && replaceable(id).ok && replaceable(to).ok);
+    if (!a.fam || !replaceable(id).ok) return false;
+    if (parse(id).base === parse(to).base) return true;
+    return !!(b.fam && !b.fn && !b.only && classOf(a.fam) === classOf(b.fam));
   }
-  // properties a plain building cube may carry (the rest of the cube family has none): axis on pillars and logs,
-  // facing on carved pumpkins / glazed terracotta, snowy on grass-like tops
+  // properties a full block of the solid class may carry: axis on pillars and logs, facing on carved pumpkins / glazed
+  // terracotta, snowy on grass-like tops, the six sides of mushroom blocks, lit on redstone ore, the leaves' decay state
   function cubeProps(name, d) {
     const o = {};
     if (d.axis || /(_log|_wood|_stem|_hyphae|basalt|_pillar|^deepslate|bamboo_block|hay_block|bone_block|froglight|muddy_mangrove_roots)$/.test(name)) o.axis = 1;
     if (d.dir === 'f4' || /carved_pumpkin|jack_o_lantern|glazed_terracotta/.test(name)) o.facing = 1;
     if (/^(grass_block|podzol|mycelium)$/.test(name)) o.snowy = 1;
     if (/_leaves$/.test(name)) { o.distance = 1; o.persistent = 1; o.waterlogged = 1; }
+    if (/mushroom_block$|^mushroom_stem$/.test(name)) ['up', 'down', 'north', 'south', 'east', 'west'].forEach((k) => { o[k] = 1; });
+    if (/redstone_ore$/.test(name)) o.lit = 1;
+    if (/copper_grate$/.test(name)) o.waterlogged = 1;
+    if (/^suspicious_/.test(name)) o.dusted = 1;
     return o;
   }
-  const MIXED = new Set(['cube', 'log', 'light', 'glass', 'gravity', 'leaves']);
   /**
-   * The state `id` becomes when its block is swapped for `toBase`: every property is kept (facing, half, open, powered,
-   * hinge, waterlogged, in_wall, shape ...), because a family only holds blocks of the same behaviour class. Only in the
-   * mixed cube families (stone <-> a pillar) a property the new block does not have is dropped, so the state stays valid.
+   * The state `id` becomes when its block is swapped for `toBase`. Inside a family every property is kept (facing, half,
+   * open, powered, hinge, waterlogged, in_wall, shape ...), because a family only holds blocks with the same states. In the
+   * solid class a property the new block does not have is dropped (stone has no axis), a missing one takes the game's
+   * default (a log gets axis=y, glazed terracotta faces north), so the state stays valid; leaves that come from another
+   * block are made persistent, so they never decay.
    */
   function swapState(id, toBase) {
     const p = parse(id), n = parse(toBase), props = Object.assign({}, p.props);
-    const fam = def(id).fam;
-    if (MIXED.has(fam) && Object.keys(props).length) {
-      const ok = cubeProps(n.name, def(n.base));
-      Object.keys(props).forEach((k) => { if (!ok[k]) delete props[k]; });
+    const fam = def(id).fam, nd = def(n.base);
+    if (classOf(fam) === 'solid') {
+      if (Object.keys(props).length) {
+        const ok = cubeProps(n.name, nd);
+        Object.keys(props).forEach((k) => { if (!ok[k]) delete props[k]; });
+      }
+      if (/_leaves$/.test(n.name) && !/_leaves$/.test(p.name)) props.persistent = 'true';
     }
     return stateOf(n.base, props);
   }
+
+  /* ---- what changes when one block stands in for another: the warning chips ----
+     Swaps inside a class never break how the build stands or works; where the new block still behaves differently in
+     play (it falls, glows, lets light through, slows, hurts, melts ...) the picker and the summaries show a one-line chip. */
+  const LUM = { glowstone: 15, sea_lantern: 15, shroomlight: 15, ochre_froglight: 15, verdant_froglight: 15, pearlescent_froglight: 15, jack_o_lantern: 15,
+    lantern: 15, soul_lantern: 10, torch: 14, wall_torch: 14, soul_torch: 10, soul_wall_torch: 10, copper_torch: 14, copper_wall_torch: 14, campfire: 15, soul_campfire: 10,
+    crying_obsidian: 10, magma_block: 3, end_rod: 14, small_amethyst_bud: 1, medium_amethyst_bud: 2, large_amethyst_bud: 4, amethyst_cluster: 5, brown_mushroom: 1,
+    sculk_catalyst: 6, glow_lichen: 7, sea_pickle: 6, redstone_ore: 0, deepslate_redstone_ore: 0 };
+  function lum(n, d) {
+    if (n in LUM) return LUM[n];
+    if (cu('copper_lantern').test(n)) return 15;
+    const bulb = n.match(cu('copper_bulb'));
+    if (bulb) return { exposed: 12, weathered: 8, oxidized: 4 }[bulb[3]] || 15;
+    return d && d.glow ? 15 : 0;
+  }
+  const traitCache = new Map();
+  function traits(name) {
+    let t = traitCache.get(name);
+    if (t) return t;
+    const d = BLOCKS[name] || dbDef(name) || {};
+    const cop = copperOf(name) || /lightning_rod$/.test(name);
+    t = {
+      falls: d.fam === 'gravity' || /anvil$/.test(name),
+      lum: lum(name, d),
+      clear: name !== 'tinted_glass' && d.shape === 'cube' && !!(d.cut || d.leafy) && !!d.fam && classOf(d.fam) === 'solid',
+      slow: name === 'soul_sand', bubble: name === 'soul_sand' ? 'up' : name === 'magma_block' ? 'down' : null, hurts: name === 'magma_block',
+      low: /^(mud|soul_sand)$/.test(name), soft: name === 'hay_block', slip: /^(ice|packed_ice|blue_ice)$/.test(name), melts: name === 'ice',
+      burns: burns(name), dies: /^(tube|brain|bubble|fire|horn)_coral/.test(name), soaks: name === 'sponge', wither: name === 'wither_rose',
+      weathers: !!cop && !/^waxed_/.test(name) && !/oxidized/.test(name),
+      beacon: /^(iron|gold|diamond|emerald|netherite)_block$/.test(name), portal: name === 'obsidian',
+      blast: /^(obsidian|crying_obsidian|netherite_block|ancient_debris|reinforced_deepslate)$/.test(name),
+      fades: /^(grass_block|mycelium|crimson_nylium|warped_nylium)$/.test(name),
+      fence: name === 'nether_brick_fence' ? 'nether' : d.fam === 'fence' ? 'wood' : null,
+    };
+    traitCache.set(name, t);
+    return t;
+  }
+  /**
+   * What the player notices when block `from` (an id) becomes `to`: [{ text, tip }], one line each, most important first.
+   * Empty when the new block behaves the same.
+   */
+  function swapWarnings(from, to) {
+    const a = traits(parse(from).name), b = traits(parse(to).name), out = [];
+    if (parse(from).base === parse(to).base) return out;
+    const w = (text, tip) => out.push({ text, tip });
+    if (b.falls && !a.falls) w('Falls without support', 'Sand, gravel, concrete powder and anvils fall when nothing holds them up.');
+    if (a.lum !== b.lum) {
+      const lv = ' (light ' + a.lum + ' → ' + b.lum + ')';
+      if (!a.lum) w('Gives off light', 'It lights up its surroundings' + lv + '.');
+      else if (!b.lum) w('Gives no light', 'The original lit its surroundings' + lv + '; without it mobs may spawn here.');
+      else if (b.lum < a.lum) w('Dimmer light', 'Less light' + lv + ': mobs may spawn where they could not before.');
+      else w('Brighter light', 'More light' + lv + '.');
+    }
+    if (a.clear !== b.clear) {
+      if (b.clear) w('Lets light through', 'See-through: light passes, mobs do not spawn on it and it carries no redstone power.');
+      else w('Blocks light', 'Solid: light stops here and mobs can spawn on top of it.');
+    }
+    if (a.fence && b.fence && a.fence !== b.fence) w(b.fence === 'nether' ? 'Does not join wooden fences' : 'Does not join nether brick fences', 'Wooden fences join each other; nether brick fences only join nether brick fences.');
+    if (a.bubble !== b.bubble) w(!a.bubble ? 'Makes bubble columns' : !b.bubble ? 'No bubble column' : 'Bubbles go the other way', 'In water, soul sand pushes up and magma pulls down.');
+    if (b.slow && !a.slow) w('Slower to walk on', 'Soul sand slows players and mobs.');
+    if (a.slow && !b.slow) w('No longer slows mobs', 'Soul sand slowed players and mobs; the new block does not.');
+    if (b.hurts && !a.hurts) w('Hurts to stand on', 'Magma burns whatever stands on it (unless it sneaks).');
+    if (a.hurts && !b.hurts) w('No longer hurts', 'Magma burned whatever stood on it; the new block does not.');
+    if (a.low !== b.low) w(b.low ? 'Lower than a full block' : 'Full height', b.low ? 'Its top is a little lower: things on it sink in and a hopper below still reaches them.' : 'The original top was a little lower: a hopper below no longer reaches items on it.');
+    if (b.soft && !a.soft) w('Softens falls', 'Hay bales take most of the fall damage.');
+    if (a.soft && !b.soft) w('Full fall damage', 'The hay bale took most of the fall damage; the new block does not.');
+    if (a.slip !== b.slip) w(b.slip ? 'Slippery' : 'Not slippery', b.slip ? 'Ice makes players, mobs, items and boats slide.' : 'The original ice made things slide (boats, item streams); the new block does not.');
+    if (b.melts && !a.melts) w('Melts near light', 'Ice melts into water next to bright light.');
+    if (b.burns && !a.burns) w('Burns', 'Fire and lava set it alight.');
+    if (b.dies && !a.dies) w('Dies out of water', 'Live coral turns into dead coral without water next to it.');
+    if (b.soaks && !a.soaks) w('Soaks up water', 'A dry sponge takes the water around it when placed.');
+    if (b.wither && !a.wither) w('Withers what touches it', 'The wither rose hurts players and mobs that walk through it.');
+    if (b.weathers && !a.weathers) w('Turns green over time', 'Unwaxed copper weathers; wax it to keep this look.');
+    if (b.fades && !a.fades) w('Fades when covered', 'Turns into dirt (netherrack for nylium) under a solid block.');
+    if (a.beacon && !b.beacon) w('No beacon base', 'A beacon pyramid needs iron, gold, diamond, emerald or netherite blocks.');
+    if (a.portal && !b.portal) w('No portal frame', 'Only obsidian makes a nether portal frame.');
+    if (a.blast && !b.blast) w('Explosions break it', 'The original withstood explosions; the new block does not.');
+    return out;
+  }
   /** Building blocks offered to the shape generators (full blocks people build with). */
   function buildingBlocks() {
-    return Object.keys(BLOCKS).filter((n) => ['cube', 'log', 'glass', 'leaves', 'light', 'gravity'].includes(BLOCKS[n].fam)).sort((a, b) => GROUP_ORDER.indexOf(BLOCKS[a].grp) - GROUP_ORDER.indexOf(BLOCKS[b].grp) || a.localeCompare(b));
+    return Object.keys(BLOCKS).filter((n) => ['cube', 'log', 'glass', 'leaves', 'light', 'gravity'].includes(BLOCKS[n].fam) && !BLOCKS[n].note && !BLOCKS[n].only).sort((a, b) => GROUP_ORDER.indexOf(BLOCKS[a].grp) - GROUP_ORDER.indexOf(BLOCKS[b].grp) || a.localeCompare(b));
   }
 
   /* ---- names (Mojang strings when the language data has them) ---- */
@@ -941,7 +1108,10 @@ TH.builds = TH.builds || {};
       if (a && !b) note = setLabel(kind, to) + ' wood never burns: the build becomes fire-proof.';
       else if (!a && b) note = setLabel(kind, to) + ' wood burns. Keep it away from lava and fire.';
     }
-    return { change, stay, blocks: change.reduce((x, c) => x + c.n, 0), kinds: change.length, note };
+    // the warning chips of every change, once each (a copper stage swap: 'Dimmer light' for the bulbs ...)
+    const warn = [];
+    change.forEach((c) => swapWarnings(c.from, c.to).forEach((x) => { if (x.text !== 'Burns' && !warn.some((y) => y.text === x.text)) warn.push(x); }));
+    return { change, stay, blocks: change.reduce((x, c) => x + c.n, 0), kinds: change.length, note, warn };
   }
   /** New swaps after applying a list of { from (current), to } changes; entries that lead back to the original are dropped. */
   function withChanges(orig, swaps, change) {
@@ -1189,7 +1359,7 @@ TH.builds = TH.builds || {};
     // what files carry besides blocks
     carry, entShift, hasExtras, extrasOf, setExtras, beKind, extrasSummary, signLines, stacksIn, textOf, frontOf, entLabel,
     // swaps: families, sets, plans
-    canSwap, swapState, famNote: (fam) => FAM_NOTE[fam] || null, burns, setOf, setName, setTokens, setLabel, setIcon, KIND_LABEL,
+    canSwap, swapState, swapWarnings, classOf, onlyFrom, lockWhy, famNote: (fam) => FAM_NOTE[classOf(fam)] || FAM_NOTE[fam] || null, burns, setOf, setName, setTokens, setLabel, setIcon, KIND_LABEL,
     currentCounts, setsIn, setPlan, withChanges, relate,
   };
 })();

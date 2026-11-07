@@ -201,7 +201,8 @@
 .bd-swap:hover .bd-swap-ico, .bd-swap[aria-expanded="true"] .bd-swap-ico { color: var(--accent); }
 .bd-swap.on .bd-swap-was { color: color-mix(in srgb, var(--accent) 70%, var(--muted)); }
 .bd-locks { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; }
-.bd-lockrow { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto 12px; align-items: center; gap: 10px; padding: 5px 4px; border-radius: var(--radius); color: var(--muted); cursor: help; }
+.bd-lockrow { display: grid; grid-template-columns: 22px minmax(0, max-content) minmax(0, 1fr) auto 12px; align-items: center; gap: 10px; padding: 5px 4px; border-radius: var(--radius); color: var(--muted); cursor: help; }
+.bd-lock-why { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11.5px; color: var(--faint); }
 .bd-lockrow:hover { background: color-mix(in srgb, var(--text) 5%, transparent); color: var(--text); }
 .bd-lockrow .bd-swap-name { font-size: 12px; }
 .bd-lock-ico { width: 11px; height: 11px; color: var(--faint); }
@@ -222,13 +223,46 @@
 .bd-actions .btn .bd-ico { width: 11px; height: 11px; }
 
 /* ---------- block picker (flat inside its segment: a search well + texture tiles) ---------- */
-.bd-picker { display: flex; flex-direction: column; gap: 10px; padding: 4px 0 6px; }
+.bd-picker { display: flex; flex-direction: column; gap: 10px; padding: 4px 0 6px; min-width: 0; }
 .bd-pick-search { width: 100%; height: 34px; }
+/* a long list keeps one fixed height, so filtering never moves what is below it */
 .bd-pick-body { max-height: 300px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 4px 6px 8px 2px; }
+.bd-pick-body.is-tall { height: 300px; }
 .bd-pick-grp { font: 400 11px var(--display); text-transform: uppercase; letter-spacing: .8px; color: var(--muted); margin-top: 4px; }
+.bd-pick-grp[hidden], .bd-pick-grid[hidden], .bd-pick-tile[hidden], .bd-pick-none[hidden] { display: none; }
 .bd-pick-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(40px, 1fr)); gap: 6px; }
 .bd-pick-tile { position: relative; width: 100%; aspect-ratio: 1; min-width: 0; padding: 0; }
+.bd-pick-ico { display: block; width: 24px; height: 24px; }
 .bd-pick-orig { position: absolute; right: 3px; bottom: 3px; width: 6px; height: 6px; background: var(--accent); box-shadow: 0 0 0 1px var(--panel); }
+/* a swap with a warning: a small pixel mark in the corner (the tooltip and the "now" line say what) */
+.bd-pick-warn { position: absolute; right: 3px; top: 3px; width: 8px; height: 8px; color: var(--muted); }
+.bd-pick-tile:hover .bd-pick-warn, .bd-pick-tile:focus-visible .bd-pick-warn { color: var(--text); }
+.bd-pick-none { padding: 6px 0; }
+/* the current pick (or the tile under the pointer) and what the swap changes: one line, fixed height */
+.bd-pick-now { display: flex; align-items: center; gap: 8px; min-width: 0; height: 26px; overflow: hidden; white-space: nowrap; }
+.bd-pick-eye { flex: none; min-width: 52px; font: 400 10.5px var(--display); text-transform: uppercase; letter-spacing: .8px; color: var(--muted); }
+.bd-pick-now > .mc, .bd-pick-now > img { flex: none; }
+.bd-pick-nowname { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; font: 400 12.5px/1.2 var(--display); color: var(--accent); }
+.bd-pick-same { flex: none; font-size: 11.5px; color: var(--faint); }
+.bd-pick-chips { display: flex; gap: 6px; min-width: 0; overflow: hidden; }
+.bd-plan-warn { flex-wrap: wrap; }
+.bd-wchip { flex: none; gap: 5px; padding: 2px 7px; font-size: 11px; font-weight: 600; color: var(--text); white-space: nowrap; cursor: help; }
+.bd-warn-ico { width: 9px; height: 9px; color: var(--muted); }
+.bd-tip-warn { color: var(--text); }
+/* group keys: one line that scrolls sideways (no wrap, so the picker keeps its height) */
+.bd-pick-keys { display: flex; gap: 6px; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; padding: 2px 2px 4px; margin: 0 -2px;
+  -webkit-mask: linear-gradient(90deg, #000 calc(100% - 22px), transparent); mask: linear-gradient(90deg, #000 calc(100% - 22px), transparent); }
+.bd-pick-keys::-webkit-scrollbar { display: none; }
+.bd-pick-keys .chip { flex: none; cursor: pointer; }
+.bd-pick-keys .chip em { font-style: normal; font-size: 10.5px; color: var(--faint); font-variant-numeric: tabular-nums; }
+.bd-pick-keys .chip:hover { color: var(--text); }
+.bd-pick-keys .chip.on { color: var(--accent); }
+.bd-pick-keys .chip.on em { color: color-mix(in srgb, var(--accent) 60%, var(--muted)); }
+/* a swapped row with a warning: the chip text after "was ..." */
+.bd-swap-warn { display: inline-flex; align-items: center; gap: 4px; color: var(--text); }
+.bd-swap-warn .bd-warn-ico { width: 8px; height: 8px; }
+/* the Material List hosts the same picker inside its row */
+.mt-rep .bd-picker { padding: 0; }
 
 /* ---------- your files: drop zone ---------- */
 .bd-dropzone {

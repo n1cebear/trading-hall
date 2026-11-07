@@ -337,6 +337,7 @@ TH.builds.mats = (function () {
     mix: ['#....##', '.#...#.', '..#.#..', '...#...', '..#.#..', '.#...#.', '##....#'],
     flame: ['...#...', '..##...', '..###..', '.####..', '.#####.', '##.###.', '.#####.'],
     swap: ['..#....', '.###...', '#.#....', '..#..#.', '....#.#', '...###.', '....#..'],
+    lock: ['..###..', '.#...#.', '.#...#.', '#######', '###.###', '###.###', '#######'],
   };
   const glUrl = new Map();
   function gl(name, cls) {
@@ -907,7 +908,9 @@ TH.builds.mats = (function () {
     }
     // replace: a small key (hover / focus; always on touch) that opens the picker of sensible same-kind blocks
     const ri = repInfo(r);
-    const repKey = ri ? tip(h('button.mt-repkey', { type: 'button', 'aria-expanded': 'false', 'aria-label': 'Replace ' + r.name, onclick: () => toggleRep(r) }, gl('swap')), 'Replace with a block of the same kind') : null;
+    const lockWhy = ri ? null : repLocked(r);
+    const repKey = ri ? tip(h('button.mt-repkey', { type: 'button', 'aria-expanded': 'false', 'aria-label': 'Replace ' + r.name, onclick: () => toggleRep(r) }, gl('swap')), 'Replace with another block that works the same')
+      : lockWhy ? tip(h('span.mt-repkey.is-lock', { tabindex: 0, role: 'img', 'aria-label': r.name + ' stays: ' + lockWhy }, gl('lock')), () => [h('div.th-tooltip-title', r.name + ' stays'), h('div.th-tooltip-sub', lockWhy)]) : null;
     const revert = was.length ? tip(h('button.mt-revert', { type: 'button', 'aria-label': 'Back to ' + RC().nameOf(was[0]), onclick: () => revertRow(r) }, gl('x')), 'Back to ' + was.map((x) => RC().nameOf(x)).join(', ')) : null;
     const need = h('div.mt-need');
     const have = haveField(r);
@@ -1023,6 +1026,19 @@ TH.builds.mats = (function () {
     const set = C_().setOf(C_().parse(primary).name);
     return { primary: C_().parse(primary).base, alts, fam, set };
   }
+  /** Why a row cannot be replaced (a block that makes the build work), or null (no block, nothing to say, or replaceable). */
+  function repLocked(r) {
+    const d = M && M.d;
+    if (!d || d.raw || isTextItem(r.item)) return null;
+    let primary = r.item;
+    if (!d.key.startsWith('list:')) {
+      if (!isBuildKey(d.key) || !r.bases) return null;
+      primary = Object.keys(r.bases).sort((a, b) => r.bases[b] - r.bases[a])[0];
+    }
+    if (!primary || !C_().known(primary)) return null;
+    const rp = C_().replaceable(primary);
+    return rp.ok ? null : rp.why;
+  }
   /** The item a block gives you (oak_wall_sign -> oak_sign). */
   const itemFor = (id) => { const it = C_().itemOf(id); return it ? it.item : id; };
   function toggleRep(r) {
@@ -1044,32 +1060,18 @@ TH.builds.mats = (function () {
     if (!info) { closeRep(el); return; }
     const d = M.d, list = d.key.startsWith('list:');
     const here = new Set(d.rows.map((x) => x.item));
-    const eff = h('span.mt-rep-eff', { 'aria-live': 'polite' });
-    const idle = () => { eff.replaceChildren(h('b', r.name + ' ' + fmt(r.n)), ' → pick one'); };
-    const show = (to, words) => { eff.replaceChildren(h('b', r.name + ' ' + fmt(r.n)), ' → ', h('b.mt-rep-to', words || nameOf(to))); };
-    idle();
-    const tile = (id, label, onPick, extra) => {
-      const b = h('button.btn.mt-rep-tile', { type: 'button', 'aria-label': label, onclick: onPick }, iconFor(id, 24), extra || null);
-      b.addEventListener('pointerenter', () => show(null, label)); b.addEventListener('focus', () => show(null, label));
-      b.addEventListener('pointerleave', idle); b.addEventListener('blur', idle);
-      return tip(b, label);
-    };
-    // same-kind blocks: those already in this list first (picking one merges the rows)
-    // then the same kind of material (other woods for a wooden block, other colours for wool ...), then the rest
-    const kindOf = (id) => { const s = C_().setOf(C_().parse(id).name); return s ? s.kind : null; }, myKind = info.set ? info.set.kind : null;
-    const rank = (id) => (here.has(itemFor(id)) ? 0 : myKind && kindOf(id) === myKind ? 1 : 2);
-    const alts = info.alts.map((a, i) => [a, i]).sort((x, y) => rank(x[0]) - rank(y[0]) || x[1] - y[1]).map((x) => x[0]);
-    const q = alts.length > 14 ? h('input.field.mt-rep-q', { type: 'search', placeholder: 'Search', 'aria-label': 'Search blocks', autocomplete: 'off', spellcheck: false }) : null;
-    const grid = h('div.mt-rep-grid');
-    const fillGrid = () => {
-      const t = q ? q.value.trim().toLowerCase() : '';
-      grid.replaceChildren(...alts.filter((a) => !t || C_().nameOf(a).toLowerCase().includes(t)).map((a) => {
-        const it = itemFor(a), inList = here.has(it);
-        return tile(it, C_().nameOf(a) + (inList ? ' (in the list)' : ''), () => replaceRow(r, info, a), inList ? h('span.mt-rep-dot', { 'aria-hidden': 'true' }) : null);
-      }));
-    };
-    if (q) q.addEventListener('input', fillGrid);
-    fillGrid();
+    const eff = h('span.mt-rep-eff', h('b', r.name + ' ' + fmt(r.n)), ' → pick the block that takes its place');
+    const tile = (id, label, onPick) => tip(h('button.btn.mt-rep-tile', { type: 'button', 'aria-label': label, onclick: onPick }, iconFor(id, 24)), label);
+    // the shared picker of Builds (TH.builds.api.blockPicker): every block of the same swap class, grouped, with a search
+    // field, group keys and the warning chips; the blocks already in this list come first (picking one merges the rows)
+    const pName = C_().parse(info.primary).name;
+    const picker = A.blockPicker({
+      ids: C_().familyOf(info.fam), current: info.primary, original: info.primary, note: C_().famNote(info.fam), label: 'Replace ' + r.name,
+      pin: { label: 'In this list', ids: info.alts.filter((a) => here.has(itemFor(a))).map((a) => C_().parse(a).name).filter((n) => n !== pName) },
+      icon: (id, size) => iconFor(itemFor(id), size),
+      onPick: (id) => { if (id === info.primary) closeRep(el, true); else replaceRow(r, info, id); },
+      onClose: () => closeRep(el, true),
+    });
     // the whole set (every oak block, every red one ...) from this row
     let setPart = null;
     if (info.set) {
@@ -1085,14 +1087,11 @@ TH.builds.mats = (function () {
         if (toks.length) setPart = h('div.mt-rep-set', h('span.mt-eyebrow', 'Whole ' + C_().setLabel(s.kind, s.token) + ' set · ' + kinds + ' kinds'), h('div.mt-rep-grid', toks));
       }
     }
-    const note = C_().famNote(info.fam);
     el._rep.replaceChildren(...[
       h('div.mt-rep-head', h('span.mt-eyebrow.mt-acc', 'Replace'), eff, h('button.btn.ghost.mt-key.mt-rep-x', { type: 'button', onclick: () => closeRep(el, true) }, 'Done')),
-      note ? h('p.mt-note', note) : null,
-      q, grid, setPart,
+      picker, setPart,
       !list && isBuildKey(d.key) ? h('p.mt-note', 'Changes the build itself: its 3D view and its download change too.') : null].filter(Boolean));
     el._rep.onkeydown = (e) => { if (e.key === 'Escape') { e.stopPropagation(); closeRep(el, true); } };
-    if (q && hovers()) q.focus({ preventScroll: true });
   }
   /** The set of a row (from its main block). */
   function repSetOf(row) {
@@ -1142,7 +1141,8 @@ TH.builds.mats = (function () {
     M.open.delete(r.item);
     refresh();
     showUndo();
-    TH.util.toast(text);
+    const w = C_().swapWarnings(info.primary, to);
+    TH.util.toast(text + (w.length ? ' · ' + w.map((x) => x.text).join(', ') : ''));
   }
   function replaceSet(s, to, plan) {
     const d = M.d, text = 'All ' + C_().setLabel(s.kind, s.token) + ' → ' + C_().setLabel(s.kind, to);
@@ -1151,7 +1151,7 @@ TH.builds.mats = (function () {
     else setListRep(d.key, (rep) => { plan.moves.forEach(([from, t]) => { const origs = Object.keys(rep).filter((k) => rep[k] === from); if (!origs.length) origs.push(from); origs.forEach((o) => { rep[o] = t; }); }); });
     refresh();
     showUndo();
-    TH.util.toast(text + (plan.build && plan.build.note ? ' · ' + plan.build.note : ''));
+    TH.util.toast(text + (plan.build && plan.build.note ? ' · ' + plan.build.note : '') + (plan.build && plan.build.warn && plan.build.warn.length ? ' · ' + plan.build.warn.map((x) => x.text).join(', ') : ''));
   }
   /** Back to what the row was before it was replaced (only this row). */
   function revertRow(r) {
